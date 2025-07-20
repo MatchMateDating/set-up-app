@@ -1,0 +1,101 @@
+.profile-container {
+  padding: 16px;
+  font-family: Arial, sans-serif;
+  color: #222;
+}
+
+.profile-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.avatar {
+  width: 72px;
+  height: 72px;
+  border-radius: 12px;
+  object-fit: cover;
+  margin-right: 12px;
+}
+
+.profile-info {
+  flex: 1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.name-section h2 {
+  margin: 0;
+}
+
+.subtext {
+  color: #666;
+  font-size: 0.9em;
+}
+
+.profile-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.friend-button {
+  background-color: #55c57a;
+  border: none;
+  color: white;
+  padding: 6px 12px;
+  border-radius: 16px;
+  cursor: pointer;
+  font-size: 0.9em;
+}
+
+.edit-icon,
+.lock-icon {
+  font-size: 1rem;
+  color: #888;
+  cursor: pointer;
+}
+
+.section {
+  margin-top: 20px;
+}
+
+.description {
+  font-style: italic;
+  margin-bottom: 8px;
+}
+
+.preferences p {
+  margin: 8px 0;
+}
+
+.image-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.profile-img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 8px;
+}
+
+.image-placeholder {
+  background-color: #eee;
+  border: 2px dashed #bbb;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  aspect-ratio: 1;
+  border-radius: 8px;
+  font-size: 2em;
+  color: #aaa;
+}
+
+.plus-icon {
+  font-weight: bold;
+}
