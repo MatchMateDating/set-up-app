@@ -1,4 +1,4 @@
-from .. import db
+from app import db
 
 class Profile(db.Model):
     id = db.Column(db.Integer, primary_key=True)

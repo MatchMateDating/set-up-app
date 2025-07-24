@@ -99,3 +99,19 @@
 .plus-icon {
   font-weight: bold;
 }
+
+.referral-section {
+  margin-top: 20px;
+}
+
+.referral-code {
+  font-size: 1.2em;
+  font-weight: bold;
+  color: #2a9d8f;
+  background-color: #e0f7f1;
+  padding: 10px;
+  border-radius: 6px;
+  display: inline-block;
+  margin-top: 5px;
+}
+

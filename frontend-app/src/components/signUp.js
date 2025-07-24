@@ -7,20 +7,34 @@ function SignUp() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [name, setName] = useState('');
+    const [role, setRole] = useState('user'); // 'user' = dater, 'matchmaker' = matcher
+    const [referralCode, setReferralCode] = useState('');
+
     const navigate = useNavigate();
 
     const handleRegister = async () => {
         try {
-            const res = await axios.post('http://localhost:5000/auth/register', {
+            const payload = {
                 name,
                 email,
-                password
-            });
+                password,
+                role,
+            };
+            if (role === 'matchmaker') {
+                if (!referralCode) {
+                    alert('Referral code is required for matchmakers.');
+                    return;
+                }
+                payload.referral_code = referralCode;
+            }
+
+            const res = await axios.post('http://localhost:5000/auth/register', payload);
+
             if (res.data.token) {
                 // ✅ Store the token in localStorage
                 localStorage.setItem('token', res.data.token);
                 console.log("Token stored successfully!");
-                navigate('/profile'); // Navigate after storing the token
+                navigate('/profile');
             } else {
                 console.error("Registration successful, but no token received.");
             }
@@ -50,6 +64,38 @@ function SignUp() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
             />
+            <div className="role-select">
+                <label>
+                    <input
+                        type="radio"
+                        name="role"
+                        value="user"
+                        checked={role === 'user'}
+                        onChange={() => setRole('user')}
+                    />
+                    Sign up as Dater
+                </label>
+                <label>
+                    <input
+                        type="radio"
+                        name="role"
+                        value="matchmaker"
+                        checked={role === 'matchmaker'}
+                        onChange={() => setRole('matchmaker')}
+                    />
+                    Sign up as Matcher
+                </label>
+            </div>
+
+            {role === 'matchmaker' && (
+                <input
+                type="text"
+                placeholder="Enter Dater's Referral Code"
+                value={referralCode}
+                onChange={(e) => setReferralCode(e.target.value)}
+                />
+            )}
+
             <button onClick={handleRegister}>Sign Up</button>
         </div>
     );
