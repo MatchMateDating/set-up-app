@@ -3,6 +3,11 @@ from app.models.userDB import User
 from functools import wraps
 from app import db
 from flask_jwt_extended import verify_jwt_in_request, get_jwt_identity
+import os
+from werkzeug.utils import secure_filename
+from app.models.imageDB import Image
+from flask import current_app
+from uuid import uuid4
 
 profile_bp = Blueprint('profile', __name__)
 
@@ -63,3 +68,29 @@ def update_profile(current_user):
     db.session.commit()
 
     return jsonify(current_user.to_dict()), 200
+
+@profile_bp.route('/upload_image', methods=['POST'])
+@token_required
+def upload_image(current_user):
+    if 'image' not in request.files:
+        return jsonify({'message': 'No image file provided'}), 400
+    
+    image_file = request.files['image']
+    if image_file.filename == '':
+        return jsonify({'message': 'No selected file'}), 400
+
+    # Generate a unique filename
+    ext = os.path.splitext(secure_filename(image_file.filename))[1]
+    unique_filename = f"{uuid4().hex}{ext}"
+
+    upload_folder = os.path.join(current_app.root_path, 'static', 'uploads')
+    os.makedirs(upload_folder, exist_ok=True)
+    file_path = os.path.join(upload_folder, unique_filename)
+    image_file.save(file_path)
+
+    image_url = f'/static/uploads/{unique_filename}'
+    new_image = Image(user_id=current_user.id, image_url=image_url)
+    db.session.add(new_image)
+    db.session.commit()
+
+    return jsonify(new_image.to_dict()), 201

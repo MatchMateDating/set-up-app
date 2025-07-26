@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import Profile from './profile';
 import EditProfile from './editProfile';
+import BottomTab from './bottomTab';
 
 const ProfilePage = () => {
   const [user, setUser] = useState(null);
@@ -89,6 +90,9 @@ const ProfilePage = () => {
           <Profile user={referrer} framed={true} />
         </div>
       )}
+      <div style={{ paddingBottom: '60px' }}>
+        <BottomTab />
+      </div>
     </>
   );
 };
