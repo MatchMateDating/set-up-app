@@ -34,7 +34,7 @@ function SignUp() {
                 // ✅ Store the token in localStorage
                 localStorage.setItem('token', res.data.token);
                 console.log("Token stored successfully!");
-                navigate('/profile');
+                navigate('/complete-profile');
             } else {
                 console.error("Registration successful, but no token received.");
             }

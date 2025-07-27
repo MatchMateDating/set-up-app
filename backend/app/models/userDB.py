@@ -12,6 +12,7 @@ class User(db.Model):
     role = db.Column(db.String(20), nullable=False, default='user') 
     referral_code = db.Column(db.String(10), unique=True, nullable=True)
     bio = db.Column(db.Text, nullable=True)
+    birthdate = db.Column(db.Date, nullable=True)
     age = db.Column(db.Integer, nullable=True)
     gender = db.Column(db.String(20), nullable=True)
     height = db.Column(db.String(10), nullable=True)
@@ -53,6 +54,7 @@ class User(db.Model):
             "referrer_id": self.referred_by_id,
             "bio": self.bio,
             "age": self.age,
+            "birthdate": self.birthdate.isoformat() if self.birthdate else None,
             "gender": self.gender,
             "height": self.height,
             "description": self.description,

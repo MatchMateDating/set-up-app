@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import Profile from './profile';
-import EditProfile from './editProfile';
 import BottomTab from './bottomTab';
 
 const ProfilePage = () => {
@@ -23,73 +22,40 @@ const ProfilePage = () => {
     }
   };
 
-  useEffect(() => {
-    fetchProfile();
-  }, []);
-
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      console.log('Fetching profile with token:', token);
-      fetch('http://localhost:5000/profile/', {
-        headers: {
-          // ✅ Send the token with the "Bearer " prefix
-          'Authorization': `Bearer ${token}`,
-        },
-      })
-      .then((res) => {
-          if (!res.ok) throw new Error('Failed to fetch profile');
-          return res.json();
-      })
-      .then((data) => {
-        setUser(data.user);
-        setReferrer(data.referrer || null);
-      })
-      .catch((err) => console.error('Error loading profile:', err));
-    }
-  }, [localStorage.getItem('token')]);
-
-  useEffect(() => {
-    if (user) {
-      console.log('✅ User:', user);
-    }
+  useEffect(() => { fetchProfile(); }, []);
+  useEffect(() => { 
+    if (user) console.log('✅ User:', user); 
   }, [user]);
 
-  useEffect(() => {
-    if (referrer) {
-      console.log('📌 Referrer:', referrer);
-      console.log('check: ', user?.role === 'matchmaker')
-    }
-  }, [referrer]);
+  const handleSave = () => {
+    fetchProfile();
+    setEditing(false);
+  };
 
   return (
-  <>
+    <>
       {user ? (
         <>
-          {editing ? (
-            <EditProfile 
+          <Profile 
             user={user} 
-            onSave={() => { fetchProfile(); setEditing(false); }} 
-            onCancel={() => setEditing(false)} />
-          ) : (
-            <>
-              <Profile 
-              user={user} 
-              framed={false}
-              onEditClick={()=> setEditing(true)}/>
-              {/* <button onClick={() => setEditing(true)}>Edit Profile</button> */}
-            </>
-          )}
+            framed={false}
+            editing={editing}
+            onEditClick={() => setEditing(true)}
+            onSave={handleSave}
+            onCancel={() => setEditing(false)}
+          />
         </>
       ) : (
         <p>Loading user profile...</p>
       )}
+
       {user?.role === 'matchmaker' && referrer && (
         <div className="embedded-profile">
           <h3>Dater's Profile</h3>
-          <Profile user={referrer} framed={true} />
+          <Profile user={referrer} framed={true} editing={false} />
         </div>
       )}
+
       <div style={{ paddingBottom: '60px' }}>
         <BottomTab />
       </div>

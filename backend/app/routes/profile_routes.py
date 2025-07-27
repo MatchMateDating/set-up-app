@@ -14,7 +14,7 @@ profile_bp = Blueprint('profile', __name__)
 def token_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        print("Headers received:", dict(request.headers))  # Debug: print headers
+        # print("Headers received:", dict(request.headers))  # Debug: print headers
         try:
             verify_jwt_in_request()
             user_id = get_jwt_identity()
@@ -45,7 +45,7 @@ def get_profile(current_user):
         if referrer:
             referrer_data = referrer.to_dict()
 
-    print(f"Current user info for profile: {user_data}")
+    # print(f"Current user info for profile: {user_data}")
     return jsonify({
         "user": user_data,
         "referrer": referrer_data})
@@ -55,7 +55,7 @@ def get_profile(current_user):
 def update_profile(current_user):
     data = request.get_json()
     if current_user.role == 'user':
-        allowed_fields = ['name', 'bio', 'age', 'gender', 'height']
+        allowed_fields = ['name', 'bio', 'birthdate', 'gender', 'height']
     elif current_user.role == 'matchmaker':
         allowed_fields = ['description']
     else:
@@ -63,7 +63,14 @@ def update_profile(current_user):
 
     for field in allowed_fields:
         if field in data:
-            setattr(current_user, field, data[field])
+            if field == 'birthdate':
+                from datetime import datetime
+                try:
+                    current_user.birthdate = datetime.strptime(data['birthdate'], '%Y-%m-%d').date()
+                except ValueError:
+                    return jsonify({'msg': 'Invalid birthdate format'}), 400
+            else:
+                setattr(current_user, field, data[field])
 
     db.session.commit()
 

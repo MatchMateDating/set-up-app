@@ -7,6 +7,7 @@ import SignUp from './components/signUp';
 import ProfilePage from './components/profilePage';
 import Conversations from './components/conversations';
 import Match from './components/match';
+import CompleteProfile from './components/completeProfile';
 
 function App() {
   return (
@@ -14,6 +15,7 @@ function App() {
         <Routes>
             <Route path="/" element={<Login />} />
             <Route path="/signup" element={<SignUp />} />
+            <Route path="/complete-profile" element={<CompleteProfile />} />
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/conversations" element={<Conversations />} />
             <Route path="/match" element={<Match />} />

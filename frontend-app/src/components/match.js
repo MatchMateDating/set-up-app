@@ -1,12 +1,62 @@
-// src/components/Conversations.js
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import BottomTab from './bottomTab';
+import Profile from './profile';
 
 const Match = () => {
+  const [profiles, setProfiles] = useState([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  const fetchProfiles = async () => {
+    const token = localStorage.getItem('token');
+    const res = await fetch('http://localhost:5000/match/users_to_match', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const data = await res.json();
+    setProfiles(data);
+  };
+
+  const likeUser = async (likedUserId) => {
+    const token = localStorage.getItem('token');
+    await fetch('http://localhost:5000/match/like', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ liked_user_id: likedUserId })
+    });
+  };
+
+  const handleLike = () => {
+    const likedUser = profiles[currentIndex];
+    likeUser(likedUser.id);
+    nextProfile();
+  };
+
+  const nextProfile = () => {
+    if (currentIndex < profiles.length - 1) {
+      setCurrentIndex(currentIndex + 1);
+    } else {
+      alert('No more profiles to show!');
+    }
+  };
+
+  useEffect(() => {
+    fetchProfiles();
+  }, []);
+
   return (
     <div style={{ paddingBottom: '60px' }}>
-      <h2>Matching pages</h2>
-      {/* You can add your chat list here */}
+      <h2>Matching Page</h2>
+      {profiles.length > 0 && currentIndex < profiles.length ? (
+        <>
+          <Profile user={profiles[currentIndex]} framed={true} />
+          <button onClick={handleLike}>Like</button>
+          <button onClick={nextProfile}>Skip</button>
+        </>
+      ) : (
+        <p>Loading profiles...</p>
+      )}
       <BottomTab />
     </div>
   );
