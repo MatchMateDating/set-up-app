@@ -101,3 +101,23 @@ def upload_image(current_user):
     db.session.commit()
 
     return jsonify(new_image.to_dict()), 201
+
+@profile_bp.route('/delete_image/<int:image_id>', methods=['DELETE'])
+@token_required
+def delete_image(current_user, image_id):
+    image = Image.query.filter_by(id=image_id, user_id=current_user.id).first()
+    if not image:
+        return jsonify({'message': 'Image not found or unauthorized'}), 404
+
+    # Optional: Delete file from filesystem (if desired)
+    try:
+        file_path = os.path.join(current_app.root_path, image.image_url.lstrip('/'))
+        if os.path.exists(file_path):
+            os.remove(file_path)
+    except Exception as e:
+        print(f"Error deleting file from filesystem: {e}")
+
+    db.session.delete(image)
+    db.session.commit()
+
+    return jsonify({'message': 'Image deleted successfully'}), 200

@@ -44,10 +44,9 @@ def get_users_to_match(current_user):
         query = query.filter(~User.id.in_(matched_user_ids), User.id != referred_dater_id)
 
     elif current_user.role == 'user':
-
-        # Get all matches created by matchmaker for current user
-        existing_matches = Match.query.filter( 
-            (current_user.id in Match.liked_by_id) &
+        # Get all matches involving current user where liked_by_id contains current_user.id
+        existing_matches = Match.query.filter(
+            Match.liked_by_id.contains([current_user.id]),
             ((Match.user_id_1 == current_user.id) | (Match.user_id_2 == current_user.id))
         ).all()
 

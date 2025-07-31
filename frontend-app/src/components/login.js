@@ -16,6 +16,8 @@ function Login() {
                 password
             });
             localStorage.setItem('token', res.data.token);
+            // test
+            localStorage.setItem('user', JSON.stringify(res.data.user));
             alert('Login successful!');
             navigate('/profile'); 
         } catch (err) {

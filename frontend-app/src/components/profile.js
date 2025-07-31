@@ -1,8 +1,9 @@
 import React, { useEffect, useState, useRef } from 'react';
 import './profile.css';
-import { FaEdit } from 'react-icons/fa';
+import { FaEdit, FaBars } from 'react-icons/fa';
 import CropperModal from './cropperModal';
 import AvatarSelectorModal from './avatarSelectorModal';
+import {useNavigate} from 'react-router-dom';
 
 const Profile = ({ user, framed, editing, onEditClick, onSave, onCancel }) => {
   const [formData, setFormData] = useState({
@@ -18,6 +19,8 @@ const Profile = ({ user, framed, editing, onEditClick, onSave, onCancel }) => {
   const [images, setImages] = useState([]);
   const [showAvatarModal, setShowAvatarModal] = useState(false);
   const [avatar, setAvatar] = useState(user?.avatar || 'avatars/allyson_avatar.png');
+  const [sidePanelOpen, setSidePanelOpen] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (user) {
@@ -39,6 +42,10 @@ const Profile = ({ user, framed, editing, onEditClick, onSave, onCancel }) => {
       }
     }
   }, [user]);
+
+  const toggleSidePanel = () => {
+    setSidePanelOpen(!sidePanelOpen);
+  };
 
   const handleAvatarClick = () => {
     if (user.role === 'matchmaker' && editing) {
@@ -127,10 +134,43 @@ const Profile = ({ user, framed, editing, onEditClick, onSave, onCancel }) => {
     return age;
   };
 
+  const handleDeleteImage = async (imageId) => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`http://localhost:5000/profile/delete_image/${imageId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+
+      if (!res.ok) throw new Error('Failed to delete image');
+
+      // Remove image from local state
+      setImages((prevImages) => prevImages.filter((img) => img.id !== imageId));
+    } catch (err) {
+      console.error(err);
+      alert('Error deleting image');
+    }
+  };
+
+
 
   return (
     <div className="profile-container">
       <input type="file" accept="image/*" ref={fileInputRef} style={{ display: 'none' }} onChange={handleFileChange} />
+      <div className="top-bar">
+        <button className="sidepanel-toggle" onClick={toggleSidePanel}>
+          <FaBars size={20} />
+        </button>
+      </div>
+      <div className={`side-panel ${sidePanelOpen ? 'open' : ''}`}>
+        <div className="side-panel-content">
+          <h3>Menu</h3>
+          <ul style={{ listStyle: 'none', padding: 0 }}>
+            <li style={{ margin: '10px 0', cursor: 'pointer' }} onClick={() => navigate('/profile')}>Terms and Conditions</li>
+            <li style={{ margin: '10px 0', cursor: 'pointer' }} onClick={() => navigate('/settings')}>Settings</li>
+          </ul>
+        </div>
+      </div>
 
       {previewUrl && (
         <CropperModal
@@ -248,15 +288,28 @@ const Profile = ({ user, framed, editing, onEditClick, onSave, onCancel }) => {
             <div className="referral-code">{user.referral_code}</div>
           </div>
           <div className="section">
-            <h3>Profile</h3>
+            {editing ? (
+              <label> Add Images: </label>
+            ) : (
+              <label></label>
+            )}
             <div className="image-grid">
               {images.map((img, index) => (
-                <img
-                  key={index}
-                  src={`http://localhost:5000${img.image_url}`}
-                  alt={`Profile ${index}`}
-                  className="profile-img"
-                />
+                <div key={index} className="image-wrapper">
+                  <img
+                    src={`http://localhost:5000${img.image_url}`}
+                    alt={`Profile ${index}`}
+                    className="profile-img"
+                  />
+                  {editing && (
+                    <button
+                      className="delete-button"
+                      onClick={() => handleDeleteImage(img.id)}
+                    >
+                      x
+                    </button>
+                  )}
+                </div>
               ))}
               {editing &&
                 [...Array(9 - images.length)].map((_, index) => (
