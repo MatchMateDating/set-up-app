@@ -3,11 +3,13 @@ import BottomTab from './bottomTab';
 import './conversations.css'; // optional for styling
 
 const Conversations = () => {
+  const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
   const [matches, setMatches] = useState([]);
 
   const fetchMatches = async () => {
+    const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
     const token = localStorage.getItem('token');
-    const res = await fetch('http://localhost:5000/match/matches', {
+    const res = await fetch(`${API_BASE_URL}/match/matches`, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
     const data = await res.json();
@@ -17,7 +19,7 @@ const Conversations = () => {
   const unmatch = async (matchId) => {
     const token = localStorage.getItem('token');
     console.log(`Unmatching user with ID: ${matchId}`);
-    const res = await fetch(`http://localhost:5000/match/unmatch/${matchId}`, {
+    const res = await fetch(`${API_BASE_URL}/match/unmatch/${matchId}`, {
       method: 'DELETE',
       headers: { 'Authorization': `Bearer ${token}` }
     });
@@ -45,7 +47,7 @@ const Conversations = () => {
               <div className="profile-preview">
                 {matchObj.match_user.first_image ? (
                   <img
-                    src={`http://localhost:5000${matchObj.match_user.first_image}`}
+                    src={`${API_BASE_URL}${matchObj.match_user.first_image}`}
                     alt={`${matchObj.match_user.name}'s profile`}
                     className="match-image"
                   />
@@ -60,7 +62,7 @@ const Conversations = () => {
                 <div className="profile-preview">
                   {matchObj.linked_dater.first_image ? (
                     <img
-                      src={`http://localhost:5000${matchObj.linked_dater.first_image}`}
+                      src={`${API_BASE_URL}${matchObj.linked_dater.first_image}`}
                       alt={`${matchObj.linked_dater.name}'s profile`}
                       className="match-image"
                     />

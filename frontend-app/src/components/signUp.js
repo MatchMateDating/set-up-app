@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import './signUp.css';
 
 function SignUp() {
+    const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [name, setName] = useState('');
@@ -28,7 +29,7 @@ function SignUp() {
                 payload.referral_code = referralCode;
             }
 
-            const res = await axios.post('http://localhost:5000/auth/register', payload);
+            const res = await axios.post(`${API_BASE_URL}/auth/register`, payload);
 
             if (res.data.token) {
                 // ✅ Store the token in localStorage

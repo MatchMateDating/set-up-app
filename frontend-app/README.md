@@ -68,3 +68,8 @@ This section has moved here: [https://facebook.github.io/create-react-app/docs/d
 ### `npm run build` fails to minify
 
 This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+
+Create a .env.local file in the top most folder (same level as package-lock and package.json) and set:
+* REACT_APP_API_BASE_URL=http://localhost:5001
+
+This is so we can globalize some shared variables and because the port I was running wasn't 5000 but 5001
