@@ -10,7 +10,10 @@ const Profile = ({ user, framed, editing, onEditClick, onSave, onCancel }) => {
   const [formData, setFormData] = useState({
     birthdate: '',
     gender: '',
-    height: '',
+    heightFeet: '0',
+    heightInches: '0',
+    heightMeters: '0',
+    heightCentimeters: '0',
     description: '',
   });
 
@@ -22,15 +25,40 @@ const Profile = ({ user, framed, editing, onEditClick, onSave, onCancel }) => {
   const [avatar, setAvatar] = useState(user?.avatar || 'avatars/allyson_avatar.png');
   const [sidePanelOpen, setSidePanelOpen] = useState(false);
   const navigate = useNavigate();
+  const [heightUnit, setHeightUnit] = useState('ft');  
 
   useEffect(() => {
     if (user) {
-      setFormData({
-        birthdate: user.birthdate || '',
-        gender: user.gender || '',
-        height: user.height || '',
-        description: user.description || '',
-      });
+      const heightString = user.height || "0'0";
+      if (heightString.includes("'")) {
+        // Format: 5'11"
+        const [feet, inches] = heightString.split(/'|"/).map(Number);
+        setFormData({
+          birthdate: user.birthdate || '',
+          gender: user.gender || '',
+          heightFeet: feet.toString(),
+          heightInches: inches.toString(),
+          heightMeters: '0',
+          heightCentimeters: '0',
+          description: user.description || '',
+        });
+        setHeightUnit('ft');
+      } else if (heightString.includes('m')) {
+        // Format: 1m 75cm
+        const [metersPart, cmPart] = heightString.split(' ');
+        const meters = metersPart.replace('m', '');
+        const centimeters = cmPart.replace('cm', '');
+        setFormData({
+          birthdate: user.birthdate || '',
+          gender: user.gender || '',
+          heightFeet: '0',
+          heightInches: '0',
+          heightMeters: meters,
+          heightCentimeters: centimeters,
+          description: user.description || '',
+        });
+        setHeightUnit('m');
+      }
       if (user.role === 'user') {
         const generateReferralCode = () => {
           const code = `${user.name?.split(' ')[0] || 'user'}-${Math.random().toString(36).substr(2, 6)}`;
@@ -101,17 +129,61 @@ const Profile = ({ user, framed, editing, onEditClick, onSave, onCancel }) => {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
+
+  const handleUnitToggle = () => {
+    if (heightUnit === 'ft') {
+      // Convert ft/in to meters/cm
+      const totalInches =
+        parseInt(formData.heightFeet || '0') * 12 + parseInt(formData.heightInches || '0');
+      const totalCm = totalInches * 2.54;
+      const meters = Math.floor(totalCm / 100);
+      const centimeters = Math.round(totalCm % 100);
+
+      setFormData((prev) => ({
+        ...prev,
+        heightMeters: meters.toString(),
+        heightCentimeters: centimeters.toString(),
+      }));
+      setHeightUnit('m');
+    } else {
+      // Convert meters/cm to ft/in
+      const totalCm =
+        parseInt(formData.heightMeters || '0') * 100 +
+        parseInt(formData.heightCentimeters || '0');
+      const totalInches = totalCm / 2.54;
+      const feet = Math.floor(totalInches / 12);
+      const inches = Math.round(totalInches % 12);
+
+      setFormData((prev) => ({
+        ...prev,
+        heightFeet: feet.toString(),
+        heightInches: inches.toString(),
+      }));
+      setHeightUnit('ft');
+    }
+  };
+
   const handleFormSubmit = async (e) => {
     e.preventDefault();
     try {
       const token = localStorage.getItem('token');
+      let heightFormatted = '';
+      if (heightUnit === 'ft') {
+        heightFormatted = `${formData.heightFeet}'${formData.heightInches}"`;
+      } else {
+        heightFormatted = `${formData.heightMeters}m ${formData.heightCentimeters}cm`;
+      }
+
       const res = await fetch(`${API_BASE_URL}/profile/update`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          ...formData,
+          height: heightFormatted,
+        }),
       });
 
       if (!res.ok) throw new Error('Failed to update profile');
@@ -240,12 +312,74 @@ const Profile = ({ user, framed, editing, onEditClick, onSave, onCancel }) => {
               <label>
                 Height:
                 {editing ? (
-                  <input name="height" value={formData.height} onChange={handleInputChange} />
+                  <>
+                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                      {heightUnit === 'ft' ? (
+                        <>
+                          <select
+                            value={formData.heightFeet}
+                            onChange={(e) =>
+                              setFormData((prev) => ({ ...prev, heightFeet: e.target.value }))
+                            }
+                          >
+                            {[...Array(8).keys()].map((num) => (
+                              <option key={num} value={num}>{num} ft</option>
+                            ))}
+                          </select>
+                          <select
+                            value={formData.heightInches}
+                            onChange={(e) =>
+                              setFormData((prev) => ({ ...prev, heightInches: e.target.value }))
+                            }
+                          >
+                            {[...Array(12).keys()].map((num) => (
+                              <option key={num} value={num}>{num} in</option>
+                            ))}
+                          </select>
+                        </>
+                      ) : (
+                        <>
+                          <select
+                            value={formData.heightMeters}
+                            onChange={(e) =>
+                              setFormData((prev) => ({ ...prev, heightMeters: e.target.value }))
+                            }
+                          >
+                            {[...Array(3).keys()].map((num) => (
+                              <option key={num} value={num}>{num} m</option>
+                            ))}
+                          </select>
+                          <select
+                            value={formData.heightCentimeters}
+                            onChange={(e) =>
+                              setFormData((prev) => ({ ...prev, heightCentimeters: e.target.value }))
+                            }
+                          >
+                            {[...Array(100).keys()].map((num) => (
+                              <option key={num} value={num}>{num} cm</option>
+                            ))}
+                          </select>
+                        </>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={handleUnitToggle}
+                        style={{ marginLeft: '10px' }}
+                      >
+                        {heightUnit === 'ft' ? 'Switch to meters' : 'Switch to feet'}
+                      </button>
+                    </div>
+                  </>
                 ) : (
-                  <span>{user.height}</span>
+                  <span>
+                    {user.height}
+                  </span>
                 )}
               </label>
             )}
+
+
 
             {(editing || user.gender) && (
               <label>
@@ -282,12 +416,8 @@ const Profile = ({ user, framed, editing, onEditClick, onSave, onCancel }) => {
       </form>
 
 
-      {user.role === 'user' && user.referral_code && (
+      {user.role === 'user' && (
         <div>
-          <div className="section referral-section">
-            <h3>Your Referral Code</h3>
-            <div className="referral-code">{user.referral_code}</div>
-          </div>
           <div className="section">
             {editing ? (
               <label> Add Images: </label>

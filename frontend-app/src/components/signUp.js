@@ -35,7 +35,11 @@ function SignUp() {
                 // ✅ Store the token in localStorage
                 localStorage.setItem('token', res.data.token);
                 console.log("Token stored successfully!");
-                navigate('/complete-profile');
+                if (role === 'user') {
+                    navigate('/complete-profile');
+                } else {
+                    navigate('/profile');  // Replace with where you want matchmakers to go
+                }
             } else {
                 console.error("Registration successful, but no token received.");
             }
