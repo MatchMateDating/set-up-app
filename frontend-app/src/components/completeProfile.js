@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 const CompleteProfile = () => {
+  const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
   const [birthdate, setBirthdate] = useState('');
   const navigate = useNavigate();
 
@@ -9,7 +10,7 @@ const CompleteProfile = () => {
     e.preventDefault();
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch('http://localhost:5000/profile/update', {
+      const res = await fetch(`${API_BASE_URL}/profile/update`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

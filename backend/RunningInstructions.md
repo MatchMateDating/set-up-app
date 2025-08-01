@@ -1,19 +1,22 @@
 Go to backend
 cd backend
 
-make virtual env called .venv
-python venv -m .venv
+For macOS: follow the instructions here https://realpython.com/python-virtual-environments-a-primer/ to create a venv virtual environment
 
-activate:
-source .venv\bin\activate
-.\.venv\Scripts\activate
+Activate:
+macOs: source {name of virtual environemnt}/bin/activate
+Windows: {name of virtual environemnt}\Scripts\activate
 
-create database
+Download requirements:
+pip install -r requirements.txt
+
+Create database: (add python -m in front of each command in macOS)
 flask db init
 flask db migrate
 flask db upgrade
 
 run:
 flask run
+macOS: python -m flask run
 
 

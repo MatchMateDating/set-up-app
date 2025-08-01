@@ -3,6 +3,7 @@ import Profile from './profile';
 import BottomTab from './bottomTab';
 
 const ProfilePage = () => {
+  const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
   const [user, setUser] = useState(null);
   const [referrer, setReferrer] = useState(null);
   const [editing, setEditing] = useState(false);
@@ -10,7 +11,7 @@ const ProfilePage = () => {
   const fetchProfile = () => {
     const token = localStorage.getItem('token');
     if (token) {
-      fetch('http://localhost:5000/profile/', {
+      fetch(`${API_BASE_URL}/profile/`, {
         headers: { 'Authorization': `Bearer ${token}` },
       })
       .then((res) => res.json())

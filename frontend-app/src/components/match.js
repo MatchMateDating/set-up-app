@@ -3,12 +3,13 @@ import BottomTab from './bottomTab';
 import Profile from './profile';
 
 const Match = () => {
+  const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
   const [profiles, setProfiles] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
 
   const fetchProfiles = async () => {
     const token = localStorage.getItem('token');
-    const res = await fetch('http://localhost:5000/match/users_to_match', {
+    const res = await fetch(`${API_BASE_URL}/match/users_to_match`, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
     const data = await res.json();
@@ -17,7 +18,7 @@ const Match = () => {
 
   const likeUser = async (likedUserId) => {
     const token = localStorage.getItem('token');
-    await fetch('http://localhost:5000/match/like', {
+    await fetch(`${API_BASE_URL}/match/like`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

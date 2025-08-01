@@ -5,6 +5,7 @@ import CropperModal from './cropperModal';
 import AvatarSelectorModal from './avatarSelectorModal';
 import {useNavigate} from 'react-router-dom';
 
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
 const Profile = ({ user, framed, editing, onEditClick, onSave, onCancel }) => {
   const [formData, setFormData] = useState({
     birthdate: '',
@@ -79,7 +80,7 @@ const Profile = ({ user, framed, editing, onEditClick, onSave, onCancel }) => {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/profile/upload_image', {
+      const response = await fetch(`${API_BASE_URL}/profile/upload_image`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
@@ -104,7 +105,7 @@ const Profile = ({ user, framed, editing, onEditClick, onSave, onCancel }) => {
     e.preventDefault();
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`http://localhost:5000/profile/update`, {
+      const res = await fetch(`${API_BASE_URL}/profile/update`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -137,7 +138,7 @@ const Profile = ({ user, framed, editing, onEditClick, onSave, onCancel }) => {
   const handleDeleteImage = async (imageId) => {
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`http://localhost:5000/profile/delete_image/${imageId}`, {
+      const res = await fetch(`${API_BASE_URL}/profile/delete_image/${imageId}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` },
       });
@@ -297,7 +298,7 @@ const Profile = ({ user, framed, editing, onEditClick, onSave, onCancel }) => {
               {images.map((img, index) => (
                 <div key={index} className="image-wrapper">
                   <img
-                    src={`http://localhost:5000${img.image_url}`}
+                    src={`${API_BASE_URL}${img.image_url}`}
                     alt={`Profile ${index}`}
                     className="profile-img"
                   />
