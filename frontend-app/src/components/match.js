@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import BottomTab from './bottomTab';
 import Profile from './profile';
+import SideBar from './sideBar';
 
 const Match = () => {
   const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
@@ -47,18 +48,21 @@ const Match = () => {
   }, []);
 
   return (
-    <div style={{ paddingBottom: '60px' }}>
-      <h2>Matching Page</h2>
-      {profiles.length > 0 && currentIndex < profiles.length ? (
-        <>
-          <Profile user={profiles[currentIndex]} framed={true} />
-          <button onClick={handleLike}>Like</button>
-          <button onClick={nextProfile}>Skip</button>
-        </>
-      ) : (
-        <p>Loading profiles...</p>
-      )}
-      <BottomTab />
+    <div>
+      <SideBar/>
+      <div style={{ paddingBottom: '60px', paddingTop: '66px' }}>
+        <h2>Matching Page</h2>
+        {profiles.length > 0 && currentIndex < profiles.length ? (
+          <>
+            <Profile user={profiles[currentIndex]} framed={true} />
+            <button onClick={handleLike}>Like</button>
+            <button onClick={nextProfile}>Skip</button>
+          </>
+        ) : (
+          <p>No profiles to match with currently, come back later!</p>
+        )}
+        <BottomTab />
+      </div>
     </div>
   );
 };

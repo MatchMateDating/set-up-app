@@ -18,9 +18,9 @@ class User(db.Model):
     height = db.Column(db.String(10), nullable=True)
     description = db.Column(db.Text, nullable=True)
 
-
     referred_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     referred_users = db.relationship('User', backref=db.backref('referrer', remote_side=[id]), lazy=True)
+    
 
     images = db.relationship('Image', backref='user', lazy=True, cascade='all, delete-orphan')
     # Clarify both sides of the Match relationships
