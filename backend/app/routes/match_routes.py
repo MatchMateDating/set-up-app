@@ -2,20 +2,9 @@ from flask import Blueprint, jsonify, request
 from app.models.userDB import User
 from app.models.matchDB import Match
 from app import db
-from flask_jwt_extended import verify_jwt_in_request, get_jwt_identity
+from app.routes.shared import token_required
 
 match_bp = Blueprint('match', __name__)
-
-def token_required(f):
-    def wrapper(*args, **kwargs):
-        verify_jwt_in_request()
-        user_id = get_jwt_identity()
-        current_user = User.query.get(user_id)
-        if not current_user:
-            return jsonify({'message': 'User not found!'}), 404
-        return f(current_user, *args, **kwargs)  
-    wrapper.__name__ = f.__name__
-    return wrapper
 
 @match_bp.route('/users_to_match', methods=['GET'])
 @token_required
