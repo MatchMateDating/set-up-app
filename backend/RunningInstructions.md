@@ -5,7 +5,7 @@ For macOS: follow the instructions here https://realpython.com/python-virtual-en
 
 Activate:
 macOs: source {name of virtual environemnt}/bin/activate
-Windows: {name of virtual environemnt}\Scripts\activate
+Windows: .\{name of virtual environemnt}\Scripts\activate
 
 Download requirements:
 pip install -r requirements.txt
