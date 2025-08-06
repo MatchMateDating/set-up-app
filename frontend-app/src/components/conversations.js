@@ -14,6 +14,7 @@ const Conversations = () => {
   const [messages, setMessages] = useState([]);
   const [newMessageText, setNewMessageText] = useState('');
   const [loadingMessages, setLoadingMessages] = useState(false);
+  const [convoOpen, setConvoOpen] = useState(false);
 
   const fetchUserInfo = async () => {
     const token = localStorage.getItem('token');
@@ -137,6 +138,17 @@ const Conversations = () => {
     fetchConversation(matchId);
   };
 
+  const toggleConversation = (matchObj = undefined) => {
+    if (convoOpen) {
+      setConvoOpen(false);
+      setSelectedMatchId('');
+      setNewMessageText('');
+    } else {
+      setConvoOpen(true);
+      openConversation(matchObj);
+    }
+  };
+
   return (
     <div>
       <SideBar/>
@@ -174,7 +186,7 @@ const Conversations = () => {
         <div className="match-list">
           {getFilteredMatches().length > 0 ? (
             getFilteredMatches().map((matchObj, index) => (
-              <div onClick={() => openConversation(matchObj)} key={index} className="match-card">
+              <div onClick={() => toggleConversation(matchObj)} key={index} className="match-card">
                 <div className="profile-preview">
                   {matchObj.match_user.first_image ? (
                     <img
@@ -240,10 +252,7 @@ const Conversations = () => {
               Send
             </button>
             <button
-              onClick={() => {
-                setSelectedMatchId('');
-                setNewMessageText('');
-              }}
+              onClick={() => toggleConversation()}
             >
               Close
             </button>
