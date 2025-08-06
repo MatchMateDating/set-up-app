@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import Profile from './profile';
 import BottomTab from './bottomTab';
+import SideBar from './sideBar';
 
 const ProfilePage = () => {
   const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
@@ -35,29 +36,30 @@ const ProfilePage = () => {
 
   return (
     <>
-      {user ? (
-        <>
-          <Profile 
-            user={user} 
-            framed={false}
-            editing={editing}
-            onEditClick={() => setEditing(true)}
-            onSave={handleSave}
-            onCancel={() => setEditing(false)}
-          />
-        </>
-      ) : (
-        <p>Loading user profile...</p>
-      )}
+      <SideBar/>
+      <div style={{ paddingBottom: '60px', paddingTop: '66px' }}>
+        {user ? (
+          <>
+            <Profile 
+              user={user} 
+              framed={false}
+              editing={editing}
+              onEditClick={() => setEditing(true)}
+              onSave={handleSave}
+              onCancel={() => setEditing(false)}
+            />
+          </>
+        ) : (
+          <p>Loading user profile...</p>
+        )}
 
-      {user?.role === 'matchmaker' && referrer && (
-        <div className="embedded-profile">
-          <h3>Dater's Profile</h3>
-          <Profile user={referrer} framed={true} editing={false} />
-        </div>
-      )}
+        {user?.role === 'matchmaker' && referrer && (
+          <div className="embedded-profile">
+            <h3>Dater's Profile</h3>
+            <Profile user={referrer} framed={true} editing={false} />
+          </div>
+        )}
 
-      <div style={{ paddingBottom: '60px' }}>
         <BottomTab />
       </div>
     </>
