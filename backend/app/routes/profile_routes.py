@@ -15,10 +15,10 @@ profile_bp = Blueprint('profile', __name__)
 def get_profile(current_user):
     user_data = current_user.to_dict()
 
-    if current_user.role == 'user' and not current_user.referral_code:
-        current_user.referral_code = current_user.generate_referral_code()
-        db.session.commit()
-        user_data['referral_code'] = current_user.referral_code
+    # if current_user.role == 'user' and not current_user.referral_code:
+    #     current_user.referral_code = current_user.generate_referral_code()
+    #     db.session.commit()
+    #     user_data['referral_code'] = current_user.referral_code
     
     referrer_data = None
     if current_user.referred_by_id:

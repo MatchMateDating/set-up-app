@@ -5,14 +5,37 @@ const Settings = () => {
   const [showCode, setShowCode] = useState(false);
 
   useEffect(() => {
-    // Assuming user info is stored in localStorage after login
-    const userData = JSON.parse(localStorage.getItem('user'));
-    if (userData && userData.referral_code) {
-      setReferralCode(userData.referral_code);
-    } else {
-      // If user doesn't have a code, generate one here if needed
-      setReferralCode('NO-CODE');
-    }
+    const fetchUserProfile = async () => {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      try {
+        const res = await fetch(`${process.env.REACT_APP_API_BASE_URL}/profile/`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+
+        if (!res.ok) throw new Error('Failed to fetch user profile');
+
+        const data = await res.json();
+        if (data.user?.referral_code) {
+          setReferralCode(data.user.referral_code);
+        } else {
+          setReferralCode('NO-CODE');
+        }
+
+        // Optional: Update localStorage user object to keep in sync
+        localStorage.setItem('user', JSON.stringify(data.user));
+
+      } catch (err) {
+        console.error(err);
+      }
+    };
+
+    fetchUserProfile();
   }, []);
 
   const handleShowCode = () => {

@@ -28,10 +28,11 @@ function SignUp() {
                 }
                 payload.referral_code = referralCode;
             }
-
+            console.log("Base Url", API_BASE_URL);
             const res = await axios.post(`${API_BASE_URL}/auth/register`, payload);
 
             if (res.data.token) {
+                console.log();
                 // ✅ Store the token in localStorage
                 localStorage.setItem('token', res.data.token);
                 console.log("Token stored successfully!");
