@@ -52,6 +52,44 @@ def get_users_to_match(current_user):
     users = query.all()
     return jsonify([user.to_dict() for user in users])
 
+@match_bp.route('/blind_match', methods=['POST'])
+@token_required
+def blind_match(current_user):
+    if current_user.role != 'matchmaker':
+        return jsonify({'message': 'Only matchmakers can perform blind matches'}), 403
+
+    data = request.get_json()
+    liked_user_id = data.get('liked_user_id')
+
+    if not liked_user_id:
+        return jsonify({'message': 'liked_user_id is required'}), 400
+
+    referred_dater_id = current_user.referrer.id
+
+    existing_match = Match.query.filter(
+        ((Match.user_id_1 == referred_dater_id) & (Match.user_id_2 == liked_user_id)) |
+        ((Match.user_id_1 == liked_user_id) & (Match.user_id_2 == referred_dater_id))
+    ).first()
+
+    if existing_match:
+        existing_match.status = 'matched'
+        existing_match.matched_by_matcher = current_user.id
+        existing_match.blind_match = True
+    else:
+        new_match = Match(
+            user_id_1=referred_dater_id,
+            user_id_2=liked_user_id,
+            liked_by_id=[referred_dater_id, liked_user_id],
+            matched_by_matcher=current_user.id,
+            status='matched',
+            blind_match=True
+        )
+        db.session.add(new_match)
+
+    db.session.commit()
+    return jsonify({'message': 'Blind match created successfully'}), 201
+
+
 @match_bp.route('/like', methods=['POST'])
 @token_required
 def like_user(current_user):
@@ -87,7 +125,7 @@ def like_user(current_user):
         user_id_1=current_user.id if current_user.role == 'user' else current_user.referrer.id,
         user_id_2=liked_user_id,
         liked_by_id=[current_user.id] if current_user.role == 'user' else [current_user.referrer.id],
-        matched_by_referrer= current_user.id if current_user.role == 'matchmaker' else None,
+        matched_by_matcher= current_user.id if current_user.role == 'matchmaker' else None,
         status='pending')
     
     db.session.add(new_match)   
@@ -107,7 +145,7 @@ def get_mutual_matches(current_user):
         matches = Match.query.filter(
             ((Match.user_id_1 == linked_dater.id) | (Match.user_id_2 == linked_dater.id)) &
             (Match.status == 'matched') &
-            (Match.matched_by_referrer == current_user.id)).all()
+            (Match.matched_by_matcher == current_user.id)).all()
 
         for match in matches:
             user1 = User.query.get(match.user_id_1)
@@ -120,7 +158,8 @@ def get_mutual_matches(current_user):
             matched_users.append({
                 'match_id': match.id,
                 'match_user': user_dict,
-                'linked_dater': linked_dater_dict
+                'linked_dater': linked_dater_dict,
+                'blind_match': match.blind_match
             })
 
         return jsonify(matched_users)
@@ -137,8 +176,7 @@ def get_mutual_matches(current_user):
 
             user_dict = other_user.to_dict()
             user_dict['first_image'] = other_user.images[0].image_url if other_user.images else None
-
-            if match.matched_by_referrer:
+            if match.matched_by_matcher:
                 # Match was made by a matchmaker -> fetch linked_dater info
                 linked_dater = User.query.get(match.user_id_1 if match.user_id_1 != current_user.id else match.user_id_2)
                 linked_dater_dict = linked_dater.to_dict()
@@ -146,14 +184,16 @@ def get_mutual_matches(current_user):
                 matched_users.append({
                     'match_id': match.id,
                     'match_user': user_dict,
-                    'linked_dater': linked_dater_dict
+                    'linked_dater': linked_dater_dict,
+                    'blind_match': match.blind_match
                 })
             else:
                 # Match was made by the user directly
                 matched_users.append({
                     'match_id': match.id,
                     'match_user': user_dict,
-                    'linked_dater': None
+                    'linked_dater': None,
+                    'blind_match': match.blind_match
                 })
 
     return jsonify(matched_users)

@@ -7,6 +7,7 @@ const Match = () => {
   const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
   const [profiles, setProfiles] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [userInfo, setUserInfo] = useState(null);
 
   const fetchProfiles = async () => {
     const token = localStorage.getItem('token');
@@ -16,6 +17,15 @@ const Match = () => {
     const data = await res.json();
     setProfiles(data);
   };
+
+  const fetchUserInfo = async () => {
+    const token = localStorage.getItem('token');
+    const res = await fetch(`${API_BASE_URL}/profile/`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const data = await res.json();
+    setUserInfo(data.user);
+  }
 
   const likeUser = async (likedUserId) => {
     const token = localStorage.getItem('token');
@@ -28,6 +38,20 @@ const Match = () => {
       body: JSON.stringify({ liked_user_id: likedUserId })
     });
   };
+
+  const blindMatch = async (likedUserId) => {
+    const token = localStorage.getItem('token');
+    await fetch(`${API_BASE_URL}/match/blind_match`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ liked_user_id: likedUserId })
+    });
+    nextProfile(); // skip to next profile after match
+  };
+
 
   const handleLike = () => {
     const likedUser = profiles[currentIndex];
@@ -44,6 +68,7 @@ const Match = () => {
   };
 
   useEffect(() => {
+    fetchUserInfo();
     fetchProfiles();
   }, []);
 
@@ -55,6 +80,8 @@ const Match = () => {
         {profiles.length > 0 && currentIndex < profiles.length ? (
           <>
             <Profile user={profiles[currentIndex]} framed={true} />
+            {userInfo?.role== 'matchmaker' && (
+              <button onClick={() => blindMatch(profiles[currentIndex].id)}>Blind Match</button>)}
             <button onClick={handleLike}>Like</button>
             <button onClick={nextProfile}>Skip</button>
           </>
