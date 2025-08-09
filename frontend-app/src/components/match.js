@@ -80,9 +80,18 @@ const Match = () => {
         {profiles.length > 0 && currentIndex < profiles.length ? (
           <>
             <Profile user={profiles[currentIndex]} framed={true} />
-            {userInfo?.role== 'matchmaker' && (
-              <button onClick={() => blindMatch(profiles[currentIndex].id)}>Blind Match</button>)}
-            <button onClick={handleLike}>Like</button>
+            {userInfo?.role === 'matchmaker' ? (
+                profiles[currentIndex].liked_linked_dater ? (
+                    <button onClick={() => blindMatch(profiles[currentIndex].id)}>Blind Match</button>
+                ) : (
+                    <>
+                        <button onClick={() => blindMatch(profiles[currentIndex].id)}>Blind Match</button>
+                        <button onClick={handleLike}>Like</button>
+                    </>
+                )
+            ) : (
+                <button onClick={handleLike}>Like</button>
+            )}
             <button onClick={nextProfile}>Skip</button>
           </>
         ) : (

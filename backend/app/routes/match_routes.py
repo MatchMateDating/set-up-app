@@ -14,7 +14,19 @@ def get_users_to_match(current_user):
     # If matchmaker, exclude their referred dater from the list
     if current_user.role == 'matchmaker' and current_user.referrer:
         referred_dater_id = current_user.referrer.id
-        
+
+        liked_by_linked_dater = Match.query.filter(
+            ((Match.user_id_1 == referred_dater_id) | (Match.user_id_2 == referred_dater_id)) &
+            Match.liked_by_id.contains([referred_dater_id])
+        ).all()
+
+        liked_user_ids = set()
+        for match in liked_by_linked_dater:
+            if match.user_id_1 != referred_dater_id:
+                liked_user_ids.add(match.user_id_1)
+            if match.user_id_2 != referred_dater_id:
+                liked_user_ids.add(match.user_id_2)
+
         # Get all user IDs who are already matched with the referred dater
         matched_users = Match.query.filter(
             ((Match.user_id_1 == referred_dater_id) | (Match.user_id_2 == referred_dater_id)) &
@@ -30,13 +42,16 @@ def get_users_to_match(current_user):
                 matched_user_ids.add(match.user_id_2)
 
         # Exclude referred dater and already matched users
-        query = query.filter(~User.id.in_(matched_user_ids), User.id != referred_dater_id)
+        query = query.filter(
+            ~User.id.in_(matched_user_ids),
+            ~User.id.in_(liked_user_ids),
+            User.id != referred_dater_id)
 
     elif current_user.role == 'user':
         # Get all matches involving current user where liked_by_id contains current_user.id
         existing_matches = Match.query.filter(
-            Match.liked_by_id.contains([current_user.id]),
-            ((Match.user_id_1 == current_user.id) | (Match.user_id_2 == current_user.id))
+            ((Match.user_id_1 == current_user.id) | (Match.user_id_2 == current_user.id)) &
+            (Match.status == 'matched')
         ).all()
 
         matched_user_ids = set()
@@ -50,7 +65,22 @@ def get_users_to_match(current_user):
         query = query.filter(~User.id.in_(matched_user_ids))
 
     users = query.all()
-    return jsonify([user.to_dict() for user in users])
+    users_data = []
+    for user in users:
+        liked_linked_dater = False
+        if current_user.role == 'matchmaker' and current_user.referrer:
+            referred_dater_id = current_user.referrer.id
+            match = Match.query.filter(
+                ((Match.user_id_1 == user.id) & (Match.user_id_2 == referred_dater_id)) |
+                ((Match.user_id_1 == referred_dater_id) & (Match.user_id_2 == user.id))
+            ).first()
+            if match and referred_dater_id in match.liked_by_id and user.id not in match.liked_by_id:
+                liked_linked_dater = True
+
+        user_dict = user.to_dict()
+        user_dict['liked_linked_dater'] = liked_linked_dater
+        users_data.append(user_dict)
+    return jsonify(users_data)
 
 @match_bp.route('/blind_match', methods=['POST'])
 @token_required
