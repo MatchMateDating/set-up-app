@@ -192,7 +192,7 @@ const Conversations = () => {
                     <img
                       src={`${API_BASE_URL}${matchObj.match_user.first_image}`}
                       alt={`${matchObj.match_user.name}'s profile`}
-                      className="match-image"
+                      className={`match-image ${matchObj.blind_match ? 'blurred' : ''}`}
                     />
                   ) : (
                     <div className="match-placeholder">No Image</div>
@@ -201,7 +201,7 @@ const Conversations = () => {
                   <button onClick={() => unmatch(matchObj.match_id)}>Unmatch</button>
                 </div>
 
-                {matchObj.linked_dater && (
+                {matchObj.linked_dater && userInfo.role === "matchmaker" && (
                   <div className="profile-preview">
                     {matchObj.linked_dater.first_image ? (
                       <img
