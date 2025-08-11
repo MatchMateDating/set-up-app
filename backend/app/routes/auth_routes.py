@@ -8,6 +8,7 @@ auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
 @auth_bp.route('/register', methods=['POST'])
 def register():
     data = request.get_json()
+    print(f"Received data: {data}")
     required_fields = ('name', 'email', 'password')
 
     if not data or not all(k in data for k in required_fields):
@@ -17,6 +18,7 @@ def register():
         return jsonify({'msg': 'Email already registered'}), 400
     
     role = data.get('role', 'user')  # default is normal user
+    print(f"Resolved role: {role}")
     referred_by = None
 
     if role == 'matchmaker':
@@ -37,6 +39,9 @@ def register():
         referred_by_id=referred_by)
     user.set_password(data['password'])
 
+    if role == 'user':
+        user.referral_code = user.generate_referral_code()
+
     db.session.add(user)
     db.session.commit()
 
@@ -45,7 +50,7 @@ def register():
     return jsonify({
         'message': 'User created successfully', 
         'user': user.to_dict(),
-        'token': token}), 201
+        'token': token}),200
 
 @auth_bp.route('/login', methods=['POST'])
 def login():

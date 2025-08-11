@@ -4,6 +4,7 @@ import './avatarSelectorModal.css';
 const avatarList = [
   '/avatars/dylan_avatar.png',
   '/avatars/allyson_avatar.png',
+  '/avatars/angie_avatar.png',
 ];
 
 const AvatarSelectorModal = ({ onSelect, onClose }) => {
