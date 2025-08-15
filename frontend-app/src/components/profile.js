@@ -3,6 +3,7 @@ import './profile.css';
 import { FaEdit } from 'react-icons/fa';
 import CropperModal from './cropperModal';
 import AvatarSelectorModal from './avatarSelectorModal';
+import ImageGallery from './images';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
 const Profile = ({ user, framed, editing, onEditClick, onSave, onCancel }) => {
@@ -431,6 +432,95 @@ const Profile = ({ user, framed, editing, onEditClick, onSave, onCancel }) => {
                 />
               ),
             })}
+            {!editing && user.birthdate && (
+              <label>
+                Age:
+                <span>{calculateAge(user.birthdate)}</span>
+              </label>
+            )}
+
+
+            {(editing || user.height) && (
+              <label>
+                Height:
+                {editing ? (
+                  <>
+                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                      {heightUnit === 'ft' ? (
+                        <>
+                          <select
+                            value={formData.heightFeet}
+                            onChange={(e) =>
+                              setFormData((prev) => ({ ...prev, heightFeet: e.target.value }))
+                            }
+                          >
+                            {[...Array(8).keys()].map((num) => (
+                              <option key={num} value={num}>{num} ft</option>
+                            ))}
+                          </select>
+                          <select
+                            value={formData.heightInches}
+                            onChange={(e) =>
+                              setFormData((prev) => ({ ...prev, heightInches: e.target.value }))
+                            }
+                          >
+                            {[...Array(12).keys()].map((num) => (
+                              <option key={num} value={num}>{num} in</option>
+                            ))}
+                          </select>
+                        </>
+                      ) : (
+                        <>
+                          <select
+                            value={formData.heightMeters}
+                            onChange={(e) =>
+                              setFormData((prev) => ({ ...prev, heightMeters: e.target.value }))
+                            }
+                          >
+                            {[...Array(3).keys()].map((num) => (
+                              <option key={num} value={num}>{num} m</option>
+                            ))}
+                          </select>
+                          <select
+                            value={formData.heightCentimeters}
+                            onChange={(e) =>
+                              setFormData((prev) => ({ ...prev, heightCentimeters: e.target.value }))
+                            }
+                          >
+                            {[...Array(100).keys()].map((num) => (
+                              <option key={num} value={num}>{num} cm</option>
+                            ))}
+                          </select>
+                        </>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={handleUnitToggle}
+                        style={{ marginLeft: '10px' }}
+                      >
+                        {heightUnit === 'ft' ? 'Switch to meters' : 'Switch to feet'}
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <span>
+                    {user.height}
+                  </span>
+                )}
+              </label>
+            )}
+
+            {(editing || user.gender) && (
+              <label>
+                Gender:
+                {editing ? (
+                  <input name="gender" value={formData.gender} onChange={handleInputChange} />
+                ) : (
+                  <span>{user.gender}</span>
+                )}
+              </label>
+            )}
           </>
         )}
 
@@ -470,31 +560,12 @@ const Profile = ({ user, framed, editing, onEditClick, onSave, onCancel }) => {
             ) : (
               <label></label>
             )}
-            <div className="image-grid">
-              {images.map((img, index) => (
-                <div key={index} className="image-wrapper">
-                  <img
-                    src={`${API_BASE_URL}${img.image_url}`}
-                    alt={`Profile ${index}`}
-                    className="profile-img"
-                  />
-                  {editing && (
-                    <button
-                      className="delete-button"
-                      onClick={() => handleDeleteImage(img.id)}
-                    >
-                      x
-                    </button>
-                  )}
-                </div>
-              ))}
-              {editing &&
-                [...Array(9 - images.length)].map((_, index) => (
-                  <div key={index} className="image-placeholder" onClick={handlePlaceholderClick}>
-                    <span className="plus-icon">+</span>
-                  </div>
-                ))}
-            </div>
+            <ImageGallery
+              images={images}
+              editing={editing}
+              onDeleteImage={handleDeleteImage}
+              onPlaceholderClick={handlePlaceholderClick}
+            />
           </div>
         </div>
       )}

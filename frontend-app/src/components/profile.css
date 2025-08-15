@@ -42,12 +42,6 @@
   font-size: 0.9em;
 }
 
-/* .profile-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-} */
-
 .profile-actions .edit-icon {
   cursor: pointer;
   font-size: 1.5rem;
