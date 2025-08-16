@@ -17,6 +17,7 @@ const ProfilePage = () => {
       })
       .then((res) => res.json())
       .then((data) => {
+        console.log(data.user)
         setUser(data.user);
         setReferrer(data.referrer || null);
       })

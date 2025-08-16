@@ -20,7 +20,10 @@ class User(db.Model):
 
     referred_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     referred_users = db.relationship('User', backref=db.backref('referrer', remote_side=[id]), lazy=True)
-    
+
+    preferredAgeMin = db.Column(db.Integer, nullable=True)
+    preferredAgeMax = db.Column(db.Integer, nullable=True)
+    preferredGender = db.Column(db.String(20), nullable=True)
 
     images = db.relationship('Image', backref='user', lazy=True, cascade='all, delete-orphan')
     # Clarify both sides of the Match relationships
@@ -58,5 +61,8 @@ class User(db.Model):
             "gender": self.gender,
             "height": self.height,
             "description": self.description,
-            "images": [image.to_dict() for image in self.images]
+            "images": [image.to_dict() for image in self.images],
+            "preferredAgeMin": self.preferredAgeMin,
+            "preferredAgeMax": self.preferredAgeMax,
+            "preferredGender": self.preferredGender
         }
