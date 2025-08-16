@@ -6,7 +6,7 @@ from werkzeug.utils import secure_filename
 from app.models.imageDB import Image
 from flask import current_app
 from uuid import uuid4
-from app.routes.shared import token_required
+from app.routes.shared import token_required, calculate_age
 
 profile_bp = Blueprint('profile', __name__)
 
@@ -36,7 +36,7 @@ def get_profile(current_user):
 def update_profile(current_user):
     data = request.get_json()
     if current_user.role == 'user':
-        allowed_fields = ['name', 'bio', 'birthdate', 'gender', 'height']
+        allowed_fields = ['name', 'bio', 'birthdate', 'gender', 'height', 'preferredAgeMin', 'preferredAgeMax', 'preferredGender']
     elif current_user.role == 'matchmaker':
         allowed_fields = ['description']
     else:
@@ -48,6 +48,7 @@ def update_profile(current_user):
                 from datetime import datetime
                 try:
                     current_user.birthdate = datetime.strptime(data['birthdate'], '%Y-%m-%d').date()
+                    current_user.age = calculate_age(current_user.birthdate)
                 except ValueError:
                     return jsonify({'msg': 'Invalid birthdate format'}), 400
             else:
