@@ -4,6 +4,7 @@ import { FaEdit } from 'react-icons/fa';
 import CropperModal from './cropperModal';
 import AvatarSelectorModal from './avatarSelectorModal';
 import ImageGallery from './images';
+import ProfileInfoCard from './profileInfoCard';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
 const Profile = ({ user, framed, editing, onEditClick, onSave, onCancel }) => {
@@ -551,6 +552,17 @@ const Profile = ({ user, framed, editing, onEditClick, onSave, onCancel }) => {
           </div>
         )}
       </form>
+      <ProfileInfoCard
+        user={user}
+        formData={formData}
+        editing={editing}
+        heightUnit={heightUnit}
+        onInputChange={handleInputChange}
+        onUnitToggle={handleUnitToggle}
+        onSubmit={handleFormSubmit}
+        onCancel={onCancel}
+        calculateAge={calculateAge}
+      />
 
       {user.role === 'user' && (
         <div>
