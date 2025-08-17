@@ -89,7 +89,6 @@ const CompleteProfile = () => {
             <option value="female">Female</option>
             <option value="male">Male</option>
             <option value="nonbinary">Non-binary</option>
-            <option value="prefer_not">Prefer not to say</option>
           </select>
         </div>
 

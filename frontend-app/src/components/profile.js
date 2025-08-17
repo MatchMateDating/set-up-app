@@ -176,16 +176,22 @@ const Profile = ({ user, framed, editing, onEditClick, onSave, onCancel }) => {
         heightFormatted = `${formData.heightMeters}m ${formData.heightCentimeters}cm`;
       }
 
+      const payload = {
+        birthdate: formData.birthdate,
+        gender: formData.gender,
+        height: heightFormatted,
+        description: formData.description,
+        preferredAgeMin: formData.preferredAgeMin,
+        preferredAgeMax: formData.preferredAgeMax,
+        preferredGender: formData.preferredGender
+      };
       const res = await fetch(`${API_BASE_URL}/profile/update`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          ...formData,
-          height: heightFormatted,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!res.ok) throw new Error('Failed to update profile');
@@ -215,123 +221,16 @@ const Profile = ({ user, framed, editing, onEditClick, onSave, onCancel }) => {
     }
   };
 
-  // Renders a field with label, edit mode input, and view mode value
-  const renderField = ({ label, editing, value, input }) => {
-    if (!editing && !value) return null;
-
-    return (
-      <div style={{ marginBottom: '1rem' }}>
-        <label>
-          {label}: {editing ? input : <span>{value}</span>}
-        </label>
-      </div>
-    );
-  };
-
-  // Renders the height selector UI
-  const renderHeightSelector = () => (
-    <div style={{ display: 'flex', alignItems: 'center' }}>
-      {heightUnit === 'ft' ? (
-        <>
-          <select
-            value={formData.heightFeet}
-            onChange={(e) =>
-              setFormData((prev) => ({ ...prev, heightFeet: e.target.value }))
-            }
-          >
-            {[...Array(8).keys()].map((num) => (
-              <option key={num} value={num}>
-                {num} ft
-              </option>
-            ))}
-          </select>
-          <select
-            value={formData.heightInches}
-            onChange={(e) =>
-              setFormData((prev) => ({ ...prev, heightInches: e.target.value }))
-            }
-          >
-            {[...Array(12).keys()].map((num) => (
-              <option key={num} value={num}>
-                {num} in
-              </option>
-            ))}
-          </select>
-        </>
-      ) : (
-        <>
-          <select
-            value={formData.heightMeters}
-            onChange={(e) =>
-              setFormData((prev) => ({ ...prev, heightMeters: e.target.value }))
-            }
-          >
-            {[...Array(3).keys()].map((num) => (
-              <option key={num} value={num}>
-                {num} m
-              </option>
-            ))}
-          </select>
-          <select
-            value={formData.heightCentimeters}
-            onChange={(e) =>
-              setFormData((prev) => ({ ...prev, heightCentimeters: e.target.value }))
-            }
-          >
-            {[...Array(100).keys()].map((num) => (
-              <option key={num} value={num}>
-                {num} cm
-              </option>
-            ))}
-          </select>
-        </>
-      )}
-      <button
-        type="button"
-        onClick={handleUnitToggle}
-        style={{ marginLeft: '10px' }}
-      >
-        {heightUnit === 'ft' ? 'Switch to meters' : 'Switch to feet'}
-      </button>
-    </div>
-  );
-
-  const renderPreferredAgeField = () => {
-    // If not editing and no values, hide it entirely
-    console.log(editing, formData)
-    if (!editing && !formData.preferredAgeMin) return null;
-  
-    return (
-      <div style={{ marginBottom: '1rem' }}>
-        <label>
-          Preferred Age:{" "}
-          {editing ? (
-            <>
-              <input
-                type="number"
-                name="preferredAgeMin"
-                placeholder="Min"
-                value={formData.preferredAgeMin || ''}
-                onChange={handleInputChange}
-                style={{ width: '60px', marginRight: '8px' }}
-              />
-              <input
-                type="number"
-                name="preferredAgeMax"
-                placeholder="Max"
-                value={formData.preferredAgeMax || ''}
-                onChange={handleInputChange}
-                style={{ width: '60px' }}
-              />
-            </>
-          ) : (
-            <span>
-              {formData.preferredAgeMin} - {formData.preferredAgeMax}
-            </span>
-          )}
-        </label>
-      </div>
-    );
+  const calculateAge = (birthdate) => {
+    if (!birthdate) return '';
+    const birthDateObj = new Date(birthdate);
+    const today = new Date();
+    let age = today.getFullYear() - birthDateObj.getFullYear();
+    const m = today.getMonth() - birthDateObj.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birthDateObj.getDate())) {
+      age--;
+    }
+    return age;
   };
 
   return (
@@ -377,193 +276,19 @@ const Profile = ({ user, framed, editing, onEditClick, onSave, onCancel }) => {
         />
       )}
 
-      <form
-        className={`profile-card ${framed ? 'framed' : ''}`}
-        onSubmit={handleFormSubmit}
-      >
-        {user.role === 'user' && (
-          <>
-            {renderField({
-              label: editing ? 'Birthdate' : 'Age',
-              editing,
-              value: editing
-                ? formData.birthdate || ''
-                : user.age,
-              input: (
-                <input
-                  name="birthdate"
-                  type="date"
-                  value={formData.birthdate || ''}
-                  onChange={handleInputChange}
-                />
-              ),
-            })}
-
-            {renderField({
-              label: 'Height',
-              editing,
-              value: user.height,
-              input: renderHeightSelector(),
-            })}
-
-            {renderField({
-              label: 'Gender',
-              editing,
-              value: user.gender,
-              input: (
-                <input
-                  name="gender"
-                  value={formData.gender}
-                  onChange={handleInputChange}
-                />
-              ),
-            })}
-
-            {renderPreferredAgeField()}
-
-            {renderField({
-              label: 'Preferred Gender',
-              editing,
-              value: user.preferredGender,
-              input: (
-                <input
-                  name="preferredGender"
-                  value={formData.preferredGender}
-                  onChange={handleInputChange}
-                />
-              ),
-            })}
-            {!editing && user.birthdate && (
-              <label>
-                Age:
-                <span>{calculateAge(user.birthdate)}</span>
-              </label>
-            )}
-
-
-            {(editing || user.height) && (
-              <label>
-                Height:
-                {editing ? (
-                  <>
-                    <div style={{ display: 'flex', alignItems: 'center' }}>
-                      {heightUnit === 'ft' ? (
-                        <>
-                          <select
-                            value={formData.heightFeet}
-                            onChange={(e) =>
-                              setFormData((prev) => ({ ...prev, heightFeet: e.target.value }))
-                            }
-                          >
-                            {[...Array(8).keys()].map((num) => (
-                              <option key={num} value={num}>{num} ft</option>
-                            ))}
-                          </select>
-                          <select
-                            value={formData.heightInches}
-                            onChange={(e) =>
-                              setFormData((prev) => ({ ...prev, heightInches: e.target.value }))
-                            }
-                          >
-                            {[...Array(12).keys()].map((num) => (
-                              <option key={num} value={num}>{num} in</option>
-                            ))}
-                          </select>
-                        </>
-                      ) : (
-                        <>
-                          <select
-                            value={formData.heightMeters}
-                            onChange={(e) =>
-                              setFormData((prev) => ({ ...prev, heightMeters: e.target.value }))
-                            }
-                          >
-                            {[...Array(3).keys()].map((num) => (
-                              <option key={num} value={num}>{num} m</option>
-                            ))}
-                          </select>
-                          <select
-                            value={formData.heightCentimeters}
-                            onChange={(e) =>
-                              setFormData((prev) => ({ ...prev, heightCentimeters: e.target.value }))
-                            }
-                          >
-                            {[...Array(100).keys()].map((num) => (
-                              <option key={num} value={num}>{num} cm</option>
-                            ))}
-                          </select>
-                        </>
-                      )}
-
-                      <button
-                        type="button"
-                        onClick={handleUnitToggle}
-                        style={{ marginLeft: '10px' }}
-                      >
-                        {heightUnit === 'ft' ? 'Switch to meters' : 'Switch to feet'}
-                      </button>
-                    </div>
-                  </>
-                ) : (
-                  <span>
-                    {user.height}
-                  </span>
-                )}
-              </label>
-            )}
-
-            {(editing || user.gender) && (
-              <label>
-                Gender:
-                {editing ? (
-                  <input name="gender" value={formData.gender} onChange={handleInputChange} />
-                ) : (
-                  <span>{user.gender}</span>
-                )}
-              </label>
-            )}
-          </>
-        )}
-
-        {user.role === 'matchmaker' &&
-          renderField({
-            label: 'Description',
-            editing,
-            value: <p>{user.description}</p>,
-            input: (
-              <textarea
-                name="description"
-                value={formData.description}
-                onChange={handleInputChange}
-              />
-            ),
-          })}
-
-        {editing && (
-          <div style={{ marginTop: '1rem' }}>
-            <button type="submit">Save</button>
-            <button
-              type="button"
-              onClick={onCancel}
-              style={{ marginLeft: '1rem' }}
-            >
-              Cancel
-            </button>
-          </div>
-        )}
+      <form className={`profile-card ${framed ? 'framed' : ''}`} onSubmit={handleFormSubmit}>
+        <ProfileInfoCard
+          user={user}
+          formData={formData}
+          editing={editing}
+          heightUnit={heightUnit}
+          onInputChange={handleInputChange}
+          onUnitToggle={handleUnitToggle}
+          onSubmit={handleFormSubmit} // optional, can remove now
+          onCancel={onCancel}
+          calculateAge={calculateAge}
+        />
       </form>
-      <ProfileInfoCard
-        user={user}
-        formData={formData}
-        editing={editing}
-        heightUnit={heightUnit}
-        onInputChange={handleInputChange}
-        onUnitToggle={handleUnitToggle}
-        onSubmit={handleFormSubmit}
-        onCancel={onCancel}
-        calculateAge={calculateAge}
-      />
-
       {user.role === 'user' && (
         <div>
           <div className="section">
