@@ -22,6 +22,7 @@ def get_matched_conversations(current_user, match_id):
                     {
                         'id': msg.id,
                         'sender_id': msg.sender_id,
+                        'receiver_id': msg.receiver_id,
                         'text': msg.text,
                         'timestamp': msg.timestamp.isoformat()
                     }
@@ -48,6 +49,7 @@ def add_to_conversation(current_user, match_id):
             message = Message(
                 conversation_id=conversation.id,
                 sender_id=current_user.id,
+                receiver_id=match_id,
                 text=message,
                 timestamp=datetime.utcnow()
             )
@@ -62,6 +64,7 @@ def add_to_conversation(current_user, match_id):
                 {
                     'id': msg.id,
                     'sender_id': msg.sender_id,
+                    'receiver_id': msg.receiver_id,
                     'text': msg.text,
                     'timestamp': msg.timestamp.isoformat()
                 }
