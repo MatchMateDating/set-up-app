@@ -3,6 +3,7 @@ from flask_jwt_extended import verify_jwt_in_request, get_jwt_identity
 from jwt.exceptions import ExpiredSignatureError, InvalidTokenError
 from functools import wraps
 from app.models.userDB import User
+from datetime import date
 
 def token_required(f):
     @wraps(f)
@@ -47,3 +48,10 @@ def token_required(f):
             }), 401
             
     return decorated
+
+def calculate_age(birthdate: date) -> int:
+    today = date.today()
+    age = today.year - birthdate.year - (
+        (today.month, today.day) < (birthdate.month, birthdate.day)
+    )
+    return age
