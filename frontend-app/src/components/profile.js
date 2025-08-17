@@ -4,6 +4,7 @@ import { FaEdit } from 'react-icons/fa';
 import CropperModal from './cropperModal';
 import AvatarSelectorModal from './avatarSelectorModal';
 import ImageGallery from './images';
+import ProfileInfoCard from './profileInfoCard';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
 const Profile = ({ user, framed, editing, onEditClick, onSave, onCancel }) => {
@@ -262,134 +263,17 @@ const Profile = ({ user, framed, editing, onEditClick, onSave, onCancel }) => {
         />
       )}
 
-      <form className={`profile-card ${framed ? 'framed' : ''}`} onSubmit={handleFormSubmit}>
-        {user.role === 'user' && (
-          <>
-            {editing && (
-              <label>
-                Birthdate:
-                <input 
-                  name="birthdate" 
-                  type="date"
-                  value={formData.birthdate || ''} 
-                  onChange={handleInputChange} 
-                />
-              </label>
-            )}
-
-            {!editing && user.birthdate && (
-              <label>
-                Age:
-                <span>{calculateAge(user.birthdate)}</span>
-              </label>
-            )}
-
-
-            {(editing || user.height) && (
-              <label>
-                Height:
-                {editing ? (
-                  <>
-                    <div style={{ display: 'flex', alignItems: 'center' }}>
-                      {heightUnit === 'ft' ? (
-                        <>
-                          <select
-                            value={formData.heightFeet}
-                            onChange={(e) =>
-                              setFormData((prev) => ({ ...prev, heightFeet: e.target.value }))
-                            }
-                          >
-                            {[...Array(8).keys()].map((num) => (
-                              <option key={num} value={num}>{num} ft</option>
-                            ))}
-                          </select>
-                          <select
-                            value={formData.heightInches}
-                            onChange={(e) =>
-                              setFormData((prev) => ({ ...prev, heightInches: e.target.value }))
-                            }
-                          >
-                            {[...Array(12).keys()].map((num) => (
-                              <option key={num} value={num}>{num} in</option>
-                            ))}
-                          </select>
-                        </>
-                      ) : (
-                        <>
-                          <select
-                            value={formData.heightMeters}
-                            onChange={(e) =>
-                              setFormData((prev) => ({ ...prev, heightMeters: e.target.value }))
-                            }
-                          >
-                            {[...Array(3).keys()].map((num) => (
-                              <option key={num} value={num}>{num} m</option>
-                            ))}
-                          </select>
-                          <select
-                            value={formData.heightCentimeters}
-                            onChange={(e) =>
-                              setFormData((prev) => ({ ...prev, heightCentimeters: e.target.value }))
-                            }
-                          >
-                            {[...Array(100).keys()].map((num) => (
-                              <option key={num} value={num}>{num} cm</option>
-                            ))}
-                          </select>
-                        </>
-                      )}
-
-                      <button
-                        type="button"
-                        onClick={handleUnitToggle}
-                        style={{ marginLeft: '10px' }}
-                      >
-                        {heightUnit === 'ft' ? 'Switch to meters' : 'Switch to feet'}
-                      </button>
-                    </div>
-                  </>
-                ) : (
-                  <span>
-                    {user.height}
-                  </span>
-                )}
-              </label>
-            )}
-
-            {(editing || user.gender) && (
-              <label>
-                Gender:
-                {editing ? (
-                  <input name="gender" value={formData.gender} onChange={handleInputChange} />
-                ) : (
-                  <span>{user.gender}</span>
-                )}
-              </label>
-            )}
-          </>
-        )}
-
-        {user.role === 'matchmaker' && (editing || user.description) && (
-          <label>
-            Description:
-            {editing ? (
-              <textarea name="description" value={formData.description} onChange={handleInputChange} />
-            ) : (
-              <p>{user.description}</p>
-            )}
-          </label>
-        )}
-
-        {editing && (
-          <div style={{ marginTop: '1rem' }}>
-            <button type="submit">Save</button>
-            <button type="button" onClick={onCancel} style={{ marginLeft: '1rem' }}>
-              Cancel
-            </button>
-          </div>
-        )}
-      </form>
-
+      <ProfileInfoCard
+        user={user}
+        formData={formData}
+        editing={editing}
+        heightUnit={heightUnit}
+        onInputChange={handleInputChange}
+        onUnitToggle={handleUnitToggle}
+        onSubmit={handleFormSubmit}
+        onCancel={onCancel}
+        calculateAge={calculateAge}
+      />
 
       {user.role === 'user' && (
         <div>
