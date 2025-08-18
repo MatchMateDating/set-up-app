@@ -36,3 +36,9 @@
     transform: rotate(360deg);
   }
 }
+
+input, select, textarea {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+

@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import BottomTab from './bottomTab';
 import Profile from './profile';
 import SideBar from './sideBar';
+import './match.css';
+import { FaUserSecret } from 'react-icons/fa';
 
 const Match = () => {
   const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
@@ -74,25 +76,47 @@ const Match = () => {
 
   return (
     <div>
-      <SideBar/>
-      <div style={{ paddingBottom: '60px', paddingTop: '66px' }}>
-        <h2>Matching Page</h2>
+      <SideBar />
+      <div className="match-container">
         {profiles.length > 0 && currentIndex < profiles.length ? (
           <>
-            <Profile user={profiles[currentIndex]} framed={true} />
-            {userInfo?.role === 'matchmaker' ? (
-                profiles[currentIndex].liked_linked_dater ? (
-                    <button onClick={() => blindMatch(profiles[currentIndex].id)}>Blind Match</button>
-                ) : (
-                    <>
-                        <button onClick={() => blindMatch(profiles[currentIndex].id)}>Blind Match</button>
-                        <button onClick={handleLike}>Like</button>
-                    </>
-                )
-            ) : (
-                <button onClick={handleLike}>Like</button>
+            {userInfo?.role === 'matchmaker' && !profiles[currentIndex].liked_linked_dater && (
+              <FaUserSecret
+                onClick={() => blindMatch(profiles[currentIndex].id)}
+                className="blind-match-button"
+              />
             )}
-            <button onClick={nextProfile}>Skip</button>
+            <div className="profile-box">
+              <button onClick={nextProfile} className="skip-button"> ✕ </button>
+              <Profile user={profiles[currentIndex]} framed={true} />
+
+              {userInfo?.role === 'matchmaker' ? (
+                profiles[currentIndex].liked_linked_dater ? (
+                  <button
+                    onClick={() => blindMatch(profiles[currentIndex].id)}
+                    className="like-button"
+                  >
+                    ❤️
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      onClick={handleLike}
+                      className="like-button"
+                    >
+                      ❤️
+                    </button>
+                  </>
+                )
+              ) : (
+                <button
+                  onClick={handleLike}
+                  className="like-button"
+                >
+                  ❤️
+                </button>
+              )}
+            </div>
           </>
         ) : (
           <p>No profiles to match with currently, come back later!</p>
