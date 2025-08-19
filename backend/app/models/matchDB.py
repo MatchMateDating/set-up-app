@@ -12,6 +12,7 @@ class Match(db.Model):
     created_at = db.Column(db.DateTime, server_default=db.func.now())
     matched_by_matcher = db.Column(db.Integer, nullable=True)  # Optional: ID of the matchmaker who facilitated the match
     blind_match = db.Column(db.Boolean, default=False)  # Indicates if this is a blind match
+    note = db.Column(db.Text, nullable=True)
 
 
     # relationships to the two users
@@ -27,5 +28,6 @@ class Match(db.Model):
             'liked_by_id': self.liked_by_id,
             'matched_by_matcher': self.matched_by_matcher,
             'blind_match': self.blind_match,
+            'note': self.note 
         }
 
