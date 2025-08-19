@@ -68,6 +68,19 @@ def get_users_to_match(current_user):
     users_data = []
     for user in users:
         liked_linked_dater = False
+        note_text = None
+        matched_by_matcher = None
+        match = Match.query.filter(
+            ((Match.user_id_1 == current_user.id) & (Match.user_id_2 == user.id)) |
+            ((Match.user_id_1 == user.id) & (Match.user_id_2 == current_user.id))
+        ).first()
+
+        if match:
+            if match.note:
+                note_text = match.note
+            if match.matched_by_matcher:
+                matched_by_matcher = match.matched_by_matcher
+
         if current_user.role == 'matchmaker' and current_user.referrer:
             referred_dater_id = current_user.referrer.id
             match = Match.query.filter(
@@ -79,6 +92,8 @@ def get_users_to_match(current_user):
 
         user_dict = user.to_dict()
         user_dict['liked_linked_dater'] = liked_linked_dater
+        user_dict['note'] = note_text
+        user_dict['matched_by_matcher'] = matched_by_matcher
         users_data.append(user_dict)
     return jsonify(users_data)
 
@@ -244,5 +259,38 @@ def unmatch(current_user, match_id):
     db.session.commit()
 
     return jsonify({'message': 'Unmatched successfully'}), 200
+
+@match_bp.route('/send_note', methods=['POST'])
+@token_required
+def send_note(current_user):
+    data = request.get_json()
+    recipient_id = data.get('recipient_id')
+    note_text = data.get('note')
+
+    if not recipient_id or not note_text:
+        return jsonify({'message': 'recipient_id and note are required'}), 400
+
+    # See if a match already exists
+    match = Match.query.filter(
+        ((Match.user_id_1 == current_user.id) & (Match.user_id_2 == recipient_id)) |
+        ((Match.user_id_1 == recipient_id) & (Match.user_id_2 == current_user.id))
+    ).first()
+
+    if match:
+        match.note = note_text
+        match.status = 'pending'  # Ensure pending until mutual like
+    else:
+        match = Match(
+            user_id_1=current_user.id if current_user.role == 'user' else current_user.referrer.id,
+            user_id_2=recipient_id,
+            liked_by_id=[current_user.id] if current_user.role == 'user' else [current_user.referrer.id],
+            matched_by_matcher= current_user.id if current_user.role == 'matchmaker' else None,
+            status='pending',
+            note=note_text
+        )
+        db.session.add(match)
+
+    db.session.commit()
+    return jsonify({'message': 'Note sent successfully', 'match': match.to_dict()}), 201
 
 

@@ -4,12 +4,14 @@ import Profile from './profile';
 import SideBar from './sideBar';
 import './match.css';
 import { FaUserSecret } from 'react-icons/fa';
+import SendNoteModal from './sendNoteModal';
 
 const Match = () => {
   const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
   const [profiles, setProfiles] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [userInfo, setUserInfo] = useState(null);
+  const [showNoteModal, setShowNoteModal] = useState(false);
 
   const fetchProfiles = async () => {
     const token = localStorage.getItem('token');
@@ -17,6 +19,7 @@ const Match = () => {
       headers: { 'Authorization': `Bearer ${token}` }
     });
     const data = await res.json();
+    console.log('Fetched profiles:', data);
     setProfiles(data);
   };
 
@@ -61,12 +64,30 @@ const Match = () => {
     nextProfile();
   };
 
+  const handleSendNote = async (note) => {
+    const likedUser = profiles[currentIndex];
+    const token = localStorage.getItem('token');
+
+    await fetch(`${API_BASE_URL}/match/send_note`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ recipient_id: likedUser.id, note })
+    });
+
+    setShowNoteModal(false);
+    nextProfile();
+  };
+
   const nextProfile = () => {
     if (currentIndex < profiles.length - 1) {
       setCurrentIndex(currentIndex + 1);
     } else {
       alert('No more profiles to show!');
     }
+    console.log('profile info: ', profiles[currentIndex])
   };
 
   useEffect(() => {
@@ -87,8 +108,21 @@ const Match = () => {
               />
             )}
             <div className="profile-box">
+              {profiles[currentIndex].note && (
+                <div className="note-box">
+                  <strong>
+                    {profiles[currentIndex].matched_by_matcher ? "Matchmaker Note: " : "Note: "}
+                  </strong> 
+                    {profiles[currentIndex].note}
+                </div>
+              )}
+
               <button onClick={nextProfile} className="skip-button"> ✕ </button>
               <Profile user={profiles[currentIndex]} framed={true} />
+
+              <button onClick={() => setShowNoteModal(true)} className="note-button">
+                📝
+              </button>
 
               {userInfo?.role === 'matchmaker' ? (
                 profiles[currentIndex].liked_linked_dater ? (
@@ -117,6 +151,12 @@ const Match = () => {
                 </button>
               )}
             </div>
+            {showNoteModal && (
+              <SendNoteModal
+                onClose={() => setShowNoteModal(false)}
+                onSend={handleSendNote}
+              />
+            )}
           </>
         ) : (
           <p>No profiles to match with currently, come back later!</p>
