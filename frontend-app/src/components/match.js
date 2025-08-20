@@ -16,6 +16,15 @@ const Match = () => {
     const res = await fetch(`${API_BASE_URL}/match/users_to_match`, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
+
+    if (res.status === 401) {
+      const data = await res.json();
+      if (data.error_code === 'TOKEN_EXPIRED') {
+        localStorage.removeItem('token');
+        window.location.href = '/';
+      }
+    }
+
     const data = await res.json();
     setProfiles(data);
   };
@@ -25,13 +34,22 @@ const Match = () => {
     const res = await fetch(`${API_BASE_URL}/profile/`, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
+
+    if (res.status === 401) {
+      const data = await res.json();
+      if (data.error_code === 'TOKEN_EXPIRED') {
+        localStorage.removeItem('token');
+        window.location.href = '/';
+      }
+    }
+
     const data = await res.json();
     setUserInfo(data.user);
   }
 
   const likeUser = async (likedUserId) => {
     const token = localStorage.getItem('token');
-    await fetch(`${API_BASE_URL}/match/like`, {
+    const res = await fetch(`${API_BASE_URL}/match/like`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -39,11 +57,19 @@ const Match = () => {
       },
       body: JSON.stringify({ liked_user_id: likedUserId })
     });
+
+    if (res.status === 401) {
+      const data = await res.json();
+      if (data.error_code === 'TOKEN_EXPIRED') {
+        localStorage.removeItem('token');
+        window.location.href = '/';
+      }
+    }
   };
 
   const blindMatch = async (likedUserId) => {
     const token = localStorage.getItem('token');
-    await fetch(`${API_BASE_URL}/match/blind_match`, {
+    const res = await fetch(`${API_BASE_URL}/match/blind_match`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -51,6 +77,13 @@ const Match = () => {
       },
       body: JSON.stringify({ liked_user_id: likedUserId })
     });
+    if (res.status === 401) {
+      const data = await res.json();
+      if (data.error_code === 'TOKEN_EXPIRED') {
+        localStorage.removeItem('token');
+        window.location.href = '/';
+      }
+    }
     nextProfile(); // skip to next profile after match
   };
 

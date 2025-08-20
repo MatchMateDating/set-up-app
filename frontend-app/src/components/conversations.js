@@ -21,6 +21,15 @@ const Conversations = () => {
     const res = await fetch(`${API_BASE_URL}/profile/`, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
+
+    if (res.status === 401) {
+      const data = await res.json();
+      if (data.error_code === 'TOKEN_EXPIRED') {
+        localStorage.removeItem('token');
+        window.location.href = '/';
+      }
+    }
+    
     const data = await res.json();
     setUserInfo(data.user);
     setReferrerInfo(data.referrer);
@@ -33,6 +42,15 @@ const Conversations = () => {
     const res = await fetch(`${API_BASE_URL}/match/matches`, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
+
+    if (res.status === 401) {
+      const data = await res.json();
+      if (data.error_code === 'TOKEN_EXPIRED') {
+        localStorage.removeItem('token');
+        window.location.href = '/';
+      }
+    }
+
     const data = await res.json();
     setMatches(data);
   };
@@ -66,6 +84,14 @@ const Conversations = () => {
       headers: { 'Authorization': `Bearer ${token}` }
     });
 
+    if (res.status === 401) {
+      const data = await res.json();
+      if (data.error_code === 'TOKEN_EXPIRED') {
+        localStorage.removeItem('token');
+        window.location.href = '/';
+      }
+    }
+
     if (res.ok) {
       setMatches(matches.filter(match => match.match_id !== matchId));
     } else {
@@ -81,6 +107,15 @@ const Conversations = () => {
         method: 'GET',
         headers: { 'Authorization': `Bearer ${token}` }
       });
+
+      if (res.status === 401) {
+        const data = await res.json();
+        if (data.error_code === 'TOKEN_EXPIRED') {
+          localStorage.removeItem('token');
+          window.location.href = '/';
+        }
+      }
+
       if (res.ok) {
         let data = await res.json();
         if (data.length > 0) {
@@ -113,6 +148,14 @@ const Conversations = () => {
         },
         body: JSON.stringify(payload)
       });
+
+      if (res.status === 401) {
+        const data = await res.json();
+        if (data.error_code === 'TOKEN_EXPIRED') {
+          localStorage.removeItem('token');
+          window.location.href = '/';
+        }
+      }
 
       if (res.ok || res.status === 201) {
         let data = await res.json();

@@ -116,6 +116,14 @@ const Profile = ({ user, framed, editing, onEditClick, onSave, onCancel }) => {
         body: formData,
       });
 
+      if (response.status === 401) {
+        const data = await response.json();
+        if (data.error_code === 'TOKEN_EXPIRED') {
+          localStorage.removeItem('token');
+          window.location.href = '/';
+        }
+      }
+
       if (!response.ok) throw new Error('Failed to upload image');
 
       const newImage = await response.json();
@@ -194,6 +202,14 @@ const Profile = ({ user, framed, editing, onEditClick, onSave, onCancel }) => {
         body: JSON.stringify(payload),
       });
 
+      if (res.status === 401) {
+        const data = await res.json();
+        if (data.error_code === 'TOKEN_EXPIRED') {
+          localStorage.removeItem('token');
+          window.location.href = '/';
+        }
+      }
+
       if (!res.ok) throw new Error('Failed to update profile');
       await res.json();
       onSave();
@@ -210,6 +226,14 @@ const Profile = ({ user, framed, editing, onEditClick, onSave, onCancel }) => {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` },
       });
+
+      if (res.status === 401) {
+        const data = await res.json();
+        if (data.error_code === 'TOKEN_EXPIRED') {
+          localStorage.removeItem('token');
+          window.location.href = '/';
+        }
+      }
 
       if (!res.ok) throw new Error('Failed to delete image');
 
