@@ -45,6 +45,14 @@ const CompleteProfile = () => {
         body: JSON.stringify(formData),
       });
 
+      if (res.status === 401) {
+        const data = await res.json();
+        if (data.error_code === 'TOKEN_EXPIRED') {
+          localStorage.removeItem('token');
+          window.location.href = '/';
+        }
+      }
+
       if (!res.ok) throw new Error("Failed to update profile");
 
       setSuccess("Profile updated successfully 🎉");
