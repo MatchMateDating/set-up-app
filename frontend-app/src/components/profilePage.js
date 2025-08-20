@@ -15,20 +15,27 @@ const ProfilePage = () => {
       fetch(`${API_BASE_URL}/profile/`, {
         headers: { 'Authorization': `Bearer ${token}` },
       })
-      .then((res) => res.json())
-      .then((data) => {
-        console.log(data.user)
-        setUser(data.user);
-        setReferrer(data.referrer || null);
-      })
-      .catch((err) => console.error('Error loading profile:', err));
+        .then(async (res) => {
+          if (res.status === 401) {
+            const data = await res.json();
+            if (data.error_code === 'TOKEN_EXPIRED') {
+              localStorage.removeItem('token'); // clear invalid token
+              window.location.href = '/login';  // redirect to login
+              return; // stop execution
+            }
+          }
+          return res.json();
+        })
+        .then((data) => {
+          if (!data) return; // avoid running if we already redirected
+          setUser(data.user);
+          setReferrer(data.referrer || null);
+        })
+        .catch((err) => console.error('Error loading profile:', err));
     }
   };
 
   useEffect(() => { fetchProfile(); }, []);
-  useEffect(() => { 
-    if (user) console.log('✅ User:', user); 
-  }, [user]);
 
   const handleSave = () => {
     fetchProfile();
