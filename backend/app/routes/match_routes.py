@@ -11,6 +11,16 @@ match_bp = Blueprint('match', __name__)
 def get_users_to_match(current_user):
     query = User.query.filter(User.role == 'user', User.id != current_user.id)
 
+    # Add preferences filtering
+    if current_user.preferredAgeMin and current_user.preferredAgeMax:
+        query = query.filter(User.age.between(
+            current_user.preferredAgeMin, 
+            current_user.preferredAgeMax
+        ))
+
+    if current_user.preferredGender:
+        query = query.filter(User.gender == current_user.preferredGender)
+
     # If matchmaker, exclude their referred dater from the list
     if current_user.role == 'matchmaker' and current_user.referrer:
         referred_dater_id = current_user.referrer.id

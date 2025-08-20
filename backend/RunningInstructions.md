@@ -11,6 +11,7 @@ Download requirements:
 pip install -r requirements.txt
 
 Create database: (add python -m in front of each command in macOS)
+delete the instance and migrations folders
 flask db init
 flask db migrate
 flask db upgrade

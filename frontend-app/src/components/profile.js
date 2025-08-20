@@ -5,6 +5,8 @@ import CropperModal from './cropperModal';
 import AvatarSelectorModal from './avatarSelectorModal';
 import ImageGallery from './images';
 import ProfileInfoCard from './profileInfoCard';
+import ImageGallery from './images';
+import ProfileInfoCard from './profileInfoCard';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
 const Profile = ({ user, framed, editing, onEditClick, onSave, onCancel }) => {
@@ -16,6 +18,9 @@ const Profile = ({ user, framed, editing, onEditClick, onSave, onCancel }) => {
     heightMeters: '0',
     heightCentimeters: '0',
     description: '',
+    preferredAgeMin: '0',
+    preferredAgeMax: '0',
+    preferredGender: ''
   });
 
   const [referralCode, setReferralCode] = useState('');
@@ -28,18 +33,24 @@ const Profile = ({ user, framed, editing, onEditClick, onSave, onCancel }) => {
 
   useEffect(() => {
     if (user) {
+      const baseFormData = {
+        birthdate: user.birthdate || '',
+        gender: user.gender || '',
+        description: user.description || '',
+        preferredAgeMin: user.preferredAgeMin || '',
+        preferredAgeMax: user.preferredAgeMax || '',
+        preferredGender: user.preferredGender || ''
+      }
       const heightString = user.height || "0'0";
       if (heightString.includes("'")) {
         // Format: 5'11"
         const [feet, inches] = heightString.split(/'|"/).map(Number);
         setFormData({
-          birthdate: user.birthdate || '',
-          gender: user.gender || '',
+          ...baseFormData,
           heightFeet: feet.toString(),
           heightInches: inches.toString(),
           heightMeters: '0',
-          heightCentimeters: '0',
-          description: user.description || '',
+          heightCentimeters: '0'
         });
         setHeightUnit('ft');
       } else if (heightString.includes('m')) {
@@ -48,13 +59,11 @@ const Profile = ({ user, framed, editing, onEditClick, onSave, onCancel }) => {
         const meters = metersPart.replace('m', '');
         const centimeters = cmPart.replace('cm', '');
         setFormData({
-          birthdate: user.birthdate || '',
-          gender: user.gender || '',
+          ...baseFormData,
           heightFeet: '0',
           heightInches: '0',
           heightMeters: meters,
-          heightCentimeters: centimeters,
-          description: user.description || '',
+          heightCentimeters: centimeters
         });
         setHeightUnit('m');
       }
@@ -169,16 +178,22 @@ const Profile = ({ user, framed, editing, onEditClick, onSave, onCancel }) => {
         heightFormatted = `${formData.heightMeters}m ${formData.heightCentimeters}cm`;
       }
 
+      const payload = {
+        birthdate: formData.birthdate,
+        gender: formData.gender,
+        height: heightFormatted,
+        description: formData.description,
+        preferredAgeMin: formData.preferredAgeMin,
+        preferredAgeMax: formData.preferredAgeMax,
+        preferredGender: formData.preferredGender
+      };
       const res = await fetch(`${API_BASE_URL}/profile/update`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          ...formData,
-          height: heightFormatted,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!res.ok) throw new Error('Failed to update profile');
@@ -188,18 +203,6 @@ const Profile = ({ user, framed, editing, onEditClick, onSave, onCancel }) => {
       console.error(err);
       alert('Error updating profile.');
     }
-  };
-
-  const calculateAge = (birthdate) => {
-    if (!birthdate) return '';
-    const birthDateObj = new Date(birthdate);
-    const today = new Date();
-    let age = today.getFullYear() - birthDateObj.getFullYear();
-    const m = today.getMonth() - birthDateObj.getMonth();
-    if (m < 0 || (m === 0 && today.getDate() < birthDateObj.getDate())) {
-      age--;
-    }
-    return age;
   };
 
   const handleDeleteImage = async (imageId) => {
@@ -218,6 +221,18 @@ const Profile = ({ user, framed, editing, onEditClick, onSave, onCancel }) => {
       console.error(err);
       alert('Error deleting image');
     }
+  };
+
+  const calculateAge = (birthdate) => {
+    if (!birthdate) return '';
+    const birthDateObj = new Date(birthdate);
+    const today = new Date();
+    let age = today.getFullYear() - birthDateObj.getFullYear();
+    const m = today.getMonth() - birthDateObj.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birthDateObj.getDate())) {
+      age--;
+    }
+    return age;
   };
 
   return (
@@ -263,18 +278,19 @@ const Profile = ({ user, framed, editing, onEditClick, onSave, onCancel }) => {
         />
       )}
 
-      <ProfileInfoCard
-        user={user}
-        formData={formData}
-        editing={editing}
-        heightUnit={heightUnit}
-        onInputChange={handleInputChange}
-        onUnitToggle={handleUnitToggle}
-        onSubmit={handleFormSubmit}
-        onCancel={onCancel}
-        calculateAge={calculateAge}
-      />
-
+      <form className={`profile-card ${framed ? 'framed' : ''}`} onSubmit={handleFormSubmit}>
+        <ProfileInfoCard
+          user={user}
+          formData={formData}
+          editing={editing}
+          heightUnit={heightUnit}
+          onInputChange={handleInputChange}
+          onUnitToggle={handleUnitToggle}
+          onSubmit={handleFormSubmit} // optional, can remove now
+          onCancel={onCancel}
+          calculateAge={calculateAge}
+        />
+      </form>
       {user.role === 'user' && (
         <div>
           <div className="section">

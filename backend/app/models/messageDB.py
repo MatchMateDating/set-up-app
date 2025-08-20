@@ -6,4 +6,5 @@ class Message(db.Model):
     sender_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     text = db.Column(db.Text, nullable=False)
     timestamp = db.Column(db.DateTime, server_default=db.func.now())
+    receiver_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
 
