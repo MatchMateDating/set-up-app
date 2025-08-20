@@ -5,8 +5,6 @@ import CropperModal from './cropperModal';
 import AvatarSelectorModal from './avatarSelectorModal';
 import ImageGallery from './images';
 import ProfileInfoCard from './profileInfoCard';
-import ImageGallery from './images';
-import ProfileInfoCard from './profileInfoCard';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
 const Profile = ({ user, framed, editing, onEditClick, onSave, onCancel }) => {
