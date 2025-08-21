@@ -9,6 +9,7 @@ import Conversations from './components/conversations';
 import Match from './components/match';
 import CompleteProfile from './components/completeProfile';
 import Settings from './components/settings';
+import MatchConvo from './components/matchConvo';
 
 function App() {
   return (
@@ -20,6 +21,7 @@ function App() {
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/conversations" element={<Conversations />} />
+            <Route path="/conversation/:matchId" element={<MatchConvo />} />
             <Route path="/match" element={<Match />} />
         </Routes>
     </Router>
