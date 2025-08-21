@@ -22,13 +22,6 @@ const MatchConvo = () => {
           if (data.length > 0) data = data[0].messages;
           setMessages(data || []);
         }
-        if (res.status === 401) {
-          const data = await res.json();
-          if (data.error_code === 'TOKEN_EXPIRED') {
-            localStorage.removeItem('token');
-            window.location.href = '/';
-          }
-        }
       } catch (err) {
         console.error(err);
       } finally {
@@ -55,13 +48,6 @@ const MatchConvo = () => {
         let data = await res.json();
         setMessages(data.messages || []);
         setNewMessageText("");
-      }
-      if (res.status === 401) {
-        const data = await res.json();
-        if (data.error_code === 'TOKEN_EXPIRED') {
-          localStorage.removeItem('token');
-          window.location.href = '/';
-        }
       }
     } catch (err) {
       console.error(err);
