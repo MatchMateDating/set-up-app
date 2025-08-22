@@ -60,3 +60,37 @@
   transform: scale(1.1);
 }
 
+.note-button {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  background-color: #2d426e;
+  border: none;
+  border-radius: 50%;
+  width: 50px;
+  height: 50px;
+  font-size: 22px;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+.note-button:hover {
+  transform: scale(1.1);
+}
+
+.note-box {
+  background: #f0f4ff;
+  border: 1px solid #d1d9f9;
+  padding: 10px;
+  border-radius: 10px;
+  margin-bottom: 12px;
+  font-style: italic;
+  font-size: 14px;
+  color: #2d426e;
+  text-align: center;
+}
+
