@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import BottomTab from './bottomTab';
 import './conversations.css'; // optional for styling
 import SideBar from './sideBar';
+import { useNavigate } from 'react-router-dom';
 
 const Conversations = () => {
   const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
@@ -10,11 +11,7 @@ const Conversations = () => {
   const [userInfo, setUserInfo] = useState(null);
   const [referrerInfo, setReferrerInfo] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [selectedMatchId, setSelectedMatchId] = useState('');
-  const [messages, setMessages] = useState([]);
-  const [newMessageText, setNewMessageText] = useState('');
-  const [loadingMessages, setLoadingMessages] = useState(false);
-  const [convoOpen, setConvoOpen] = useState(false);
+  const navigate = useNavigate();
 
   const fetchUserInfo = async () => {
     const token = localStorage.getItem('token');
@@ -100,97 +97,9 @@ const Conversations = () => {
     }
   };
 
-  const fetchConversation = async (matchId) => {
-    setLoadingMessages(true);
-    try {
-      const res = await fetch(`${API_BASE_URL}/conversation/${matchId}`, {
-        method: 'GET',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-
-      if (res.status === 401) {
-        const data = await res.json();
-        if (data.error_code === 'TOKEN_EXPIRED') {
-          localStorage.removeItem('token');
-          window.location.href = '/';
-        }
-      }
-
-      if (res.ok) {
-        let data = await res.json();
-        if (data.length > 0) {
-          data = data[0].messages;
-        }
-        setMessages(data || []);
-        setLoadingMessages(false);
-      } else {
-        console.error('Failed to fetch conversation');
-      }
-    } catch (error) {
-      console.error('Error fetching conversation:', error);
-    }
-  };
-
-  // Send a new message to conversation or create conversation with message
-  const sendMessage = async (matchId) => {
-    if (!newMessageText.trim() || !selectedMatchId) return;
-
-    try {
-      const payload = {
-        message: newMessageText.trim()
-      };
-
-      const res = await fetch(`${API_BASE_URL}/conversation/${matchId}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(payload)
-      });
-
-      if (res.status === 401) {
-        const data = await res.json();
-        if (data.error_code === 'TOKEN_EXPIRED') {
-          localStorage.removeItem('token');
-          window.location.href = '/';
-        }
-      }
-
-      if (res.ok || res.status === 201) {
-        let data = await res.json();
-        setMessages(data.messages || []);
-        setNewMessageText('');
-      } else {
-        const errorData = await res.json();
-        alert(`Error sending message: ${errorData.error || errorData.message}`);
-      }
-    } catch (err) {
-      console.error('Error sending message:', err);
-    }
-  };
-
   if (loading) {
     return <div>Loading...</div>;
   }
-
-  const openConversation = (matchObj) => {
-    // Use match_user or linked_dater's id as matchId
-    const matchId = matchObj.match_id;
-    setSelectedMatchId(matchId); // show main matched user for chat header
-    fetchConversation(matchId);
-  };
-
-  const toggleConversation = (matchObj = undefined) => {
-    if (convoOpen) {
-      setConvoOpen(false);
-      setSelectedMatchId('');
-      setNewMessageText('');
-    } else {
-      setConvoOpen(true);
-      openConversation(matchObj);
-    }
-  };
 
   return (
     <div>
@@ -229,7 +138,10 @@ const Conversations = () => {
         <div className="match-list">
           {getFilteredMatches().length > 0 ? (
             getFilteredMatches().map((matchObj, index) => (
-              <div onClick={() => toggleConversation(matchObj)} key={index} className="match-card">
+              <div 
+              onClick={() => navigate(`/conversation/${matchObj.match_id}`)} 
+              key={index} 
+              className="match-card">
                 <div className="profile-preview">
                   {matchObj.match_user.first_image ? (
                     <img
@@ -241,7 +153,10 @@ const Conversations = () => {
                     <div className="match-placeholder">No Image</div>
                   )}
                   <div className="match-name">{matchObj.match_user.name}</div>
-                  <button onClick={() => unmatch(matchObj.match_id)}>Unmatch</button>
+                  <button onClick={(e) =>{
+                    e.stopPropagation();
+                    unmatch(matchObj.match_id);
+                    }}>Unmatch</button>
                 </div>
 
                 {matchObj.linked_dater && userInfo.role === "matchmaker" && (
@@ -264,43 +179,6 @@ const Conversations = () => {
             <p>No matches yet!</p>
           )}
         </div>
-
-        {/* Conversation Box */}
-        {selectedMatchId && (
-          <div className="conversation-box">
-            <h3>Conversation</h3>
-            {loadingMessages ? (
-              <p>Loading messages...</p>
-            ) : messages.length === 0 ? (
-              <p>No messages yet. Say hi!</p>
-            ) : (
-              <div className="messages-list" style={{ maxHeight: '300px', overflowY: 'auto' }}>
-                {messages.map(msg => (
-                  <div key={msg.id} className="message">
-                    <div><strong>{msg.sender_id === selectedMatchId ? 'You' : 'Them'}:</strong></div>
-                    <div>{msg.text}</div>
-                    <small>{new Date(msg.timestamp).toLocaleString()}</small>
-                  </div>
-                ))}
-              </div>
-            )}
-            <textarea
-              value={newMessageText}
-              onChange={e => setNewMessageText(e.target.value)}
-              placeholder="Type your message..."
-              rows={3}
-              style={{ width: '100%' }}
-            />
-            <button onClick={() => sendMessage(selectedMatchId)} disabled={!newMessageText.trim()}>
-              Send
-            </button>
-            <button
-              onClick={() => toggleConversation()}
-            >
-              Close
-            </button>
-          </div>
-        )}
         <BottomTab />
       </div>
     </div>
