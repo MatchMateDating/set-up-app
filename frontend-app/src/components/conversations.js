@@ -97,59 +97,6 @@ const Conversations = () => {
     }
   };
 
-  const fetchConversation = async (matchId) => {
-    setLoadingMessages(true);
-    try {
-      const res = await fetch(`${API_BASE_URL}/conversation/${matchId}`, {
-        method: 'GET',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (res.ok) {
-        let data = await res.json();
-        if (data.length > 0) {
-          data = data[0].messages;
-        }
-        setMessages(data || []);
-        setLoadingMessages(false);
-      } else {
-        console.error('Failed to fetch conversation');
-      }
-    } catch (error) {
-      console.error('Error fetching conversation:', error);
-    }
-  };
-
-  // Send a new message to conversation or create conversation with message
-  const sendMessage = async (matchId) => {
-    if (!newMessageText.trim() || !selectedMatchId) return;
-
-    try {
-      const payload = {
-        message: newMessageText.trim()
-      };
-
-      const res = await fetch(`${API_BASE_URL}/conversation/${matchId}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(payload)
-      });
-
-      if (res.ok || res.status === 201) {
-        let data = await res.json();
-        setMessages(data.messages || []);
-        setNewMessageText('');
-      } else {
-        const errorData = await res.json();
-        alert(`Error sending message: ${errorData.error || errorData.message}`);
-      }
-    } catch (err) {
-      console.error('Error sending message:', err);
-    }
-  };
-
   if (loading) {
     return <div>Loading...</div>;
   }
