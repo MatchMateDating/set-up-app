@@ -74,9 +74,30 @@ def get_users_to_match(current_user):
         # Exclude users already matched by the matchmaker
         query = query.filter(~User.id.in_(matched_user_ids))
 
+        pending_likes = Match.query.filter(
+            ((Match.user_id_1 == current_user.id) | (Match.user_id_2 == current_user.id)) &
+            (Match.status == 'pending')
+        ).all()
+
+        pending_user_ids = set()
+        for match in pending_likes:
+            if current_user.id in match.liked_by_id:  # current_user has already liked
+                if match.user_id_1 != current_user.id:
+                    pending_user_ids.add(match.user_id_1)
+                if match.user_id_2 != current_user.id:
+                    pending_user_ids.add(match.user_id_2)
+
+        query = query.filter(~User.id.in_(pending_user_ids))
+
     users = query.all()
     users_data = []
     for user in users:
+        if user.preferredAgeMin and user.preferredAgeMax:
+            if not (user.preferredAgeMin <= current_user.age <= user.preferredAgeMax):
+                continue
+        if user.preferredGender:
+            if user.preferredGender != current_user.gender:
+                continue
         liked_linked_dater = False
         note_text = None
         matched_by_matcher = None
@@ -289,7 +310,7 @@ def send_note(current_user):
     if match:
         match.note = note_text
         match.status = 'pending'  # Ensure pending until mutual like
-    else:
+    else: 
         match = Match(
             user_id_1=current_user.id if current_user.role == 'user' else current_user.referrer.id,
             user_id_2=recipient_id,

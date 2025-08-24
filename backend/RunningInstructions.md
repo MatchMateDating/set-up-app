@@ -18,6 +18,6 @@ flask db upgrade
 
 run:
 flask run
-macOS: python -m flask run
+macOS: python -m flask run 
 
 
