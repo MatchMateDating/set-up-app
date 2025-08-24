@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import Profile from './profile';
-import BottomTab from './bottomTab';
-import SideBar from './sideBar';
+import BottomTab from '../layout/bottomTab';
+import SideBar from '../layout/sideBar';
 
 const ProfilePage = () => {
   const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import SideBar from './sideBar';
+import SideBar from '../layout/sideBar';
 
 const MatchConvo = () => {
   const { matchId } = useParams();

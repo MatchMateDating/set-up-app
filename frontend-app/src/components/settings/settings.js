@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { FaCopy } from 'react-icons/fa';
 
 const Settings = () => {
   const [referralCode, setReferralCode] = useState('');
@@ -49,6 +50,9 @@ const Settings = () => {
       {showCode && (
         <div style={{ marginTop: '20px', fontSize: '1.2em', color: '#2a9d8f' }}>
           {referralCode}
+          <button onClick={() => navigator.clipboard.writeText(referralCode)}>
+            <FaCopy style={{ cursor: 'pointer' }} />
+          </button>
         </div>
       )}
     </div>
