@@ -310,7 +310,7 @@ def send_note(current_user):
     if match:
         match.note = note_text
         match.status = 'pending'  # Ensure pending until mutual like
-    else:
+    else: 
         match = Match(
             user_id_1=current_user.id if current_user.role == 'user' else current_user.referrer.id,
             user_id_2=recipient_id,
