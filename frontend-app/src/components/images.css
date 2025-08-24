@@ -1,0 +1,27 @@
+/* Editing mode: 3x3 grid */
+.image-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.grid-image {
+  width: 100%;
+  height: auto;
+  object-fit: cover;
+  border-radius: 8px;
+}
+
+/* Non-editing mode: full width images stacked */
+.image-full {
+  display: flex;
+  flex-direction: column;
+}
+
+.full-image {
+  width: 100%;
+  height: auto;
+  object-fit: cover;
+  margin-bottom: 8px;
+  border-radius: 8px;
+}
