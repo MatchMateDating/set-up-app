@@ -39,14 +39,11 @@
   margin: 0;
   font-size: 1.5rem;
   font-weight: 700;
-<<<<<<< HEAD
 }
 
 .subtext {
   color: #666;
   font-size: 0.9em;
-=======
->>>>>>> 9090a1e (requested ui changes)
 }
 
 /* .profile-actions {
@@ -57,7 +54,6 @@
 
 .profile-actions .edit-icon {
   cursor: pointer;
-<<<<<<< HEAD
   font-size: 0.85rem;
   transition: background 0.2s ease;
 }
@@ -83,95 +79,6 @@
   transition: transform 0.2s ease, background 0.2s ease;
 }
 
-=======
-  font-size: 1.4rem;
-  color: #777;
-  transition: color 0.2s ease;
-}
-
-.profile-actions .edit-icon:hover {
-  color: #111;
-}
-
-.profile-info-card {
-  background: #fff;
-  border-radius: 16px;
-  padding: 20px;
-  margin-bottom: 20px;
-}
-
-.profile-field {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin: 14px 0;
-}
-
-.profile-field label {
-  font-weight: 600;
-  color: #444;
-  flex: 1;
-}
-
-.profile-value {
-  flex: 2;
-  color: #222;
-  font-size: 1rem;
-}
-
-input, select, textarea {
-  padding: 8px 10px;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  width: 100%;
-  font-size: 0.95rem;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
-}
-
-input:focus, select:focus, textarea:focus {
-  border-color: #2a9d8f;
-  box-shadow: 0 0 4px rgba(42,157,143,0.3);
-  outline: none;
-}
-
-.height-inputs {
-  display: flex;
-  gap: 8px;
-  flex: 2;
-}
-
-.switch-btn {
-  padding: 6px 10px;
-  border: none;
-  border-radius: 8px;
-  background: #f1f1f1;
-  cursor: pointer;
-  font-size: 0.85rem;
-  transition: background 0.2s ease;
-}
-
-.switch-btn:hover {
-  background: #ddd;
-}
-
-.form-actions {
-  display: flex;
-  gap: 12px;
-  margin-top: 1.5rem;
-  justify-content: flex-end;
-}
-
-.save-btn, .cancel-btn {
-  padding: 10px 18px;
-  border-radius: 10px;
-  border: none;
-  cursor: pointer;
-  font-size: 0.95rem;
-  font-weight: 600;
-  transition: transform 0.2s ease, background 0.2s ease;
-}
-
->>>>>>> 9090a1e (requested ui changes)
 .save-btn {
   background: #2a9d8f;
   color: white;
