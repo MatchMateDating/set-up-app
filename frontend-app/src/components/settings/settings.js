@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { FaCopy } from 'react-icons/fa';
+import { FaCopy, FaShare, FaEnvelope, FaArrowLeft } from 'react-icons/fa';
+import { useNavigate } from 'react-router-dom';
+import './settings.css';
 
 const Settings = () => {
   const [referralCode, setReferralCode] = useState('');
   const [showCode, setShowCode] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const fetchUserProfile = async () => {
@@ -39,20 +42,72 @@ const Settings = () => {
     fetchUserProfile();
   }, []);
 
-  const handleShowCode = () => {
-    setShowCode(true);
+  const handleToggleCode = () => {
+    setShowCode((prev)=> !prev);
+  };
+
+  const handleShare = async () => {
+    const shareData = {
+      title: "Join this app!",
+      text: "Sign up using my referral code!",
+      url: `${process.env.REACT_APP_SIGNUP_URL}?ref=${referralCode}`,
+    };
+
+    if (navigator.share) {
+      try {
+        await navigator.share(shareData);
+      } catch (err) {
+        console.error("Error sharing:", err);
+      }
+    } else {
+      alert("Sharing not supported on this browser.");
+    }
+  };
+
+  const handleInvite = async () => {
+    const email = window.prompt("Enter email address:");
+    if (email) {
+      await fetch(`${process.env.REACT_APP_API_BASE_URL}/invite/email`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, referralCode }),
+      });
+      alert("Email invite sent!");
+    }
   };
 
   return (
-    <div style={{ padding: '20px' }}>
-      <h2>Settings</h2>
-      <button onClick={handleShowCode}>Show Referral Code</button>
+    <div className="settings-container">
+      <button className="back-btn" onClick={() => navigate(-1)}>
+        <FaArrowLeft /> Back
+      </button>
+      <h2 className="settings-title">Settings</h2>
+      <button className="primary-btn" onClick={handleToggleCode}>
+        {showCode ? "Hide Referral Code" : "Show Referral Code"}
+      </button>
       {showCode && (
-        <div style={{ marginTop: '20px', fontSize: '1.2em', color: '#2a9d8f' }}>
-          {referralCode}
-          <button onClick={() => navigator.clipboard.writeText(referralCode)}>
-            <FaCopy style={{ cursor: 'pointer' }} />
-          </button>
+        <div className="referral-section">
+          <span className="referral-code">{referralCode}</span>
+          <div className="button-group">
+            <button 
+              className="icon-btn" 
+              onClick={() => navigator.clipboard.writeText(referralCode)}
+            >
+              <FaCopy/>
+            </button>
+            <button
+              className="secondary-btn"
+              onClick={handleShare}
+            >
+              <FaShare/>
+            </button>
+            <button 
+              className="secondary-btn"
+              onClick={handleInvite}
+            >
+              <FaEnvelope/>
+            </button>
+          </div>
         </div>
       )}
     </div>
