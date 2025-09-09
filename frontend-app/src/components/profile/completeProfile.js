@@ -1,24 +1,35 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import './completeProfile.css'; 
+import { calculateAge, convertFtInToMetersCm, convertMetersCmToFtIn, formatHeight } from "./utils/profileUtils";
+import HeightSelector from "./components/heightSelector";
+import ProfileInfoCard from './profileInfoCard';
 
 const CompleteProfile = () => {
   const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
   const navigate = useNavigate();
 
+  const today = new Date();
+  const defaultBirthdate = new Date(today.setFullYear(today.getFullYear() - 18))
+    .toISOString()
+    .split("T")[0];
+ 
   const [formData, setFormData] = useState({
-    birthdate: "",
+    birthdate: defaultBirthdate,
     gender: "",
+    heightFeet: '0',
+    heightInches: '0',
+    heightMeters: '0',
+    heightCentimeters: '0',
+    preferredAgeMax: '',
+    preferredAgeMin: '',
+    preferredGender: '',
   });
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
+  const [heightUnit, setHeightUnit] = useState('ft'); 
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -26,23 +37,34 @@ const CompleteProfile = () => {
     setError("");
     setSuccess("");
 
-    // Basic validation
-    const today = new Date();
-    if (new Date(formData.birthdate) > today) {
-      setError("Birthdate cannot be in the future.");
+    // ✅ Age validation
+    if (calculateAge(formData.birthdate) < 18) {
+      setError("You must be at least 18 years old.");
       setLoading(false);
       return;
     }
 
     try {
       const token = localStorage.getItem("token");
+
+      const heightFormatted = formatHeight(formData, heightUnit);
+
+      const payload = {
+        birthdate: formData.birthdate,
+        gender: formData.gender,
+        height: heightFormatted,
+        preferredAgeMax: formData.preferredAgeMax,
+        preferredAgeMin: formData.preferredAgeMin,
+        preferredGender: formData.preferredGender,
+      };
+
       const res = await fetch(`${API_BASE_URL}/profile/update`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
 
       if (res.status === 401) {
@@ -65,6 +87,23 @@ const CompleteProfile = () => {
     }
   };
 
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleUnitToggle = () => {
+    if (heightUnit === 'ft') {
+      const { meters, centimeters } = convertFtInToMetersCm(formData.heightFeet, formData.heightInches);
+      setFormData((prev) => ({ ...prev, heightMeters: meters, heightCentimeters: centimeters }));
+      setHeightUnit('m');
+    } else {
+      const { feet, inches } = convertMetersCmToFtIn(formData.heightMeters, formData.heightCentimeters);
+      setFormData((prev) => ({ ...prev, heightFeet: feet, heightInches: inches }));
+      setHeightUnit('ft');
+    }
+  };
+
   return (
     <div className="complete-profile-container">
       <h2 className="text-2xl font-semibold text-center mb-6">
@@ -72,44 +111,20 @@ const CompleteProfile = () => {
       </h2>
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium mb-1">Birthdate</label>
-          <input
-            type="date"
-            name="birthdate"
-            value={formData.birthdate}
-            onChange={handleChange}
-            required
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring focus:ring-blue-200"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium mb-1">Gender</label>
-          <select
-            name="gender"
-            value={formData.gender}
-            onChange={handleChange}
-            required
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring focus:ring-blue-200"
-          >
-            <option value="">Select gender</option>
-            <option value="female">Female</option>
-            <option value="male">Male</option>
-            <option value="nonbinary">Non-binary</option>
-          </select>
-        </div>
+        <ProfileInfoCard
+          user={{ role: "user" }}
+          formData={formData}
+          editing={true}
+          heightUnit={heightUnit}
+          onInputChange={handleInputChange}
+          onUnitToggle={handleUnitToggle}
+          onSubmit={handleSubmit}
+          onCancel={() => navigate("/profile")}
+          calculateAge={calculateAge}
+        />
 
         {error && <p className="text-red-500 text-sm">{error}</p>}
         {success && <p className="text-green-600 text-sm">{success}</p>}
-
-        <button
-          type="submit"
-          disabled={loading}
-          className="continue-btn"
-        >
-          {loading ? "Saving..." : "Continue"}
-        </button>
       </form>
     </div>
   );

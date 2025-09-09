@@ -20,7 +20,7 @@ const ProfilePage = () => {
             const data = await res.json();
             if (data.error_code === 'TOKEN_EXPIRED') {
               localStorage.removeItem('token'); // clear invalid token
-              window.location.href = '/login';  // redirect to login
+              window.location.href = '/';  // redirect to login
               return; // stop execution
             }
           }

@@ -1,6 +1,8 @@
 // ProfileInfoCard.js
 import React from 'react';
 import './profile.css';
+import FormField from './components/formField';
+import HeightSelector from './components/heightSelector';
 
 const ProfileInfoCard = ({
   user,
@@ -13,86 +15,30 @@ const ProfileInfoCard = ({
   onCancel,
   calculateAge
 }) => {
-  const renderField = ({ label, value, editing, input }) => {
-    if (!editing && !value) return null;
-    return (
-      <div className="profile-field">
-        <label>{label}: {editing ? input : <span className="profile-value">{value}</span>}</label>
-      </div>
-    );
-  };
-
-  const renderHeightSelector = () => (
-    <div className="height-inputs">
-      {heightUnit === 'ft' ? (
-        <>
-          <select
-            value={formData.heightFeet}
-            onChange={(e) => onInputChange({ target: { name: 'heightFeet', value: e.target.value } })}
-          >
-            {[...Array(8).keys()].map((num) => (
-              <option key={num} value={num}>{num} ft</option>
-            ))}
-          </select>
-          <select
-            value={formData.heightInches}
-            onChange={(e) => onInputChange({ target: { name: 'heightInches', value: e.target.value } })}
-          >
-            {[...Array(12).keys()].map((num) => (
-              <option key={num} value={num}>{num} in</option>
-            ))}
-          </select>
-        </>
-      ) : (
-        <>
-          <select
-            value={formData.heightMeters}
-            onChange={(e) => onInputChange({ target: { name: 'heightMeters', value: e.target.value } })}
-          >
-            {[...Array(3).keys()].map((num) => (
-              <option key={num} value={num}>{num} m</option>
-            ))}
-          </select>
-          <select
-            value={formData.heightCentimeters}
-            onChange={(e) => onInputChange({ target: { name: 'heightCentimeters', value: e.target.value } })}
-          >
-            {[...Array(100).keys()].map((num) => (
-              <option key={num} value={num}>{num} cm</option>
-            ))}
-          </select>
-        </>
-      )}
-      <button type="button" onClick={onUnitToggle} className="switch-btn">
-        {heightUnit === 'ft' ? 'Switch to meters' : 'Switch to feet'}
-      </button>
-    </div>
-  );
 
   return (
     <div className="profile-info-card" onSubmit={onSubmit}>
       {user.role === 'user' && (
         <>
-          {renderField({
-            label: editing ? 'Birthdate' : 'Age',
-            editing,
-            value: editing ? formData.birthdate : calculateAge(user.birthdate),
-            input: <input type="date" name="birthdate" value={formData.birthdate} onChange={onInputChange} />
-          })}
+          <FormField
+             label={editing ? 'Birthdate' : 'Age'}
+             editing={editing}
+             value={editing ? formData.birthdate : calculateAge(user.birthdate)}
+             input={<input type="date" name="birthdate" value={formData.birthdate} onChange={onInputChange} />}
+          />
 
-          {renderField({
-            label: 'Height',
-            editing,
-            value: user.height,
-            input: renderHeightSelector()
-          })}
+          <FormField
+            label="Height"
+            editing={editing}
+            value={user.height}
+            input={<HeightSelector formData={formData} heightUnit={heightUnit} onInputChange={onInputChange} onUnitToggle={onUnitToggle} />}
+          />
 
-          {renderField({
-            label: 'Gender',
-            editing,
-            value: user.gender,
-            input:  editing ? (
-                <select
+          <FormField
+            label="Gender"
+            editing={editing}
+            value={user.gender}
+            input={editing? (<select
                 name="gender"
                 value={formData.gender}
                 onChange={onInputChange}
@@ -106,14 +52,18 @@ const ProfileInfoCard = ({
                 </select>
             ) : (
                 <span className="profile-value">{user.gender}</span>
-            )
-          })}
+            )}
+          />
 
-          {renderField({
-            label: 'Preferred Age',
-            editing,
-            value: `${formData.preferredAgeMin || ''} - ${formData.preferredAgeMax || ''}`,
-            input: editing ? (
+          <FormField
+            label="Preferred Age"
+            editing={editing}
+            value={
+              formData.preferredAgeMin || formData.preferredAgeMax
+                ? `${formData.preferredAgeMin || ''} - ${formData.preferredAgeMax || ''}`
+                : ''
+            }
+            input={(
               <>
                 <input
                   type="number"
@@ -132,18 +82,15 @@ const ProfileInfoCard = ({
                   style={{ width: '60px' }}
                 />
               </>
-            ) : user.preferredAgeMin || user.preferredAgeMax ? (
-                <span className="profile-value">
-                    {`${user.preferredAgeMin || ''} - ${user.preferredAgeMax || ''}`}
-                </span>
-            ) : null
-          })}
+            )}
+          />
 
-          {renderField({
-            label: 'Preferred Gender',
-            editing,
-            value: user.preferredGender,
-            input:  editing ? (
+
+          <FormField
+            label="Preferred Gender"
+            editing={editing}
+            value={formData.preferredGender} 
+            input={(
                 <select
                     name="preferredGender"
                     value= {formData.preferredGender}
@@ -156,19 +103,20 @@ const ProfileInfoCard = ({
                 <option value="male">Male</option>
                 <option value="nonbinary">Non-binary</option>
                 </select>
-            ) :  user.preferredGender ? (
-                <span className="profile-value">{user.preferredGender}</span>
-            ) : null
-          })}
+            ) 
+          }
+          />
         </>
       )}
 
-      {user.role === 'matchmaker' && renderField({
-        label: 'Description',
-        editing,
-        value: user.description,
-        input: <textarea name="description" value={formData.description} onChange={onInputChange} />
-      })}
+      {user.role === 'matchmaker' && (
+        <FormField
+        label="Description"
+        editing={editing}
+        value={user.description}
+        input={<textarea name="description" value={formData.description} onChange={onInputChange}/>}
+        />
+      )}
 
       {editing && (
         <div className="form-actions">

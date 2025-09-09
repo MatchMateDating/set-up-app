@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import './profile.css';
 import { FaEdit } from 'react-icons/fa';
+import { calculateAge, convertFtInToMetersCm, convertMetersCmToFtIn, formatHeight } from './utils/profileUtils';
 import CropperModal from './cropperModal';
 import AvatarSelectorModal from './avatarSelectorModal';
 import ImageGallery from './images';
@@ -139,36 +140,14 @@ const Profile = ({ user, framed, editing, onEditClick, onSave, onCancel }) => {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-
   const handleUnitToggle = () => {
     if (heightUnit === 'ft') {
-      // Convert ft/in to meters/cm
-      const totalInches =
-        parseInt(formData.heightFeet || '0') * 12 + parseInt(formData.heightInches || '0');
-      const totalCm = totalInches * 2.54;
-      const meters = Math.floor(totalCm / 100);
-      const centimeters = Math.round(totalCm % 100);
-
-      setFormData((prev) => ({
-        ...prev,
-        heightMeters: meters.toString(),
-        heightCentimeters: centimeters.toString(),
-      }));
+      const { meters, centimeters } = convertFtInToMetersCm(formData.heightFeet, formData.heightInches);
+      setFormData((prev) => ({ ...prev, heightMeters: meters, heightCentimeters: centimeters }));
       setHeightUnit('m');
     } else {
-      // Convert meters/cm to ft/in
-      const totalCm =
-        parseInt(formData.heightMeters || '0') * 100 +
-        parseInt(formData.heightCentimeters || '0');
-      const totalInches = totalCm / 2.54;
-      const feet = Math.floor(totalInches / 12);
-      const inches = Math.round(totalInches % 12);
-
-      setFormData((prev) => ({
-        ...prev,
-        heightFeet: feet.toString(),
-        heightInches: inches.toString(),
-      }));
+      const { feet, inches } = convertMetersCmToFtIn(formData.heightMeters, formData.heightCentimeters);
+      setFormData((prev) => ({ ...prev, heightFeet: feet, heightInches: inches }));
       setHeightUnit('ft');
     }
   };
@@ -177,12 +156,7 @@ const Profile = ({ user, framed, editing, onEditClick, onSave, onCancel }) => {
     e.preventDefault();
     try {
       const token = localStorage.getItem('token');
-      let heightFormatted = '';
-      if (heightUnit === 'ft') {
-        heightFormatted = `${formData.heightFeet}'${formData.heightInches}"`;
-      } else {
-        heightFormatted = `${formData.heightMeters}m ${formData.heightCentimeters}cm`;
-      }
+      const heightFormatted = formatHeight(formData, heightUnit);
 
       const payload = {
         birthdate: formData.birthdate,
@@ -243,18 +217,6 @@ const Profile = ({ user, framed, editing, onEditClick, onSave, onCancel }) => {
       console.error(err);
       alert('Error deleting image');
     }
-  };
-
-  const calculateAge = (birthdate) => {
-    if (!birthdate) return '';
-    const birthDateObj = new Date(birthdate);
-    const today = new Date();
-    let age = today.getFullYear() - birthDateObj.getFullYear();
-    const m = today.getMonth() - birthDateObj.getMonth();
-    if (m < 0 || (m === 0 && today.getDate() < birthDateObj.getDate())) {
-      age--;
-    }
-    return age;
   };
 
   return (
