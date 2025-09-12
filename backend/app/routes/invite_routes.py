@@ -7,7 +7,7 @@ invite_bp = Blueprint('invite', __name__)
 # AWS clients
 ses = boto3.client(
     "ses", 
-    region_name="us-west-2",
+    region_name=os.getenv("AWS_REGION"),
     aws_access_key_id=os.getenv("SES_SNS_KEY"),
     aws_secret_access_key=os.getenv("SES_SNS_SECRET")
 )
