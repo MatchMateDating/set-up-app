@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import Profile from './profile';
-import BottomTab from './bottomTab';
-import SideBar from './sideBar';
+import BottomTab from '../layout/bottomTab';
+import SideBar from '../layout/sideBar';
 
 const ProfilePage = () => {
   const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
@@ -20,7 +20,7 @@ const ProfilePage = () => {
             const data = await res.json();
             if (data.error_code === 'TOKEN_EXPIRED') {
               localStorage.removeItem('token'); // clear invalid token
-              window.location.href = '/login';  // redirect to login
+              window.location.href = '/';  // redirect to login
               return; // stop execution
             }
           }

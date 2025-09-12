@@ -1,15 +1,14 @@
 import logo from './logo.svg';
 import './App.css';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import Login from './components/login';
-import Profile from './components/profile';
-import SignUp from './components/signUp';
-import ProfilePage from './components/profilePage';
-import Conversations from './components/conversations';
-import Match from './components/match';
-import CompleteProfile from './components/completeProfile';
-import Settings from './components/settings';
-import MatchConvo from './components/matchConvo';
+import Login from './components/auth/login';
+import SignUp from './components/auth/signUp';
+import ProfilePage from './components/profile/profilePage';
+import Conversations from './components/conversations/conversations';
+import Match from './components/matches/match';
+import CompleteProfile from './components/profile/completeProfile';
+import Settings from './components/settings/settings';
+import MatchConvo from './components/conversations/matchConvo';
 
 function App() {
   return (

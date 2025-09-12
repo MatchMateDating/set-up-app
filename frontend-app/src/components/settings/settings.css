@@ -1,0 +1,84 @@
+.back-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  color: #264653;
+  font-size: 1rem;
+  cursor: pointer;
+  margin-bottom: 15px;
+}
+
+.back-btn:hover {
+  color: #2a9d8f;
+}
+
+.settings-container {
+  padding: 20px;
+  max-width: 500px;
+  margin: 0 auto;
+  font-family: Arial, sans-serif;
+}
+
+.settings-title {
+  font-size: 1.8rem;
+  margin-bottom: 20px;
+  color: #264653;
+}
+
+.primary-btn,
+.secondary-btn,
+.icon-btn {
+  border: none;
+  padding: 8px 14px;
+  margin: 5px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.primary-btn {
+  background-color: #2a9d8f;
+  color: white;
+}
+
+.primary-btn:hover {
+  background-color: #21867a;
+}
+
+.secondary-btn {
+  background-color: #e9c46a;
+  color: #264653;
+}
+
+.secondary-btn:hover {
+  background-color: #d4ab4f;
+}
+
+.icon-btn {
+  background: none;
+  font-size: 1.2rem;
+  color: #2a9d8f;
+}
+
+.icon-btn:hover {
+  color: #21867a;
+}
+
+.referral-section {
+  margin-top: 20px;
+  font-size: 1.2em;
+  color: #2a9d8f;
+}
+
+.referral-code {
+  font-weight: bold;
+  margin-right: 10px;
+}
+
+.button-group {
+  display: flex;
+  align-items: center;
+  margin-top: 10px;
+}

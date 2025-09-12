@@ -1,9 +1,3 @@
-.match-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
-}
-
 .match-card {
   display: flex;
   flex-direction: column;
