@@ -27,7 +27,7 @@ def get_users_to_match(current_user):
 
         liked_by_linked_dater = Match.query.filter(
             ((Match.user_id_1 == referred_dater_id) | (Match.user_id_2 == referred_dater_id)) &
-            Match.liked_by_id.contains([referred_dater_id])
+            Match.liked_by_ids.contains([referred_dater_id])
         ).all()
 
         liked_user_ids = set()
@@ -58,7 +58,7 @@ def get_users_to_match(current_user):
             User.id != referred_dater_id)
 
     elif current_user.role == 'user':
-        # Get all matches involving current user where liked_by_id contains current_user.id
+        # Get all matches involving current user where liked_by_ids contains current_user.id
         existing_matches = Match.query.filter(
             ((Match.user_id_1 == current_user.id) | (Match.user_id_2 == current_user.id)) &
             (Match.status == 'matched')
@@ -81,7 +81,7 @@ def get_users_to_match(current_user):
 
         pending_user_ids = set()
         for match in pending_likes:
-            if current_user.id in match.liked_by_id:  # current_user has already liked
+            if current_user.id in match.liked_by_ids:  # current_user has already liked
                 if match.user_id_1 != current_user.id:
                     pending_user_ids.add(match.user_id_1)
                 if match.user_id_2 != current_user.id:
@@ -118,7 +118,7 @@ def get_users_to_match(current_user):
                 ((Match.user_id_1 == user.id) & (Match.user_id_2 == referred_dater_id)) |
                 ((Match.user_id_1 == referred_dater_id) & (Match.user_id_2 == user.id))
             ).first()
-            if match and referred_dater_id in match.liked_by_id and user.id not in match.liked_by_id:
+            if match and referred_dater_id in match.liked_by_ids and user.id not in match.liked_by_ids:
                 liked_linked_dater = True
 
         user_dict = user.to_dict()
@@ -155,7 +155,7 @@ def blind_match(current_user):
         new_match = Match(
             user_id_1=referred_dater_id,
             user_id_2=liked_user_id,
-            liked_by_id=[referred_dater_id, liked_user_id],
+            liked_by_ids=[referred_dater_id, liked_user_id],
             matched_by_matcher=current_user.id,
             status='matched',
             blind_match=True
@@ -182,14 +182,14 @@ def like_user(current_user):
     ).first()
     
     if existing_match:
-        # Add current user to liked_by_id if not already in list
-        if current_user.id not in existing_match.liked_by_id:
-            existing_match.liked_by_id.append(current_user.id)
-            print(f"Added User {current_user.id} to liked_by_id list")
-        print(f"new id add f{existing_match.liked_by_id}")
+        # Add current user to liked_by_ids if not already in list
+        if current_user.id not in existing_match.liked_by_ids:
+            existing_match.liked_by_ids.append(current_user.id)
+            print(f"Added User {current_user.id} to liked_by_ids list")
+        print(f"new id add f{existing_match.liked_by_ids}")
 
         # If both users have liked, mark as matched
-        if current_user.id in existing_match.liked_by_id and liked_user_id in existing_match.liked_by_id:
+        if current_user.id in existing_match.liked_by_ids and liked_user_id in existing_match.liked_by_ids:
             existing_match.status = 'matched'
             print(f"Match between User {current_user.id} and User {liked_user_id} is now mutual!")
 
@@ -200,7 +200,7 @@ def like_user(current_user):
     new_match = Match(
         user_id_1=current_user.id if current_user.role == 'user' else current_user.referrer.id,
         user_id_2=liked_user_id,
-        liked_by_id=[current_user.id] if current_user.role == 'user' else [current_user.referrer.id],
+        liked_by_ids=[current_user.id] if current_user.role == 'user' else [current_user.referrer.id],
         matched_by_matcher= current_user.id if current_user.role == 'matchmaker' else None,
         status='pending')
     
@@ -314,7 +314,7 @@ def send_note(current_user):
         match = Match(
             user_id_1=current_user.id if current_user.role == 'user' else current_user.referrer.id,
             user_id_2=recipient_id,
-            liked_by_id=[current_user.id] if current_user.role == 'user' else [current_user.referrer.id],
+            liked_by_ids=[current_user.id] if current_user.role == 'user' else [current_user.referrer.id],
             matched_by_matcher= current_user.id if current_user.role == 'matchmaker' else None,
             status='pending',
             note=note_text
