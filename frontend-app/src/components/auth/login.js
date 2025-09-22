@@ -19,14 +19,14 @@ function Login() {
             // test
             localStorage.setItem('user', JSON.stringify(res.data.user));
             alert('Login successful!');
-            navigate('/profile'); 
+            navigate('/profile');
         } catch (err) {
             alert(err.response?.data?.msg || 'Login failed');
         }
     };
 
     const goToSignUp = async () => {
-         navigate('/signup');
+        navigate('/signup');
     };
 
     return (

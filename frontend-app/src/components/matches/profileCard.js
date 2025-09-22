@@ -1,13 +1,13 @@
 import React from 'react';
 import Profile from '../profile/profile';
 
-const ProfileCard = ({ 
-  profile, 
-  userInfo, 
-  onSkip, 
-  onLike, 
-  onBlindMatch, 
-  onOpenNote 
+const ProfileCard = ({
+  profile,
+  userInfo,
+  onSkip,
+  onLike,
+  onBlindMatch,
+  onOpenNote
 }) => {
   return (
     <div className="profile-box">

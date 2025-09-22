@@ -9,7 +9,7 @@ auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
 def register():
     data = request.get_json()
     print(f"Received data: {data}")
-    required_fields = ('name', 'email', 'password')
+    required_fields = ('first_name', 'last_name', 'email', 'password')
 
     if not data or not all(k in data for k in required_fields):
         return jsonify({'msg': 'Missing required fields'}), 400
@@ -33,7 +33,8 @@ def register():
         referred_by = referrer.id
 
     user = User(
-        name=data['name'], 
+        first_name=data['first_name'], 
+        last_name=data['last_name'], 
         email=data['email'],
         role=role,
         referred_by_id=referred_by)

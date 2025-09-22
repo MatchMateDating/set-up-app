@@ -32,13 +32,15 @@
   from {
     transform: rotate(0deg);
   }
+
   to {
     transform: rotate(360deg);
   }
 }
 
-input, select, textarea {
+input,
+select,
+textarea {
   max-width: 100%;
   box-sizing: border-box;
 }
-

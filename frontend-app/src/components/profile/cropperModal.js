@@ -27,45 +27,52 @@ const CropperModal = ({ imageSrc, onClose, onCropComplete }) => {
     <div className="modal-backdrop">
       <div className="modal-content">
         <div className="cropper-container">
-        <Cropper
-          image={imageSrc}
-          crop={crop}
-          zoom={zoom}
-          rotation={rotation}
-          aspect={1}
-          onCropChange={setCrop}
-          onZoomChange={setZoom}
-          onCropComplete={handleCropComplete}
-        />
+          <Cropper
+            image={imageSrc}
+            crop={crop}
+            zoom={zoom}
+            rotation={rotation}
+            aspect={1}
+            onCropChange={setCrop}
+            onZoomChange={setZoom}
+            onCropComplete={handleCropComplete}
+          />
         </div>
         <div className="controls">
-            <label>Zoom:</label>
-          <input
-            type="range"
-            min={1}
-            max={5}
-            step={0.1}
-            value={zoom}
-            onChange={(e) => setZoom(e.target.value)}
-          />
-          <label>Rotate:</label>
+          <div className="control-group">
+            <label>Zoom</label>
             <input
-                type="range"
-                min={0}
-                max={360}
-                step={1}
-                value={rotation}
-                onChange={(e) => {
-                  const val = parseInt(e.target.value);
-                  const snapPoints = [0, 90, 180, 270, 360];
-                  const snapThreshold = 5; // snap when within ±5 degrees
-                  const snappedVal = snapPoints.find((point) => Math.abs(val - point) <= snapThreshold);
-
-                  setRotation(snappedVal !== undefined ? pointWithinRange(snappedVal) : val)
-                }}
+              type="range"
+              min={1}
+              max={5}
+              step={0.1}
+              value={zoom}
+              onChange={(e) => setZoom(e.target.value)}
             />
+          </div>
+
+          <div className="control-group">
+            <label>Rotate</label>
+            <input
+              type="range"
+              min={0}
+              max={360}
+              step={1}
+              value={rotation}
+              onChange={(e) => {
+                const val = parseInt(e.target.value);
+                const snapPoints = [0, 90, 180, 270, 360];
+                const snapThreshold = 5;
+                const snappedVal = snapPoints.find((point) => Math.abs(val - point) <= snapThreshold);
+                setRotation(snappedVal !== undefined ? pointWithinRange(snappedVal) : val);
+              }}
+            />
+          </div>
+
+          <div className="buttons">
             <button onClick={onClose}>Cancel</button>
-          <button onClick={handleCropAndSave}>Crop & Save</button>
+            <button onClick={handleCropAndSave}>Crop & Save</button>
+          </div>
         </div>
       </div>
     </div>

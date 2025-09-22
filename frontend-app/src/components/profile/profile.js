@@ -4,12 +4,14 @@ import { FaEdit } from 'react-icons/fa';
 import { calculateAge, convertFtInToMetersCm, convertMetersCmToFtIn, formatHeight } from './utils/profileUtils';
 import CropperModal from './cropperModal';
 import AvatarSelectorModal from './avatarSelectorModal';
-import ImageGallery from './images';
 import ProfileInfoCard from './profileInfoCard';
 
+
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
-const Profile = ({ user, framed, editing, onEditClick, onSave, onCancel }) => {
+const Profile = ({ user, framed, editing, onSave }) => {
   const [formData, setFormData] = useState({
+    first_name: '',
+    last_name: '',
     birthdate: '',
     gender: '',
     heightFeet: '0',
@@ -19,7 +21,10 @@ const Profile = ({ user, framed, editing, onEditClick, onSave, onCancel }) => {
     description: '',
     preferredAgeMin: '0',
     preferredAgeMax: '0',
-    preferredGender: ''
+    preferredGender: '',
+    fontFamily: 'Arial',
+    profileStyle: 'classic',
+    imageLayout: 'grid'
   });
 
   const [referralCode, setReferralCode] = useState('');
@@ -28,18 +33,24 @@ const Profile = ({ user, framed, editing, onEditClick, onSave, onCancel }) => {
   const [images, setImages] = useState([]);
   const [showAvatarModal, setShowAvatarModal] = useState(false);
   const [avatar, setAvatar] = useState(user?.avatar || 'avatars/allyson_avatar.png');
-  const [heightUnit, setHeightUnit] = useState('ft');  
+  const [heightUnit, setHeightUnit] = useState('ft');
+  const [isEditing, setIsEditing] = useState(editing || false);
 
   useEffect(() => {
     if (user) {
       const baseFormData = {
+        first_name: user.first_name || '',
+        last_name: user.last_name || '',
         birthdate: user.birthdate || '',
         gender: user.gender || '',
         description: user.description || '',
         preferredAgeMin: user.preferredAgeMin || '',
         preferredAgeMax: user.preferredAgeMax || '',
-        preferredGender: user.preferredGender || ''
-      }
+        preferredGender: user.preferredGender || '',
+        fontFamily: user.fontFamily || 'Arial',
+        profileStyle: user.profileStyle || 'classic',
+        imageLayout: user.imageLayout || 'grid'
+      };
       const heightString = user.height || "0'0";
       if (heightString.includes("'")) {
         // Format: 5'11"
@@ -68,7 +79,7 @@ const Profile = ({ user, framed, editing, onEditClick, onSave, onCancel }) => {
       }
       if (user.role === 'user') {
         const generateReferralCode = () => {
-          const code = `${user.name?.split(' ')[0] || 'user'}-${Math.random().toString(36).substr(2, 6)}`;
+          const code = `${user.first_name?.split(' ')[0] || 'user'}-${Math.random().toString(36).substr(2, 6)}`;
           return code.toUpperCase();
         };
         setReferralCode(generateReferralCode());
@@ -159,13 +170,18 @@ const Profile = ({ user, framed, editing, onEditClick, onSave, onCancel }) => {
       const heightFormatted = formatHeight(formData, heightUnit);
 
       const payload = {
+        first_name: formData.first_name,
+        last_name: formData.last_name,
         birthdate: formData.birthdate,
         gender: formData.gender,
         height: heightFormatted,
         description: formData.description,
         preferredAgeMin: formData.preferredAgeMin,
         preferredAgeMax: formData.preferredAgeMax,
-        preferredGender: formData.preferredGender
+        preferredGender: formData.preferredGender,
+        fontFamily: formData.fontFamily,
+        profileStyle: formData.profileStyle,
+        imageLayout: formData.imageLayout
       };
       const res = await fetch(`${API_BASE_URL}/profile/update`, {
         method: 'PUT',
@@ -219,8 +235,35 @@ const Profile = ({ user, framed, editing, onEditClick, onSave, onCancel }) => {
     }
   };
 
+  const handleCancel = () => {
+    // Reset formData back to user values
+    if (user) {
+      setFormData({
+        preferredAgeMin: user.preferredAgeMin || '0',
+        preferredAgeMax: user.preferredAgeMax || '0',
+        preferredGender: user.preferredGender || '',
+      });
+    }
+    setIsEditing(false);
+  };
+
   return (
-    <div className="profile-container">
+    <div
+      className={`profile-container format-${formData.profileStyle}`}
+      style={{ fontFamily: formData.fontFamily || 'Arial' }}>
+      {formData.profileStyle === "pixel" && (
+        <div className="pixel-clouds">
+          <div className="cloud-2" style={{ top: "5%", left: "50%" }}></div>
+          <div className="cloud-3" style={{ top: "15%", left: "25%" }}></div>
+          <div className="cloud-3" style={{ top: "25%", left: "40%" }}></div>
+          <div className="cloud-2" style={{ top: "30%", left: "80%" }}></div>
+          <div className="cloud-1" style={{ top: "45%", left: "60%" }}></div>
+          <div className="cloud-2" style={{ top: "55%", left: "20%" }}></div>
+          <div className="cloud-3" style={{ top: "65%", left: "55%" }}></div>
+          <div className="cloud-1" style={{ top: "78%", left: "20%" }}></div>
+          <div className="cloud-1" style={{ top: "80%", left: "80%" }}></div>
+        </div>
+      )}
       <input type="file" accept="image/*" ref={fileInputRef} style={{ display: 'none' }} onChange={handleFileChange} />
       {previewUrl && (
         <CropperModal
@@ -242,11 +285,11 @@ const Profile = ({ user, framed, editing, onEditClick, onSave, onCancel }) => {
         )}
         <div className="profile-info">
           <div className="name-section">
-            <h2>{user.name}</h2>
+            {!editing && <h2 style={{ cursor: editing ? 'pointer' : 'default' }}>{user.first_name}</h2>}
           </div>
           {!framed && !editing && (
             <div className="profile-actions">
-              <FaEdit className="edit-icon" onClick={onEditClick} />
+              <FaEdit className="edit-icon" onClick={editing} />
             </div>
           )}
         </div>
@@ -270,28 +313,16 @@ const Profile = ({ user, framed, editing, onEditClick, onSave, onCancel }) => {
           heightUnit={heightUnit}
           onInputChange={handleInputChange}
           onUnitToggle={handleUnitToggle}
-          onSubmit={handleFormSubmit} // optional, can remove now
-          onCancel={onCancel}
+          onSubmit={handleFormSubmit}
+          onCancel={handleCancel}
           calculateAge={calculateAge}
+          editProfile={true}
+          images={images}
+          onDeleteImage={handleDeleteImage}
+          onPlaceholderClick={handlePlaceholderClick}
+          profileStyle={formData.profileStyle}
         />
       </form>
-      {user.role === 'user' && (
-        <div>
-          <div className="section">
-            {editing ? (
-              <label> Add Images: </label>
-            ) : (
-              <label></label>
-            )}
-            <ImageGallery
-              images={images}
-              editing={editing}
-              onDeleteImage={handleDeleteImage}
-              onPlaceholderClick={handlePlaceholderClick}
-            />
-          </div>
-        </div>
-      )}
     </div>
   );
 };

@@ -72,37 +72,37 @@ const MatchConvo = () => {
 
   return (
     <div>
-        <SideBar />
-        <div style={{ padding: "20px" }}>
+      <SideBar />
+      <div style={{ padding: "20px" }}>
         <button onClick={() => navigate("/conversations")}>⬅ Back</button>
         <h2>Conversation with Match {matchId}</h2>
 
         {messages.length === 0 ? (
-            <p>No messages yet. Say hi!</p>
+          <p>No messages yet. Say hi!</p>
         ) : (
-            <div style={{ maxHeight: "300px", overflowY: "auto" }}>
+          <div style={{ maxHeight: "300px", overflowY: "auto" }}>
             {messages.map((msg) => (
-                <div key={msg.id} style={{ marginBottom: "10px" }}>
+              <div key={msg.id} style={{ marginBottom: "10px" }}>
                 <strong>{msg.sender_id === matchId ? "You" : "Them"}: </strong>
                 {msg.text}
                 <div style={{ fontSize: "12px", color: "gray" }}>
-                    {new Date(msg.timestamp).toLocaleString()}
+                  {new Date(msg.timestamp).toLocaleString()}
                 </div>
-                </div>
+              </div>
             ))}
-            </div>
+          </div>
         )}
 
         <textarea
-            value={newMessageText}
-            onChange={(e) => setNewMessageText(e.target.value)}
-            rows={3}
-            style={{ width: "100%" }}
+          value={newMessageText}
+          onChange={(e) => setNewMessageText(e.target.value)}
+          rows={3}
+          style={{ width: "100%" }}
         />
         <button onClick={sendMessage} disabled={!newMessageText.trim()}>
-            Send
+          Send
         </button>
-        </div>
+      </div>
     </div>
   );
 };

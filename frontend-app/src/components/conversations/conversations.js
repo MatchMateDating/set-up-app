@@ -11,18 +11,9 @@ import { useUserInfo } from './hooks/useUserInfo';
 const Conversations = () => {
   const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
   const [showDaterMatches, setShowDaterMatches, loading] = useState(true);
-  const {userInfo, setUserInfo, referrerInfo, setReferrerInfo} = useUserInfo(API_BASE_URL);
-  const {matches, setMatches} = useMatches(API_BASE_URL);
+  const { userInfo, setUserInfo, referrerInfo, setReferrerInfo } = useUserInfo(API_BASE_URL);
+  const { matches, setMatches } = useMatches(API_BASE_URL);
   const navigate = useNavigate();
-
-  // useEffect(() => {
-  //   const fetchData = async () => {
-  //     await fetchUserInfo();
-  //     await fetchMatches();
-  //     setLoading(false);
-  //   };
-  //   fetchData();
-  // }, []);
 
   const getFilteredMatches = () => {
     if (!userInfo || userInfo.role !== 'user') return matches;
@@ -66,12 +57,12 @@ const Conversations = () => {
 
   return (
     <div>
-      <SideBar/>
+      <SideBar />
       <div style={{ paddingBottom: '60px', paddingTop: '66px' }}>
         {userInfo && userInfo.role === 'user' && matches.length > 0 && (
-          <ToggleConversations 
-            showDaterMatches={showDaterMatches} 
-            setShowDaterMatches={setShowDaterMatches} 
+          <ToggleConversations
+            showDaterMatches={showDaterMatches}
+            setShowDaterMatches={setShowDaterMatches}
           />
         )}
         <div className="match-list">
