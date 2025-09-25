@@ -15,12 +15,27 @@ const Match = () => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showNoteModal, setShowNoteModal] = useState(false);
 
+  const fetchProfiles = async () => {
+    const token = localStorage.getItem("token");
+    try {
+      const res = await fetch(`${API_BASE_URL}/match/users_to_match`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Failed to fetch profiles");
+      const data = await res.json();
+      setProfiles(data);
+    } catch (err) {
+      console.error("Error fetching profiles:", err);
+    }
+  };
+
   const nextProfile = () => {
     if (currentIndex < profiles.length - 1) {
       setCurrentIndex(currentIndex + 1);
     } else {
       alert("No more profiles to show!");
     }
+    fetchProfiles();
   };
 
   const likeUser = async (likedUserId) => {
@@ -85,11 +100,6 @@ const Match = () => {
     setShowNoteModal(false);
     nextProfile();
   };
-
-  // useEffect(() => {
-  //   fetchUserInfo();
-  //   fetchProfiles();
-  // }, []);
 
   if (loading) return <p>Loading profiles...</p>;
 

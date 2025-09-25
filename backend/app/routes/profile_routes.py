@@ -38,7 +38,7 @@ def update_profile(current_user):
     if current_user.role == 'user':
         allowed_fields = ['first_name', 'last_name', 'bio', 'birthdate', 'gender', 
                           'height', 'preferredAgeMin', 'preferredAgeMax', 
-                          'preferredGender', 'fontFamily', 'profileStyle', 'imageLayout']
+                          'preferredGenders', 'fontFamily', 'profileStyle', 'imageLayout']
     elif current_user.role == 'matchmaker':
         allowed_fields = ['description']
     else:

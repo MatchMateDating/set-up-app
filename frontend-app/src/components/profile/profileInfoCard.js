@@ -5,6 +5,7 @@ import FormField from './components/formField';
 import HeightSelector from './components/heightSelector';
 import ImageGallery from './images';
 import { editToolbar } from './components/editToolbar';
+import Select from 'react-select';
 
 const ProfileInfoCard = ({
   user,
@@ -112,6 +113,70 @@ const ProfileInfoCard = ({
             )}
             style={{ fontFamily: formData.fontFamily }}
           />
+
+          <FormField
+            label="Preferred Age"
+            editing={editing}
+            value={
+              formData.preferredAgeMin || formData.preferredAgeMax
+                ? `${formData.preferredAgeMin || ''} - ${formData.preferredAgeMax || ''}`
+                : ''
+            }
+            input={(
+              <>
+                <input
+                  type="number"
+                  name="preferredAgeMin"
+                  placeholder="Min"
+                  value={formData.preferredAgeMin || ''}
+                  onChange={onInputChange}
+                  style={{ width: '60px', marginRight: '8px' }}
+                />
+                <input
+                  type="number"
+                  name="preferredAgeMax"
+                  placeholder="Max"
+                  value={formData.preferredAgeMax || ''}
+                  onChange={onInputChange}
+                  style={{ width: '60px' }}
+                />
+              </>
+            )}
+          />
+
+
+        <FormField
+          label="Preferred Gender(s)"
+          editing={editing}
+          value={(formData.preferredGenders || []).join(', ')}
+          input={(
+            <Select
+              isMulti
+              name="preferredGenders"
+              value={Array.isArray(formData.preferredGenders)
+                ? formData.preferredGenders.map(g => ({ label: g, value: g }))
+                : []}
+              onChange={(selectedOptions) => {
+                const selectedValues = selectedOptions
+                  ? selectedOptions.map(opt => opt.value)
+                  : [];
+                onInputChange({
+                  target: {
+                    name: "preferredGenders",
+                    value: selectedValues,
+                  },
+                });
+              }}
+              options={[
+                { value: 'female', label: 'Female' },
+                { value: 'male', label: 'Male' },
+                { value: 'nonbinary', label: 'Non-binary' },
+              ]}
+              className="preferred-genders-select"
+            />
+          )}
+        />
+
         </>
       )}
 

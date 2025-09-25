@@ -1,6 +1,4 @@
 from app import db
-from sqlalchemy.ext.mutable import MutableList
-from sqlalchemy import JSON
 
 
 # Association table for match likers
@@ -27,7 +25,7 @@ class Match(db.Model):
     user2 = db.relationship('User', foreign_keys=[user_id_2], back_populates='matches_as_user2')
 
     # Relationship: many users can like a match
-    likers = db.relationship(
+    liked_by = db.relationship(
         'User',
         secondary=match_likes,
         backref=db.backref('liked_matches', lazy='dynamic')
@@ -40,7 +38,7 @@ class Match(db.Model):
             'user_id_1': self.user_id_1,
             'user_id_2': self.user_id_2,
             'status': self.status,
-            'liked_by_ids': [user.id for user in self.likers],
+            'liked_by_ids': [user.id for user in self.liked_by],
             'matched_by_matcher': self.matched_by_matcher,
             'blind_match': self.blind_match,
             'note': self.note 

@@ -18,32 +18,30 @@ def get_users_to_match(current_user):
             current_user.preferredAgeMax
         ))
 
-    if current_user.preferredGender:
-        query = query.filter(User.gender == current_user.preferredGender)
+    if current_user.preferredGenders:
+        query = query.filter(User.gender.in_(current_user.preferredGenders))
 
     # If matchmaker, exclude their referred dater from the list
     if current_user.role == 'matchmaker' and current_user.referrer:
         referred_dater_id = current_user.referrer.id
 
         liked_by_linked_dater = Match.query.filter(
-            ((Match.user_id_1 == referred_dater_id) | (Match.user_id_2 == referred_dater_id)) &
-            Match.liked_by_ids.contains([referred_dater_id])
+            (Match.user_id_1 == referred_dater_id) | (Match.user_id_2 == referred_dater_id)
         ).all()
 
         liked_user_ids = set()
         for match in liked_by_linked_dater:
-            if match.user_id_1 != referred_dater_id:
-                liked_user_ids.add(match.user_id_1)
-            if match.user_id_2 != referred_dater_id:
-                liked_user_ids.add(match.user_id_2)
+            if any(u.id == referred_dater_id for u in match.liked_by):
+                if match.user_id_1 != referred_dater_id:
+                    liked_user_ids.add(match.user_id_1)
+                if match.user_id_2 != referred_dater_id:
+                    liked_user_ids.add(match.user_id_2)
 
-        # Get all user IDs who are already matched with the referred dater
         matched_users = Match.query.filter(
             ((Match.user_id_1 == referred_dater_id) | (Match.user_id_2 == referred_dater_id)) &
             (Match.status == 'matched')
         ).all()
 
-        # Build a set of matched user IDs to exclude
         matched_user_ids = set()
         for match in matched_users:
             if match.user_id_1 != referred_dater_id:
@@ -51,14 +49,12 @@ def get_users_to_match(current_user):
             if match.user_id_2 != referred_dater_id:
                 matched_user_ids.add(match.user_id_2)
 
-        # Exclude referred dater and already matched users
         query = query.filter(
             ~User.id.in_(matched_user_ids),
             ~User.id.in_(liked_user_ids),
             User.id != referred_dater_id)
 
     elif current_user.role == 'user':
-        # Get all matches involving current user where liked_by_ids contains current_user.id
         existing_matches = Match.query.filter(
             ((Match.user_id_1 == current_user.id) | (Match.user_id_2 == current_user.id)) &
             (Match.status == 'matched')
@@ -71,7 +67,6 @@ def get_users_to_match(current_user):
             if match.user_id_2 != current_user.id:
                 matched_user_ids.add(match.user_id_2)
 
-        # Exclude users already matched by the matchmaker
         query = query.filter(~User.id.in_(matched_user_ids))
 
         pending_likes = Match.query.filter(
@@ -81,7 +76,7 @@ def get_users_to_match(current_user):
 
         pending_user_ids = set()
         for match in pending_likes:
-            if current_user.id in match.liked_by_ids:  # current_user has already liked
+            if any(u.id == current_user.id for u in match.liked_by):
                 if match.user_id_1 != current_user.id:
                     pending_user_ids.add(match.user_id_1)
                 if match.user_id_2 != current_user.id:
@@ -95,8 +90,8 @@ def get_users_to_match(current_user):
         if user.preferredAgeMin and user.preferredAgeMax:
             if not (user.preferredAgeMin <= current_user.age <= user.preferredAgeMax):
                 continue
-        if user.preferredGender:
-            if user.preferredGender != current_user.gender:
+        if user.preferredGenders:
+            if current_user.gender not in user.preferredGenders:
                 continue
         liked_linked_dater = False
         note_text = None
@@ -118,7 +113,7 @@ def get_users_to_match(current_user):
                 ((Match.user_id_1 == user.id) & (Match.user_id_2 == referred_dater_id)) |
                 ((Match.user_id_1 == referred_dater_id) & (Match.user_id_2 == user.id))
             ).first()
-            if match and referred_dater_id in match.liked_by_ids and user.id not in match.liked_by_ids:
+            if match and any(u.id == referred_dater_id for u in match.liked_by) and not any(u.id == user.id for u in match.liked_by):
                 liked_linked_dater = True
 
         user_dict = user.to_dict()
@@ -176,20 +171,22 @@ def like_user(current_user):
     if not liked_user_id:
         return jsonify({'message': 'liked_user_id is required'}), 400
     
+    liked_user = User.query.get(liked_user_id)
+    if not liked_user:
+        return jsonify({'message': 'User not found'}), 404
+
     existing_match = Match.query.filter(
         ((Match.user_id_1 == current_user.id) & (Match.user_id_2 == liked_user_id)) |
         ((Match.user_id_1 == liked_user_id) & (Match.user_id_2 == current_user.id))
     ).first()
     
     if existing_match:
-        # Add current user to liked_by_ids if not already in list
-        if current_user.id not in existing_match.liked_by_ids:
-            existing_match.liked_by_ids.append(current_user.id)
-            print(f"Added User {current_user.id} to liked_by_ids list")
-        print(f"new id add f{existing_match.liked_by_ids}")
+        if current_user not in existing_match.liked_by:
+            existing_match.liked_by.append(current_user)
+            print(f"Added User {current_user.id} to liked_by list")
 
-        # If both users have liked, mark as matched
-        if current_user.id in existing_match.liked_by_ids and liked_user_id in existing_match.liked_by_ids:
+        if (current_user in existing_match.liked_by and 
+            liked_user in existing_match.liked_by):
             existing_match.status = 'matched'
             print(f"Match between User {current_user.id} and User {liked_user_id} is now mutual!")
 
@@ -200,9 +197,13 @@ def like_user(current_user):
     new_match = Match(
         user_id_1=current_user.id if current_user.role == 'user' else current_user.referrer.id,
         user_id_2=liked_user_id,
-        liked_by_ids=[current_user.id] if current_user.role == 'user' else [current_user.referrer.id],
-        matched_by_matcher= current_user.id if current_user.role == 'matchmaker' else None,
-        status='pending')
+        matched_by_matcher=current_user.id if current_user.role == 'matchmaker' else None,
+        status='pending'
+    )
+    if current_user.role == 'user':
+        new_match.liked_by.append(current_user)
+    else:
+        new_match.liked_by.append(current_user.referrer)
     
     db.session.add(new_match)   
     db.session.commit()
@@ -253,7 +254,6 @@ def get_mutual_matches(current_user):
             user_dict = other_user.to_dict()
             user_dict['first_image'] = other_user.images[0].image_url if other_user.images else None
             if match.matched_by_matcher:
-                # Match was made by a matchmaker -> fetch linked_dater info
                 linked_dater = User.query.get(match.user_id_1 if match.user_id_1 != current_user.id else match.user_id_2)
                 linked_dater_dict = linked_dater.to_dict()
                 linked_dater_dict['first_image'] = linked_dater.images[0].image_url if linked_dater.images else None
@@ -264,7 +264,6 @@ def get_mutual_matches(current_user):
                     'blind_match': match.blind_match
                 })
             else:
-                # Match was made by the user directly
                 matched_users.append({
                     'match_id': match.id,
                     'match_user': user_dict,
@@ -282,7 +281,6 @@ def unmatch(current_user, match_id):
     if not match:
         return jsonify({'message': 'Match not found'}), 404
 
-    # Only allow unmatching if current user is part of the match
     if current_user.id not in [match.user_id_1, match.user_id_2]:
         return jsonify({'message': 'Unauthorized'}), 403
 
@@ -301,7 +299,10 @@ def send_note(current_user):
     if not recipient_id or not note_text:
         return jsonify({'message': 'recipient_id and note are required'}), 400
 
-    # See if a match already exists
+    recipient = User.query.get(recipient_id)
+    if not recipient:
+        return jsonify({'message': 'Recipient not found'}), 404
+
     match = Match.query.filter(
         ((Match.user_id_1 == current_user.id) & (Match.user_id_2 == recipient_id)) |
         ((Match.user_id_1 == recipient_id) & (Match.user_id_2 == current_user.id))
@@ -309,19 +310,21 @@ def send_note(current_user):
 
     if match:
         match.note = note_text
-        match.status = 'pending'  # Ensure pending until mutual like
+        match.status = 'pending'
     else: 
         match = Match(
             user_id_1=current_user.id if current_user.role == 'user' else current_user.referrer.id,
             user_id_2=recipient_id,
-            liked_by_ids=[current_user.id] if current_user.role == 'user' else [current_user.referrer.id],
-            matched_by_matcher= current_user.id if current_user.role == 'matchmaker' else None,
+            matched_by_matcher=current_user.id if current_user.role == 'matchmaker' else None,
             status='pending',
             note=note_text
         )
+        if current_user.role == 'user':
+            match.liked_by.append(current_user)
+        else:
+            match.liked_by.append(current_user.referrer)
         db.session.add(match)
 
     db.session.commit()
     return jsonify({'message': 'Note sent successfully', 'match': match.to_dict()}), 201
-
 
