@@ -6,18 +6,19 @@ const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
 
 const ImageGallery = ({ images = [], editing, onDeleteImage, onPlaceholderClick, layout = "grid" }) => {
   return (
-    <div className={`image-gallery ${layout}`}>
+    <div className={`image-gallery ${layout === "grid" ? "image-grid" : "image-full"}`}>
       {images.map((img, index) => (
         <div key={index} className="image-wrapper">
           <img
             src={`${API_BASE_URL}${img.image_url}`}
             alt={`Profile ${index}`}
-            className="profile-img"
+            className={layout === "grid" ? "grid-image" : "full-image"}
           />
           {editing && (
             <button
+              type="button"
               className="delete-button"
-              onClick={() => onDeleteImage(img.id)}
+              onClick={(e) => { e.preventDefault(); onDeleteImage(img.id); }}
             >
               x
             </button>

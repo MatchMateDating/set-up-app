@@ -17,6 +17,21 @@ const Preferences = () => {
     preferredGender: ''
   });
 
+  useEffect(() => {
+    fetchProfile();
+  }, []);
+
+
+  useEffect(() => {
+    if (user) {
+      setFormData({
+        preferredAgeMin: user.preferredAgeMin || '0',
+        preferredAgeMax: user.preferredAgeMax || '0',
+        preferredGender: user.preferredGender || '',
+      });
+    }
+  }, [user]);
+
   const fetchProfile = () => {
     const token = localStorage.getItem('token');
     if (token) {

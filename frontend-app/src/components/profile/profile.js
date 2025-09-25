@@ -1,14 +1,15 @@
 import React, { useEffect, useState, useRef } from 'react';
 import './profile.css';
+import './pixelTheme.css';
+import './constitutionTheme.css';
 import { FaEdit } from 'react-icons/fa';
 import { calculateAge, convertFtInToMetersCm, convertMetersCmToFtIn, formatHeight } from './utils/profileUtils';
 import CropperModal from './cropperModal';
 import AvatarSelectorModal from './avatarSelectorModal';
 import ProfileInfoCard from './profileInfoCard';
 
-
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
-const Profile = ({ user, framed, editing, onSave }) => {
+const Profile = ({ user, framed, editing, setEditing, onSave }) => {
   const [formData, setFormData] = useState({
     first_name: '',
     last_name: '',
@@ -34,10 +35,13 @@ const Profile = ({ user, framed, editing, onSave }) => {
   const [showAvatarModal, setShowAvatarModal] = useState(false);
   const [avatar, setAvatar] = useState(user?.avatar || 'avatars/allyson_avatar.png');
   const [heightUnit, setHeightUnit] = useState('ft');
-  const [isEditing, setIsEditing] = useState(editing || false);
 
   useEffect(() => {
     if (user) {
+      if (images.length === 0 && user.images) {
+        setImages(user.images);
+      }
+      
       const baseFormData = {
         first_name: user.first_name || '',
         last_name: user.last_name || '',
@@ -77,15 +81,13 @@ const Profile = ({ user, framed, editing, onSave }) => {
         });
         setHeightUnit('m');
       }
+
       if (user.role === 'user') {
         const generateReferralCode = () => {
           const code = `${user.first_name?.split(' ')[0] || 'user'}-${Math.random().toString(36).substr(2, 6)}`;
           return code.toUpperCase();
         };
         setReferralCode(generateReferralCode());
-      }
-      if (user?.images) {
-        setImages(user.images);
       }
     }
   }, [user]);
@@ -227,7 +229,7 @@ const Profile = ({ user, framed, editing, onSave }) => {
 
       if (!res.ok) throw new Error('Failed to delete image');
 
-      // Remove image from local state
+      // Remove image from local state without affecting editing mode
       setImages((prevImages) => prevImages.filter((img) => img.id !== imageId));
     } catch (err) {
       console.error(err);
@@ -244,7 +246,7 @@ const Profile = ({ user, framed, editing, onSave }) => {
         preferredGender: user.preferredGender || '',
       });
     }
-    setIsEditing(false);
+    setEditing(false);
   };
 
   return (
@@ -253,15 +255,30 @@ const Profile = ({ user, framed, editing, onSave }) => {
       style={{ fontFamily: formData.fontFamily || 'Arial' }}>
       {formData.profileStyle === "pixel" && (
         <div className="pixel-clouds">
-          <div className="cloud-2" style={{ top: "5%", left: "50%" }}></div>
-          <div className="cloud-3" style={{ top: "15%", left: "25%" }}></div>
-          <div className="cloud-3" style={{ top: "25%", left: "40%" }}></div>
-          <div className="cloud-2" style={{ top: "30%", left: "80%" }}></div>
-          <div className="cloud-1" style={{ top: "45%", left: "60%" }}></div>
-          <div className="cloud-2" style={{ top: "55%", left: "20%" }}></div>
-          <div className="cloud-3" style={{ top: "65%", left: "55%" }}></div>
-          <div className="cloud-1" style={{ top: "78%", left: "20%" }}></div>
-          <div className="cloud-1" style={{ top: "80%", left: "80%" }}></div>
+          <div className="cloud-2" style={{ top: 10, left: 10 }}></div>
+          <div className="cloud-2" style={{ top: 30, left: 200 }}></div>
+          <div className="cloud-3" style={{ top: 5, left: 600 }}></div>
+          <div className="cloud-3" style={{ top: 160, left: 350 }}></div>
+          <div className="cloud-2" style={{ top: 240, left: 520 }}></div>
+          <div className="cloud-1" style={{ top: 360, left: 40 }}></div>
+          <div className="cloud-2" style={{ top: 420, left: 400 }}></div>
+          <div className="cloud-3" style={{ top: 530, left: 550}}></div>
+          <div className="cloud-1" style={{ top: 600, left: 20 }}></div>
+          <div className="cloud-3" style={{ top: 680, left: 580}}></div>
+          <div className="cloud-1" style={{ top: 720, left: 300 }}></div>
+          <div className="cloud-1" style={{ top: 800, left: 450 }}></div>
+          <div className="cloud-2" style={{ top: 830, left: 10 }}></div>
+          <div className="cloud-2" style={{ top: 870, left: 200 }}></div>
+          <div className="cloud-3" style={{ top: 885, left: 600 }}></div>
+          <div className="cloud-3" style={{ top: 1080, left: 350 }}></div>
+          <div className="cloud-2" style={{ top: 1200, left: 520 }}></div>
+          <div className="cloud-1" style={{ top: 1340, left: 40 }}></div>
+          <div className="cloud-2" style={{ top: 1620, left: 400 }}></div>
+          <div className="cloud-3" style={{ top: 1770, left: 550}}></div>
+          <div className="cloud-1" style={{ top: 1800, left: 20 }}></div>
+          <div className="cloud-3" style={{ top: 2080, left: 580}}></div>
+          <div className="cloud-1" style={{ top: 2120, left: 300 }}></div>
+          <div className="cloud-1" style={{ top: 2400, left: 450 }}></div>
         </div>
       )}
       <input type="file" accept="image/*" ref={fileInputRef} style={{ display: 'none' }} onChange={handleFileChange} />
@@ -289,7 +306,7 @@ const Profile = ({ user, framed, editing, onSave }) => {
           </div>
           {!framed && !editing && (
             <div className="profile-actions">
-              <FaEdit className="edit-icon" onClick={editing} />
+              <FaEdit className="edit-icon" onClick={() => setEditing(true)} />
             </div>
           )}
         </div>

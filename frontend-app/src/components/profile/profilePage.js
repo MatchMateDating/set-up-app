@@ -52,6 +52,7 @@ const ProfilePage = () => {
               user={user}
               framed={false}
               editing={editing}
+              setEditing={setEditing}
               onSave={handleSave}
             />
           </>

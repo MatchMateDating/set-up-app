@@ -33,6 +33,7 @@ export const editToolbar = ({ formData, handleInputChange, editing }) => (
         <option value="bold">Bold Header</option>
         <option value="framed">Framed</option>
         <option value="pixel">Pixel Theme</option>
+        <option value="constitution">Constitution Theme</option>
       </select>
     </div>
 

@@ -33,6 +33,14 @@
   background: #111;
 }
 
+.control-group label {
+  font-family: 'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif !important;
+  font-size: 16px !important;
+  font-weight: bold !important;
+  text-transform: none !important;
+  letter-spacing: normal !important;
+}
+
 .controls {
   display: flex;
   flex-direction: column;
