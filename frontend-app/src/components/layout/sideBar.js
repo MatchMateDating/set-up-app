@@ -9,8 +9,8 @@ const SideBar = () => {
 
     const toggleSidePanel = () => {
         setSidePanelOpen(!sidePanelOpen);
-      };
-    
+    };
+
     return (
         <div>
             <div className="top-bar">
@@ -24,6 +24,7 @@ const SideBar = () => {
                     <ul style={{ listStyle: 'none', padding: 0 }}>
                         <li style={{ margin: '10px 0', cursor: 'pointer' }} onClick={() => navigate('/profile')}>Terms and Conditions</li>
                         <li style={{ margin: '10px 0', cursor: 'pointer' }} onClick={() => navigate('/settings')}>Settings</li>
+                        <li style={{ margin: '10px 0', cursor: 'pointer' }} onClick={() => navigate('/preferences')}>Preferences</li>
                         <li style={{ margin: '10px 0', cursor: 'pointer' }} onClick={() => navigate('/')}>Log out</li>
                     </ul>
                 </div>

@@ -8,21 +8,23 @@ import Conversations from './components/conversations/conversations';
 import Match from './components/matches/match';
 import CompleteProfile from './components/profile/completeProfile';
 import Settings from './components/settings/settings';
+import Preferences from './components/profile/preferences';
 import MatchConvo from './components/conversations/matchConvo';
 
 function App() {
   return (
     <Router>
-        <Routes>
-            <Route path="/" element={<Login />} />
-            <Route path="/signup" element={<SignUp />} />
-            <Route path="/complete-profile" element={<CompleteProfile />} />
-            <Route path="/profile" element={<ProfilePage />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="/conversations" element={<Conversations />} />
-            <Route path="/conversation/:matchId" element={<MatchConvo />} />
-            <Route path="/match" element={<Match />} />
-        </Routes>
+      <Routes>
+        <Route path="/" element={<Login />} />
+        <Route path="/signup" element={<SignUp />} />
+        <Route path="/complete-profile" element={<CompleteProfile />} />
+        <Route path="/profile" element={<ProfilePage />} />
+        <Route path="/settings" element={<Settings />} />
+        <Route path="/preferences" element={<Preferences />} />
+        <Route path="/conversations" element={<Conversations />} />
+        <Route path="/conversation/:matchId" element={<MatchConvo />} />
+        <Route path="/match" element={<Match />} />
+      </Routes>
     </Router>
   );
 }

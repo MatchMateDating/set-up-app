@@ -7,7 +7,8 @@ function SignUp() {
     const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    const [name, setName] = useState('');
+    const [first_name, setFirstName] = useState('');
+    const [last_name, setLastName] = useState('');
     const [role, setRole] = useState('user'); // 'user' = dater, 'matchmaker' = matcher
     const [referralCode, setReferralCode] = useState('');
 
@@ -16,7 +17,8 @@ function SignUp() {
     const handleRegister = async () => {
         try {
             const payload = {
-                name,
+                first_name,
+                last_name,
                 email,
                 password,
                 role,
@@ -54,9 +56,15 @@ function SignUp() {
             <h2>Sign Up</h2>
             <input
                 type="text"
-                placeholder="Name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
+                placeholder="First Name"
+                value={first_name}
+                onChange={(e) => setFirstName(e.target.value)}
+            />
+            <input
+                type="text"
+                placeholder="Last Name"
+                value={last_name}
+                onChange={(e) => setLastName(e.target.value)}
             />
             <input
                 type="text"
@@ -95,10 +103,10 @@ function SignUp() {
 
             {role === 'matchmaker' && (
                 <input
-                type="text"
-                placeholder="Enter Dater's Referral Code"
-                value={referralCode}
-                onChange={(e) => setReferralCode(e.target.value)}
+                    type="text"
+                    placeholder="Enter Dater's Referral Code"
+                    value={referralCode}
+                    onChange={(e) => setReferralCode(e.target.value)}
                 />
             )}
 

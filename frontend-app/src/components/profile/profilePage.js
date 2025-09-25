@@ -44,17 +44,16 @@ const ProfilePage = () => {
 
   return (
     <>
-      <SideBar/>
+      <SideBar />
       <div style={{ paddingBottom: '60px', paddingTop: '66px' }}>
         {user ? (
           <>
-            <Profile 
-              user={user} 
+            <Profile
+              user={user}
               framed={false}
               editing={editing}
-              onEditClick={() => setEditing(true)}
+              setEditing={setEditing}
               onSave={handleSave}
-              onCancel={() => setEditing(false)}
             />
           </>
         ) : (

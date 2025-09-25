@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import './completeProfile.css'; 
+import './completeProfile.css';
 import { calculateAge, convertFtInToMetersCm, convertMetersCmToFtIn, formatHeight } from "./utils/profileUtils";
 import HeightSelector from "./components/heightSelector";
 import ProfileInfoCard from './profileInfoCard';
@@ -13,7 +13,7 @@ const CompleteProfile = () => {
   const defaultBirthdate = new Date(today.setFullYear(today.getFullYear() - 18))
     .toISOString()
     .split("T")[0];
- 
+
   const [formData, setFormData] = useState({
     birthdate: defaultBirthdate,
     gender: "",
@@ -29,7 +29,7 @@ const CompleteProfile = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [heightUnit, setHeightUnit] = useState('ft'); 
+  const [heightUnit, setHeightUnit] = useState('ft');
 
   const handleSubmit = async (e) => {
     e.preventDefault();

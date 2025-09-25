@@ -8,7 +8,8 @@ class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(128), nullable=False)
-    name = db.Column(db.String(120), nullable=True)
+    first_name = db.Column(db.String(120), nullable=True)
+    last_name = db.Column(db.String(120), nullable=True)
     role = db.Column(db.String(20), nullable=False, default='user') 
     referral_code = db.Column(db.String(10), unique=True, nullable=True)
     bio = db.Column(db.Text, nullable=True)
@@ -17,6 +18,9 @@ class User(db.Model):
     gender = db.Column(db.String(20), nullable=True)
     height = db.Column(db.String(10), nullable=True)
     description = db.Column(db.Text, nullable=True)
+    fontFamily = db.Column(db.String(50), nullable=True, default='Arial')
+    profileStyle = db.Column(db.String(20), nullable=True, default='classic')
+    imageLayout = db.Column(db.String(20), nullable=True, default='grid')
 
     referred_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     referred_users = db.relationship('User', backref=db.backref('referrer', remote_side=[id]), lazy=True)
@@ -30,9 +34,10 @@ class User(db.Model):
     matches_as_user1 = db.relationship('Match', foreign_keys='Match.user_id_1', back_populates='user1')
     matches_as_user2 = db.relationship('Match', foreign_keys='Match.user_id_2', back_populates='user2')
 
-    def __init__(self, email, name, role='user', referred_by_id=None):
+    def __init__(self, email, first_name, last_name, role='user', referred_by_id=None):
         self.email = email
-        self.name = name
+        self.first_name = first_name
+        self.last_name = last_name
         self.role = role
         self.referred_by_id = referred_by_id
         if role == 'user':
@@ -51,7 +56,8 @@ class User(db.Model):
         return {
             "id": self.id,
             "email": self.email,
-            "name": self.name,
+            "first_name": self.first_name,
+            "last_name": self.last_name,
             "role": self.role,
             "referral_code":self.referral_code,
             "referrer_id": self.referred_by_id,
@@ -61,6 +67,9 @@ class User(db.Model):
             "gender": self.gender,
             "height": self.height,
             "description": self.description,
+            "fontFamily": self.fontFamily,
+            "profileStyle": self.profileStyle,
+            "imageLayout": self.imageLayout,
             "images": [image.to_dict() for image in self.images],
             "preferredAgeMin": self.preferredAgeMin,
             "preferredAgeMax": self.preferredAgeMax,

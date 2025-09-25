@@ -43,7 +43,7 @@ const Settings = () => {
   }, []);
 
   const handleToggleCode = () => {
-    setShowCode((prev)=> !prev);
+    setShowCode((prev) => !prev);
   };
 
   const handleShare = async () => {
@@ -89,23 +89,23 @@ const Settings = () => {
         <div className="referral-section">
           <span className="referral-code">{referralCode}</span>
           <div className="button-group">
-            <button 
-              className="icon-btn" 
+            <button
+              className="icon-btn"
               onClick={() => navigator.clipboard.writeText(referralCode)}
             >
-              <FaCopy/>
+              <FaCopy />
             </button>
             <button
               className="secondary-btn"
               onClick={handleShare}
             >
-              <FaShare/>
+              <FaShare />
             </button>
-            <button 
+            <button
               className="secondary-btn"
               onClick={handleInvite}
             >
-              <FaEnvelope/>
+              <FaEnvelope />
             </button>
           </div>
         </div>

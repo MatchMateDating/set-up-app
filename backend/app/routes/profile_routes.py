@@ -36,7 +36,9 @@ def get_profile(current_user):
 def update_profile(current_user):
     data = request.get_json()
     if current_user.role == 'user':
-        allowed_fields = ['name', 'bio', 'birthdate', 'gender', 'height', 'preferredAgeMin', 'preferredAgeMax', 'preferredGender']
+        allowed_fields = ['first_name', 'last_name', 'bio', 'birthdate', 'gender', 
+                          'height', 'preferredAgeMin', 'preferredAgeMax', 
+                          'preferredGender', 'fontFamily', 'profileStyle', 'imageLayout']
     elif current_user.role == 'matchmaker':
         allowed_fields = ['description']
     else:

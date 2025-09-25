@@ -1,6 +1,7 @@
 .complete-profile-container {
   width: 90%;
-  margin: 0 auto;    /* centers the form */
+  margin: 0 auto;
+  /* centers the form */
   padding: 1rem;
 }
 
@@ -18,7 +19,8 @@
   color: white;
   background: linear-gradient(135deg, #4f46e5, #3b82f6);
   border: none;
-  border-radius: 9999px; /* pill-shaped */
+  border-radius: 9999px;
+  /* pill-shaped */
   cursor: pointer;
   transition: all 0.3s ease;
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);

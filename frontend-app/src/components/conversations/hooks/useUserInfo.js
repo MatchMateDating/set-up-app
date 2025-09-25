@@ -8,26 +8,26 @@ export const useUserInfo = (API_BASE_URL) => {
 
   useEffect(() => {
     const fetchUserInfo = async () => {
-        const token = localStorage.getItem('token');
-        const res = await fetch(`${API_BASE_URL}/profile/`, {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE_URL}/profile/`, {
         headers: { 'Authorization': `Bearer ${token}` }
-        });
+      });
 
-        if (res.status === 401) {
+      if (res.status === 401) {
         const data = await res.json();
         if (data.error_code === 'TOKEN_EXPIRED') {
-            localStorage.removeItem('token');
-            window.location.href = '/';
+          localStorage.removeItem('token');
+          window.location.href = '/';
         }
-        }
-        
-        const data = await res.json();
-        setUserInfo(data.user);
-        setReferrerInfo(data.referrer);
+      }
+
+      const data = await res.json();
+      setUserInfo(data.user);
+      setReferrerInfo(data.referrer);
     };
 
     fetchUserInfo();
   }, [API_BASE_URL]);
 
-  return {userInfo, setUserInfo, referrerInfo, setReferrerInfo, loading};
+  return { userInfo, setUserInfo, referrerInfo, setReferrerInfo, loading };
 };
