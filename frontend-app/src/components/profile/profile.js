@@ -50,16 +50,11 @@ const Profile = ({ user, framed, editing, setEditing, onSave }) => {
         description: user.description || '',
         preferredAgeMin: user.preferredAgeMin || '',
         preferredAgeMax: user.preferredAgeMax || '',
-<<<<<<< HEAD
-        preferredGender: user.preferredGender || '',
+        preferredGenders: user.preferredGenders || '',
         fontFamily: user.fontFamily || 'Arial',
         profileStyle: user.profileStyle || 'classic',
         imageLayout: user.imageLayout || 'grid'
       };
-=======
-        preferredGenders: user.preferredGenders || ''
-      }
->>>>>>> 92ec378 (Add multi gender preference and fix liking and conversation you them)
       const heightString = user.height || "0'0";
       if (heightString.includes("'")) {
         // Format: 5'11"
@@ -185,14 +180,10 @@ const Profile = ({ user, framed, editing, setEditing, onSave }) => {
         description: formData.description,
         preferredAgeMin: formData.preferredAgeMin,
         preferredAgeMax: formData.preferredAgeMax,
-<<<<<<< HEAD
-        preferredGender: formData.preferredGender,
+        preferredGenders: formData.preferredGenders,
         fontFamily: formData.fontFamily,
         profileStyle: formData.profileStyle,
         imageLayout: formData.imageLayout
-=======
-        preferredGenders: formData.preferredGenders
->>>>>>> 92ec378 (Add multi gender preference and fix liking and conversation you them)
       };
       const res = await fetch(`${API_BASE_URL}/profile/update`, {
         method: 'PUT',
