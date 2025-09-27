@@ -22,7 +22,7 @@ const Profile = ({ user, framed, editing, setEditing, onSave }) => {
     description: '',
     preferredAgeMin: '0',
     preferredAgeMax: '0',
-    preferredGender: '',
+    preferredGenders: [],
     fontFamily: 'Arial',
     profileStyle: 'classic',
     imageLayout: 'grid'
@@ -50,7 +50,7 @@ const Profile = ({ user, framed, editing, setEditing, onSave }) => {
         description: user.description || '',
         preferredAgeMin: user.preferredAgeMin || '',
         preferredAgeMax: user.preferredAgeMax || '',
-        preferredGender: user.preferredGender || '',
+        preferredGenders: user.preferredGenders || '',
         fontFamily: user.fontFamily || 'Arial',
         profileStyle: user.profileStyle || 'classic',
         imageLayout: user.imageLayout || 'grid'
@@ -180,7 +180,7 @@ const Profile = ({ user, framed, editing, setEditing, onSave }) => {
         description: formData.description,
         preferredAgeMin: formData.preferredAgeMin,
         preferredAgeMax: formData.preferredAgeMax,
-        preferredGender: formData.preferredGender,
+        preferredGenders: formData.preferredGenders,
         fontFamily: formData.fontFamily,
         profileStyle: formData.profileStyle,
         imageLayout: formData.imageLayout

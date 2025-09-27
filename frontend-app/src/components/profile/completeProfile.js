@@ -23,7 +23,7 @@ const CompleteProfile = () => {
     heightCentimeters: '0',
     preferredAgeMax: '',
     preferredAgeMin: '',
-    preferredGender: '',
+    preferredGenders: [],
   });
 
   const [loading, setLoading] = useState(false);
@@ -55,7 +55,7 @@ const CompleteProfile = () => {
         height: heightFormatted,
         preferredAgeMax: formData.preferredAgeMax,
         preferredAgeMin: formData.preferredAgeMin,
-        preferredGender: formData.preferredGender,
+        preferredGenders: formData.preferredGenders,
       };
 
       const res = await fetch(`${API_BASE_URL}/profile/update`, {

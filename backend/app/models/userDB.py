@@ -1,6 +1,8 @@
 from app import db, bcrypt
 from werkzeug.security import generate_password_hash, check_password_hash
 import uuid
+from sqlalchemy.ext.mutable import MutableList
+from sqlalchemy import JSON
 
 class User(db.Model):
     __tablename__ = 'users'
@@ -27,7 +29,7 @@ class User(db.Model):
 
     preferredAgeMin = db.Column(db.Integer, nullable=True)
     preferredAgeMax = db.Column(db.Integer, nullable=True)
-    preferredGender = db.Column(db.String(20), nullable=True)
+    preferredGenders = db.Column(MutableList.as_mutable(JSON), nullable=True)
 
     images = db.relationship('Image', backref='user', lazy=True, cascade='all, delete-orphan')
     # Clarify both sides of the Match relationships
@@ -73,5 +75,5 @@ class User(db.Model):
             "images": [image.to_dict() for image in self.images],
             "preferredAgeMin": self.preferredAgeMin,
             "preferredAgeMax": self.preferredAgeMax,
-            "preferredGender": self.preferredGender
+            "preferredGenders": self.preferredGenders
         }

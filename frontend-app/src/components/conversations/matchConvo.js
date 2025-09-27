@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import SideBar from '../layout/sideBar';
+import { useUserInfo } from './hooks/useUserInfo';
 
 const MatchConvo = () => {
   const { matchId } = useParams();
@@ -10,6 +11,7 @@ const MatchConvo = () => {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [newMessageText, setNewMessageText] = useState("");
+  const { userInfo } = useUserInfo(API_BASE_URL);
 
   useEffect(() => {
     const fetchConversation = async () => {
@@ -82,8 +84,8 @@ const MatchConvo = () => {
         ) : (
           <div style={{ maxHeight: "300px", overflowY: "auto" }}>
             {messages.map((msg) => (
-              <div key={msg.id} style={{ marginBottom: "10px" }}>
-                <strong>{msg.sender_id === matchId ? "You" : "Them"}: </strong>
+                <div key={msg.id} style={{ marginBottom: "10px" }}>
+                <strong>{msg.sender_id === userInfo?.id ? "You" : "Them"}: </strong>
                 {msg.text}
                 <div style={{ fontSize: "12px", color: "gray" }}>
                   {new Date(msg.timestamp).toLocaleString()}
