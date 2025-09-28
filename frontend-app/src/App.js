@@ -10,6 +10,8 @@ import CompleteProfile from './components/profile/completeProfile';
 import Settings from './components/settings/settings';
 import Preferences from './components/profile/preferences';
 import MatchConvo from './components/conversations/matchConvo';
+import PuzzlesHub from './components/puzzles/puzzlesPage';
+import PersonalityQuiz from './components/puzzles/personalityQuiz';
 
 function App() {
   return (
@@ -24,6 +26,8 @@ function App() {
         <Route path="/conversations" element={<Conversations />} />
         <Route path="/conversation/:matchId" element={<MatchConvo />} />
         <Route path="/match" element={<Match />} />
+        <Route path="/puzzles" element={<PuzzlesHub />} />
+        <Route path="/puzzles/personality-quiz" element={<PersonalityQuiz />} />
       </Routes>
     </Router>
   );

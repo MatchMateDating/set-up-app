@@ -25,6 +25,7 @@ const SideBar = () => {
                         <li style={{ margin: '10px 0', cursor: 'pointer' }} onClick={() => navigate('/profile')}>Terms and Conditions</li>
                         <li style={{ margin: '10px 0', cursor: 'pointer' }} onClick={() => navigate('/settings')}>Settings</li>
                         <li style={{ margin: '10px 0', cursor: 'pointer' }} onClick={() => navigate('/preferences')}>Preferences</li>
+                        <li style={{ margin: '10px 0', cursor: 'pointer' }} onClick={() => navigate('/puzzles')}>Puzzles</li>
                         <li style={{ margin: '10px 0', cursor: 'pointer' }} onClick={() => navigate('/')}>Log out</li>
                     </ul>
                 </div>
