@@ -41,7 +41,7 @@ const Profile = ({ user, framed, editing, setEditing, onSave }) => {
       if (images.length === 0 && user.images) {
         setImages(user.images);
       }
-      
+
       const baseFormData = {
         first_name: user.first_name || '',
         last_name: user.last_name || '',
@@ -252,7 +252,8 @@ const Profile = ({ user, framed, editing, setEditing, onSave }) => {
   return (
     <div
       className={`profile-container format-${formData.profileStyle}`}
-      style={{ fontFamily: formData.fontFamily || 'Arial' }}>
+      // style={{ fontFamily: formData.fontFamily || 'Arial' }}>
+      >
       {formData.profileStyle === "pixel" && (
         <div className="pixel-clouds">
           <div className="cloud-2" style={{ top: 10, left: 10 }}></div>
@@ -262,9 +263,9 @@ const Profile = ({ user, framed, editing, setEditing, onSave }) => {
           <div className="cloud-2" style={{ top: 240, left: 520 }}></div>
           <div className="cloud-1" style={{ top: 360, left: 40 }}></div>
           <div className="cloud-2" style={{ top: 420, left: 400 }}></div>
-          <div className="cloud-3" style={{ top: 530, left: 550}}></div>
+          <div className="cloud-3" style={{ top: 530, left: 550 }}></div>
           <div className="cloud-1" style={{ top: 600, left: 20 }}></div>
-          <div className="cloud-3" style={{ top: 680, left: 580}}></div>
+          <div className="cloud-3" style={{ top: 680, left: 580 }}></div>
           <div className="cloud-1" style={{ top: 720, left: 300 }}></div>
           <div className="cloud-1" style={{ top: 800, left: 450 }}></div>
           <div className="cloud-2" style={{ top: 830, left: 10 }}></div>
@@ -274,9 +275,9 @@ const Profile = ({ user, framed, editing, setEditing, onSave }) => {
           <div className="cloud-2" style={{ top: 1200, left: 520 }}></div>
           <div className="cloud-1" style={{ top: 1340, left: 40 }}></div>
           <div className="cloud-2" style={{ top: 1620, left: 400 }}></div>
-          <div className="cloud-3" style={{ top: 1770, left: 550}}></div>
+          <div className="cloud-3" style={{ top: 1770, left: 550 }}></div>
           <div className="cloud-1" style={{ top: 1800, left: 20 }}></div>
-          <div className="cloud-3" style={{ top: 2080, left: 580}}></div>
+          <div className="cloud-3" style={{ top: 2080, left: 580 }}></div>
           <div className="cloud-1" style={{ top: 2120, left: 300 }}></div>
           <div className="cloud-1" style={{ top: 2400, left: 450 }}></div>
         </div>
@@ -338,6 +339,7 @@ const Profile = ({ user, framed, editing, setEditing, onSave }) => {
           onDeleteImage={handleDeleteImage}
           onPlaceholderClick={handlePlaceholderClick}
           profileStyle={formData.profileStyle}
+          completeProfile={false}
         />
       </form>
     </div>

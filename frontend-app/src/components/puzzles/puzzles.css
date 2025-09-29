@@ -28,11 +28,11 @@
     }
 }
 
+/* Use app primary purple for main action buttons */
 .puzzle-button {
     padding: 0.75rem 1.5rem;
     /* px-6 py-3 */
-    background-color: #3b82f6;
-    /* blue-500 */
+    background-color: var(--primary, #6B46C1);
     color: white;
     border-radius: 0.75rem;
     /* rounded-xl */
@@ -44,8 +44,7 @@
 }
 
 .puzzle-button:hover {
-    background-color: #2563eb;
-    /* blue-600 */
+    background-color: var(--primary-dark, #5A35A8);
 }
 
 /* Quiz-specific styles */
@@ -86,17 +85,16 @@
     /* gray-300 */
 }
 
+/* Selected option should use the app primary purple instead of green */
 .quiz-option-selected {
-    background: #22c55e;
-    /* green-500 */
+    background: var(--primary, #6B46C1);
     color: white;
 }
 
 .quiz-submit {
     margin-top: 1rem;
     padding: 0.75rem 1.5rem;
-    background: #3b82f6;
-    /* blue-500 */
+    background: var(--primary, #6B46C1);
     color: white;
     border-radius: 0.75rem;
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
@@ -104,8 +102,7 @@
 }
 
 .quiz-submit:hover {
-    background: #2563eb;
-    /* blue-600 */
+    background: var(--primary-dark, #5A35A8);
     transform: translateY(-2px);
 }
 
@@ -144,15 +141,13 @@
     margin-top: 0.5rem;
     /* space below the Restart button */
     padding: 0.5rem 1rem;
-    background: #3b82f6;
-    /* blue-500 */
+    background: var(--primary, #6B46C1);
     color: white;
     border-radius: 0.5rem;
     transition: background 0.2s, transform 0.15s;
 }
 
 .quiz-return:hover {
-    background: #2563eb;
-    /* blue-600 */
+    background: var(--primary-dark, #5A35A8);
     transform: translateY(-2px);
 }

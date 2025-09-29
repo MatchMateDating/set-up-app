@@ -108,19 +108,24 @@
   mix-blend-mode: normal;
 }
 
-.format-constitution h2 {
-  font-family: "Pinyon Script", cursive, "Times New Roman", serif;
-  color: #2a1a0d;
-  text-shadow: 0 0 2px rgba(0, 0, 0, 0.2), 1px 1px rgba(180, 140, 80, 0.2);
-  font-size: 4rem;
+.format-constitution h2{
+    font-family: 'Pinyon Script', cursive, 'Times New Roman', serif;
+    color: #2a1a0d;
+    text-shadow: 0 0 2px rgba(0, 0, 0, 0.2), 1px 1px rgba(180, 140, 80, 0.2);
+    font-size: 4rem;
 }
 
 .format-constitution h3,
-.format-constitution label {
-  font-family: "Pinyon Script", cursive, "Times New Roman", serif;
-  color: #2a1a0d;
-  text-shadow: 0 0 2px rgba(0, 0, 0, 0.2), 1px 1px rgba(180, 140, 80, 0.2);
-  font-size: 2rem;
+.format-constitution label,
+.format-constitution h2,
+.format-constitution span,
+.format-constitution input,
+.format-constitution select,
+.format-constitution textarea{
+    font-family: 'Pinyon Script', cursive, 'Times New Roman', serif;
+    color: #2a1a0d;
+    text-shadow: 0 0 2px rgba(0, 0, 0, 0.2), 1px 1px rgba(180, 140, 80, 0.2);
+    font-size: 1.5rem;
 }
 
 /*# sourceMappingURL=constitutionTheme.css.map */

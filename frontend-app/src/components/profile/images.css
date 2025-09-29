@@ -32,15 +32,38 @@
 
 .delete-button {
   position: absolute;
-  top: 4px;
-  right: 4px;
-  background: rgba(0,0,0,0.6);
+  top: 6px;
+  right: 6px;
+  background: rgba(255, 80, 80, 0.9); /* slightly muted red */
   color: white;
   border: none;
   border-radius: 50%;
   cursor: pointer;
-  width: 24px;
-  height: 24px;
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  box-shadow: none; /* flat look */
+}
+
+/* placeholders: minimalist neutral card */
+.image-placeholder {
+  background-color: #ffffff;
+  border: 1px dashed #e6eef9;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  aspect-ratio: 1;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.08s ease, border-color 0.08s ease;
+}
+
+.image-placeholder:hover {
+  background-color: #f4f7fb;
+  border-color: var(--card-border);
 }
 
 /* Constitution theme image wrapper */
