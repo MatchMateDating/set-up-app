@@ -87,10 +87,10 @@ def get_users_to_match(current_user):
     users = query.all()
     users_data = []
     for user in users:
-        if user.preferredAgeMin and user.preferredAgeMax:
+        if current_user.preferredAgeMin and current_user.preferredAgeMax and user.preferredAgeMin and user.preferredAgeMax:
             if not (user.preferredAgeMin <= current_user.age <= user.preferredAgeMax):
                 continue
-        if user.preferredGenders:
+        if current_user.preferredGenders and user.preferredGenders:
             if current_user.gender not in user.preferredGenders:
                 continue
         liked_linked_dater = False
