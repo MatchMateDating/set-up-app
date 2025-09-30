@@ -18,7 +18,7 @@ const PuzzlesHub = () => {
     <div className="puzzles-page">
       <SideBar/>
       <div className="puzzles-container">
-        <button className="back-btn" onClick={() => navigate(-1)}>
+        <button className="back-btn" onClick={() => navigate('/profile')}>
           <FaArrowLeft /> Back
         </button>
         <h1 className="puzzles-title">🎮 Puzzles Hub</h1>
