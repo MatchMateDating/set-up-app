@@ -77,36 +77,40 @@ const Settings = () => {
   };
 
   return (
-    <div className="settings-container">
-      <button className="back-btn" onClick={() => navigate(-1)}>
-        <FaArrowLeft /> Back
-      </button>
-      <h2 className="settings-title">Settings</h2>
-      <button className="primary-btn" onClick={handleToggleCode}>
-        {showCode ? "Hide Referral Code" : "Show Referral Code"}
-      </button>
+    <div className="settings-page">
+      <div className="settings-card">
+        <button className="back-btn" onClick={() => navigate(-1)}>
+          <FaArrowLeft /> Back
+        </button>
+
+        <h2 className="settings-title">Settings</h2>
+
+        <div className="settings-actions">
+          <button className="primary-btn" onClick={handleToggleCode}>
+            {showCode ? "Hide Referral Code" : "Show Referral Code"}
+          </button>
+        </div>
+      </div>
+
       {showCode && (
-        <div className="referral-section">
-          <span className="referral-code">{referralCode}</span>
-          <div className="button-group">
-            <button
-              className="icon-btn"
-              onClick={() => navigator.clipboard.writeText(referralCode)}
-            >
-              <FaCopy />
-            </button>
-            <button
-              className="secondary-btn"
-              onClick={handleShare}
-            >
-              <FaShare />
-            </button>
-            <button
-              className="secondary-btn"
-              onClick={handleInvite}
-            >
-              <FaEnvelope />
-            </button>
+        <div className="settings-card">
+          <div className="referral-section">
+            <span className="referral-code">{referralCode}</span>
+            <div className="button-group">
+              <button
+                className="icon-btn"
+                onClick={() => navigator.clipboard.writeText(referralCode)}
+                title="Copy"
+              >
+                <FaCopy />
+              </button>
+              <button className="secondary-btn" onClick={handleShare} title="Share">
+                <FaShare />
+              </button>
+              <button className="secondary-btn" onClick={handleInvite} title="Invite by email">
+                <FaEnvelope />
+              </button>
+            </div>
           </div>
         </div>
       )}

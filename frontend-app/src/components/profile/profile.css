@@ -1,9 +1,20 @@
+:root {
+  /* Purple palette (replaces magenta) */
+  --primary: #6B46C1;        /* medium purple */
+  --primary-dark: #5A35A8;   /* darker purple for hover */
+  --muted-bg: #f6f4fc;       /* very light purple-tinted background */
+  --card-border: #ebe7fb;    /* subtle purple-tinged card border */
+  --text-muted: #6b7280;
+  --surface: #ffffff;
+}
+
 .profile-container {
   max-width: 800px;
   margin: 0 auto;
   padding: 24px;
-  font-family: 'Segoe UI', Roboto, sans-serif;
+  background: var(--muted-bg); /* subtle page background */
   color: #222;
+  font-family: 'Segoe UI', Roboto, system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
 }
 
 .profile-header {
@@ -50,10 +61,24 @@
   cursor: pointer;
   font-size: 0.85rem;
   transition: background 0.2s ease;
+  color: var(--primary); /* sage color */
+}
+
+.profile-actions .edit-icon:hover {
+  color: var(--primary-dark);
+}
+
+.switch-btn {
+  color: var(--primary);
+  background: transparent; /* keep existing background behavior */
+  border: none;
+  padding: 6px;
+  cursor: pointer;
 }
 
 .switch-btn:hover {
-  background: #ddd;
+  color: var(--primary-dark);
+  background: rgba(0,0,0,0.03); /* subtle hover feedback */
 }
 
 .form-actions {
@@ -66,32 +91,33 @@
 .save-btn,
 .cancel-btn {
   padding: 10px 18px;
-  border-radius: 10px;
+  border-radius: 8px; /* slightly smaller radius */
   border: none;
   cursor: pointer;
   font-size: 0.95rem;
   font-weight: 600;
-  transition: transform 0.2s ease, background 0.2s ease;
+  transition: transform 0.12s ease, background 0.12s ease;
 }
 
 .save-btn {
-  background: #2a9d8f;
-  color: white;
+  background: var(--primary);
+  color: #fff;
 }
 
 .save-btn:hover {
-  background: #23897b;
-  transform: translateY(-2px);
+  background: var(--primary-dark);
+  transform: translateY(-1px);
 }
 
 .cancel-btn {
-  background: #eee;
-  color: #333;
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--card-border);
 }
 
 .cancel-btn:hover {
-  background: #ddd;
-  transform: translateY(-2px);
+  background: rgba(0,0,0,0.03);
+  transform: translateY(-1px);
 }
 
 .section {
@@ -158,9 +184,11 @@
 }
 
 .format-classic .profile-card {
-  border: 1px solid #ddd;
+  border: 1px solid var(--card-border);
   padding: 1rem;
-  border-radius: 12px;
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: none;
 }
 
 .format-minimal .profile-card {
@@ -170,14 +198,17 @@
 }
 
 .format-bold .profile-header {
-  background: #222;
-  color: white;
+  background: var(--primary);
+  color: #fff;
   padding: 1rem;
+  border-radius: 8px;
 }
 
 .format-framed .profile-card {
-  border: 3px solid black;
-  padding: 1.5rem;
+  border: 2px solid var(--card-border);
+  padding: 1.25rem;
+  border-radius: 8px;
+  background: var(--surface);
 }
 
 /* Vertical layout */
@@ -205,7 +236,92 @@
   border-radius: 8px;
 }
 
+input[type="text"],
+input[type="number"],
+input[type="date"],
+input[type="email"],
+input[type="password"],
+select,
+textarea {
+  border: none;
+  border-bottom: 2px solid #e0e6ef; /* thicker baseline underline */
+  background: transparent;
+  padding: 8px 4px;
+  font-size: 1rem;
+  outline: none;
+  transition: border-color 0.12s ease;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-bottom: 2px solid var(--primary); /* thick focused underline */
+  box-shadow: none;
+}
+
+/* Remove heavy default select arrow styling, keep clean */
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: none;
+  border-radius: 0;
+}
+
+/* React-select (Preferred Genders) styling using classNamePrefix="pg" */
+/* wrapper */
 .preferred-genders-select {
-  width: 50%;
-  height: 30%;
+  width: 100%;
+}
+
+/* control (the visible select box) - give it a single thick underline */
+.preferred-genders-select .pg__control {
+  border: none !important;
+  border-bottom: 2px solid #e0e6ef !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  min-height: 32px;
+}
+
+/* focused state: change underline to primary */
+.preferred-genders-select .pg__control--is-focused {
+  border-bottom-color: var(--primary) !important;
+  box-shadow: none !important;
+}
+
+/* remove any duplicated bottom border on inner elements */
+.preferred-genders-select .pg__control > * {
+  border-bottom: none !important;
+}
+
+/* multi-value pills */
+.preferred-genders-select .pg__multi-value {
+  background: var(--primary);
+  color: #fff;
+  border-radius: 12px;
+  padding: 0 4px;
+}
+
+.preferred-genders-select .pg__multi-value__label {
+  color: #fff;
+  font-size: 0.9rem;
+}
+
+.preferred-genders-select .pg__multi-value__remove {
+  color: #fff;
+}
+
+/* ensure height-unit switch text uses sage (override older turquoise) */
+button.switch-btn,
+.switch-btn,
+.height-selector .switch-btn {
+  color: var(--primary) !important;
+}
+button.switch-btn:hover,
+.switch-btn:hover,
+.height-selector .switch-btn:hover {
+  color: var(--primary-dark) !important;
 }

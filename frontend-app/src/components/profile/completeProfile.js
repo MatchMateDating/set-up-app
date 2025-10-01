@@ -121,6 +121,7 @@ const CompleteProfile = () => {
           onSubmit={handleSubmit}
           onCancel={() => navigate("/profile")}
           calculateAge={calculateAge}
+          completeProfile={true}
         />
 
         {error && <p className="text-red-500 text-sm">{error}</p>}

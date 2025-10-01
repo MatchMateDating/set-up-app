@@ -227,9 +227,13 @@ def get_mutual_matches(current_user):
         for match in matches:
             user1 = User.query.get(match.user_id_1)
             user2 = User.query.get(match.user_id_2)
-            other_user = match.user1 if match.user2.id == current_user.id else match.user2
+
+            # other_user = match.user1 if match.user2.id == current_user.id else match.user2
+            other_user = user1 if user2.id == linked_dater.id else user2
+
             user_dict = other_user.to_dict()
             linked_dater_dict = linked_dater.to_dict()
+            
             user_dict['first_image'] = other_user.images[0].image_url if other_user.images else None
             linked_dater_dict['first_image'] = linked_dater.images[0].image_url if linked_dater.images else None
             matched_users.append({
@@ -249,27 +253,31 @@ def get_mutual_matches(current_user):
         for match in matches:
             user1 = User.query.get(match.user_id_1)
             user2 = User.query.get(match.user_id_2)
-            other_user = user1 if user2.id == current_user.id else user2
+            other_user = user1 if (user2 and user2.id == current_user.id) else user2
 
-            user_dict = other_user.to_dict()
-            user_dict['first_image'] = other_user.images[0].image_url if other_user.images else None
+            # Build the other user's dict
+            user_dict = other_user.to_dict() if other_user else {}
+            user_dict['first_image'] = other_user.images[0].image_url if other_user and other_user.images else None
+
+            # By default no linked_dater for the current user's view
+            linked_dater_dict = None
+
+            # If the match was created/mediated by a matchmaker, only expose linked_dater
+            # when the current_user is the linked dater (convention: match.user_id_1 was set to referred_dater_id)
             if match.matched_by_matcher:
-                linked_dater = User.query.get(match.user_id_1 if match.user_id_1 != current_user.id else match.user_id_2)
-                linked_dater_dict = linked_dater.to_dict()
-                linked_dater_dict['first_image'] = linked_dater.images[0].image_url if linked_dater.images else None
-                matched_users.append({
-                    'match_id': match.id,
-                    'match_user': user_dict,
-                    'linked_dater': linked_dater_dict,
-                    'blind_match': match.blind_match
-                })
-            else:
-                matched_users.append({
-                    'match_id': match.id,
-                    'match_user': user_dict,
-                    'linked_dater': None,
-                    'blind_match': match.blind_match
-                })
+                linked_dater_id = match.user_id_1  # convention: matchmaker-created matches set user_id_1 = referred_dater_id
+                if linked_dater_id == current_user.id:
+                    linked = User.query.get(linked_dater_id)
+                    linked_dater_dict = linked.to_dict() if linked else None
+                    if linked and linked.images:
+                        linked_dater_dict['first_image'] = linked.images[0].image_url
+
+            matched_users.append({
+                'match_id': match.id,
+                'match_user': user_dict,
+                'linked_dater': linked_dater_dict,
+                'blind_match': match.blind_match
+            })
 
     return jsonify(matched_users)
 

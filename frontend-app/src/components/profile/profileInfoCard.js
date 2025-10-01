@@ -20,7 +20,8 @@ const ProfileInfoCard = ({
   editProfile = false,
   images,
   onDeleteImage,
-  onPlaceholderClick
+  onPlaceholderClick, 
+  completeProfile = false
 }) => {
   return (
     <div className="profile-info-card" onSubmit={onSubmit}>
@@ -114,68 +115,111 @@ const ProfileInfoCard = ({
             style={{ fontFamily: formData.fontFamily }}
           />
 
-          <FormField
-            label="Preferred Age"
-            editing={editing}
-            value={
-              formData.preferredAgeMin || formData.preferredAgeMax
-                ? `${formData.preferredAgeMin || ''} - ${formData.preferredAgeMax || ''}`
-                : ''
-            }
-            input={(
-              <>
-                <input
-                  type="number"
-                  name="preferredAgeMin"
-                  placeholder="Min"
-                  value={formData.preferredAgeMin || ''}
-                  onChange={onInputChange}
-                  style={{ width: '60px', marginRight: '8px' }}
-                />
-                <input
-                  type="number"
-                  name="preferredAgeMax"
-                  placeholder="Max"
-                  value={formData.preferredAgeMax || ''}
-                  onChange={onInputChange}
-                  style={{ width: '60px' }}
-                />
-              </>
-            )}
-          />
-
-
-        <FormField
-          label="Preferred Gender(s)"
-          editing={editing}
-          value={(formData.preferredGenders || []).join(', ')}
-          input={(
-            <Select
-              isMulti
-              name="preferredGenders"
-              value={Array.isArray(formData.preferredGenders)
-                ? formData.preferredGenders.map(g => ({ label: g, value: g }))
-                : []}
-              onChange={(selectedOptions) => {
-                const selectedValues = selectedOptions
-                  ? selectedOptions.map(opt => opt.value)
-                  : [];
-                onInputChange({
-                  target: {
-                    name: "preferredGenders",
-                    value: selectedValues,
-                  },
-                });
-              }}
-              options={[
-                { value: 'female', label: 'Female' },
-                { value: 'male', label: 'Male' },
-                { value: 'nonbinary', label: 'Non-binary' },
-              ]}
-              className="preferred-genders-select"
+          {completeProfile && (
+            <>
+            <FormField
+              label="Preferred Age"
+              editing={editing}
+              value={
+                formData.preferredAgeMin || formData.preferredAgeMax
+                  ? `${formData.preferredAgeMin || ''} - ${formData.preferredAgeMax || ''}`
+                  : ''
+              }
+              input={(
+                <>
+                  <input
+                    type="number"
+                    name="preferredAgeMin"
+                    placeholder="Min"
+                    value={formData.preferredAgeMin || ''}
+                    onChange={onInputChange}
+                    style={{ width: '60px', marginRight: '8px' }}
+                  />
+                  <input
+                    type="number"
+                    name="preferredAgeMax"
+                    placeholder="Max"
+                    value={formData.preferredAgeMax || ''}
+                    onChange={onInputChange}
+                    style={{ width: '60px' }}
+                  />
+                </>
+              )}
             />
+
+            <FormField
+              label="Preferred Gender(s)"
+              editing={editing}
+              value={(formData.preferredGenders || []).join(', ')}
+              input={(
+                <Select
+                  isMulti
+                  name="preferredGenders"
+                  className="preferred-genders-select"
+                  classNamePrefix="pg"
+                  value={Array.isArray(formData.preferredGenders)
+                    ? formData.preferredGenders.map(g => ({ label: g, value: g }))
+                    : []}
+                  onChange={(selectedOptions) => {
+                    const selectedValues = selectedOptions
+                      ? selectedOptions.map(opt => opt.value)
+                      : [];
+                    onInputChange({
+                      target: {
+                        name: "preferredGenders",
+                        value: selectedValues,
+                      },
+                    });
+                  }}
+                  options={[
+                    { value: 'female', label: 'Female' },
+                    { value: 'male', label: 'Male' },
+                    { value: 'nonbinary', label: 'Non-binary' },
+                  ]}
+                  styles={{
+                    control: (base, state) => ({
+                      ...base,
+                      border: 'none',
+                      borderRadius: 0,
+                      boxShadow: 'none',
+                      background: 'transparent',
+                      minHeight: '32px',
+                    }),
+                    valueContainer: (base) => ({
+                      ...base,
+                      padding: "0 4px"
+                    }),
+                    input: (base) => ({
+                      ...base,
+                      margin: 0,
+                      padding: 0
+                    }),
+                    multiValue: (base) => ({
+                      ...base,
+                      background: "var(--primary)",
+                      color: "white",
+                      borderRadius: "12px",
+                      padding: "0 4px"
+                    }),
+                    multiValueLabel: (base) => ({
+                      ...base,
+                      color: "white",
+                      fontSize: "0.9rem"
+                    }),
+                    multiValueRemove: (base) => ({
+                      ...base,
+                      color: "white",
+                      ':hover': {
+                        background: "var(--primary-dark)",
+                        color: "white"
+                      }
+                    })
+                  }}
+                />
+              )}
+            />
+          </>
           )}
-        />
 
         </>
       )}
@@ -196,7 +240,7 @@ const ProfileInfoCard = ({
         />
       )}
 
-      {user.role === 'user' && (
+      {user.role === 'user' && !completeProfile && (
         <div className="section">
           {editing ? <label>Add Images:</label> : <label></label>}
           <ImageGallery

@@ -1,5 +1,6 @@
 // components/HeightSelector.js
 import React from "react";
+import './heightSelector.css';
 
 const HeightSelector = ({ formData, heightUnit, onInputChange, onUnitToggle }) => (
   <div className="height-inputs">

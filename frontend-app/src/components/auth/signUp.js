@@ -54,6 +54,29 @@ function SignUp() {
     return (
         <div className="sign-up-container">
             <h2>Sign Up</h2>
+
+            {/* Role toggle (card-like outline) */}
+            <div className="role-toggle-wrapper" aria-hidden={false}>
+              <div className="role-toggle" role="tablist" aria-label="Sign up role">
+                <button
+                  type="button"
+                  className={`role-btn ${role === 'user' ? 'active' : ''}`}
+                  onClick={() => setRole('user')}
+                  aria-pressed={role === 'user'}
+                >
+                  Dater
+                </button>
+                <button
+                  type="button"
+                  className={`role-btn ${role === 'matchmaker' ? 'active' : ''}`}
+                  onClick={() => setRole('matchmaker')}
+                  aria-pressed={role === 'matchmaker'}
+                >
+                  Matcher
+                </button>
+              </div>
+            </div>
+
             <input
                 type="text"
                 placeholder="First Name"
@@ -78,28 +101,6 @@ function SignUp() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
             />
-            <div className="role-select">
-                <label>
-                    <input
-                        type="radio"
-                        name="role"
-                        value="user"
-                        checked={role === 'user'}
-                        onChange={() => setRole('user')}
-                    />
-                    Sign up as Dater
-                </label>
-                <label>
-                    <input
-                        type="radio"
-                        name="role"
-                        value="matchmaker"
-                        checked={role === 'matchmaker'}
-                        onChange={() => setRole('matchmaker')}
-                    />
-                    Sign up as Matcher
-                </label>
-            </div>
 
             {role === 'matchmaker' && (
                 <input
