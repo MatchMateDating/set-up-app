@@ -1,7 +1,13 @@
 import React from "react";
 import './matchCard.css';
+import { FaUser } from "react-icons/fa";
+import { FaUserFriends } from "react-icons/fa"; 
 
 const MatchCard = ({ matchObj, API_BASE_URL, userInfo, navigate, unmatch }) => {
+  // safe guards in case backend doesn't include flags
+  const otherMm = !!matchObj.other_user_matchmaker_involved;
+  const yourMm = !!matchObj.your_matchmaker_involved;
+
   return (
     <div
       onClick={() => navigate(`/conversation/${matchObj.match_id}`)}
@@ -17,6 +23,25 @@ const MatchCard = ({ matchObj, API_BASE_URL, userInfo, navigate, unmatch }) => {
         ) : (
           <div className="match-placeholder">No Image</div>
         )}
+        <div className="match-icons">
+          {userInfo && userInfo.role === "user" && (
+            <>
+              {otherMm && (
+                <FaUser
+                  title="Other user's matchmaker was involved"
+                  className="mm-icon"
+                />
+              )}
+              {yourMm && (
+                <FaUser
+                  title="Your matchmaker was involved"
+                  className="mm-icon mm-icon--mine"
+                />
+              )}
+            </>
+          )}
+        </div>
+
         <div className="match-name">{matchObj.match_user.name}</div>
         <button
           onClick={(e) => {
