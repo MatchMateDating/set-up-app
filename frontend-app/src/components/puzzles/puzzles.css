@@ -151,3 +151,18 @@
     background: var(--primary-dark, #5A35A8);
     transform: translateY(-2px);
 }
+
+.quiz-send-match {
+    margin-top: 0.5rem;
+    /* space below the Restart button */
+    padding: 0.5rem 1rem;
+    background: var(--primary, #6B46C1);
+    color: white;
+    border-radius: 0.5rem;
+    transition: background 0.2s, transform 0.15s;
+}
+
+.quiz-send-match:hover {
+    background: var(--primary-dark, #5A35A8);
+    transform: translateY(-2px);
+}

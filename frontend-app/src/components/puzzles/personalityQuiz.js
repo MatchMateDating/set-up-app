@@ -68,6 +68,37 @@ const PersonalityQuiz = () => {
     }
   };
 
+  const sendResultToMatch = async () => {
+    const matchId = localStorage.getItem("activeMatchId");
+    if (!matchId) return alert("No active match found");
+  
+    try {
+      setSaving(true);
+      const token = localStorage.getItem("token");
+  
+      const res = await fetch(`${API_BASE_URL}/conversation/${matchId}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          message: `Here's my personality quiz result: ${result}`
+        }),
+      });
+  
+      if (res.ok || res.status === 201) {
+        navigate(`/conversation/${matchId}`);
+      } else {
+        console.error("Failed to send quiz result to match");
+      }
+    } catch (err) {
+      console.error("Error sending quiz result:", err);
+    } finally {
+      setSaving(false);
+    }
+  };  
+
   return (
     <div className="puzzles-page">
       <SideBar />
@@ -119,6 +150,13 @@ const PersonalityQuiz = () => {
               className="quiz-return"
             >
               Return to Puzzles
+            </button>
+            <button
+              onClick={sendResultToMatch}
+              className="quiz-send-match"
+              disabled={saving}
+            >
+              {saving ? "Sending..." : "Send to Match"}
             </button>
           </div>          
         )}
