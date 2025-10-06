@@ -18,6 +18,8 @@ const MatchConvo = () => {
   const [sendPuzzle, setSendPuzzle] = useState(false);
   const [selectedPuzzleType, setSelectedPuzzleType] = useState(games[0].name);
   const [selectedPuzzleLink, setSelectedPuzzleLink] = useState(games[0].path);
+  const [senderNames, setSenderNames] = useState({});
+  const [senderRoles, setSenderRoles] = useState({});
 
   useEffect(() => {
     const fetchConversation = async () => {
@@ -46,6 +48,32 @@ const MatchConvo = () => {
 
     fetchConversation();
   }, [matchId]);
+
+  useEffect(() => {
+    const fetchNames = async () => {
+      const uniqueIds = [...new Set(messages.map(m => m.sender_id))];
+      const names = {};
+      const roles = {};
+      for (const id of uniqueIds) {
+        try {
+          const token = localStorage.getItem("token");
+          const res = await fetch(`${API_BASE_URL}/profile/${id}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (res.ok) {
+            const data = await res.json();
+            names[id] = data.first_name;
+            roles[id] = data.role;
+          }
+        } catch (err) {
+          console.error("Error fetching sender name:", err);
+        }
+      }
+      setSenderNames(names);
+      setSenderRoles(roles);
+    };
+    fetchNames();
+  }, [messages, userInfo]);
 
   const sendMessage = async () => {
     if (!newMessageText.trim() && !sendPuzzle) return;
@@ -94,6 +122,18 @@ const MatchConvo = () => {
     }
   };
 
+  const getSenderLabel = (msg) => {
+    if (userInfo?.role === "user") {
+      if (msg.sender_id === userInfo?.id) return "Me";
+      if (senderRoles[msg.sender_id] === "user") return "Them";
+      if (senderRoles[msg.sender_id] === "matchmaker") return "Matchmaker";
+    } else if (userInfo?.role === "matchmaker") {
+      if (msg.sender_id == userInfo?.id) return "Me";
+      return senderNames[msg.sender_id] || "Loading...";
+    }
+    return "Unknown";
+  };
+
   if (loading) return <p>Loading conversation...</p>;
 
   return (
@@ -109,7 +149,7 @@ const MatchConvo = () => {
           <div className="messages-box">
             {messages.map((msg) => (
               <div key={msg.id} className="message-item">
-                <strong>{msg.sender_id === userInfo?.id ? "You" : "Them"}: </strong>
+                <strong>{getSenderLabel(msg)}: </strong>
                 {msg.text ? (
                   msg.text
                 ) : msg.puzzle_type ? (
@@ -126,6 +166,7 @@ const MatchConvo = () => {
               </div>
             ))}
           </div>
+
         )}
 
         {sendPuzzle && (

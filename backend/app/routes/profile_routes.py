@@ -31,6 +31,22 @@ def get_profile(current_user):
         "user": user_data,
         "referrer": referrer_data})
 
+@profile_bp.route('/<int:user_id>', methods=['GET'])
+@token_required
+def get_user_basic_profile(current_user, user_id):
+    # Anyone logged in can request this
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    # Only return lightweight info (avoid exposing private fields)
+    return jsonify({
+        "id": user.id,
+        "first_name": user.first_name,
+        "last_name": user.last_name,
+        "role": user.role
+    }), 200
+
 @profile_bp.route('/update', methods=['PUT'])
 @token_required
 def update_profile(current_user):
