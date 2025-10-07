@@ -260,15 +260,18 @@ def like_user(current_user):
 def get_mutual_matches(current_user):
     print(f"Fetching matches for User {current_user.id} or type {current_user.role}")
     matched_users = []
+
     if current_user.role == 'matchmaker':
         linked_dater = getattr(current_user, 'referrer', None)
         if not linked_dater:
             return jsonify(matched_users)
+        
         print(f"linked_dater: {linked_dater.id} for matchmaker {current_user.id}")
         matches = Match.query.filter(
             ((Match.user_id_1 == linked_dater.id) | (Match.user_id_2 == linked_dater.id)) &
             (Match.status == 'matched') & 
-            ((Match.matched_by_user_id_1_matcher == current_user.id) | (Match.matched_by_user_id_2_matcher == current_user.id))
+            ((Match.matched_by_user_id_1_matcher == current_user.id) | 
+             (Match.matched_by_user_id_2_matcher == current_user.id))
         ).all()
 
         for match in matches:
@@ -292,6 +295,7 @@ def get_mutual_matches(current_user):
             })
 
         return jsonify(matched_users)
+    
     elif current_user.role == 'user':
         matches = Match.query.filter(
             ((Match.user_id_1 == current_user.id) | (Match.user_id_2 == current_user.id)) &
@@ -299,6 +303,11 @@ def get_mutual_matches(current_user):
         ).all()
 
         for match in matches:
+            # Determine whether both matchmakers were involved
+            both_matchmakers_involved = bool(match.matched_by_user_id_1_matcher and match.matched_by_user_id_2_matcher)
+            user1_matchmaker_involved = bool(match.matched_by_user_id_1_matcher)
+            user2_matchmaker_involved = bool(match.matched_by_user_id_2_matcher)
+
             user1 = User.query.get(match.user_id_1)
             user2 = User.query.get(match.user_id_2)
             other_user = user1 if (user2 and user2.id == current_user.id) else user2
@@ -315,14 +324,17 @@ def get_mutual_matches(current_user):
                 if linked_dater_id == current_user.id:
                     linked = User.query.get(linked_dater_id)
                     linked_dater_dict = linked.to_dict() if linked else None
-                    if linked and linked.images:
+                    if linked and linked.images: 
                         linked_dater_dict['first_image'] = linked.images[0].image_url
 
             matched_users.append({
                 'match_id': match.id,
                 'match_user': user_dict,
                 'linked_dater': linked_dater_dict,
-                'blind_match': match.blind_match
+                'blind_match': match.blind_match,
+                'user_1_matchmaker_involved': user1_matchmaker_involved,
+                'user_2_matchmaker_involved': user2_matchmaker_involved,
+                'both_matchmakers_involved': both_matchmakers_involved
             })
 
     return jsonify(matched_users)

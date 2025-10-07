@@ -20,9 +20,9 @@ const Conversations = () => {
 
     return matches.filter(match => {
       if (showDaterMatches) {
-        return match.linked_dater === null;
+        return !match.both_matchmakers_involved && match.linked_dater === null;
       } else {
-        return match.linked_dater !== null;
+        return match.both_matchmakers_involved || match.linked_dater !== null;
       }
     });
   };
