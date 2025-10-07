@@ -51,6 +51,81 @@ const Conversations = () => {
     }
   };
 
+  const reveal = async (matchId) => {
+    try {
+      const token = localStorage.getItem('token');
+      console.log("Revealing match:", matchId);
+      console.log(`${API_BASE_URL}/match/reveal/${matchId}`);
+      const res = await fetch(`${API_BASE_URL}/match/reveal/${matchId}`, {
+        method: 'PATCH',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+
+      console.log("Response status:", res.status);
+      let data;
+      try {
+        data = await res.json();
+        console.log("Response data:", data);
+      } catch (jsonErr) {
+        console.error("JSON parse error:", jsonErr);
+        alert("Server did not return valid JSON.");
+        return;
+      }
+
+      if (!res.ok) {
+        alert(`Failed to reveal match: ${data.message}`);
+        return;
+      }
+
+      setMatches(prevMatches =>
+        prevMatches.map(m =>
+          m.match_id === matchId ? { ...m, blind_match: 'Revealed' } : m
+        )
+      );
+    } catch (err) {
+      console.error("Error revealing match:", err);
+      alert("Something went wrong revealing the match.");
+    }
+  };
+
+  const hide = async (matchId) => {
+    try {
+      const token = localStorage.getItem('token');
+      console.log("Hiding match:", matchId);
+      console.log(`${API_BASE_URL}/match/hide/${matchId}`);
+      const res = await fetch(`${API_BASE_URL}/match/hide/${matchId}`, {
+        method: 'PATCH',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+
+      console.log("Response status:", res.status);
+      let data;
+      try {
+        data = await res.json();
+        console.log("Response data:", data);
+      } catch (jsonErr) {
+        console.error("JSON parse error:", jsonErr);
+        alert("Server did not return valid JSON.");
+        return;
+      }
+
+      if (!res.ok) {
+        alert(`Failed to hide match: ${data.message}`);
+        return;
+      }
+
+      setMatches(prevMatches =>
+        prevMatches.map(m =>
+          m.match_id === matchId ? { ...m, blind_match: 'Blind' } : m
+        )
+      );
+    } catch (err) {
+      console.error("Error hiding match:", err);
+      alert("Something went wrong hiding the match.");
+    }
+  };
+
+
   if (loading) {
     return <div>Loading...</div>;
   }
@@ -75,6 +150,8 @@ const Conversations = () => {
                 userInfo={userInfo}
                 navigate={navigate}
                 unmatch={unmatch}
+                reveal={reveal}
+                hide={hide}
               />
             ))
           ) : (

@@ -156,7 +156,7 @@ def blind_match(current_user):
             existing_match.matched_by_user_id_1_matcher = current_user.id
         else:
             existing_match.matched_by_user_id_2_matcher = current_user.id
-        existing_match.blind_match = True
+        existing_match.blind_match = 'Blind'
     else:
         new_match = Match(
             user_id_1=referred_dater_id,
@@ -164,7 +164,7 @@ def blind_match(current_user):
             # liked_by_ids handled by relationship; we'll append objects if needed later
             matched_by_user_id_1_matcher=current_user.id,
             status='matched',
-            blind_match=True
+            blind_match='Blind'
         )
         db.session.add(new_match)
 
@@ -354,6 +354,63 @@ def unmatch(current_user, match_id):
     db.session.commit()
 
     return jsonify({'message': 'Unmatched successfully'}), 200
+
+@match_bp.route('/reveal/<int:match_id>', methods=['PATCH'])
+@token_required
+def reveal_match(current_user, match_id):
+    # Only matchmakers can reveal
+    if current_user.role != 'matchmaker':
+        return jsonify({'message': 'Only matchmakers can reveal blind matches.'}), 403
+
+    match = Match.query.get(match_id)
+    if not match:
+        return jsonify({'message': 'Match not found.'}), 404
+
+    # Ensure this match belongs to one of their linked daters
+    linked_dater = getattr(current_user, 'referrer', None)
+    if not linked_dater:
+        return jsonify({'message': 'Matchmaker has no linked dater.'}), 403
+
+    if match.user_id_1 != linked_dater.id and match.user_id_2 != linked_dater.id:
+        return jsonify({'message': 'Match does not involve your linked dater.'}), 403
+
+    # Update the match
+    match.blind_match = 'Revealed'
+    db.session.commit()
+
+    return jsonify({
+        'message': 'Match revealed successfully.', 
+        'match_id': match.id,
+        'blind_match': match.blind_match})
+
+@match_bp.route('/hide/<int:match_id>', methods=['PATCH'])
+@token_required
+def hide_match(current_user, match_id):
+    # Only matchmakers can hide
+    if current_user.role != 'matchmaker':
+        return jsonify({'message': 'Only matchmakers can hide blind matches.'}), 403
+
+    match = Match.query.get(match_id)
+    if not match:
+        return jsonify({'message': 'Match not found.'}), 404
+
+    # Ensure this match belongs to one of their linked daters
+    linked_dater = getattr(current_user, 'referrer', None)
+    if not linked_dater:
+        return jsonify({'message': 'Matchmaker has no linked dater.'}), 403
+
+    if match.user_id_1 != linked_dater.id and match.user_id_2 != linked_dater.id:
+        return jsonify({'message': 'Match does not involve your linked dater.'}), 403
+
+    # Update the match
+    match.blind_match = 'Blind'
+    db.session.commit()
+
+    return jsonify({
+        'message': 'Match hidden successfully.', 
+        'match_id': match.id,
+        'blind_match': match.blind_match})
+
 
 @match_bp.route('/send_note', methods=['POST'])
 @token_required

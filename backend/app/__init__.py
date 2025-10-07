@@ -24,7 +24,7 @@ def create_app():
         resources={r"/*": {"origins": "*"}},
         expose_headers=["Authorization"],
         allow_headers=["Authorization", "Content-Type"],
-        methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+        methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"]
     )
     db.init_app(app)
     bcrypt.init_app(app)

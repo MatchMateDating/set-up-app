@@ -17,7 +17,7 @@ class Match(db.Model):
     created_at = db.Column(db.DateTime, server_default=db.func.now())
     matched_by_user_id_1_matcher = db.Column(db.Integer, nullable=True)
     matched_by_user_id_2_matcher = db.Column(db.Integer, nullable=True)
-    blind_match = db.Column(db.Boolean, default=False)  # Indicates if this is a blind match
+    blind_match = db.Column(db.String, default='')  # Indicates if this is a blind match
     note = db.Column(db.Text, nullable=True)
 
 
