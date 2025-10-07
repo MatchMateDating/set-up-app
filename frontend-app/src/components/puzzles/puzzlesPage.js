@@ -5,14 +5,14 @@ import SideBar from '../layout/sideBar';
 import './puzzles.css';
 import { FaArrowLeft } from 'react-icons/fa';
 
+export const games = [
+  { name: "Personality Quiz", path: "/puzzles/personality-quiz" },
+  { name: "Memory Match", path: "/puzzles/memory" },
+  { name: "Trivia Challenge", path: "/puzzles/trivia" }
+];
+
 const PuzzlesHub = () => {
   const navigate = useNavigate();
-
-  const games = [
-    { name: "Personality Quiz", path: "/puzzles/personality-quiz" },
-    { name: "Memory Match", path: "/puzzles/memory" },
-    { name: "Trivia Challenge", path: "/puzzles/trivia" }
-  ];
 
   return (
     <div className="puzzles-page">
