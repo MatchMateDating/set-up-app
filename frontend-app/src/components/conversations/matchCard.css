@@ -28,6 +28,24 @@
   color: #777;
 }
 
+.match-icons {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 18px;
+  color: #555;
+}
+
+.mm-icon {
+  font-size: 18px;
+  color: #555;
+  margin-right: 6px;
+}
+
+.mm-icon--mine {
+  color: purple; /* change color to your preferred purple */
+}
+
 .match-name {
   margin-top: 8px;
   font-weight: bold;
