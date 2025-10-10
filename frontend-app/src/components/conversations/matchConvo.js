@@ -150,16 +150,18 @@ const MatchConvo = () => {
             {messages.map((msg) => (
               <div key={msg.id} className="message-item">
                 <strong>{getSenderLabel(msg)}: </strong>
-                {msg.text ? (
-                  msg.text
-                ) : msg.puzzle_type ? (
-                  <button
-                    className="puzzle-button"
-                    onClick={() => handlePuzzleClick(msg.puzzle_link)}
-                  >
-                    Let’s Play {msg.puzzle_type}!
-                  </button>
-                ) : null}
+                {msg.text && <>{msg.text}</>}
+                {msg.puzzle_type && (
+                  <>
+                    {msg.text && <div></div>}
+                    <button
+                      className="puzzle-button"
+                      onClick={() => handlePuzzleClick(msg.puzzle_link)}
+                    >
+                      Let’s Play {msg.puzzle_type}!
+                    </button>
+                  </>
+                )}
                 <div className="timestamp">
                   {new Date(msg.timestamp).toLocaleString()}
                 </div>
@@ -180,13 +182,14 @@ const MatchConvo = () => {
             onClose={() => setSendPuzzle(false)} // parent toggles boolean
           />
         )}
-
-        <textarea
-          value={newMessageText}
-          onChange={(e) => setNewMessageText(e.target.value)}
-          rows={3}
-          className="message-input"
-        />
+        {userInfo?.role != "matchmaker" && (
+          <textarea
+            value={newMessageText}
+            onChange={(e) => setNewMessageText(e.target.value)}
+            rows={3}
+            className="message-input"
+          />
+        )}
         <div className="send-actions">
           <button
             className="send-convo-button"
