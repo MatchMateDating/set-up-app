@@ -20,7 +20,7 @@ def get_user_conversation_text(user_id: int, limit: int = 100) -> str:
         Message.sender_id == user_id
     ).order_by(Message.timestamp.desc()).limit(limit).all()
 
-    return " ".join([m.text for m in messages])
+    return " ".join([m.text for m in messages if m and m.text])
 
 
 def get_embedding(text: str) -> list:
@@ -90,7 +90,3 @@ def explain_conversation_similarity(user_a_id: int, user_b_id: int) -> str:
     )
 
     return response.choices[0].message.content
-
-
-print(get_conversation_similarity(2,3))
-print(explain_conversation_similarity(2, 3))

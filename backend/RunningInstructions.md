@@ -20,4 +20,7 @@ run:
 flask run
 macOS: python -m flask run 
 
+To run the ai_embeddings model before we integrate it within the app:
+run:
+flask analyze-conversation <user_id_1> <user_id_2>
 
