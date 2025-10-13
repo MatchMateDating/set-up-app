@@ -1,5 +1,7 @@
 import React from 'react';
 import Profile from '../profile/profile';
+import './profileCard.css';
+import CompatibilityScore from './compatibilityScore';
 
 const ProfileCard = ({
   profile,
@@ -25,6 +27,11 @@ const ProfileCard = ({
 
       <button onClick={onOpenNote} className="note-button"> 📝 </button>
 
+      {userInfo?.role === 'matchmaker' && profile.ai_score !== undefined && (
+        <div className="ai-score-box">
+          <CompatibilityScore score={profile.ai_score} />
+        </div>
+      )}
       {userInfo?.role === 'matchmaker' ? (
         profile.liked_linked_dater ? (
           <button onClick={() => onBlindMatch(profile.id)} className="like-button">
