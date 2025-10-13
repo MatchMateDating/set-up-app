@@ -34,4 +34,7 @@ def create_app():
     from .routes import register_blueprints
     register_blueprints(app)
 
+    from .services import ai_embeddings_cli
+    ai_embeddings_cli.register_commands(app)
+
     return app
