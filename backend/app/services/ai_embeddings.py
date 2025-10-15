@@ -38,7 +38,11 @@ def get_embedding(text: str) -> list:
     return response.data[0].embedding
 
 def cosine_similarity(vec1, vec2):
-    return np.dot(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2))
+    norm1 = np.linalg.norm(vec1)
+    norm2 = np.linalg.norm(vec2)
+    if norm1 == 0 or norm2 == 0:
+        return 0.0  # no similarity if one user has no messages
+    return float(np.dot(vec1, vec2) / (norm1 * norm2))
 
 def get_conversation_similarity(user_a_id: int, user_b_id: int) -> float:
     """

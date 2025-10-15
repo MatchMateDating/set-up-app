@@ -3,6 +3,7 @@ from app.models.userDB import User
 from app.models.matchDB import Match
 from app import db
 from app.routes.shared import token_required
+from app.services.ai_embeddings import get_conversation_similarity
 
 match_bp = Blueprint('match', __name__)
 
@@ -124,6 +125,14 @@ def get_users_to_match(current_user):
         user_dict['note'] = note_text
         user_dict['matched_by_matcher_user_1'] = matched_by_matcher_user_1
         user_dict['matched_by_matcher_user_2'] = matched_by_matcher_user_2
+        if current_user.role == 'matchmaker' and current_user.referrer:
+            referred_dater_id = current_user.referrer.id
+            try:
+                ai_score = get_conversation_similarity(referred_dater_id, user.id)
+                user_dict['ai_score'] = round(float(ai_score), 2)
+            except Exception as e:
+                print(f"Error computing AI score for users {referred_dater_id} and {user.id}: {e}")
+                user_dict['ai_score'] = None
         users_data.append(user_dict)
     return jsonify(users_data)
 
