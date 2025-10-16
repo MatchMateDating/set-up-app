@@ -33,7 +33,7 @@ const MatchCard = ({ matchObj, API_BASE_URL, userInfo, navigate, unmatch, reveal
           {userInfo && userInfo.role === "user" && renderMatchmakerIcons()}
         </div>
 
-        <div className="match-name">{matchObj.match_user.name}</div>
+        <div className="match-name">{matchObj.match_user.first_name}</div>
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -67,13 +67,13 @@ const MatchCard = ({ matchObj, API_BASE_URL, userInfo, navigate, unmatch, reveal
           {matchObj.linked_dater.first_image ? (
             <img
               src={`${API_BASE_URL}${matchObj.linked_dater.first_image}`}
-              alt={`${matchObj.linked_dater.name}'s profile`}
+              alt={`${matchObj.linked_dater.first_name}'s profile`}
               className={`match-image ${isBlind ? "blurred" : ""}`}
             />
           ) : (
             <div className="match-placeholder">No Image</div>
           )}
-          <div className="match-name">{matchObj.linked_dater.name}</div>
+          <div className="match-name">{matchObj.linked_dater.first_name}</div>
         </div>
       )}
     </div>
