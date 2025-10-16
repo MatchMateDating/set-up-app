@@ -20,6 +20,7 @@ const MatchConvo = () => {
   const [selectedPuzzleLink, setSelectedPuzzleLink] = useState(games[0].path);
   const [senderNames, setSenderNames] = useState({});
   const [senderRoles, setSenderRoles] = useState({});
+  const [matchUser, setMatchUser] = useState(null);
 
   useEffect(() => {
     const fetchConversation = async () => {
@@ -74,6 +75,33 @@ const MatchConvo = () => {
     };
     fetchNames();
   }, [messages, userInfo]);
+
+  useEffect(() => {
+    const fetchMatchUser = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/match/matches`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const matchInfo = data.find(m => m.match_id === Number(matchId));
+          if (matchInfo) {
+            setMatchUser(matchInfo.match_user);
+          }
+        } else if (res.status === 401) {
+          const data = await res.json();
+          if (data.error_code === "TOKEN_EXPIRED") {
+            localStorage.removeItem("token");
+            window.location.href = "/";
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching match user:", err);
+      }
+    };
+  
+    fetchMatchUser();
+  }, [matchId]);
 
   const sendMessage = async () => {
     if (!newMessageText.trim() && !sendPuzzle) return;
@@ -141,7 +169,9 @@ const MatchConvo = () => {
       <SideBar />
       <div className="match-convo-container">
         <button className="back-button" onClick={() => navigate("/conversations")}>⬅ Back</button>
-        <h2 className="convo-title">Conversation with Match {matchId}</h2>
+        <h2 className="convo-title">
+          Conversation with {matchUser?.first_name || `Match ${matchId}`}
+        </h2>
 
         {messages.length === 0 ? (
           <p>No messages yet. Say hi!</p>
