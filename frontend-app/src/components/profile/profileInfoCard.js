@@ -222,23 +222,7 @@ const ProfileInfoCard = ({
           )}
 
         </>
-      )}
-
-      {user.role === 'matchmaker' && (
-        <FormField
-          label="Description"
-          editing={editing}
-          value={user.description}
-          input={
-            <textarea
-              name="description"
-              value={formData.description}
-              onChange={onInputChange}
-              style={{ fontFamily: formData.fontFamily }}
-            />
-          }
-        />
-      )}
+      )} 
 
       {user.role === 'user' && !completeProfile && (
         <div className="section">
@@ -264,4 +248,3 @@ const ProfileInfoCard = ({
 };
 
 export default ProfileInfoCard;
-

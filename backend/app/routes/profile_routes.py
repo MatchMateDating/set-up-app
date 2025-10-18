@@ -55,8 +55,6 @@ def update_profile(current_user):
         allowed_fields = ['first_name', 'last_name', 'bio', 'birthdate', 'gender', 
                           'height', 'preferredAgeMin', 'preferredAgeMax', 
                           'preferredGenders', 'fontFamily', 'profileStyle', 'imageLayout']
-    elif current_user.role == 'matchmaker':
-        allowed_fields = ['description']
     else:
         allowed_fields = []
 
@@ -121,3 +119,19 @@ def delete_image(current_user, image_id):
     db.session.commit()
 
     return jsonify({'message': 'Image deleted successfully'}), 200
+
+@profile_bp.route('/user/<int:user_id>/avatar', methods=['PATCH'])
+def update_avatar(user_id):
+    print("Received request to update avatar")
+    data = request.get_json()
+    avatar = data.get('avatar')
+
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    user.avatar = avatar
+    db.session.commit()
+
+    return jsonify({"message": "Avatar updated", "avatar": user.avatar})
+

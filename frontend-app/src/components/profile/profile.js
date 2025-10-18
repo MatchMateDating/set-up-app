@@ -5,7 +5,6 @@ import './constitutionTheme.css';
 import { FaEdit } from 'react-icons/fa';
 import { calculateAge, convertFtInToMetersCm, convertMetersCmToFtIn, formatHeight } from './utils/profileUtils';
 import CropperModal from './cropperModal';
-import AvatarSelectorModal from './avatarSelectorModal';
 import ProfileInfoCard from './profileInfoCard';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
@@ -19,7 +18,6 @@ const Profile = ({ user, framed, editing, setEditing, onSave }) => {
     heightInches: '0',
     heightMeters: '0',
     heightCentimeters: '0',
-    description: '',
     preferredAgeMin: '0',
     preferredAgeMax: '0',
     preferredGenders: [],
@@ -32,8 +30,6 @@ const Profile = ({ user, framed, editing, setEditing, onSave }) => {
   const fileInputRef = useRef(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [images, setImages] = useState([]);
-  const [showAvatarModal, setShowAvatarModal] = useState(false);
-  const [avatar, setAvatar] = useState(user?.avatar || 'avatars/allyson_avatar.png');
   const [heightUnit, setHeightUnit] = useState('ft');
 
   useEffect(() => {
@@ -47,7 +43,6 @@ const Profile = ({ user, framed, editing, setEditing, onSave }) => {
         last_name: user.last_name || '',
         birthdate: user.birthdate || '',
         gender: user.gender || '',
-        description: user.description || '',
         preferredAgeMin: user.preferredAgeMin || '',
         preferredAgeMax: user.preferredAgeMax || '',
         preferredGenders: user.preferredGenders || '',
@@ -91,12 +86,6 @@ const Profile = ({ user, framed, editing, setEditing, onSave }) => {
       }
     }
   }, [user]);
-
-  const handleAvatarClick = () => {
-    if (user.role === 'matchmaker' && editing) {
-      setShowAvatarModal(true);
-    }
-  };
 
   const handlePlaceholderClick = () => {
     if (editing) {
@@ -177,7 +166,6 @@ const Profile = ({ user, framed, editing, setEditing, onSave }) => {
         birthdate: formData.birthdate,
         gender: formData.gender,
         height: heightFormatted,
-        description: formData.description,
         preferredAgeMin: formData.preferredAgeMin,
         preferredAgeMax: formData.preferredAgeMax,
         preferredGenders: formData.preferredGenders,
@@ -250,10 +238,10 @@ const Profile = ({ user, framed, editing, setEditing, onSave }) => {
   };
 
   return (
+    <>
     <div
       className={`profile-container format-${formData.profileStyle}`}
-      // style={{ fontFamily: formData.fontFamily || 'Arial' }}>
-      >
+    >
       {formData.profileStyle === "pixel" && (
         <div className="pixel-clouds">
           <div className="cloud-2" style={{ top: 10, left: 10 }}></div>
@@ -291,17 +279,8 @@ const Profile = ({ user, framed, editing, setEditing, onSave }) => {
         />
       )}
 
-      <div className="profile-header">
-        {user.role === 'matchmaker' && (
-          <img
-            src={avatar}
-            alt="Avatar"
-            className="avatar"
-            onClick={handleAvatarClick}
-            style={{ cursor: editing ? 'pointer' : 'default' }}
-          />
-        )}
-        <div className="profile-info">
+      {user.role === "user" && (
+        <div className="profile-header">
           <div className="name-section">
             {!editing && <h2 style={{ cursor: editing ? 'pointer' : 'default' }}>{user.first_name}</h2>}
           </div>
@@ -311,19 +290,9 @@ const Profile = ({ user, framed, editing, setEditing, onSave }) => {
             </div>
           )}
         </div>
-      </div>
-
-      {showAvatarModal && (
-        <AvatarSelectorModal
-          onSelect={(selectedAvatar) => {
-            setAvatar(selectedAvatar);
-            // Optionally: Save avatar to backend here!
-          }}
-          onClose={() => setShowAvatarModal(false)}
-        />
       )}
 
-      <form className={`profile-card ${framed ? 'framed' : ''}`} onSubmit={handleFormSubmit}>
+      {user.role==='user' && (<form className={`profile-card ${framed ? 'framed' : ''}`} onSubmit={handleFormSubmit}>
         <ProfileInfoCard
           user={user}
           formData={formData}
@@ -341,10 +310,10 @@ const Profile = ({ user, framed, editing, setEditing, onSave }) => {
           profileStyle={formData.profileStyle}
           completeProfile={false}
         />
-      </form>
+      </form>)}
     </div>
+    </>
   );
 };
 
 export default Profile;
-
