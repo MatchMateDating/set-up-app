@@ -16,6 +16,8 @@ const Settings = () => {
   const [role, setRole] = useState(null);
   const [savedReferrals, setSavedReferrals] = useState([]);
   const navigate = useNavigate();
+  const [role, setRole] = useState(null);
+
 
   useEffect(() => {
     const fetchUserProfile = async () => {
