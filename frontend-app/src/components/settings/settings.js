@@ -45,8 +45,6 @@ const Settings = () => {
           console.log('linked daters', linkedData.linked_daters);
         }
 
-
-
         // Optional: Update localStorage user object to keep in sync
         localStorage.setItem('user', JSON.stringify(data.user));
 
