@@ -35,7 +35,7 @@
 /* Cards for grouped settings */
 .settings-card {
   background: var(--surface);
-  border: 1px solid var(--card-border);
+  border: 0px solid var(--card-border);
   border-radius: 10px;
   padding: 16px;
   margin-bottom: 16px;
@@ -101,4 +101,46 @@
   .settings-page { padding: 12px; }
   .settings-card { padding: 12px; }
   .settings-actions { justify-content: flex-start; }
+}
+
+.referral-input-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.referral-input {
+  flex: 1;
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+}
+
+.save-btn {
+  background-color: #6B46C1;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+.plus-btn {
+  display: block;
+  margin-top: 10px;
+  font-size: 1.5rem;
+  background: #007bff;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  cursor: pointer;
+}
+
+.saved-referrals ul {
+  list-style: none;
+  padding-left: 0;
+  margin-top: 8px;
 }

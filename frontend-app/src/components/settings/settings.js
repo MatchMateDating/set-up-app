@@ -9,6 +9,8 @@ const Settings = () => {
   const [showCode, setShowCode] = useState(false);
   const navigate = useNavigate();
   const [role, setRole] = useState(null);
+  const [referralCodes, setReferralCodes] = useState([]);
+  const [savedReferrals, setSavedReferrals] = useState([]);
 
 
   useEffect(() => {
@@ -27,14 +29,21 @@ const Settings = () => {
 
         if (!res.ok) throw new Error('Failed to fetch user profile');
         const data = await res.json();
+        console.log('referral codes', data.user.referral_code);
         setRole(data.user.role);
         if (data.user?.referral_code) {
           setReferralCode(data.user.referral_code);
-        } else {
-          setReferralCode('NO-CODE');
+        } 
+
+        if (data.user.role === "matchmaker") {
+          const linkedRes = await fetch(`${API_BASE_URL}/referral/referrals/${data.user.id}`, {
+            headers: { 'Authorization': `Bearer ${token}` },
+          });
+          const linkedData = await linkedRes.json();
+          console.log('linked data', linkedData);
+          setSavedReferrals(linkedData.linked_daters || []);
+          console.log('linked daters', linkedData.linked_daters);
         }
-
-
 
         // Optional: Update localStorage user object to keep in sync
         localStorage.setItem('user', JSON.stringify(data.user));
@@ -81,6 +90,42 @@ const Settings = () => {
     }
   };
 
+  const handleSaveReferral = async () => {
+    const code = referralCode.trim();
+    if (!code) return;
+
+    const token = localStorage.getItem("token");
+    try {
+      const res = await fetch(`${API_BASE_URL}/referral/link_referral`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+        body: JSON.stringify({ referral_code: code }),
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        // data.message or data.linked_dater contains the new linked dater
+        const newDater = {
+          name: data.message.split(" linked")[0], // or if your backend returns a 'name', use that
+          referral_code: code
+        };
+
+        setSavedReferrals(prev => [...prev, newDater]);
+        setReferralCode('');
+        alert(`Linked to ${newDater.name}`);
+      } else {
+        alert(data.error || "Failed to link referral");
+      }
+    } catch (err) {
+      console.error("Error linking referral:", err);
+      alert("Something went wrong linking referral");
+    }
+  };
+
+
   return (
     <div className="settings-page">
       <div className="settings-card">
@@ -116,6 +161,42 @@ const Settings = () => {
                 <FaEnvelope />
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {role === "matchmaker" && (
+        <div className="settings-card">
+          <h3>Link Additional Daters:</h3>
+            <div className="referral-input-group">
+              <input
+                type="text"
+                value={referralCode}
+                placeholder="Enter referral code"
+                onChange={(e) => setReferralCode(e.target.value)}
+                className="referral-input"
+              />
+              <button
+                className="save-btn"
+                onClick={() => handleSaveReferral()}
+              >
+                Save
+              </button>
+            </div>
+
+          {/* Display saved referral codes */}
+          <div className="saved-referrals">
+            <h4>Linked Referral Codes:</h4>
+            {savedReferrals.length > 0 ? (
+              <ul>
+                {savedReferrals.map((ref, idx) => (
+                  <li key={idx}>
+                    <strong>{ref.name}</strong> — {ref.referral_code}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p>No linked daters yet.</p>
+            )}
           </div>
         </div>
       )}
