@@ -36,6 +36,7 @@ def get_profile(current_user):
 def get_user_basic_profile(current_user, user_id):
     # Anyone logged in can request this
     user = User.query.get(user_id)
+    user_data = user.to_dict()
     if not user:
         return jsonify({"error": "User not found"}), 404
 
@@ -44,9 +45,6 @@ def get_user_basic_profile(current_user, user_id):
         "id": user.id,
         "first_name": user.first_name,
         "last_name": user.last_name,
-        "birthdate": user.birthdate,
-        "gender": user.gender,
-        "height": user.height,
         "role": user.role
     }), 200
 

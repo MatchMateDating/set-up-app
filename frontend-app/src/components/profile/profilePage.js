@@ -17,41 +17,40 @@ const ProfilePage = () => {
   const navigate = useNavigate();
 
   const fetchProfile = () => {
-    const token = localStorage.getItem("token");
-    if (!token) return;
-
-    const url = userId ? `${API_BASE_URL}/profile/${userId}` : `${API_BASE_URL}/profile/`;
-
-    fetch(url, { headers: { Authorization: `Bearer ${token}` } })
-      .then(async (res) => {
-        if (res.status === 401) {
-          const data = await res.json();
-          if (data.error_code === "TOKEN_EXPIRED") {
-            localStorage.removeItem("token");
-            window.location.href = "/";
-            return;
+    const token = localStorage.getItem('token');
+    if (token) {
+      fetch(`${API_BASE_URL}/profile/`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      })
+        .then(async (res) => {
+          if (res.status === 401) {
+            const data = await res.json();
+            if (data.error_code === 'TOKEN_EXPIRED') {
+              localStorage.removeItem('token'); // clear invalid token
+              window.location.href = '/';  // redirect to login
+              return; // stop execution
+            }
           }
-        }
-        return res.json();
-      })
-      .then((data) => {
-        if (!data) return;
-        userId ? setUser(data) : setUser(data.user);
-        setReferrer(data.referrer || null);
-      })
-      .catch((err) => console.error("Error loading profile:", err));
+          return res.json();
+        })
+        .then((data) => {
+          if (!data) return; // avoid running if we already redirected
+          setUser(data.user);
+          setReferrer(data.referrer || null);
+        })
+        .catch((err) => console.error('Error loading profile:', err));
+    }
   };
+
+  useEffect(() => { fetchProfile(); }, []);
 
   useEffect(() => {
     fetchProfile();
-  }, [userId]);
-
-  useEffect(() => {
-    // When user info loads, sync avatar state with user.avatar
-    if (user?.avatar) {
+    if (user?.role === 'matchmaker') {
       setAvatar(user.avatar);
+      fetchReferrer(user.referred_by_id);
     }
-  }, [user]);
+  }, []);
 
   const handleAvatarClick = () => {
     setShowAvatarModal(true);
@@ -67,21 +66,17 @@ const ProfilePage = () => {
   return (
     <>
       <SideBar />
-      {userId && (
-        <button className="back-button" onClick={() => navigate(-1)}>
-          ⬅ Back
-        </button>
-      )}
-      <div className="profile-page-container">
-        {user?.role === 'user' && (
-          <Profile
-            user={user}
-            framed={false}
-            editing={editing}
-            setEditing={setEditing}
-            onSave={handleSave}
-            editable={!userId}
-          />
+      <div style={{ paddingBottom: '60px', paddingTop: '66px' }}>
+        {user?.role ==='user' && (
+          <>
+            <Profile
+              user={user}
+              framed={false}
+              editing={editing}
+              setEditing={setEditing}
+              onSave={handleSave}
+            />
+          </>
         )}
 
         {user?.role === 'matchmaker' && referrer && (

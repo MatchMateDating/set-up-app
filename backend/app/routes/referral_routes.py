@@ -58,3 +58,36 @@ def get_referrals(matchmaker_id):
     if not referral_row:
         return jsonify({"linked_daters": []})
     return jsonify(referral_row.to_dict())
+
+@referral_bp.route('/set_selected_dater', methods=['POST'])
+@jwt_required()
+def set_selected_dater():
+    data = request.get_json()
+    selected_dater_id = data.get('selected_dater_id')
+    current_user_id = get_jwt_identity()
+
+    if not selected_dater_id:
+        return jsonify({"error": "selected_dater_id required"}), 400
+
+    matchmaker = User.query.get(current_user_id)
+    if not matchmaker or matchmaker.role != "matchmaker":
+        return jsonify({"error": "Only matchmakers can set a selected dater"}), 403
+
+    # Validate that the selected dater is actually one of their linked daters
+    referral_row = ReferredUsers.query.filter_by(matchmaker_id=matchmaker.id).first()
+    if not referral_row:
+        return jsonify({"error": "No linked daters found"}), 404
+
+    linked_ids = [
+        getattr(referral_row, f"linked_dater_{i}_id")
+        for i in range(1, 11)
+        if getattr(referral_row, f"linked_dater_{i}_id") is not None
+    ]
+    if int(selected_dater_id) not in linked_ids:
+        return jsonify({"error": "Selected dater not linked to this matchmaker"}), 403
+
+    matchmaker.referred_by_id = selected_dater_id
+    db.session.commit()
+
+    return jsonify({"message": f"Selected dater set to {selected_dater_id}"}), 200
+

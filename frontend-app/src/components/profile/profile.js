@@ -33,8 +33,9 @@ const Profile = ({ user, framed, editing, setEditing, onSave, editable }) => {
   const [heightUnit, setHeightUnit] = useState('ft');
 
   useEffect(() => {
+    console.log('User data changed:', user);
     if (user) {
-      if (images.length === 0 && user.images) {
+      if (user.images) {
         setImages(user.images);
       }
 
