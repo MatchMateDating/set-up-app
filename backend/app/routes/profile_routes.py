@@ -45,7 +45,8 @@ def get_user_basic_profile(current_user, user_id):
         "id": user.id,
         "first_name": user.first_name,
         "last_name": user.last_name,
-        "role": user.role
+        "role": user.role,
+        "user": user_data
     }), 200
 
 @profile_bp.route('/update', methods=['PUT'])

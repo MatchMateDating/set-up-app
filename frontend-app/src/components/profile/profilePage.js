@@ -36,13 +36,31 @@ const ProfilePage = () => {
         .then((data) => {
           if (!data) return; // avoid running if we already redirected
           setUser(data.user);
+          console.log('User profile fetched:', user);
           setReferrer(data.referrer || null);
         })
         .catch((err) => console.error('Error loading profile:', err));
     }
   };
 
-  useEffect(() => { fetchProfile(); }, []);
+  // ProfilePage.js
+  const fetchReferrer = async (daterId) => {
+    console.log('Fetching referrer for daterId:', daterId);
+    if (!daterId) return;
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/profile/${daterId}`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      setReferrer(data.user);
+      console.log('Referrer fetched:', referrer);
+    } catch (err) {
+      console.error('Error fetching referrer:', err);
+    }
+  };
 
   useEffect(() => {
     fetchProfile();
@@ -65,7 +83,7 @@ const ProfilePage = () => {
 
   return (
     <>
-      <SideBar />
+      <SideBar onSelectedDaterChange={(newDaterId) => fetchReferrer(newDaterId)}/>
       <div style={{ paddingBottom: '60px', paddingTop: '66px' }}>
         {user?.role ==='user' && (
           <>
