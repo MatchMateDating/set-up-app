@@ -5,13 +5,26 @@ import { FaBars } from 'react-icons/fa';
 import DaterDropdown from '../layout/customDropdown';
 
 const SideBar = ({onSelectedDaterChange}) => {
+const SideBar = ({onSelectedDaterChange}) => {
     const navigate = useNavigate();
     const [sidePanelOpen, setSidePanelOpen] = useState(false);
     const [role, setRole] = useState(null);
     const [linkedDaters, setLinkedDaters] = useState([]);
     const [selectedDater, setSelectedDater] = useState('');
+    const [role, setRole] = useState(null);
+    const [linkedDaters, setLinkedDaters] = useState([]);
+    const [selectedDater, setSelectedDater] = useState('');
     const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
 
+    useEffect(() => {
+        const fetchProfileAndReferrals = async () => {
+            const token = localStorage.getItem('token');
+            if (!token) return;
+
+            try {
+                const res = await fetch(`${API_BASE_URL}/profile/`, {
+                    headers: { Authorization: `Bearer ${token}` },
+                });
     useEffect(() => {
         const fetchProfileAndReferrals = async () => {
             const token = localStorage.getItem('token');
@@ -30,7 +43,6 @@ const SideBar = ({onSelectedDaterChange}) => {
                     });
                     const referralData = await referralRes.json();
                     setLinkedDaters(referralData.linked_daters || []);
-                    console.log('Linked Daters:', referralData.linked_daters || []);
 
                     const stored = localStorage.getItem('selectedDater');
                     const backendSelected = data.user.referred_by_id || '';
@@ -72,6 +84,33 @@ const SideBar = ({onSelectedDaterChange}) => {
         } catch (err) {
             console.error('Error setting selected dater:', err);
         }
+    const toggleSidePanel = () => {setSidePanelOpen(!sidePanelOpen);};
+
+    const handleDaterChange = async (e) => {
+        const newDaterId = e.target.value;
+        setSelectedDater(newDaterId);
+        localStorage.setItem('selectedDater', newDaterId);
+        const token = localStorage.getItem('token');
+        try {
+            const res = await fetch(`${API_BASE_URL}/referral/set_selected_dater`, {
+                method: 'POST',
+                headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+                },
+                body: JSON.stringify({ selected_dater_id: newDaterId }),
+            });
+
+            const data = await res.json();
+            if (!res.ok) {
+                alert(data.error || 'Failed to set selected dater');
+            } else {
+                console.log('Selected dater updated:', data);
+                if (onSelectedDaterChange) onSelectedDaterChange(newDaterId);
+            }
+        } catch (err) {
+            console.error('Error setting selected dater:', err);
+        }
     };
 
     return (
@@ -81,11 +120,18 @@ const SideBar = ({onSelectedDaterChange}) => {
                     <FaBars size={20} />
                 </button>
                 {role === 'matchmaker' && (
-                    <DaterDropdown
-                        linkedDaters={linkedDaters}
-                        selectedDater={selectedDater}
-                        onChange={(newId) => handleDaterChange({ target: { value: newId } })}
-                    />
+                    <select
+                        className="linked-dater-dropdown"
+                        value={selectedDater}
+                        onChange={handleDaterChange}
+                    >
+                        <option value=""></option>
+                        {linkedDaters.map((d) => (
+                        <option key={d.id} value={d.id}>
+                            {d.name}
+                        </option>
+                        ))}
+                    </select>
                 )}
             </div>
             <div className={`side-panel ${sidePanelOpen ? 'open' : ''}`}>
