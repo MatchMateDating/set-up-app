@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import './sideBar.css';
 import { useNavigate } from 'react-router-dom';
 import { FaBars } from 'react-icons/fa';
+import DaterDropdown from '../layout/customDropdown';
 
 const SideBar = ({onSelectedDaterChange}) => {
     const navigate = useNavigate();
@@ -29,6 +30,7 @@ const SideBar = ({onSelectedDaterChange}) => {
                     });
                     const referralData = await referralRes.json();
                     setLinkedDaters(referralData.linked_daters || []);
+                    console.log('Linked Daters:', referralData.linked_daters || []);
 
                     const stored = localStorage.getItem('selectedDater');
                     const backendSelected = data.user.referred_by_id || '';
@@ -79,18 +81,11 @@ const SideBar = ({onSelectedDaterChange}) => {
                     <FaBars size={20} />
                 </button>
                 {role === 'matchmaker' && (
-                    <select
-                        className="linked-dater-dropdown"
-                        value={selectedDater}
-                        onChange={handleDaterChange}
-                    >
-                        <option value=""></option>
-                        {linkedDaters.map((d) => (
-                        <option key={d.id} value={d.id}>
-                            {d.name}
-                        </option>
-                        ))}
-                    </select>
+                    <DaterDropdown
+                        linkedDaters={linkedDaters}
+                        selectedDater={selectedDater}
+                        onChange={(newId) => handleDaterChange({ target: { value: newId } })}
+                    />
                 )}
             </div>
             <div className={`side-panel ${sidePanelOpen ? 'open' : ''}`}>

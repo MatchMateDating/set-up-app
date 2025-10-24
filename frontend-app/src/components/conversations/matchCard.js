@@ -7,6 +7,7 @@ const MatchCard = ({ matchObj, API_BASE_URL, userInfo, navigate, unmatch, reveal
   const bothMm = !!matchObj.both_matchmakers_involved;
   const oneMm = (!!matchObj.user_1_matchmaker_involved || !!matchObj.user_2_matchmaker_involved);
   const isBlind = matchObj.blind_match === 'Blind';
+  console.log('MatchCard matchObj:', matchObj.match_user);
 
   const renderMatchmakerIcons = () => {
     if (bothMm) return <FaUserFriends title="Both matchmakers involved" className="mm-icon" />;

@@ -122,11 +122,12 @@ class ReferredUsers(db.Model):
                     linked_daters.append({
                         "id": user.id,
                         "name": f"{user.first_name or ''}".strip(),
-                        "referral_code": user.referral_code
+                        "referral_code": user.referral_code,
+                        "first_image": user.images[0].image_url if user.images else None
                     })
         return {
             "matchmaker_id": self.matchmaker_id,
-            "linked_daters": linked_daters
+            "linked_daters": linked_daters,
         }
 
 @db.event.listens_for(User, 'after_insert')
