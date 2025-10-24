@@ -4,9 +4,12 @@ import { useNavigate } from 'react-router-dom';
 import './settings.css';
 
 const Settings = () => {
+  const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
   const [referralCode, setReferralCode] = useState('');
   const [showCode, setShowCode] = useState(false);
   const navigate = useNavigate();
+  const [role, setRole] = useState(null);
+
 
   useEffect(() => {
     const fetchUserProfile = async () => {
@@ -14,7 +17,7 @@ const Settings = () => {
       if (!token) return;
 
       try {
-        const res = await fetch(`${process.env.REACT_APP_API_BASE_URL}/profile/`, {
+        const res = await fetch(`${API_BASE_URL}/profile/`, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
@@ -23,13 +26,15 @@ const Settings = () => {
         });
 
         if (!res.ok) throw new Error('Failed to fetch user profile');
-
         const data = await res.json();
+        setRole(data.user.role);
         if (data.user?.referral_code) {
           setReferralCode(data.user.referral_code);
         } else {
           setReferralCode('NO-CODE');
         }
+
+
 
         // Optional: Update localStorage user object to keep in sync
         localStorage.setItem('user', JSON.stringify(data.user));
@@ -85,14 +90,14 @@ const Settings = () => {
 
         <h2 className="settings-title">Settings</h2>
 
-        <div className="settings-actions">
-          <button className="primary-btn" onClick={handleToggleCode}>
+        {role === "user" && (<div className="settings-actions">
+          {(<button className="primary-btn" onClick={handleToggleCode}>
             {showCode ? "Hide Referral Code" : "Show Referral Code"}
-          </button>
-        </div>
+          </button>)}
+        </div>)}
       </div>
 
-      {showCode && (
+      {showCode && role === "user" && (
         <div className="settings-card">
           <div className="referral-section">
             <span className="referral-code">{referralCode}</span>

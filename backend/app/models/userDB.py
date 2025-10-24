@@ -19,10 +19,10 @@ class User(db.Model):
     age = db.Column(db.Integer, nullable=True)
     gender = db.Column(db.String(20), nullable=True)
     height = db.Column(db.String(10), nullable=True)
-    description = db.Column(db.Text, nullable=True)
     fontFamily = db.Column(db.String(50), nullable=True, default='Arial')
     profileStyle = db.Column(db.String(20), nullable=True, default='classic')
     imageLayout = db.Column(db.String(20), nullable=True, default='grid')
+    avatar = db.Column(db.String(255), nullable=True)
 
     referred_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     referred_users = db.relationship('User', backref=db.backref('referrer', remote_side=[id]), lazy=True)
@@ -68,12 +68,12 @@ class User(db.Model):
             "birthdate": self.birthdate.isoformat() if self.birthdate else None,
             "gender": self.gender,
             "height": self.height,
-            "description": self.description,
             "fontFamily": self.fontFamily,
             "profileStyle": self.profileStyle,
             "imageLayout": self.imageLayout,
             "images": [image.to_dict() for image in self.images],
             "preferredAgeMin": self.preferredAgeMin,
             "preferredAgeMax": self.preferredAgeMax,
-            "preferredGenders": self.preferredGenders
+            "preferredGenders": self.preferredGenders,
+            "avatar": self.avatar
         }
