@@ -21,6 +21,7 @@ function App() {
         <Route path="/signup" element={<SignUp />} />
         <Route path="/complete-profile" element={<CompleteProfile />} />
         <Route path="/profile" element={<ProfilePage />} />
+        <Route path="/profile/:userId?" element={<ProfilePage />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/preferences" element={<Preferences />} />
         <Route path="/conversations" element={<Conversations />} />

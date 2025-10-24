@@ -1,0 +1,44 @@
+.back-button {
+    background: none;
+    border: none;
+    font-size: 1rem;
+    cursor: pointer;
+    color: var(--primary);
+    align-self: flex-start;
+    margin: 10px 16px 0 16px;
+    padding-top: 40px;
+}
+
+.profile-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px;
+}
+
+.avatar {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.profile-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.name-section h2 {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: bold;
+}
+
+.embedded-profile {
+    padding: 16px;
+}
+
+.profile-page-container {
+    padding-bottom: 60px;
+    padding-top: 66px;
+}
