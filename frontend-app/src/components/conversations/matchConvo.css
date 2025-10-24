@@ -44,6 +44,20 @@
     margin-bottom: 5px;
 }
 
+.match-placeholder {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: var(--neutral-dark);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: bold;
+    font-size: 1.2rem;
+    margin-bottom: 5px;
+}
+
 .convo-title {
     font-size: 1.4rem;
     color: var(--primary);
@@ -60,6 +74,13 @@
     background: var(--neutral);
     display: flex;
     flex-direction: column;
+}
+
+.sender-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin-bottom: 2px;
 }
 
 .message-bubble {

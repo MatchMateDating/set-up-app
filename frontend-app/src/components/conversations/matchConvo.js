@@ -137,6 +137,20 @@ const MatchConvo = () => {
 
   const isMine = (msg) => msg.sender_id === userInfo?.id;
 
+  const getSenderLabel = (msg) => {
+    if (isMine(msg)) return "";
+
+    const senderRole = senderRoles[msg.sender_id];
+    const senderName = senderNames[msg.sender_id] || "Loading...";
+
+    if (senderRole === "matchmaker") {
+      if (userInfo?.role === "user") return "Matchmaker";
+      return senderName;
+    }
+
+    return senderName;
+  };
+
   if (loading) return <p>Loading conversation...</p>;
 
   return (
@@ -146,6 +160,7 @@ const MatchConvo = () => {
         <button className="back-button" onClick={() => navigate("/conversations")}>
           ⬅ Back
         </button>
+
         {matchUser && (
           <div className="match-avatar-section">
             <div
@@ -175,28 +190,34 @@ const MatchConvo = () => {
           {messages.length === 0 ? (
             <p>No messages yet. Say hi!</p>
           ) : (
-            messages.map((msg) => (
-              <div
-                key={msg.id}
-                className={`message-bubble ${isMine(msg) ? "mine" : "theirs"}`}
-              >
-                {msg.text && <p className="message-text">{msg.text}</p>}
-                {msg.puzzle_type && (
-                  <button
-                    className="puzzle-bubble"
-                    onClick={() => handlePuzzleClick(msg.puzzle_link)}
-                  >
-                    🎮 Play {msg.puzzle_type}
-                  </button>
-                )}
-                <span className="timestamp">
-                  {new Date(msg.timestamp).toLocaleTimeString([], {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </span>
-              </div>
-            ))
+            messages.map((msg) => {
+              const mine = isMine(msg);
+              const senderLabel = getSenderLabel(msg);
+
+              return (
+                <div
+                  key={msg.id}
+                  className={`message-bubble ${mine ? "mine" : "theirs"}`}
+                >
+                  {!mine && <div className="sender-label">{senderLabel}</div>}
+                  {msg.text && <p className="message-text">{msg.text}</p>}
+                  {msg.puzzle_type && (
+                    <button
+                      className="puzzle-bubble"
+                      onClick={() => handlePuzzleClick(msg.puzzle_link)}
+                    >
+                      🎮 Play {msg.puzzle_type}
+                    </button>
+                  )}
+                  <span className="timestamp">
+                    {new Date(msg.timestamp).toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </span>
+                </div>
+              );
+            })
           )}
           <div ref={messagesEndRef} />
         </div>
