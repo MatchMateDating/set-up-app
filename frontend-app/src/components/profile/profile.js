@@ -78,6 +78,7 @@ const Profile = ({ user, framed, editing, setEditing, onSave, editable }) => {
         setHeightUnit('m');
       }
 
+
       if (user.role === 'user') {
         const generateReferralCode = () => {
           const code = `${user.first_name?.split(' ')[0] || 'user'}-${Math.random().toString(36).substr(2, 6)}`;
