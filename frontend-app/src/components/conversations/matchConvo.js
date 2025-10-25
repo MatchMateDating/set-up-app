@@ -1,9 +1,9 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import SideBar from '../layout/sideBar';
-import { useUserInfo } from './hooks/useUserInfo';
+import SideBar from "../layout/sideBar";
+import { useUserInfo } from "./hooks/useUserInfo";
 import SendPuzzle from "./conversationPuzzle";
-import './matchConvo.css';
+import "./matchConvo.css";
 import { games } from "../puzzles/puzzlesPage";
 
 const MatchConvo = () => {
@@ -22,6 +22,8 @@ const MatchConvo = () => {
   const [senderRoles, setSenderRoles] = useState({});
   const [matchUser, setMatchUser] = useState(null);
 
+  const messagesEndRef = useRef(null);
+
   useEffect(() => {
     const fetchConversation = async () => {
       try {
@@ -35,9 +37,9 @@ const MatchConvo = () => {
         }
         if (res.status === 401) {
           const data = await res.json();
-          if (data.error_code === 'TOKEN_EXPIRED') {
-            localStorage.removeItem('token');
-            window.location.href = '/';
+          if (data.error_code === "TOKEN_EXPIRED") {
+            localStorage.removeItem("token");
+            window.location.href = "/";
           }
         }
       } catch (err) {
@@ -46,18 +48,16 @@ const MatchConvo = () => {
         setLoading(false);
       }
     };
-
     fetchConversation();
   }, [matchId]);
 
   useEffect(() => {
     const fetchNames = async () => {
-      const uniqueIds = [...new Set(messages.map(m => m.sender_id))];
+      const uniqueIds = [...new Set(messages.map((m) => m.sender_id))];
       const names = {};
       const roles = {};
       for (const id of uniqueIds) {
         try {
-          const token = localStorage.getItem("token");
           const res = await fetch(`${API_BASE_URL}/profile/${id}`, {
             headers: { Authorization: `Bearer ${token}` },
           });
@@ -84,28 +84,24 @@ const MatchConvo = () => {
         });
         if (res.ok) {
           const data = await res.json();
-          const matchInfo = data.find(m => m.match_id === Number(matchId));
-          if (matchInfo) {
-            setMatchUser(matchInfo.match_user);
-          }
-        } else if (res.status === 401) {
-          const data = await res.json();
-          if (data.error_code === "TOKEN_EXPIRED") {
-            localStorage.removeItem("token");
-            window.location.href = "/";
-          }
+          const matchInfo = data.find((m) => m.match_id === Number(matchId));
+          if (matchInfo) setMatchUser(matchInfo.match_user);
         }
       } catch (err) {
         console.error("Error fetching match user:", err);
       }
     };
-  
     fetchMatchUser();
   }, [matchId]);
 
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages]);
+
   const sendMessage = async () => {
     if (!newMessageText.trim() && !sendPuzzle) return;
-
     try {
       const bodyData = {};
       if (newMessageText.trim()) bodyData.message = newMessageText.trim();
@@ -124,42 +120,35 @@ const MatchConvo = () => {
       });
 
       if (res.ok || res.status === 201) {
-        let data = await res.json();
+        const data = await res.json();
         setMessages(data.messages || []);
         setNewMessageText("");
         setSendPuzzle(false);
-      } else if (res.status === 401) {
-        const data = await res.json();
-        if (data.error_code === "TOKEN_EXPIRED") {
-          localStorage.removeItem("token");
-          window.location.href = "/";
-        }
-      } else {
-        console.error("Failed to send message or puzzle");
       }
     } catch (err) {
       console.error(err);
     }
   };
 
-
   const handlePuzzleClick = (puzzleLink) => {
     localStorage.setItem("activeMatchId", matchId);
-    if (puzzleLink) {
-      navigate(puzzleLink);
-    }
+    if (puzzleLink) navigate(puzzleLink);
   };
 
+  const isMine = (msg) => msg.sender_id === userInfo?.id;
+
   const getSenderLabel = (msg) => {
-    if (userInfo?.role === "user") {
-      if (msg.sender_id === userInfo?.id) return "Me";
-      if (senderRoles[msg.sender_id] === "user") return "Them";
-      if (senderRoles[msg.sender_id] === "matchmaker") return "Matchmaker";
-    } else if (userInfo?.role === "matchmaker") {
-      if (msg.sender_id == userInfo?.id) return "Me";
-      return senderNames[msg.sender_id] || "Loading...";
+    if (isMine(msg)) return "";
+
+    const senderRole = senderRoles[msg.sender_id];
+    const senderName = senderNames[msg.sender_id] || "Loading...";
+
+    if (senderRole === "matchmaker") {
+      if (userInfo?.role === "user") return "Matchmaker";
+      return senderName;
     }
-    return "Unknown";
+
+    return senderName;
   };
 
   if (loading) return <p>Loading conversation...</p>;
@@ -168,38 +157,70 @@ const MatchConvo = () => {
     <div>
       <SideBar />
       <div className="match-convo-container">
-        <button className="back-button" onClick={() => navigate("/conversations")}>⬅ Back</button>
-        <h2 className="convo-title">
-          Conversation with {matchUser?.first_name || `Match ${matchId}`}
-        </h2>
+        <button className="back-button" onClick={() => navigate("/conversations")}>
+          ⬅ Back
+        </button>
 
-        {messages.length === 0 ? (
-          <p>No messages yet. Say hi!</p>
-        ) : (
-          <div className="messages-box">
-            {messages.map((msg) => (
-              <div key={msg.id} className="message-item">
-                <strong>{getSenderLabel(msg)}: </strong>
-                {msg.text && <>{msg.text}</>}
-                {msg.puzzle_type && (
-                  <>
-                    {msg.text && <div></div>}
+        {matchUser && (
+          <div className="match-avatar-section">
+            <div
+              className="match-avatar"
+              onClick={() => navigate(`/profile/${matchUser?.id}`)}
+              style={{ cursor: "pointer" }}
+            >
+              {matchUser?.first_image ? (
+                <img
+                  src={matchUser.first_image.startsWith("http")
+                    ? matchUser.first_image
+                    : `${API_BASE_URL}${matchUser.first_image}`}
+                  alt={matchUser.first_name}
+                  className="match-avatar-img"
+                />
+              ) : (
+                <div className="match-placeholder">{matchUser?.first_name?.[0] || "?"}</div>
+              )}
+            </div>
+            <h2 className="convo-title">
+              {matchUser.first_name || `Match ${matchId}`}
+            </h2>
+          </div>
+        )}
+
+        <div className="messages-box">
+          {messages.length === 0 ? (
+            <p>No messages yet. Say hi!</p>
+          ) : (
+            messages.map((msg) => {
+              const mine = isMine(msg);
+              const senderLabel = getSenderLabel(msg);
+
+              return (
+                <div
+                  key={msg.id}
+                  className={`message-bubble ${mine ? "mine" : "theirs"}`}
+                >
+                  {!mine && <div className="sender-label">{senderLabel}</div>}
+                  {msg.text && <p className="message-text">{msg.text}</p>}
+                  {msg.puzzle_type && (
                     <button
-                      className="puzzle-button"
+                      className="puzzle-bubble"
                       onClick={() => handlePuzzleClick(msg.puzzle_link)}
                     >
-                      Let’s Play {msg.puzzle_type}!
+                      🎮 Play {msg.puzzle_type}
                     </button>
-                  </>
-                )}
-                <div className="timestamp">
-                  {new Date(msg.timestamp).toLocaleString()}
+                  )}
+                  <span className="timestamp">
+                    {new Date(msg.timestamp).toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </span>
                 </div>
-              </div>
-            ))}
-          </div>
-
-        )}
+              );
+            })
+          )}
+          <div ref={messagesEndRef} />
+        </div>
 
         {sendPuzzle && (
           <SendPuzzle
@@ -209,17 +230,20 @@ const MatchConvo = () => {
               setSelectedPuzzleType(name);
               setSelectedPuzzleLink(link);
             }}
-            onClose={() => setSendPuzzle(false)} // parent toggles boolean
+            onClose={() => setSendPuzzle(false)}
           />
         )}
-        {userInfo?.role != "matchmaker" && (
+
+        {userInfo?.role !== "matchmaker" && (
           <textarea
             value={newMessageText}
             onChange={(e) => setNewMessageText(e.target.value)}
             rows={3}
             className="message-input"
+            placeholder="Type a message..."
           />
         )}
+
         <div className="send-actions">
           <button
             className="send-convo-button"
@@ -230,7 +254,10 @@ const MatchConvo = () => {
           </button>
 
           {!sendPuzzle && (
-            <button className="send-puzzle-button" onClick={() => setSendPuzzle(true)}>
+            <button
+              className="send-puzzle-button"
+              onClick={() => setSendPuzzle(true)}
+            >
               Send Puzzle
             </button>
           )}

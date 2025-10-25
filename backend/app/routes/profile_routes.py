@@ -44,6 +44,9 @@ def get_user_basic_profile(current_user, user_id):
         "id": user.id,
         "first_name": user.first_name,
         "last_name": user.last_name,
+        "birthdate": user.birthdate,
+        "gender": user.gender,
+        "height": user.height,
         "role": user.role
     }), 200
 
