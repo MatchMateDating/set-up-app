@@ -388,7 +388,8 @@ def reveal_match(current_user, match_id):
         return jsonify({'message': 'Match not found.'}), 404
 
     # Ensure this match belongs to one of their linked daters
-    linked_dater = getattr(current_user, 'referrer', None)
+    linked_dater_id = current_user.referred_by_id
+    linked_dater = User.query.get(linked_dater_id)
     if not linked_dater:
         return jsonify({'message': 'Matchmaker has no linked dater.'}), 403
 
@@ -416,7 +417,8 @@ def hide_match(current_user, match_id):
         return jsonify({'message': 'Match not found.'}), 404
 
     # Ensure this match belongs to one of their linked daters
-    linked_dater = getattr(current_user, 'referrer', None)
+    linked_dater_id = current_user.referred_by_id
+    linked_dater = User.query.get(linked_dater_id)
     if not linked_dater:
         return jsonify({'message': 'Matchmaker has no linked dater.'}), 403
 
@@ -460,7 +462,8 @@ def send_note(current_user):
         if current_user.role == 'user':
             acting_dater_id = current_user.id
         else:
-            linked = getattr(current_user, 'referrer', None)
+            linked_dater_id = current_user.referred_by_id
+            linked = User.query.get(linked_dater_id)
             if not linked:
                 return jsonify({'message': 'Matchmaker has no linked dater'}), 400
             acting_dater_id = linked.id
