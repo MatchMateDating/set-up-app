@@ -79,8 +79,6 @@ const ProfilePage = () => {
     setEditing(false);
   };
 
-  const isOwnProfile = !userId || userId === user?.id;
-
   return (
     <>
       <SideBar onSelectedDaterChange={(newDaterId) => fetchReferrer(newDaterId)}/>
