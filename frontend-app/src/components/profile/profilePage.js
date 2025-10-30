@@ -13,34 +13,33 @@ const ProfilePage = () => {
   const [editing, setEditing] = useState(false);
   const [showAvatarModal, setShowAvatarModal] = useState(false);
   const [avatar, setAvatar] = useState(null);
-  const { userId } = useParams(); // Used for viewing matched profile
-  const navigate = useNavigate();
+  const { userId } = useParams();
+  // const [avatar, setAvatar] = useState(user?.avatar || 'avatars/allyson_avatar.png');
 
   const fetchProfile = () => {
     const token = localStorage.getItem('token');
-    if (token) {
-      fetch(`${API_BASE_URL}/profile/`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-      })
-        .then(async (res) => {
-          if (res.status === 401) {
-            const data = await res.json();
-            if (data.error_code === 'TOKEN_EXPIRED') {
-              localStorage.removeItem('token'); // clear invalid token
-              window.location.href = '/';  // redirect to login
-              return; // stop execution
-            }
+    if (!token) return;
+    const url = userId ? `${API_BASE_URL}/profile/${userId}` : `${API_BASE_URL}/profile/`;
+
+    fetch(url, { headers: { 'Authorization': `Bearer ${token}` }})
+      .then(async (res) => {
+        if (res.status === 401) {
+          const data = await res.json();
+          if (data.error_code === 'TOKEN_EXPIRED') {
+            localStorage.removeItem('token'); // clear invalid token
+            window.location.href = '/';  // redirect to login
+            return; // stop execution
           }
-          return res.json();
-        })
-        .then((data) => {
-          if (!data) return; // avoid running if we already redirected
-          setUser(data.user);
-          console.log('User profile fetched:', user);
-          setReferrer(data.referrer || null);
-        })
-        .catch((err) => console.error('Error loading profile:', err));
-    }
+        }
+        return res.json();
+      })
+      .then((data) => {
+        if (!data) return; // avoid running if we already redirected
+        setUser(data.user);
+        console.log('User profile fetched:', user);
+        setReferrer(data.referrer || null);
+      })
+      .catch((err) => console.error('Error loading profile:', err));
   };
 
   // ProfilePage.js
