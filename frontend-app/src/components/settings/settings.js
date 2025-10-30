@@ -14,9 +14,7 @@ const Settings = () => {
   const [referralCode, setReferralCode] = useState("");
   const [showCode, setShowCode] = useState(false);
   const [role, setRole] = useState(null);
-  const [savedReferrals, setSavedReferrals] = useState([]);
   const navigate = useNavigate();
-  const [role, setRole] = useState(null);
   const [referralCodes, setReferralCodes] = useState([]);
   const [savedReferrals, setSavedReferrals] = useState([]);
 

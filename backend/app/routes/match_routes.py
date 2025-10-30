@@ -195,21 +195,16 @@ def like_user(current_user):
 
     if not liked_user_id:
         return jsonify({'message': 'liked_user_id is required'}), 400
-    
-    print('err spot 1')
 
     liked_user = User.query.get(liked_user_id)
     if not liked_user:
         return jsonify({'message': 'User not found'}), 404
-    
-    print('err spot 2')
 
     # Determine acting dater id and the actual User object to add to liked_by
     if current_user.role == 'user':
         acting_dater_id = current_user.id
         liker_user = current_user
     else:
-        print('err spot 3')
         acting_dater_id = current_user.referred_by_id
         if not acting_dater_id:
             return jsonify({'message': 'Matchmaker has no linked dater'}), 400

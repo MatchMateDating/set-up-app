@@ -14,6 +14,7 @@ const ProfilePage = () => {
   const [showAvatarModal, setShowAvatarModal] = useState(false);
   const [avatar, setAvatar] = useState(null);
   const { userId } = useParams();
+  const navigate = useNavigate();
   // const [avatar, setAvatar] = useState(user?.avatar || 'avatars/allyson_avatar.png');
 
   const fetchProfile = () => {
@@ -78,9 +79,16 @@ const ProfilePage = () => {
     setEditing(false);
   };
 
+  const isOwnProfile = !userId || userId === user?.id;
+
   return (
     <>
       <SideBar onSelectedDaterChange={(newDaterId) => fetchReferrer(newDaterId)}/>
+      {userId && (
+        <button className="back-button" onClick={() => navigate(-1)}>
+          ⬅ Back
+        </button>
+      )}
       <div style={{ paddingBottom: '60px', paddingTop: '66px' }}>
         {user?.role ==='user' && (
           <>
@@ -90,6 +98,7 @@ const ProfilePage = () => {
               editing={editing}
               setEditing={setEditing}
               onSave={handleSave}
+              editable={!userId}
             />
           </>
         )}

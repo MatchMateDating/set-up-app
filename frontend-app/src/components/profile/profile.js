@@ -8,7 +8,7 @@ import CropperModal from './cropperModal';
 import ProfileInfoCard from './profileInfoCard';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
-const Profile = ({ user, framed, editing, setEditing, onSave }) => {
+const Profile = ({ user, framed, editing, setEditing, onSave, editable }) => {
   const [formData, setFormData] = useState({
     first_name: '',
     last_name: '',
@@ -284,9 +284,9 @@ const Profile = ({ user, framed, editing, setEditing, onSave }) => {
       {user.role === "user" && (
         <div className="profile-header">
           <div className="name-section">
-            {!editing && <h2 style={{ cursor: editing ? 'pointer' : 'default' }}>{user.first_name}</h2>}
+            {!editing &&  <h2 style={{ cursor: editing ? 'pointer' : 'default' }}>{user.first_name}</h2>}
           </div>
-          {!framed && !editing && (
+          {!framed && !editing && editable && (
             <div className="profile-actions">
               <FaEdit className="edit-icon" onClick={() => setEditing(true)} />
             </div>
