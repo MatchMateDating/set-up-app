@@ -1,6 +1,5 @@
 from app import db
 
-
 # Association table for match likers
 match_likes = db.Table(
     'match_likes',

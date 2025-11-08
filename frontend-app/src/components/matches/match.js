@@ -14,9 +14,54 @@ const Match = () => {
   const { userInfo } = useUserInfo(API_BASE_URL);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showNoteModal, setShowNoteModal] = useState(false);
+  const [referrer, setReferrer] = useState(null);
+
+  const fetchProfile = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/profile/`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+
+      if (res.status === 401) {
+        const data = await res.json();
+        if (data.error_code === 'TOKEN_EXPIRED') {
+          localStorage.removeItem('token');
+          window.location.href = '/';
+          return;
+        }
+      }
+      const data = await res.json();
+      setReferrer(data.referrer || null);
+    } catch (err) {
+      console.error('Error loading profile:', err);
+    }
+  };
+
+  const fetchReferrer = async (daterId) => {
+    console.log('Fetching referrer for daterId:', daterId);
+    if (!daterId) return;
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/profile/${daterId}`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      setReferrer(data.user);
+      console.log('Referrer updated:', data.user);
+    } catch (err) {
+      console.error('Error fetching referrer:', err);
+    }
+  };
 
   const fetchProfiles = async () => {
     const token = localStorage.getItem("token");
+    if (!token) return;
     try {
       const res = await fetch(`${API_BASE_URL}/match/users_to_match`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -28,6 +73,10 @@ const Match = () => {
       console.error("Error fetching profiles:", err);
     }
   };
+
+  useEffect(() => {
+    fetchProfile();
+  }, []);
 
   const nextProfile = () => {
     if (currentIndex < profiles.length - 1) {
@@ -105,7 +154,11 @@ const Match = () => {
 
   return (
     <div>
-      <SideBar />
+      <SideBar 
+        onSelectedDaterChange={(newDaterId) => {
+          fetchReferrer(newDaterId);
+          fetchProfiles();
+        }}/>
       <div className="match-container">
         {profiles.length > 0 && currentIndex < profiles.length ? (
           <>

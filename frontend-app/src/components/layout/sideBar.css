@@ -1,39 +1,101 @@
+/* Sidebar panel */
 .side-panel {
   position: fixed;
-  padding-top: calc(50px + 16px);
   top: 0;
-  right: -300px;
-  /* Hidden by default */
-  width: 300px;
+  right: -280px;
+  width: 280px;
   height: 100%;
-  background-color: #fff;
-  box-shadow: -2px 0 5px rgba(0, 0, 0, 0.2);
-  transition: right 0.3s ease;
+  background-color: #f9fafb;
+  box-shadow: -4px 0 15px rgba(0, 0, 0, 0.1);
+  border-left: 1px solid #eaeaea;
+  transition: right 0.35s ease-in-out;
   z-index: 1000;
+  display: flex;
+  flex-direction: column;
 }
 
 .side-panel.open {
   right: 0;
 }
 
-.side-panel-content {
-  padding: 20px;
-}
-
+/* Top bar */
 .top-bar {
   position: fixed;
   top: 0;
   left: 0;
-  /* Make sure it stretches to left */
+  height: 54px;
   width: 100%;
-  height: 50px;
-  background: white;
+  background: #ffffff;
   display: flex;
-  justify-content: space-between;
-  /* instead of flex-end */
+  justify-content: center;
   align-items: center;
-  padding: 0 20px;
-  /* Add padding left & right equally */
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
   z-index: 1001;
+  padding: 0 20px;
 }
+
+.sidepanel-toggle {
+  position: absolute;
+  left: 18px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #333;
+  transition: color 0.2s ease;
+}
+.sidepanel-toggle:hover {
+  color: #007bff;
+}
+
+/* Header inside side panel */
+.side-panel-header {
+  padding: 20px;
+  background-color: #fff;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.side-panel-header h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  color: #333;
+}
+
+/* Menu items */
+.side-panel-menu {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  flex: 1;
+}
+
+.side-panel-menu li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 22px;
+  font-size: 1rem;
+  color: #333;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  border-radius: 8px;
+  margin: 6px 12px;
+}
+
+.side-panel-menu li:hover {
+  background-color: #e9f2ff;
+  color: #007bff;
+}
+
+.side-panel-menu li svg {
+  flex-shrink: 0;
+  font-size: 1.1rem;
+}
+
+.side-panel-menu .logout {
+  color: #e74c3c;
+}
+.side-panel-menu .logout:hover {
+  background-color: #fdecea;
+  color: #c0392b;
+}
+

@@ -11,9 +11,40 @@ import { useUserInfo } from './hooks/useUserInfo';
 const Conversations = () => {
   const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
   const [showDaterMatches, setShowDaterMatches, loading] = useState(true);
-  const { userInfo, setUserInfo, referrerInfo, setReferrerInfo } = useUserInfo(API_BASE_URL);
-  const { matches, setMatches } = useMatches(API_BASE_URL);
+  const { userInfo, setUserInfo} = useUserInfo(API_BASE_URL);
+  const { matches, setMatches, fetchMatches } = useMatches(API_BASE_URL);
   const navigate = useNavigate();
+  const [referrer, setReferrer] = useState(null);
+
+  const fetchProfile = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/profile/`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+
+      if (res.status === 401) {
+        const data = await res.json();
+        if (data.error_code === 'TOKEN_EXPIRED') {
+          localStorage.removeItem('token');
+          window.location.href = '/';
+          return;
+        }
+      }
+      const data = await res.json();
+      setUserInfo(data.user);
+      setReferrer(data.referrer || null);
+    } catch (err) {
+      console.error('Error loading profile:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchProfile();
+    fetchMatches();
+  }, []);
 
   const getFilteredMatches = () => {
     if (!userInfo || userInfo.role !== 'user') return matches;
@@ -132,7 +163,12 @@ const Conversations = () => {
 
   return (
     <div>
-      <SideBar />
+      <SideBar 
+      onSelectedDaterChange={(newDaterId) => {
+        console.log('Dater changed to:', newDaterId);
+        fetchProfile()
+        fetchMatches()
+      }}/>
       <div style={{ paddingBottom: '60px', paddingTop: '66px' }}>
         {userInfo && userInfo.role === 'user' && matches.length > 0 && (
           <ToggleConversations

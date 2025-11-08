@@ -33,8 +33,9 @@ const Profile = ({ user, framed, editing, setEditing, onSave, editable }) => {
   const [heightUnit, setHeightUnit] = useState('ft');
 
   useEffect(() => {
+    console.log('User data changed:', user);
     if (user) {
-      if (images.length === 0 && user.images) {
+      if (user.images) {
         setImages(user.images);
       }
 
@@ -76,6 +77,7 @@ const Profile = ({ user, framed, editing, setEditing, onSave, editable }) => {
         });
         setHeightUnit('m');
       }
+
 
       if (user.role === 'user') {
         const generateReferralCode = () => {
@@ -282,7 +284,7 @@ const Profile = ({ user, framed, editing, setEditing, onSave, editable }) => {
       {user.role === "user" && (
         <div className="profile-header">
           <div className="name-section">
-            {!editing && <h2 style={{ cursor: editing ? 'pointer' : 'default' }}>{user.first_name}</h2>}
+            {!editing &&  <h2 style={{ cursor: editing ? 'pointer' : 'default' }}>{user.first_name}</h2>}
           </div>
           {!framed && !editing && editable && (
             <div className="profile-actions">

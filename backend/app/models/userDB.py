@@ -25,7 +25,20 @@ class User(db.Model):
     avatar = db.Column(db.String(255), nullable=True)
 
     referred_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
-    referred_users = db.relationship('User', backref=db.backref('referrer', remote_side=[id]), lazy=True)
+
+    def get_linked_daters(self):
+        if self.role != "matchmaker":
+            return []
+        referral_row = ReferredUsers.query.filter_by(matchmaker_id=self.id).first()
+        if not referral_row:
+            return []
+        ids = [
+            getattr(referral_row, f"linked_dater_{i}_id")
+            for i in range(1, 11)
+            if getattr(referral_row, f"linked_dater_{i}_id") is not None
+        ]
+        return User.query.filter(User.id.in_(ids)).all() if ids else []
+
 
     preferredAgeMin = db.Column(db.Integer, nullable=True)
     preferredAgeMax = db.Column(db.Integer, nullable=True)
@@ -63,6 +76,7 @@ class User(db.Model):
             "role": self.role,
             "referral_code":self.referral_code,
             "referrer_id": self.referred_by_id,
+            "linked_daters": [d.id for d in self.get_linked_daters()],
             "bio": self.bio,
             "age": self.age,
             "birthdate": self.birthdate.isoformat() if self.birthdate else None,
@@ -77,3 +91,50 @@ class User(db.Model):
             "preferredGenders": self.preferredGenders,
             "avatar": self.avatar
         }
+
+class ReferredUsers(db.Model):
+    __tablename__ = 'referred_users'
+
+    matchmaker_id = db.Column(db.Integer, db.ForeignKey('users.id'), primary_key=True)
+    linked_dater_1_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    linked_dater_2_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    linked_dater_3_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    linked_dater_4_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    linked_dater_5_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    linked_dater_6_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    linked_dater_7_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    linked_dater_8_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    linked_dater_9_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    linked_dater_10_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+
+    matchmaker = db.relationship(
+        'User', 
+        foreign_keys=[matchmaker_id], 
+        backref=db.backref('referral_links', uselist=False))
+
+    def to_dict(self):
+        linked_daters = []
+        for i in range(1, 11):
+            dater_id = getattr(self, f"linked_dater_{i}_id")
+            if dater_id:
+                user = User.query.get(dater_id)
+                if user:
+                    linked_daters.append({
+                        "id": user.id,
+                        "name": f"{user.first_name or ''}".strip(),
+                        "referral_code": user.referral_code,
+                        "first_image": user.images[0].image_url if user.images else None
+                    })
+        return {
+            "matchmaker_id": self.matchmaker_id,
+            "linked_daters": linked_daters,
+        }
+
+@db.event.listens_for(User, 'after_insert')
+def create_referral_row(mapper, connection, target):
+    if target.role == 'matchmaker':
+        values = {
+            "matchmaker_id": target.id,
+            "linked_dater_1_id": target.referred_by_id  # set to the referring user's ID
+        }
+        connection.execute(ReferredUsers.__table__.insert().values(**values))

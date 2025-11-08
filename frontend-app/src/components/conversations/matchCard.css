@@ -2,56 +2,123 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  width: 120px;
-  padding: 10px;
-  border: 1px solid #ddd;
-  border-radius: 12px;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  width: 150px;
+  background: white;
+  border-radius: 16px;
+  padding: 12px;
+  cursor: pointer;
+  transition: all 0.25s ease-in-out;
+  border: 1px solid #eaeaea;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.05);
+  position: relative;
 }
 
-.match-image {
-  width: 80px;
-  height: 80px;
+.match-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 5px 14px rgba(0, 0, 0, 0.1);
+  border-color: #ddd;
+}
+
+.profile-section,
+.linked-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+}
+
+.match-image,
+.linked-image {
+  width: 85px;
+  height: 85px;
   object-fit: cover;
   border-radius: 50%;
+  border: 2px solid #eee;
+  transition: filter 0.2s ease;
+}
+
+.blurred {
+  filter: blur(5px) brightness(0.8);
 }
 
 .match-placeholder {
-  width: 80px;
-  height: 80px;
-  background: #eee;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  width: 85px;
+  height: 85px;
+  background: #f2f2f2;
   border-radius: 50%;
-  font-size: 12px;
-  color: #777;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: #999;
+  font-size: 13px;
+}
+
+.match-info {
+  margin-top: 8px;
+  text-align: center;
+}
+
+.match-name {
+  font-weight: 600;
+  font-size: 15px;
+  color: #333;
+  margin-bottom: 4px;
 }
 
 .match-icons {
   display: flex;
-  gap: 8px;
-  margin-top: 6px;
-  font-size: 18px;
-  color: #555;
+  gap: 6px;
+  justify-content: center;
 }
 
 .mm-icon {
-  font-size: 18px;
-  color: #555;
-  margin-right: 6px;
+  font-size: 16px;
+  vertical-align: middle;
 }
 
-.mm-icon--mine {
-  color: purple; /* change color to your preferred purple */
+.mm-icon.one {
+  color: #5a67d8;
 }
 
-.match-name {
+.mm-icon.both {
+  color: #9f7aea;
+}
+
+.card-actions {
+  display: flex;
+  gap: 6px;
   margin-top: 8px;
-  font-weight: bold;
-  text-align: center;
 }
 
-.blurred {
-  filter: blur(5px);
+.icon-btn {
+  background: none;
+  border: none;
+  border-radius: 8px;
+  padding: 4px 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 16px;
+}
+
+.icon-btn.unmatch {
+  color: #e53e3e;
+}
+
+.icon-btn.reveal {
+  color: #38a169;
+}
+
+.icon-btn.hide {
+  color: #718096;
+}
+
+.icon-btn:hover {
+  background: #f1f1f1;
+  transform: scale(1.1);
+}
+
+.linked-section {
+  margin-top: 10px;
+  border-top: 1px solid #eee;
+  padding-top: 8px;
 }

@@ -6,99 +6,169 @@
   --primary-dark: #5A35A8;
   --card-border: #ebe7fb;
   --text-muted: #6b7280;
+  --bg: #f9f8ff;
   --surface: #ffffff;
+  --border: #e5e7eb;
 }
 
 /* Page wrapper uses the same pattern as profile pages */
 .settings-page {
-  max-width: 920px;
+  max-width: 720px;
   margin: 0 auto;
   padding: 20px;
-  box-sizing: border-box;
-  color: #1f2937;
+  color: var(--text);
 }
 
-/* Back button: subtle, matches primary */
 .back-btn {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  background: transparent;
+  gap: 6px;
   border: none;
+  background: transparent;
   color: var(--primary);
-  font-size: 1rem;
+  font-weight: 500;
   cursor: pointer;
-  padding: 4px;
+  margin-bottom: 12px;
 }
-.back-btn:hover { color: var(--primary-dark); }
-
+.back-btn:hover {
+  color: var(--primary-dark);
+}
+.settings-title {
+  font-size: 1.8rem;
+  margin-bottom: 20px;
+}
 /* Cards for grouped settings */
 .settings-card {
   background: var(--surface);
-  border: 1px solid var(--card-border);
-  border-radius: 10px;
-  padding: 16px;
-  margin-bottom: 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 18px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
 }
 
-/* Title */
-.settings-title {
-  font-size: 1.6rem;
-  margin-bottom: 12px;
-  color: #0f1724;
+.card-header {
+  font-size: 1.2rem;
+  margin-bottom: 10px;
+  color: var(--primary-dark);
 }
 
-/* Actions (buttons) aligned consistently */
-.settings-actions { display:flex; gap:10px; justify-content:flex-end; margin-top:12px; }
-
-/* Buttons using app palette */
-.primary-btn, .secondary-btn, .icon-btn {
-  border: none;
-  padding: 8px 12px;
-  border-radius: 8px;
-  cursor: pointer;
-  font-weight: 600;
-  transition: background .12s ease, transform .12s ease;
-}
 .primary-btn {
   background: var(--primary);
   color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 14px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background 0.2s ease, transform 0.1s ease;
 }
-.primary-btn:hover { background: var(--primary-dark); transform: translateY(-1px); }
+.primary-btn:hover {
+  background: var(--primary-dark);
+  transform: translateY(-1px);
+}
 
-.secondary-btn {
-  background: transparent;
-  color: var(--text-muted);
-  border: 1px solid var(--card-border);
+.referral-display {
+  margin-top: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
 }
-.secondary-btn:hover { background: rgba(0,0,0,0.03); transform: translateY(-1px); }
+
+.referral-code-box {
+  background: var(--bg);
+  border: 1px dashed var(--primary);
+  color: var(--primary-dark);
+  font-weight: 700;
+  padding: 8px 12px;
+  border-radius: 10px;
+  letter-spacing: 0.5px;
+  flex: 1;
+  text-align: center;
+}
 
 .icon-btn {
   background: transparent;
+  border: none;
   color: var(--primary);
+  font-size: 1.1rem;
   padding: 6px;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background 0.2s ease;
 }
-.icon-btn:hover { color: var(--primary-dark); }
+.icon-btn:hover {
+  background: rgba(107, 70, 193, 0.1);
+}
 
-/* Referral block */
-.referral-section {
-  display:flex;
-  align-items:center;
-  gap:12px;
-  margin-top:12px;
+.referral-input-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.referral-input {
+  flex: 1;
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.save-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-weight: 600;
+}
+.save-btn:hover {
+  background: var(--primary-dark);
+}
+
+.saved-referrals ul {
+  list-style: none;
+  padding-left: 0;
+  margin-top: 8px;
+}
+.saved-referrals li {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.referral-tag {
+  font-size: 0.85rem;
+  background: var(--bg);
+  color: var(--primary-dark);
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+.empty-state {
   color: var(--text-muted);
-}
-.referral-code {
-  font-weight:700;
-  color: #0f1724;
+  font-style: italic;
+  margin-top: 8px;
+  text-align: center;
 }
 
-/* Button group layout */
-.button-group { display:flex; gap:8px; align-items:center; }
+.fade-in {
+  animation: fadeIn 0.3s ease forwards;
+}
 
-/* Small responsive tweaks */
-@media (max-width:640px) {
-  .settings-page { padding: 12px; }
-  .settings-card { padding: 12px; }
-  .settings-actions { justify-content: flex-start; }
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
