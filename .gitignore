@@ -4,3 +4,4 @@
 /backend/app/static
 /backend/instance
 /backend/migrations
+/backend/.env

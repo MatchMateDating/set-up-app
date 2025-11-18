@@ -1,0 +1,104 @@
+/* ...existing code... (file replaced with theme-aligned styles) ... */
+
+:root {
+  /* align with profile.css purple variables */
+  --primary: #6B46C1;
+  --primary-dark: #5A35A8;
+  --card-border: #ebe7fb;
+  --text-muted: #6b7280;
+  --surface: #ffffff;
+}
+
+/* Page wrapper uses the same pattern as profile pages */
+.settings-page {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 20px;
+  box-sizing: border-box;
+  color: #1f2937;
+}
+
+/* Back button: subtle, matches primary */
+.back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: none;
+  color: var(--primary);
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 4px;
+}
+.back-btn:hover { color: var(--primary-dark); }
+
+/* Cards for grouped settings */
+.settings-card {
+  background: var(--surface);
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+/* Title */
+.settings-title {
+  font-size: 1.6rem;
+  margin-bottom: 12px;
+  color: #0f1724;
+}
+
+/* Actions (buttons) aligned consistently */
+.settings-actions { display:flex; gap:10px; justify-content:flex-end; margin-top:12px; }
+
+/* Buttons using app palette */
+.primary-btn, .secondary-btn, .icon-btn {
+  border: none;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background .12s ease, transform .12s ease;
+}
+.primary-btn {
+  background: var(--primary);
+  color: #fff;
+}
+.primary-btn:hover { background: var(--primary-dark); transform: translateY(-1px); }
+
+.secondary-btn {
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--card-border);
+}
+.secondary-btn:hover { background: rgba(0,0,0,0.03); transform: translateY(-1px); }
+
+.icon-btn {
+  background: transparent;
+  color: var(--primary);
+  padding: 6px;
+}
+.icon-btn:hover { color: var(--primary-dark); }
+
+/* Referral block */
+.referral-section {
+  display:flex;
+  align-items:center;
+  gap:12px;
+  margin-top:12px;
+  color: var(--text-muted);
+}
+.referral-code {
+  font-weight:700;
+  color: #0f1724;
+}
+
+/* Button group layout */
+.button-group { display:flex; gap:8px; align-items:center; }
+
+/* Small responsive tweaks */
+@media (max-width:640px) {
+  .settings-page { padding: 12px; }
+  .settings-card { padding: 12px; }
+  .settings-actions { justify-content: flex-start; }
+}

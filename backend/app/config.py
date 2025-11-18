@@ -14,5 +14,6 @@ class Config:
     SQLALCHEMY_DATABASE_URI = 'sqlite:///../instance/users.db'
 
     # For either
-    SECRET_KEY = os.environ.get('SECRET_KEY', 'dev-secret-key')
-    JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY', 'super-secret-key')
+    # Use default values if SECRET_KEY is not set or is empty
+    SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-secret-key'
+    JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY') or 'super-secret-key'
