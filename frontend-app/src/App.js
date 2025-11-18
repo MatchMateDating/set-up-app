@@ -1,5 +1,6 @@
 import logo from './logo.svg';
 import './App.css';
+import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Login from './components/auth/login';
 import SignUp from './components/auth/signUp';
@@ -14,6 +15,7 @@ import PuzzlesHub from './components/puzzles/puzzlesPage';
 import PersonalityQuiz from './components/puzzles/personalityQuiz';
 
 function App() {
+  
   return (
     <Router>
       <Routes>

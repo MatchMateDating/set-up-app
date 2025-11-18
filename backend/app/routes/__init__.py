@@ -5,6 +5,7 @@ from .conversation_routes import conversation_bp
 from .invite_routes import invite_bp
 from .quiz_routes import quiz_bp
 from .referral_routes import referral_bp
+from .location_routes import location_bp
 
 def register_blueprints(app):
     app.register_blueprint(auth_bp, url_prefix="/auth")
@@ -14,3 +15,4 @@ def register_blueprints(app):
     app.register_blueprint(invite_bp, url_prefix='/invite')
     app.register_blueprint(quiz_bp, url_prefix='/quiz')
     app.register_blueprint(referral_bp, url_prefix='/referral')
+    app.register_blueprint(location_bp, url_prefix='/location')
