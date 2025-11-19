@@ -10,6 +10,16 @@ Windows: .\{name of virtual environemnt}\Scripts\activate
 Download requirements:
 pip install -r requirements.txt
 
+in the backend folder run:
+macOs:
+export FLASK_APP=app:create_app
+export FLASK_ENV=development
+
+Windows:
+set FLASK_APP=app:create_app
+set FLASK_ENV=development
+
+
 Create database: (add python -m in front of each command in macOS)
 delete the instance and migrations folders
 flask db init

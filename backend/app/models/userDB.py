@@ -23,6 +23,9 @@ class User(db.Model):
     profileStyle = db.Column(db.String(20), nullable=True, default='classic')
     imageLayout = db.Column(db.String(20), nullable=True, default='grid')
     avatar = db.Column(db.String(255), nullable=True)
+    latitude = db.Column(db.Float, nullable=True)
+    longitude = db.Column(db.Float, nullable=True)
+    match_radius = db.Column(db.Integer, nullable=True, default=50)
 
     referred_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
 
@@ -89,7 +92,10 @@ class User(db.Model):
             "preferredAgeMin": self.preferredAgeMin,
             "preferredAgeMax": self.preferredAgeMax,
             "preferredGenders": self.preferredGenders,
-            "avatar": self.avatar
+            "avatar": self.avatar,
+            "latitude": self.latitude,
+            "longitude": self.longitude,
+            "match_radius": self.match_radius,
         }
 
 class ReferredUsers(db.Model):

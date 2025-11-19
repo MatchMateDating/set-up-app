@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import './login.css';
+import {startLocationWatcher} from './utils/startLocationWatcher';
 
 function Login() {
     const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
@@ -16,10 +17,12 @@ function Login() {
                 password
             });
             localStorage.setItem('token', res.data.token);
+            startLocationWatcher(API_BASE_URL, res.data.token);
             // test
             localStorage.setItem('user', JSON.stringify(res.data.user));
             alert('Login successful!');
-            navigate('/profile');
+
+            navigate('/match');
         } catch (err) {
             alert(err.response?.data?.msg || 'Login failed');
         }

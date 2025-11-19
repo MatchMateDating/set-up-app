@@ -14,11 +14,6 @@ profile_bp = Blueprint('profile', __name__)
 @token_required
 def get_profile(current_user):
     user_data = current_user.to_dict()
-
-    # if current_user.role == 'user' and not current_user.referral_code:
-    #     current_user.referral_code = current_user.generate_referral_code()
-    #     db.session.commit()
-    #     user_data['referral_code'] = current_user.referral_code
     
     referrer_data = None
     if current_user.referred_by_id:
@@ -57,7 +52,7 @@ def update_profile(current_user):
     if current_user.role == 'user':
         allowed_fields = ['first_name', 'last_name', 'bio', 'birthdate', 'gender', 
                           'height', 'preferredAgeMin', 'preferredAgeMax', 
-                          'preferredGenders', 'fontFamily', 'profileStyle', 'imageLayout']
+                          'preferredGenders', 'fontFamily', 'profileStyle', 'imageLayout', 'match_radius']
     else:
         allowed_fields = []
 

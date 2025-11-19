@@ -31,6 +31,13 @@ export const useProfiles = (API_BASE_URL) => {
     };
 
     fetchProfiles();
+
+    const handleLocationUpdate = () => {
+      fetchProfiles();
+    };  
+
+    window.addEventListener("locationUpdated", handleLocationUpdate);
+    return () => window.removeEventListener("locationUpdated", handleLocationUpdate);
   }, [API_BASE_URL]);
 
   return { profiles, setProfiles, loading };

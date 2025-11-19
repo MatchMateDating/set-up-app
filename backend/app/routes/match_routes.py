@@ -5,8 +5,21 @@ from app import db
 from app.routes.shared import token_required
 from app.services.ai_embeddings import get_conversation_similarity
 import math
+from math import radians, sin, cos, sqrt, atan2
 
 match_bp = Blueprint('match', __name__)
+
+def haversine_distance(lat1, lon1, lat2, lon2):
+    """Return distance between two coordinates in miles."""
+    R = 3958.8  # Earth radius in miles
+    if None in (lat1, lon1, lat2, lon2):
+        return None
+    lat1, lon1, lat2, lon2 = map(radians, [lat1, lon1, lat2, lon2])
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
+    a = sin(dlat / 2)**2 + cos(lat1) * cos(lat2) * sin(dlon / 2)**2
+    c = 2 * atan2(sqrt(a), sqrt(1 - a))
+    return R * c
 
 @match_bp.route('/users_to_match', methods=['GET'])
 @token_required
@@ -14,19 +27,20 @@ def get_users_to_match(current_user):
     query = User.query.filter(User.role == 'user', User.id != current_user.id)
 
     # Add preferences filtering
+    # Age filtering
     if current_user.preferredAgeMin and current_user.preferredAgeMax:
         query = query.filter(User.age.between(
             current_user.preferredAgeMin, 
             current_user.preferredAgeMax
         ))
 
+    # Gender filtering
     if current_user.preferredGenders:
         query = query.filter(User.gender.in_(current_user.preferredGenders))
 
     # If matchmaker, exclude their referred dater from the list
     if current_user.role == 'matchmaker' and current_user.referred_by_id:
         referred_dater_id = current_user.referred_by_id
-
         liked_by_linked_dater = Match.query.filter(
             (Match.user_id_1 == referred_dater_id) | (Match.user_id_2 == referred_dater_id)
         ).all()
@@ -89,6 +103,14 @@ def get_users_to_match(current_user):
     users = query.all()
     users_data = []
     for user in users:
+        if current_user.latitude and current_user.longitude and user.latitude and user.longitude:
+            distance = haversine_distance(current_user.latitude, current_user.longitude,
+                                          user.latitude, user.longitude)
+            if distance is None:
+                continue
+            # user must be within current_user's radius AND vice versa
+            if (distance > (current_user.match_radius or 50)) or (distance > (user.match_radius or 50)):
+                continue
         if current_user.preferredAgeMin and current_user.preferredAgeMax and user.preferredAgeMin and user.preferredAgeMax:
             if not (user.preferredAgeMin <= current_user.age <= user.preferredAgeMax):
                 continue

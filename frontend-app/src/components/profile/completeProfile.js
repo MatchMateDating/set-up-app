@@ -9,10 +9,13 @@ const CompleteProfile = () => {
   const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
   const navigate = useNavigate();
 
-  const today = new Date();
-  const defaultBirthdate = new Date(today.setFullYear(today.getFullYear() - 18))
-    .toISOString()
-    .split("T")[0];
+  // Calculate default birthdate as "18 years ago" in the user's LOCAL timezone.
+  // Avoid using toISOString() because it converts to UTC and can shift the date
+  // earlier/later depending on the user's timezone.
+  const localNow = new Date();
+  localNow.setFullYear(localNow.getFullYear() - 18);
+  const pad = (n) => String(n).padStart(2, '0');
+  const defaultBirthdate = `${localNow.getFullYear()}-${pad(localNow.getMonth() + 1)}-${pad(localNow.getDate())}`;
 
   const [formData, setFormData] = useState({
     birthdate: defaultBirthdate,
@@ -78,7 +81,7 @@ const CompleteProfile = () => {
       if (!res.ok) throw new Error("Failed to update profile");
 
       setSuccess("Profile updated successfully 🎉");
-      setTimeout(() => navigate("/profile"), 1200);
+      setTimeout(() => navigate("/match"), 1200);
     } catch (err) {
       console.error(err);
       setError("Error saving profile. Please try again.");

@@ -7,6 +7,7 @@ import BlindMatchButton from './blindMatchButton';
 import ProfileCard from './profileCard';
 import { useProfiles } from "./hooks/useProfiles";
 import { useUserInfo } from "./hooks/useUserInfo";
+import { startLocationWatcher, stopLocationWatcher } from '../auth/utils/startLocationWatcher';
 
 const Match = () => {
   const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
@@ -77,6 +78,24 @@ const Match = () => {
   useEffect(() => {
     fetchProfile();
   }, []);
+
+  // Ensure location watcher runs whenever the match page is opened
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    startLocationWatcher(API_BASE_URL, token);
+
+    const onLocationUpdated = () => {
+      // refresh profiles when location changes
+      fetchProfiles();
+    };
+
+    window.addEventListener('locationUpdated', onLocationUpdated);
+
+    return () => {
+      window.removeEventListener('locationUpdated', onLocationUpdated);
+      stopLocationWatcher();
+    };
+  }, [API_BASE_URL]);
 
   const nextProfile = () => {
     if (currentIndex < profiles.length - 1) {
