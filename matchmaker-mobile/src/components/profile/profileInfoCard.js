@@ -202,7 +202,8 @@ const styles = StyleSheet.create({
     borderBottomColor: '#e0e6ef',
   },
   picker: {
-    height: 50,
+    height: 130,
+    width: 200
   },
   ageInputContainer: {
     flexDirection: 'row',

@@ -218,7 +218,7 @@ const MatchConvo = () => {
       keyboardVerticalOffset={90}
     >
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.navigate('Conversations')}>
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.navigate('Main', { screen: 'Conversations' })}>
           <Ionicons name="arrow-back" size={24} color="#6B46C1" />
           <Text style={styles.backButtonText}>Back</Text>
         </TouchableOpacity>
