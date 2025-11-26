@@ -1,0 +1,1 @@
+To run the mobile app: run `npm install` and then `npx expo start`
