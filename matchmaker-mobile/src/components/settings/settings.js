@@ -88,7 +88,7 @@ const Settings = () => {
   const handleShare = async () => {
     try {
       const shareUrl = `${SIGNUP_URL || 'https://yourapp.com/signup'}?ref=${referralCode}`;
-      const result = await Share.share({
+      await Share.share({
         message: `Join this app! Sign up using my referral code: ${referralCode}\n${shareUrl}`,
         title: 'Join this app!',
       });
@@ -171,7 +171,6 @@ const Settings = () => {
       if (res.ok) {
         let name = data.message.split(' linked')[0];
         name = name.replace(/^Dater\s*/i, '').trim();
-
         const newDater = { name, referral_code: code };
         setSavedReferrals((prev) => [...prev, newDater]);
         setReferralCode('');
@@ -185,11 +184,26 @@ const Settings = () => {
     }
   };
 
+  const handleSignOut = async () => {
+    try {
+      await AsyncStorage.removeItem('token');
+      await AsyncStorage.removeItem('user');
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Login' }],
+      });
+    } catch (err) {
+      console.error('Error signing out:', err);
+      Alert.alert('Error', 'Failed to sign out');
+    }
+  };
+
   return (
     <ScrollView style={styles.container}>
       <View style={styles.content}>
         <Text style={styles.title}>Settings</Text>
 
+        {/* User Referral Code */}
         {role === 'user' && (
           <View style={styles.card}>
             <Text style={styles.cardHeader}>Your Referral Code</Text>
@@ -198,7 +212,6 @@ const Settings = () => {
                 {showCode ? 'Hide Code' : 'Show Code'}
               </Text>
             </TouchableOpacity>
-
             {showCode && (
               <View style={styles.referralDisplay}>
                 <View style={styles.referralCodeBox}>
@@ -220,6 +233,7 @@ const Settings = () => {
           </View>
         )}
 
+        {/* Matchmaker Referral Linking */}
         {role === 'matchmaker' && (
           <View style={styles.card}>
             <Text style={styles.cardHeader}>Link Additional Daters</Text>
@@ -236,7 +250,6 @@ const Settings = () => {
                 <Text style={styles.saveBtnText}>Add</Text>
               </TouchableOpacity>
             </View>
-
             <View style={styles.savedReferrals}>
               <Text style={styles.savedReferralsTitle}>Linked Daters</Text>
               {savedReferrals.length > 0 ? (
@@ -257,6 +270,7 @@ const Settings = () => {
           </View>
         )}
 
+        {/* Email Invite Modal */}
         <Modal
           visible={showEmailModal}
           transparent={true}
@@ -296,6 +310,11 @@ const Settings = () => {
             </View>
           </View>
         </Modal>
+
+        {/* Sign Out Button */}
+        <TouchableOpacity style={styles.signOutBtn} onPress={handleSignOut}>
+          <Text style={styles.signOutBtnText}>Sign Out</Text>
+        </TouchableOpacity>
       </View>
     </ScrollView>
   );
@@ -305,6 +324,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f6f4fc',
+    paddingTop: 40,
   },
   content: {
     padding: 20,
@@ -497,6 +517,18 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   modalButtonTextSend: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  signOutBtn: {
+    marginTop: 32,
+    backgroundColor: '#E53E3E',
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  signOutBtnText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
