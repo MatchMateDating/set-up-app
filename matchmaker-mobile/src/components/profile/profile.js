@@ -297,12 +297,10 @@ const Profile = ({ user, framed, editing, setEditing, onSave }) => {
           onSubmit={handleFormSubmit}
           onCancel={handleCancel}
           calculateAge={calculateAge}
-          editProfile={true}
           images={images}
           onDeleteImage={handleDeleteImage}
           onPlaceholderClick={handlePlaceholderClick}
           profileStyle={formData.profileStyle}
-          completeProfile={false}
         />
       )}
     </ScrollView>

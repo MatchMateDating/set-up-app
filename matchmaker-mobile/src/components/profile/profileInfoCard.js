@@ -4,6 +4,7 @@ import { Picker } from '@react-native-picker/picker';
 import FormField from './components/formField';
 import HeightSelector from './components/heightSelector';
 import ImageGallery from './images';
+import MultiSelectGender from './components/multiSelectGender';
 
 const ProfileInfoCard = ({
   user,
@@ -15,13 +16,12 @@ const ProfileInfoCard = ({
   onSubmit,
   onCancel,
   calculateAge,
-  editProfile = false,
   images,
   onDeleteImage,
-  onPlaceholderClick,
-  completeProfile = false
+  onPlaceholderClick
 }) => {
   const handleInputChangeWrapper = (name, value) => {
+    console.log(formData)
     onInputChange({ target: { name, value } });
   };
 
@@ -29,7 +29,7 @@ const ProfileInfoCard = ({
     <View style={styles.profileInfoCard}>
       {user.role === 'user' && (
         <>
-          {editProfile && editing && (
+          {editing && (
             <>
               <FormField
                 label="First Name"
@@ -79,12 +79,13 @@ const ProfileInfoCard = ({
             editing={editing}
             value={user.height}
             input={
-              <HeightSelector
+              editing ? (<HeightSelector
                 formData={formData}
                 heightUnit={heightUnit}
                 onInputChange={onInputChange}
                 onUnitToggle={onUnitToggle}
               />
+              ) : null
             }
           />
 
@@ -110,56 +111,51 @@ const ProfileInfoCard = ({
             }
           />
 
-          {completeProfile && (
-            <>
-              <FormField
-                label="Preferred Age"
-                editing={editing}
-                value={
-                  formData.preferredAgeMin || formData.preferredAgeMax
-                    ? `${formData.preferredAgeMin || ''} - ${formData.preferredAgeMax || ''}`
-                    : ''
-                }
-                input={
-                  editing ? (
-                    <View style={styles.ageInputContainer}>
-                    <TextInput
-                      style={[styles.input, styles.ageInput]}
-                      value={formData.preferredAgeMin || ''}
-                      onChangeText={(value) => handleInputChangeWrapper('preferredAgeMin', value)}
-                      placeholder="Min"
-                      keyboardType="numeric"
-                    />
-                    <TextInput
-                      style={[styles.input, styles.ageInput]}
-                      value={formData.preferredAgeMax || ''}
-                      onChangeText={(value) => handleInputChangeWrapper('preferredAgeMax', value)}
-                      placeholder="Max"
-                      keyboardType="numeric"
-                    />
-                  </View>
-                  ) : null
-                }
-              />
+          <FormField
+            label="Preferred Age"
+            editing={editing}
+            value={
+              `${formData.preferredAgeMin ?? ''} - ${formData.preferredAgeMax ?? ''}`
+            }
+            input={
+              editing ? (
+                <View style={styles.ageInputContainer}>
+                <TextInput
+                  style={[styles.input, styles.ageInput]}
+                  value={formData.preferredAgeMin?.toString() ?? ''}
+                  onChangeText={(value) => handleInputChangeWrapper('preferredAgeMin', value)}
+                  placeholder="Min"
+                  keyboardType="numeric"
+                />
+                <TextInput
+                  style={[styles.input, styles.ageInput]}
+                  value={formData.preferredAgeMax?.toString() ?? ''}
+                  onChangeText={(value) => handleInputChangeWrapper('preferredAgeMax', value)}
+                  placeholder="Max"
+                  keyboardType="numeric"
+                />
+              </View>
+              ) : null
+            }
+          />
 
-              <FormField
-                label="Preferred Gender(s)"
-                editing={editing}
-                value={(formData.preferredGenders || []).join(', ')}
-                input={
-                  editing ? (
-                    <Text style={styles.helperText}>
-                      Multi-select not yet implemented in mobile
-                    </Text>
-                  ) : null
-                }
-              />
-            </>
-          )}
+          <FormField
+            label="Preferred Gender(s)"
+            editing={editing}
+            value={(formData.preferredGenders || []).join(', ')}
+            input={
+              editing ? (
+                <MultiSelectGender
+                  selected={formData.preferredGenders || []}
+                  onChange={(newList) => handleInputChangeWrapper("preferredGenders", newList)}
+                />
+              ) : null
+            }
+          />
         </>
       )}
 
-      {user.role === 'user' && !completeProfile && (
+      {user.role === 'user' && (
         <View style={styles.section}>
           {editing && <Text style={styles.label}>Add Images:</Text>}
           <ImageGallery
@@ -208,6 +204,7 @@ const styles = StyleSheet.create({
   ageInputContainer: {
     flexDirection: 'row',
     gap: 8,
+    paddingTop: 30
   },
   ageInput: {
     width: 80,
