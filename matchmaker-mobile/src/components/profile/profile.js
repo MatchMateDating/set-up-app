@@ -88,7 +88,7 @@ const Profile = ({ user, framed, editing, setEditing, onSave }) => {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,
@@ -255,13 +255,6 @@ const Profile = ({ user, framed, editing, setEditing, onSave }) => {
   };
 
   const handleCancel = () => {
-    if (user) {
-      setFormData({
-        preferredAgeMin: user.preferredAgeMin || '0',
-        preferredAgeMax: user.preferredAgeMax || '0',
-        preferredGenders: user.preferredGenders || [],
-      });
-    }
     setEditing(false);
   };
 
@@ -297,12 +290,10 @@ const Profile = ({ user, framed, editing, setEditing, onSave }) => {
           onSubmit={handleFormSubmit}
           onCancel={handleCancel}
           calculateAge={calculateAge}
-          editProfile={true}
           images={images}
           onDeleteImage={handleDeleteImage}
           onPlaceholderClick={handlePlaceholderClick}
           profileStyle={formData.profileStyle}
-          completeProfile={false}
         />
       )}
     </ScrollView>
