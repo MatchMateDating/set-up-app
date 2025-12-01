@@ -4,7 +4,6 @@ import { Picker } from '@react-native-picker/picker';
 import FormField from './components/formField';
 import HeightSelector from './components/heightSelector';
 import ImageGallery from './images';
-import MultiSelectGender from './components/multiSelectGender';
 
 const ProfileInfoCard = ({
   user,
@@ -21,7 +20,6 @@ const ProfileInfoCard = ({
   onPlaceholderClick
 }) => {
   const handleInputChangeWrapper = (name, value) => {
-    console.log(formData)
     onInputChange({ target: { name, value } });
   };
 
@@ -110,48 +108,6 @@ const ProfileInfoCard = ({
               ) : null
             }
           />
-
-          <FormField
-            label="Preferred Age"
-            editing={editing}
-            value={
-              `${formData.preferredAgeMin ?? ''} - ${formData.preferredAgeMax ?? ''}`
-            }
-            input={
-              editing ? (
-                <View style={styles.ageInputContainer}>
-                <TextInput
-                  style={[styles.input, styles.ageInput]}
-                  value={formData.preferredAgeMin?.toString() ?? ''}
-                  onChangeText={(value) => handleInputChangeWrapper('preferredAgeMin', value)}
-                  placeholder="Min"
-                  keyboardType="numeric"
-                />
-                <TextInput
-                  style={[styles.input, styles.ageInput]}
-                  value={formData.preferredAgeMax?.toString() ?? ''}
-                  onChangeText={(value) => handleInputChangeWrapper('preferredAgeMax', value)}
-                  placeholder="Max"
-                  keyboardType="numeric"
-                />
-              </View>
-              ) : null
-            }
-          />
-
-          <FormField
-            label="Preferred Gender(s)"
-            editing={editing}
-            value={(formData.preferredGenders || []).join(', ')}
-            input={
-              editing ? (
-                <MultiSelectGender
-                  selected={formData.preferredGenders || []}
-                  onChange={(newList) => handleInputChangeWrapper("preferredGenders", newList)}
-                />
-              ) : null
-            }
-          />
         </>
       )}
 
@@ -200,14 +156,6 @@ const styles = StyleSheet.create({
   picker: {
     height: 130,
     width: 200
-  },
-  ageInputContainer: {
-    flexDirection: 'row',
-    gap: 8,
-    paddingTop: 30
-  },
-  ageInput: {
-    width: 80,
   },
   section: {
     marginTop: 24,

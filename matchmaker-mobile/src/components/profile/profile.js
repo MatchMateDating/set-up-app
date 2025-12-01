@@ -255,13 +255,6 @@ const Profile = ({ user, framed, editing, setEditing, onSave }) => {
   };
 
   const handleCancel = () => {
-    if (user) {
-      setFormData({
-        preferredAgeMin: user.preferredAgeMin || '0',
-        preferredAgeMax: user.preferredAgeMax || '0',
-        preferredGenders: user.preferredGenders || [],
-      });
-    }
     setEditing(false);
   };
 
