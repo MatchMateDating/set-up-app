@@ -5,3 +5,4 @@
 /backend/instance
 /backend/migrations
 /backend/.env
+/.idea/

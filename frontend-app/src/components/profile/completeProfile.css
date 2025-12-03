@@ -1,94 +1,59 @@
-.complete-profile-container {
-  width: 90%;
-  max-width: 600px; /* keeps it from stretching too wide on desktop */
-  margin: 0 auto;
-  padding: 1rem;
-}
-
-/* Make all inputs/selects full width on small screens */
-.complete-profile-container input,
-.complete-profile-container select,
-.complete-profile-container textarea {
+.profile-page-wrapper {
   width: 100%;
+  display: flex;
+  justify-content: center;
+  padding: 1.25rem;
   box-sizing: border-box;
 }
 
-/* Full width button by default */
-.complete-profile-container button {
+.profile-page-wrapper form.edit-card {
   width: 100%;
-  cursor: pointer;
+  max-width: 600px;
 }
 
-.continue-btn {
-  display: block;
-  margin: 2rem auto;
-  padding: 0.75rem 2rem;
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: white;
-  background: linear-gradient(135deg, #4f46e5, #3b82f6);
-  border: none;
-  border-radius: 9999px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+.preferences-card {
+  width: 100%;
+  max-width: 640px;
+  background: var(--surface, #fff);
+  border-radius: 16px;
+  padding: 28px 32px;
+  margin: 0 auto 40px auto;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
 }
 
-.continue-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.2);
-  background: linear-gradient(135deg, #4338ca, #2563eb);
+.preferences-form {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
 }
 
-.continue-btn:active {
-  transform: translateY(0);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
-/* HeightSelector responsiveness */
-.height-inputs {
+.form-inline {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap; /* allows wrapping on smaller screens */
 }
 
-.height-inputs select {
-  flex: 1 1 45%; /* each select takes ~half width on mobile */
-  min-width: 100px;
+.dash {
+  font-weight: bold;
+  margin: 0 4px;
 }
 
-.height-inputs .switch-btn {
-  margin-left: auto;
-  flex: 1 1 100%; /* full width on mobile */
-  text-align: right;
-  padding: 0.5rem 0;
-  background: none;
-  border: none;
-  color: #2a9d8f;
-  font-weight: 600;
-  cursor: pointer;
-  transition: color 0.2s ease;
+.radius-slider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
-.height-inputs .switch-btn:hover {
-  color: #23897b;
+.preferences-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 12px;
 }
 
-/* Media query for extra small devices */
-@media (max-width: 480px) {
-  .height-inputs {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .height-inputs select {
-    width: 100%;
-  }
-
-  .height-inputs .switch-btn {
-    text-align: center;
-    margin-left: 0;
-    margin-top: 0.5rem;
-  }
-}
