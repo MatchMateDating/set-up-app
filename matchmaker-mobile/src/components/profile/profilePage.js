@@ -5,6 +5,7 @@ import { useNavigation } from '@react-navigation/native';
 import { API_BASE_URL } from '@env';
 import Profile from './profile';
 import AvatarSelectorModal from './avatarSelectorModal';
+import { avatarMap } from './avatarSelectorModal';
 
 const ProfilePage = () => {
   const [user, setUser] = useState(null);
@@ -129,10 +130,10 @@ const ProfilePage = () => {
           <>
             <View style={styles.profileHeader}>
               <TouchableOpacity onPress={handleAvatarClick}>
-                <Image
-                  source={{ uri: avatar ? `${API_BASE_URL}/${avatar}` : `${API_BASE_URL}/avatars/allyson_avatar.png` }}
-                  style={styles.avatar}
-                />
+              <Image
+                source={ avatarMap[avatar] || avatarMap['avatars/allyson_avatar.png'] }
+                style={styles.avatar}
+              />
               </TouchableOpacity>
               <View style={styles.profileInfo}>
                 <View style={styles.nameSection}>
@@ -194,8 +195,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 16,
-    marginBottom: 20,
-    padding: 16,
+    padding: 8,
   },
   avatar: {
     width: 90,

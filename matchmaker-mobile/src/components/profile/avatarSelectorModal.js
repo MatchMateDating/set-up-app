@@ -4,11 +4,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import { API_BASE_URL } from '@env';
 
-const avatarList = [
-  'avatars/dylan_avatar.png',
-  'avatars/allyson_avatar.png',
-  'avatars/angie_avatar.png',
-];
+export const avatarMap = {
+  "avatars/dylan_avatar.png": require('../../../assets/avatars/dylan_avatar.png'),
+  "avatars/allyson_avatar.png": require('../../../assets/avatars/allyson_avatar.png'),
+  "avatars/angie_avatar.png": require('../../../assets/avatars/angie_avatar.png'),
+};
 
 const AvatarSelectorModal = ({ onSelect, onClose, userId }) => {
   const navigation = useNavigation();
@@ -46,7 +46,6 @@ const AvatarSelectorModal = ({ onSelect, onClose, userId }) => {
       }
 
       const data = await response.json();
-      console.log('Avatar saved:', data);
       Alert.alert('Success', 'Avatar updated successfully');
     } catch (err) {
       console.error('Error saving avatar:', err);
@@ -65,18 +64,18 @@ const AvatarSelectorModal = ({ onSelect, onClose, userId }) => {
         <View style={styles.avatarModal}>
           <Text style={styles.modalTitle}>Select an Avatar</Text>
           <ScrollView contentContainerStyle={styles.avatarGrid}>
-            {avatarList.map((avatar, index) => (
+            {Object.keys(avatarMap).map((path) => (
               <TouchableOpacity
-                key={index}
+                key={path}
                 onPress={() => {
-                  onSelect(avatar);
-                  selectAvatar(avatar);
+                  onSelect(path);
+                  selectAvatar(path);
                   onClose();
                 }}
                 style={styles.avatarOption}
               >
                 <Image
-                  source={{ uri: `${API_BASE_URL}/${avatar}` }}
+                  source={avatarMap[path]}
                   style={styles.avatarImage}
                   resizeMode="cover"
                 />

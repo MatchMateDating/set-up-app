@@ -421,7 +421,9 @@ const Settings = () => {
                 label="Preferred Age"
                 editing={editing}
                 value={
-                  `${formData.preferredAgeMin ?? ''} - ${formData.preferredAgeMax ?? ''}`
+                  (formData.preferredAgeMin && formData.preferredAgeMax) ?
+                  `${formData.preferredAgeMin ?? ''} - ${formData.preferredAgeMax ?? ''}` 
+                  : ""
                 }
                 input={
                   editing ? (
