@@ -21,7 +21,8 @@ const ProfileInfoCard = ({
   images,
   onDeleteImage,
   onPlaceholderClick, 
-  completeProfile = false
+  completeProfile = false,
+  hideFormActions = false,
 }) => {
   return (
     <div className="profile-info-card" onSubmit={onSubmit}>
@@ -237,7 +238,7 @@ const ProfileInfoCard = ({
         </div>
       )}
 
-      {editing && (
+      {editing && !hideFormActions && (
         <div className="form-actions">
           <button type="submit" className="save-btn">Save</button>
           <button type="button" onClick={onCancel} className="cancel-btn">Cancel</button>

@@ -1,11 +1,13 @@
 import React, { useEffect, useState, useRef } from 'react';
 import './profile.css';
-import './pixelTheme.css';
-import './constitutionTheme.css';
+import './components/pixelTheme.css';
+import './components/constitutionTheme.css';
 import { FaEdit } from 'react-icons/fa';
 import { calculateAge, convertFtInToMetersCm, convertMetersCmToFtIn, formatHeight } from './utils/profileUtils';
 import CropperModal from './cropperModal';
 import ProfileInfoCard from './profileInfoCard';
+import PixelClouds from './components/PixelClouds';
+import { themeDefaultFonts } from './components/themeDefaults';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
 const Profile = ({ user, framed, editing, setEditing, onSave, editable }) => {
@@ -31,10 +33,14 @@ const Profile = ({ user, framed, editing, setEditing, onSave, editable }) => {
   const [previewUrl, setPreviewUrl] = useState(null);
   const [images, setImages] = useState([]);
   const [heightUnit, setHeightUnit] = useState('ft');
+  const [fontManuallyChosen, setFontManuallyChosen] = useState(false);
+  const [localUser, setLocalUser] = useState(null);
+
 
   useEffect(() => {
-    console.log('User data changed:', user);
+    console.log('User data changed:', editable);
     if (user) {
+      setLocalUser(user);
       if (user.images) {
         setImages(user.images);
       }
@@ -141,7 +147,26 @@ const Profile = ({ user, framed, editing, setEditing, onSave, editable }) => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+
+    if (name === "fontFamily") {
+      setFontManuallyChosen(true);
+      setFormData((prev) => ({ ...prev, fontFamily: value }));
+      return;
+    }
+
+    if (name === 'profileStyle') {
+      const newFont = !fontManuallyChosen
+        ? themeDefaultFonts[value] || "Arial"
+        : formData.fontFamily; // keep custom choice
+
+      setFormData((prev) => ({
+        ...prev,
+        profileStyle: value,
+        fontFamily: newFont
+      }));
+    } else {
+      setFormData((prev) => ({ ...prev, [name]: value }));
+    }
   };
 
   const handleUnitToggle = () => {
@@ -157,6 +182,7 @@ const Profile = ({ user, framed, editing, setEditing, onSave, editable }) => {
   };
 
   const handleFormSubmit = async (e) => {
+    console.log('Submitting form data:', formData.fontFamily, formData.profileStyle);
     e.preventDefault();
     try {
       const token = localStorage.getItem('token');
@@ -193,7 +219,15 @@ const Profile = ({ user, framed, editing, setEditing, onSave, editable }) => {
       }
 
       if (!res.ok) throw new Error('Failed to update profile');
-      await res.json();
+      const updated = await res.json();
+      // Update local user immediately so the non-editing view reflects the saved font/style
+      try {
+        const newUserData = { ...(localUser || user), ...payload };
+        setLocalUser(newUserData);
+      } catch (e) {
+        // ignore if localUser isn't ready
+      }
+      setEditing(false);
       onSave();
     } catch (err) {
       console.error(err);
@@ -243,35 +277,21 @@ const Profile = ({ user, framed, editing, setEditing, onSave, editable }) => {
     <>
     <div
       className={`profile-container format-${formData.profileStyle}`}
+      style={{ fontFamily: formData.fontFamily }}
     >
-      {formData.profileStyle === "pixel" && (
-        <div className="pixel-clouds">
-          <div className="cloud-2" style={{ top: 10, left: 10 }}></div>
-          <div className="cloud-2" style={{ top: 30, left: 200 }}></div>
-          <div className="cloud-3" style={{ top: 5, left: 600 }}></div>
-          <div className="cloud-3" style={{ top: 160, left: 350 }}></div>
-          <div className="cloud-2" style={{ top: 240, left: 520 }}></div>
-          <div className="cloud-1" style={{ top: 360, left: 40 }}></div>
-          <div className="cloud-2" style={{ top: 420, left: 400 }}></div>
-          <div className="cloud-3" style={{ top: 530, left: 550 }}></div>
-          <div className="cloud-1" style={{ top: 600, left: 20 }}></div>
-          <div className="cloud-3" style={{ top: 680, left: 580 }}></div>
-          <div className="cloud-1" style={{ top: 720, left: 300 }}></div>
-          <div className="cloud-1" style={{ top: 800, left: 450 }}></div>
-          <div className="cloud-2" style={{ top: 830, left: 10 }}></div>
-          <div className="cloud-2" style={{ top: 870, left: 200 }}></div>
-          <div className="cloud-3" style={{ top: 885, left: 600 }}></div>
-          <div className="cloud-3" style={{ top: 1080, left: 350 }}></div>
-          <div className="cloud-2" style={{ top: 1200, left: 520 }}></div>
-          <div className="cloud-1" style={{ top: 1340, left: 40 }}></div>
-          <div className="cloud-2" style={{ top: 1620, left: 400 }}></div>
-          <div className="cloud-3" style={{ top: 1770, left: 550 }}></div>
-          <div className="cloud-1" style={{ top: 1800, left: 20 }}></div>
-          <div className="cloud-3" style={{ top: 2080, left: 580 }}></div>
-          <div className="cloud-1" style={{ top: 2120, left: 300 }}></div>
-          <div className="cloud-1" style={{ top: 2400, left: 450 }}></div>
-        </div>
-      )}
+      <style>{`
+        .profile-container.format-${formData.profileStyle} .profile-card,
+        .profile-container.format-${formData.profileStyle} .profile-card * {
+          font-family: "${formData.fontFamily}" !important;
+        }
+
+        /* keep edit toolbar and its controls using the system font */
+        .profile-container.format-${formData.profileStyle} .profile-card .edit-toolbar,
+        .profile-container.format-${formData.profileStyle} .profile-card .edit-toolbar * {
+          font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+        }
+      `}</style>
+      {formData.profileStyle === "pixel" && <PixelClouds />}
       <input type="file" accept="image/*" ref={fileInputRef} style={{ display: 'none' }} onChange={handleFileChange} />
       {previewUrl && (
         <CropperModal

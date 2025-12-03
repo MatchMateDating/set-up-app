@@ -1,0 +1,34 @@
+.step-indicator {
+  display: flex;
+  justify-content: center;
+  gap: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.step-item {
+  text-align: center;
+  opacity: 0.4;
+  transition: opacity 0.2s ease;
+}
+
+.step-item.active {
+  opacity: 1;
+  font-weight: 600;
+}
+
+.step-number {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto;
+  font-size: 1rem;
+}
+
+.step-label {
+  margin-top: 4px;
+  font-size: 0.85rem;
+}
