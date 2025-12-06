@@ -18,6 +18,7 @@ const SendPuzzle = ({ selectedPuzzleType, selectedPuzzleLink, onPuzzleChange, on
               }
             }}
             style={styles.picker}
+            itemStyle={{ height: 50 }}
           >
             {games.map((game) => (
               <Picker.Item key={game.path} label={game.name} value={game.path} />
@@ -45,10 +46,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   pickerContainer: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: '#e0e6ef',
-    borderRadius: 8,
+    flex: 1
   },
   picker: {
     height: 50,

@@ -4,6 +4,7 @@ import { Picker } from '@react-native-picker/picker';
 import FormField from './components/formField';
 import HeightSelector from './components/heightSelector';
 import ImageGallery from './images';
+import MultiSelectGender from './components/multiSelectGender';
 
 const ProfileInfoCard = ({
   user,
@@ -17,7 +18,8 @@ const ProfileInfoCard = ({
   calculateAge,
   images,
   onDeleteImage,
-  onPlaceholderClick
+  onPlaceholderClick,
+  completeProfile
 }) => {
   const handleInputChangeWrapper = (name, value) => {
     onInputChange({ target: { name, value } });
@@ -27,35 +29,6 @@ const ProfileInfoCard = ({
     <View style={styles.profileInfoCard}>
       {user.role === 'user' && (
         <>
-          {editing && (
-            <>
-              <FormField
-                label="First Name"
-                editing={editing}
-                value={user.first_name}
-                input={
-                  <TextInput
-                    style={styles.input}
-                    value={formData.first_name}
-                    onChangeText={(value) => handleInputChangeWrapper('first_name', value)}
-                  />
-                }
-              />
-              <FormField
-                label="Last Name"
-                editing={editing}
-                value={user.last_name}
-                input={
-                  <TextInput
-                    style={styles.input}
-                    value={formData.last_name}
-                    onChangeText={(value) => handleInputChangeWrapper('last_name', value)}
-                  />
-                }
-              />
-            </>
-          )}
-
           <FormField
             label={editing ? 'Birthdate' : 'Age'}
             editing={editing}
@@ -109,6 +82,53 @@ const ProfileInfoCard = ({
             }
           />
         </>
+      )}
+
+      {user.role == 'user' && completeProfile && (
+        <View>
+          
+        <FormField
+        label="Preferred Age"
+        editing={editing}
+        value={
+          `${formData.preferredAgeMin ?? ''} - ${formData.preferredAgeMax ?? ''}`
+        }
+        input={
+          editing ? (
+            <View style={styles.ageInputContainer}>
+            <TextInput
+              style={[styles.input, styles.ageInput]}
+              value={formData.preferredAgeMin?.toString() ?? ''}
+              onChangeText={(value) => handleInputChangeWrapper('preferredAgeMin', value)}
+              placeholder="Min"
+              keyboardType="numeric"
+            />
+            <TextInput
+              style={[styles.input, styles.ageInput]}
+              value={formData.preferredAgeMax?.toString() ?? ''}
+              onChangeText={(value) => handleInputChangeWrapper('preferredAgeMax', value)}
+              placeholder="Max"
+              keyboardType="numeric"
+            />
+          </View>
+          ) : null
+        }
+      />
+
+      <FormField
+        label="Preferred Gender(s)"
+        editing={editing}
+        value={(formData.preferredGenders || []).join(', ')}
+        input={
+          editing ? (
+            <MultiSelectGender
+              selected={formData.preferredGenders || []}
+              onChange={(newList) => handleInputChangeWrapper("preferredGenders", newList)}
+            />
+          ) : null
+        }
+      />
+      </View>
       )}
 
       {user.role === 'user' && (
@@ -201,6 +221,14 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+  ageInputContainer: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingTop: 30
+  },
+  ageInput: {
+    width: 80,
+  }
 });
 
 export default ProfileInfoCard;
