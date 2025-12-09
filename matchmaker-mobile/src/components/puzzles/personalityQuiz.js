@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { API_BASE_URL } from '@env';
+import { BASE_URL } from '../../../api';
 
 const questions = [
   { q: 'Do you prefer mornings or nights?', a: ['Mornings', 'Nights'] },
@@ -42,7 +42,7 @@ const PersonalityQuiz = () => {
         return;
       }
 
-      const res = await fetch(`${API_BASE_URL}/quiz/result`, {
+      const res = await fetch(`${BASE_URL}/quiz/result`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -92,7 +92,7 @@ const PersonalityQuiz = () => {
         return;
       }
 
-      const res = await fetch(`${API_BASE_URL}/conversation/${matchId}`, {
+      const res = await fetch(`${BASE_URL}/conversation/${matchId}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

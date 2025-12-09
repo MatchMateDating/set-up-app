@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Alert } from 'react-native';
 
-export const useMatches = (API_BASE_URL) => {
+export const useMatches = (BASE_URL) => {
   const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -14,7 +14,7 @@ export const useMatches = (API_BASE_URL) => {
         return;
       }
 
-      const res = await fetch(`${API_BASE_URL}/match/matches`, {
+      const res = await fetch(`${BASE_URL}/match/matches`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
@@ -44,7 +44,7 @@ export const useMatches = (API_BASE_URL) => {
 
   useEffect(() => {
     fetchMatches();
-  }, [API_BASE_URL]);
+  }, [BASE_URL]);
 
   return { matches, setMatches, loading, fetchMatches };
 };

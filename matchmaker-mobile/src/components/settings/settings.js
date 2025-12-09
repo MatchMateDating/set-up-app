@@ -14,7 +14,8 @@ import * as Clipboard from 'expo-clipboard';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
-import { API_BASE_URL, SIGNUP_URL } from '@env';
+import { SIGNUP_URL } from '@env';
+import {BASE_URL} from '../../../api';
 import FormField from '../profile/components/formField';
 import MultiSelectGender from '../profile/components/multiSelectGender';
 
@@ -46,7 +47,7 @@ const Settings = () => {
         return;
       }
 
-      const res = await fetch(`${API_BASE_URL}/profile/`, {
+      const res = await fetch(`${BASE_URL}/profile/`, {
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
@@ -73,7 +74,7 @@ const Settings = () => {
 
       if (data.user.role === 'matchmaker') {
         const linkedRes = await fetch(
-          `${API_BASE_URL}/referral/referrals/${data.user.id}`,
+          `${BASE_URL}/referral/referrals/${data.user.id}`,
           {
             headers: { Authorization: `Bearer ${token}` },
           }
@@ -136,7 +137,7 @@ const Settings = () => {
 
     try {
       const token = await AsyncStorage.getItem('token');
-      const res = await fetch(`${API_BASE_URL}/invite/email`, {
+      const res = await fetch(`${BASE_URL}/invite/email`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -184,7 +185,7 @@ const Settings = () => {
         return;
       }
 
-      const res = await fetch(`${API_BASE_URL}/referral/link_referral`, {
+      const res = await fetch(`${BASE_URL}/referral/link_referral`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -256,7 +257,7 @@ const Settings = () => {
         profileStyle: formData.profileStyle
       };
 
-      const res = await fetch(`${API_BASE_URL}/profile/update`, {
+      const res = await fetch(`${BASE_URL}/profile/update`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

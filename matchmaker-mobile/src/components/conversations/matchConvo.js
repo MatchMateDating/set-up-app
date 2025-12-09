@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Image, ActivityIndicator, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { API_BASE_URL } from '@env';
+import { BASE_URL } from '../../../api';
 import { useUserInfo } from './hooks/useUserInfo';
 import SendPuzzle from './conversationPuzzle';
 import { games } from '../puzzles/puzzlesPage';
@@ -12,7 +12,7 @@ const MatchConvo = () => {
   const route = useRoute();
   const navigation = useNavigation();
   const { matchId } = route.params || {};
-  const { userInfo } = useUserInfo(API_BASE_URL);
+  const { userInfo } = useUserInfo(BASE_URL);
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [newMessageText, setNewMessageText] = useState('');
@@ -34,7 +34,7 @@ const MatchConvo = () => {
           return;
         }
 
-        const res = await fetch(`${API_BASE_URL}/conversation/${matchId}`, {
+        const res = await fetch(`${BASE_URL}/conversation/${matchId}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
 
@@ -76,7 +76,7 @@ const MatchConvo = () => {
         const roles = {};
         for (const id of uniqueIds) {
           try {
-            const res = await fetch(`${API_BASE_URL}/profile/${id}`, {
+            const res = await fetch(`${BASE_URL}/profile/${id}`, {
               headers: { Authorization: `Bearer ${token}` },
             });
             if (res.ok) {
@@ -105,7 +105,7 @@ const MatchConvo = () => {
         const token = await AsyncStorage.getItem('token');
         if (!token) return;
 
-        const res = await fetch(`${API_BASE_URL}/match/matches`, {
+        const res = await fetch(`${BASE_URL}/match/matches`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (res.ok) {
@@ -146,7 +146,7 @@ const MatchConvo = () => {
         bodyData.puzzle_link = selectedPuzzleLink;
       }
 
-      const res = await fetch(`${API_BASE_URL}/conversation/${matchId}`, {
+      const res = await fetch(`${BASE_URL}/conversation/${matchId}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -233,7 +233,7 @@ const MatchConvo = () => {
                 source={{
                   uri: matchUser.first_image.startsWith('http')
                     ? matchUser.first_image
-                    : `${API_BASE_URL}${matchUser.first_image}`
+                    : `${BASE_URL}${matchUser.first_image}`
                 }}
                 style={styles.matchAvatarImg}
               />

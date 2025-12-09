@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Alert } from 'react-native';
 
-export const useUserInfo = (API_BASE_URL) => {
+export const useUserInfo = (BASE_URL) => {
   const [userInfo, setUserInfo] = useState(null);
   const [referrerInfo, setReferrerInfo] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -16,7 +16,7 @@ export const useUserInfo = (API_BASE_URL) => {
           return;
         }
 
-        const res = await fetch(`${API_BASE_URL}/profile/`, {
+        const res = await fetch(`${BASE_URL}/profile/`, {
           headers: { Authorization: `Bearer ${token}` }
         });
 
@@ -46,7 +46,7 @@ export const useUserInfo = (API_BASE_URL) => {
     };
 
     fetchUserInfo();
-  }, [API_BASE_URL]);
+  }, [BASE_URL]);
 
   return { userInfo, setUserInfo, referrerInfo, setReferrerInfo, loading };
 };

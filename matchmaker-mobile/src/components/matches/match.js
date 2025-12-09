@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
-import { API_BASE_URL } from '@env';
+import { BASE_URL } from '../../../api';
 import SendNoteModal from './sendNoteModal';
 import BlindMatchButton from './blindMatchButton';
 import ProfileCard from './profileCard';
@@ -10,8 +10,8 @@ import { useProfiles } from './hooks/useProfiles';
 import { useUserInfo } from './hooks/useUserInfo';
 
 const Match = () => {
-  const { profiles, setProfiles, loading } = useProfiles(API_BASE_URL);
-  const { userInfo } = useUserInfo(API_BASE_URL);
+  const { profiles, setProfiles, loading } = useProfiles(BASE_URL);
+  const { userInfo } = useUserInfo(BASE_URL);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [referrer, setReferrer] = useState(null);
@@ -22,7 +22,7 @@ const Match = () => {
       const token = await AsyncStorage.getItem('token');
       if (!token) return;
 
-      const res = await fetch(`${API_BASE_URL}/profile/`, {
+      const res = await fetch(`${BASE_URL}/profile/`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -51,7 +51,7 @@ const Match = () => {
       const token = await AsyncStorage.getItem('token');
       if (!token) return;
 
-      const res = await fetch(`${API_BASE_URL}/profile/${daterId}`, {
+      const res = await fetch(`${BASE_URL}/profile/${daterId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) return;
@@ -67,7 +67,7 @@ const Match = () => {
       const token = await AsyncStorage.getItem('token');
       if (!token) return;
 
-      const res = await fetch(`${API_BASE_URL}/match/users_to_match`, {
+      const res = await fetch(`${BASE_URL}/match/users_to_match`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error('Failed to fetch profiles');
@@ -100,7 +100,7 @@ const Match = () => {
         return;
       }
 
-      const res = await fetch(`${API_BASE_URL}/match/like`, {
+      const res = await fetch(`${BASE_URL}/match/like`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -132,7 +132,7 @@ const Match = () => {
         return;
       }
 
-      const res = await fetch(`${API_BASE_URL}/match/blind_match`, {
+      const res = await fetch(`${BASE_URL}/match/blind_match`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -172,7 +172,7 @@ const Match = () => {
         return;
       }
 
-      await fetch(`${API_BASE_URL}/match/send_note`, {
+      await fetch(`${BASE_URL}/match/send_note`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
