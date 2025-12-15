@@ -114,9 +114,6 @@ const CompleteProfile = () => {
     if (!formData.last_name.trim())
       return setError('Last name is required.');
 
-    if (!formData.gender)
-      return setError('Gender is required.');
-
     setStep(2);
   };
 
