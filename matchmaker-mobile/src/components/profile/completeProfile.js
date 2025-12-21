@@ -397,6 +397,7 @@ const CompleteProfile = () => {
           <Profile
             user={{
               ...formData,
+              images: images,
               height: setUserHeight(),
               role: user.role
             }}
