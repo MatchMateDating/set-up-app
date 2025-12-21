@@ -92,6 +92,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
+    height: '100%',
   },
 });
 

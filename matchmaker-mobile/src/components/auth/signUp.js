@@ -18,6 +18,10 @@ const SignUpScreen = () => {
 
   const handleRegister = async () => {
     try {
+      if (!first_name || !last_name || !email || !password) {
+        Alert.alert('Error', 'Please fill out all fields.');
+        return;
+      }
       const payload = { first_name, last_name, email, password, role };
       if (role === 'matchmaker') {
         if (!referralCode) {
@@ -26,7 +30,6 @@ const SignUpScreen = () => {
         }
         payload.referral_code = referralCode;
       }
-
       const res = await axios.post(`${API_BASE_URL}/auth/register`, payload);
 
       if (res.data.token) {
@@ -46,6 +49,10 @@ const SignUpScreen = () => {
     } catch (err) {
       Alert.alert('Error', err.response?.data?.msg || 'Registration failed');
     }
+  };
+
+  const goToLogin = () => {
+    navigation.navigate('Login');
   };
 
   return (
@@ -106,6 +113,11 @@ const SignUpScreen = () => {
 
       <TouchableOpacity style={styles.submitBtn} onPress={handleRegister}>
         <Text style={styles.submitBtnText}>Sign Up</Text>
+      </TouchableOpacity>
+
+      <Text style={styles.loginText}>Already have an account?</Text>
+      <TouchableOpacity onPress={goToLogin}>
+        <Text style={styles.loginButton}>Login</Text>
       </TouchableOpacity>
     </ScrollView>
   );
@@ -168,6 +180,16 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '700',
     fontSize: 16,
+  },
+  loginText: {
+    textAlign: 'center',
+    marginTop: 20,
+  },
+  loginButton: {
+    textAlign: 'center',
+    color: '#6B46C1',
+    fontWeight: 'bold',
+    marginTop: 5,
   },
 });
 
