@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Alert } from 'react-native';
 
-export const useProfiles = (BASE_URL) => {
+export const useProfiles = (API_BASE_URL) => {
   const [profiles, setProfiles] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -15,7 +15,7 @@ export const useProfiles = (BASE_URL) => {
           return;
         }
 
-        const res = await fetch(`${BASE_URL}/match/users_to_match`, {
+        const res = await fetch(`${API_BASE_URL}/match/users_to_match`, {
           headers: { Authorization: `Bearer ${token}` },
         });
 
@@ -44,7 +44,7 @@ export const useProfiles = (BASE_URL) => {
     };
 
     fetchProfiles();
-  }, [BASE_URL]);
+  }, [API_BASE_URL]);
 
   return { profiles, setProfiles, loading };
 };

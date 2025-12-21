@@ -3,7 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'reac
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
-import { BASE_URL } from '../../../api';
+import { API_BASE_URL} from '@env';
 
 const LoginScreen = () => {
   const [email, setEmail] = useState('');
@@ -12,7 +12,7 @@ const LoginScreen = () => {
 
   const handleLogin = async () => {
     try {
-      const res = await axios.post(`${BASE_URL}/auth/login`, { email, password });
+      const res = await axios.post(`${API_BASE_URL}/auth/login`, { email, password });
       // Store token in AsyncStorage
       await AsyncStorage.setItem('token', res.data.token);
       if (res.data.user) {
@@ -64,57 +64,61 @@ const LoginScreen = () => {
 
 const styles = StyleSheet.create({
   container: {
-    maxWidth: 300,
-    marginHorizontal: 'auto',
+    width: '90%',
+    maxWidth: 400,
     marginTop: 100,
-    padding: 20,
-    borderWidth: 1,
+    padding: 24,
     borderColor: '#ddd',
-    borderRadius: 8,
+    borderRadius: 12,
     alignSelf: 'center',
     backgroundColor: '#fff',
     shadowColor: '#000',
     shadowOpacity: 0.1,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 3, // Android shadow
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4, // Android shadow
   },
   title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 20,
+    fontSize: 26,
+    fontWeight: '700',
+    marginBottom: 24,
     textAlign: 'center',
   },
   input: {
-    // width: '100%',
-    marginVertical: 8,
-    padding: 10,
+    width: '100%',
+    marginVertical: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
     borderWidth: 1,
     borderColor: '#ddd',
-    borderRadius: 4,
-    boxSizing: 'border-box',
+    borderRadius: 8,
+    fontSize: 16,
   },
   button: {
     width: '100%',
-    marginVertical: 8,
-    padding: 10,
+    marginTop: 16,
+    paddingVertical: 14,
     backgroundColor: '#6B46C1',
-    borderRadius: 4,
+    borderRadius: 8,
     alignItems: 'center',
   },
   buttonText: {
-    color: 'white',
-    fontWeight: 'bold',
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
   signupText: {
     textAlign: 'center',
-    marginTop: 20,
+    marginTop: 24,
+    fontSize: 14,
+    color: '#555',
   },
   signupButton: {
     textAlign: 'center',
     color: '#6B46C1',
-    fontWeight: 'bold',
-    marginTop: 5,
+    fontWeight: '600',
+    marginTop: 6,
+    fontSize: 15,
   },
 });
 

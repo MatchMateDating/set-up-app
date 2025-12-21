@@ -5,7 +5,7 @@ import {
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
-import { BASE_URL } from '../../../api';
+import {API_BASE_URL} from '@env';
 
 const SignUpScreen = () => {
   const navigation = useNavigation();

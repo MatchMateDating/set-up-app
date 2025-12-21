@@ -68,7 +68,7 @@ const ProfilePage = () => {
       const token = await AsyncStorage.getItem('token');
       if (!token) return;
 
-      const res = await fetch(`${BASE_URL}/profile/${daterId}`, {
+      const res = await fetch(`${API_BASE_URL}/profile/${daterId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 

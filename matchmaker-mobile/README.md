@@ -5,7 +5,7 @@ To run the mobile app:
 
 ## Android:
 ### frontend:
-#### run `npm install` and `npx expo start:android`
+#### run `npm install` and `npx expo start`
 ### backend:
 #### run `flask run --host=0.0.0.0`
 

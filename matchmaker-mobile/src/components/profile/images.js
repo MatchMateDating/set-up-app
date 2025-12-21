@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Image, StyleSheet, TouchableOpacity, Text } from 'react-native';
-import { BASE_URL } from '../../../api';
+import { API_BASE_URL } from '@env';
 import { Ionicons } from '@expo/vector-icons';
 
 const ImageGallery = ({ images = [], editing, onDeleteImage, onPlaceholderClick, layout = 'grid' }) => {
@@ -12,7 +12,7 @@ const ImageGallery = ({ images = [], editing, onDeleteImage, onPlaceholderClick,
       {images.map((img, index) => (
         <View key={img.id || index} style={styles.imageWrapper}>
           <Image
-            source={{ uri: `${BASE_URL}${img.image_url}` }}
+            source={{ uri: `${API_BASE_URL}${img.image_url}` }}
             style={layout === 'grid' ? styles.gridImage : styles.fullImage}
             resizeMode="cover"
           />

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
-import { BASE_URL } from '../../../api';
+import { API_BASE_URL } from '@env';
 import MatchCard from './matchCard';
 import ToggleConversations from './toggleConversations';
 import { useMatches } from './hooks/useMatches';
@@ -10,8 +10,8 @@ import { useUserInfo } from './hooks/useUserInfo';
 
 const Conversations = () => {
   const [showDaterMatches, setShowDaterMatches] = useState(true);
-  const { userInfo, setUserInfo, referrerInfo, setReferrerInfo, loading: userLoading } = useUserInfo(BASE_URL);
-  const { matches, setMatches, loading: matchesLoading, fetchMatches } = useMatches(BASE_URL);
+  const { userInfo, setUserInfo, referrerInfo, setReferrerInfo, loading: userLoading } = useUserInfo(API_BASE_URL);
+  const { matches, setMatches, loading: matchesLoading, fetchMatches } = useMatches(API_BASE_URL);
   const navigation = useNavigation();
   const [referrer, setReferrer] = useState(null);
 
@@ -26,7 +26,7 @@ const Conversations = () => {
         return;
       }
 
-      const res = await fetch(`${BASE_URL}/profile/`, {
+      const res = await fetch(`${API_BASE_URL}/profile/`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -79,7 +79,7 @@ const Conversations = () => {
         return;
       }
 
-      const res = await fetch(`${BASE_URL}/match/unmatch/${matchId}`, {
+      const res = await fetch(`${API_BASE_URL}/match/unmatch/${matchId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -116,7 +116,7 @@ const Conversations = () => {
         return;
       }
 
-      const res = await fetch(`${BASE_URL}/match/reveal/${matchId}`, {
+      const res = await fetch(`${API_BASE_URL}/match/reveal/${matchId}`, {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -158,7 +158,7 @@ const Conversations = () => {
         return;
       }
 
-      const res = await fetch(`${BASE_URL}/match/hide/${matchId}`, {
+      const res = await fetch(`${API_BASE_URL}/match/hide/${matchId}`, {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -216,7 +216,7 @@ const Conversations = () => {
             <MatchCard
               key={index}
               matchObj={matchObj}
-              BASE_URL={BASE_URL}
+              API_BASE_URL={API_BASE_URL}
               userInfo={userInfo}
               navigation={navigation}
               unmatch={unmatch}

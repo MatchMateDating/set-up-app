@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView } from 'rea
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
-import { BASE_URL } from '../../../api';
+import { API_BASE_URL } from '@env';
 import { calculateAge, convertFtInToMetersCm, convertMetersCmToFtIn, formatHeight } from './utils/profileUtils';
 import ProfileInfoCard from './profileInfoCard';
 import { Ionicons } from '@expo/vector-icons';
@@ -117,7 +117,7 @@ const Profile = ({ user, framed, editing, setEditing, onSave }) => {
         name: 'image.jpg',
       });
 
-      const response = await fetch(`${BASE_URL}/profile/upload_image`, {
+      const response = await fetch(`${API_}/profile/upload_image`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -190,7 +190,7 @@ const Profile = ({ user, framed, editing, setEditing, onSave }) => {
         imageLayout: formData.imageLayout
       };
 
-      const res = await fetch(`${BASE_URL}/profile/update`, {
+      const res = await fetch(`${API_BASE_URL}/profile/update`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -229,7 +229,7 @@ const Profile = ({ user, framed, editing, setEditing, onSave }) => {
         return;
       }
 
-      const res = await fetch(`${BASE_URL}/profile/delete_image/${imageId}`, {
+      const res = await fetch(`${API_BASE_URL}/profile/delete_image/${imageId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });

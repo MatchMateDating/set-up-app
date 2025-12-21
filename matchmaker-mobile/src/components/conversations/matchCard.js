@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-const MatchCard = ({ matchObj, BASE_URL, userInfo, navigation, unmatch, reveal, hide }) => {
+const MatchCard = ({ matchObj, API_BASE_URL, userInfo, navigation, unmatch, reveal, hide }) => {
   const bothMm = !!matchObj.both_matchmakers_involved;
   const oneMm = !!matchObj.user_1_matchmaker_involved || !!matchObj.user_2_matchmaker_involved;
   const isBlind = matchObj.blind_match === 'Blind';
@@ -27,7 +27,7 @@ const MatchCard = ({ matchObj, BASE_URL, userInfo, navigation, unmatch, reveal, 
         {matchObj.match_user.first_image ? (
           <View style={styles.imageContainer}>
             <Image
-              source={{ uri: `${BASE_URL}${matchObj.match_user.first_image}` }}
+              source={{ uri: `${API_BASE_URL}${matchObj.match_user.first_image}` }}
               style={styles.matchImage}
               resizeMode="cover"
             />
@@ -80,7 +80,7 @@ const MatchCard = ({ matchObj, BASE_URL, userInfo, navigation, unmatch, reveal, 
         <View style={styles.linkedSection}>
           {matchObj.linked_dater.first_image ? (
             <Image
-              source={{ uri: `${BASE_URL}${matchObj.linked_dater.first_image}` }}
+              source={{ uri: `${API_BASE_URL}${matchObj.linked_dater.first_image}` }}
               style={styles.linkedImage}
               resizeMode="cover"
             />

@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert,
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { BASE_URL } from '../../../api';
+import { API_BASE_URL } from '@env';
 import FormField from '../profile/components/formField';
 
 const Preferences = () => {
@@ -40,7 +40,7 @@ const Preferences = () => {
         return;
       }
 
-      const res = await fetch(`${BASE_URL}/profile/`, {
+      const res = await fetch(`${API_BASE_URL}/profile/`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -87,7 +87,7 @@ const Preferences = () => {
         preferredGenders: formData.preferredGenders,
       };
 
-      const res = await fetch(`${BASE_URL}/profile/update`, {
+      const res = await fetch(`${API_BASE_URL}/profile/update`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
