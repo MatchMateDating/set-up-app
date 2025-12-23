@@ -7,16 +7,17 @@ import {
   TouchableOpacity,
   TextInput,
   ActivityIndicator,
-  Alert
+  Alert,
+  Platform,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import { Picker } from '@react-native-picker/picker';
 import Slider from '@react-native-community/slider';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import ImageGallery from './images';
 import * as ImagePicker from 'expo-image-picker';
 import { API_BASE_URL } from '@env';
-
 import {
   calculateAge,
   convertFtInToMetersCm,
@@ -42,6 +43,7 @@ const CompleteProfile = () => {
   const [heightUnit, setHeightUnit] = useState('ft');
   const [user, setUser] = useState(null);
   const [images, setImages] = useState([]);
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   const [formData, setFormData] = useState({
     first_name: '',
@@ -303,69 +305,127 @@ const CompleteProfile = () => {
           />
 
           <Text style={styles.label}>Birthdate</Text>
-          <TextInput
-            style={styles.input}
-            value={formData.birthdate}
-            onChangeText={(v) => update("birthdate", v)}
-            placeholder="YYYY-MM-DD"
-          />
+
+          <TouchableOpacity
+            style={[styles.field, styles.dateField]}
+            onPress={() => setShowDatePicker(true)}
+          >
+            <Text style={styles.dateText}>
+              {formData.birthdate}
+            </Text>
+          </TouchableOpacity>
+
+          {showDatePicker && (
+            <DateTimePicker
+              value={new Date(formData.birthdate)}
+              mode="date"
+              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+              maximumDate={new Date()}
+              onChange={(event, selectedDate) => {
+                setShowDatePicker(false);
+                if (selectedDate) {
+                  update(
+                    'birthdate',
+                    selectedDate.toISOString().split('T')[0]
+                  );
+                }
+              }}
+            />
+          )}
 
           <Text style={styles.label}>Gender</Text>
-          <Picker
-            selectedValue={formData.gender}
-            onValueChange={(v) => update("gender", v)}
-            style={styles.picker}
-          >
-            <Picker.Item label="Select gender" value="" />
-            <Picker.Item label="Female" value="female" />
-            <Picker.Item label="Male" value="male" />
-            <Picker.Item label="Non-binary" value="nonbinary" />
-          </Picker>
+          <View style={styles.pickerWrapper}>
+              <Picker
+                selectedValue={formData.gender}
+                onValueChange={(v) => update("gender", v)}
+                style={styles.picker}
+                dropdownIconColor="#111"
+              >
+                <Picker.Item label="Select gender" value="" />
+                <Picker.Item label="Female" value="female" />
+                <Picker.Item label="Male" value="male" />
+                <Picker.Item label="Non-binary" value="nonbinary" />
+              </Picker>
+          </View>
 
           <Text style={styles.label}>Height ({heightUnit})</Text>
-          {heightUnit === 'ft' ? (
-            <View style={styles.row}>
-              <TextInput
-                style={[styles.input, styles.smallInput]}
-                keyboardType="numeric"
-                value={formData.heightFeet}
-                onChangeText={(v) => {
-                  update("heightFeet", v); 
-                  update("heightMeters", "");
-                }}
-              />
-              <TextInput
-                style={[styles.input, styles.smallInput]}
-                keyboardType="numeric"
-                value={formData.heightInches}
-                onChangeText={(v) => {
-                  update("heightInches", v); 
-                  update("heightCentimeters", "");
-                }}
-              />
-            </View>
-          ) : (
-            <View style={styles.row}>
-              <TextInput
-                style={[styles.input, styles.smallInput]}
-                keyboardType="numeric"
-                value={formData.heightMeters}
-                onChangeText={(v) => {
-                  update("heightMeters", v); 
-                  update("heightFeet", "");
-                }}
-              />
-              <TextInput
-                style={[styles.input, styles.smallInput]}
-                keyboardType="numeric"
-                value={formData.heightCentimeters}
-                onChangeText={(v) => {
-                  update("heightCentimeters", v); 
-                  update("heightInches", "");
-                }}
-              />
-            </View>
-          )}
+          <View style={[styles.field, styles.heightGroup]}>
+            {heightUnit === 'ft' ? (
+              <>
+                {/* FEET */}
+                <View style={styles.heightPickerWrapper}>
+                  <Picker
+                    selectedValue={formData.heightFeet}
+                    style={styles.pickerSmall}
+                    onValueChange={(v) => {
+                      update('heightFeet', v);
+                      update('heightMeters', '');
+                    }}
+                  >
+                    {Array.from({ length: 8 }, (_, i) => (
+                      <Picker.Item key={i} label={`${i}`} value={`${i}`} />
+                    ))}
+                  </Picker>
+                </View>
+
+                <View style={styles.divider} />
+
+                {/* INCHES */}
+                <View style={styles.heightPickerWrapper}>
+                  <Picker
+                    selectedValue={formData.heightInches}
+                    style={styles.pickerSmall}
+                    onValueChange={(v) => {
+                      update('heightInches', v);
+                      update('heightCentimeters', '');
+                    }}
+                  >
+                    {Array.from({ length: 12 }, (_, i) => (
+                      <Picker.Item key={i} label={`${i}`} value={`${i}`} />
+                    ))}
+                  </Picker>
+                </View>
+              </>
+            ) : (
+              <>
+                {/* METERS */}
+                <View style={styles.heightPickerWrapper}>
+                  <Picker
+                    selectedValue={formData.heightMeters}
+                    style={styles.pickerSmall}
+                    onValueChange={(v) => {
+                      update('heightMeters', v);
+                      update('heightFeet', '');
+                    }}
+                  >
+                    {Array.from({ length: 3 }, (_, i) => (
+                      <Picker.Item key={i} label={`${i}`} value={`${i}`} />
+                    ))}
+                  </Picker>
+                </View>
+
+                <View style={styles.divider} />
+
+                {/* CENTIMETERS */}
+                <View style={styles.heightPickerWrapper}>
+                  <Picker
+                    selectedValue={formData.heightCentimeters}
+                    style={styles.pickerSmall}
+                    onValueChange={(v) => {
+                      update('heightCentimeters', v);
+                      update('heightInches', '');
+                    }}
+                  >
+                    {Array.from({ length: 100 }, (_, i) => (
+                      <Picker.Item key={i} label={`${i}`} value={`${i}`} />
+                    ))}
+                  </Picker>
+                </View>
+              </>
+            )}
+          </View>
+
+
 
           <TouchableOpacity onPress={handleUnitToggle}>
             <Text style={styles.toggle}>Switch to {heightUnit === 'ft' ? 'meters' : 'feet'}</Text>
@@ -494,24 +554,77 @@ const styles = StyleSheet.create({
     marginBottom: 4,
     marginTop: 12,
   },
-  input: {
+  field: {
     borderWidth: 1,
     borderColor: '#ddd',
-    borderRadius: 10,
+    borderRadius: 12,
+    backgroundColor: '#fff',
+    overflow: 'hidden',
+  },
+  dateField: {
+    height: 48,
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+  },
+  dateText: {
+    fontSize: 16,
+    color: '#111',
+  },
+  input: {
+    height: 48,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 10,
     backgroundColor: '#fff',
     marginBottom: 4,
+    fontSize: 16,
   },
   smallInput: {
     flex: 1,
     marginRight: 8,
   },
-  picker: {
+  pickerWrapper: {
+    height: 48,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 12,
+    justifyContent: 'center',
     backgroundColor: '#fff',
-    borderRadius: 10,
-    marginBottom: 6,
+    overflow: 'hidden',
   },
+  picker: {
+    height: 48,
+    width: '100%',
+  },
+  pickerSmall: {
+    height: 48,
+    width: '100%',
+  },
+  heightGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 48,
+  },
+  heightPickerWrapper: {
+    flex: 1,
+    height: 48,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    overflow: 'hidden', // REQUIRED for Android
+  },
+  heightInput: {
+    flex: 1,
+    paddingHorizontal: 12,
+    fontSize: 16,
+  },
+  divider: {
+    width: 1,
+    height: '60%',
+    backgroundColor: '#ddd',
+  },
+
   toggle: {
     marginTop: 8,
     color: '#6B46C1',
