@@ -1,13 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, Alert, ScrollView, Image, TouchableOpacity } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { API_BASE_URL } from '@env';
 import Profile from './profile';
 import AvatarSelectorModal from './avatarSelectorModal';
 import { avatarMap } from './avatarSelectorModal';
+import { Ionicons } from '@expo/vector-icons';
 
 const ProfilePage = () => {
+  const route = useRoute();
+  const { userId, matchProfile } = route.params || {};
   const [user, setUser] = useState(null);
   const [referrer, setReferrer] = useState(null);
   const [editing, setEditing] = useState(false);
@@ -25,7 +28,8 @@ const ProfilePage = () => {
         return;
       }
 
-      const res = await fetch(`${API_BASE_URL}/profile/`, {
+      const userIdUrl = userId ?? "";
+      const res = await fetch(`${API_BASE_URL}/profile/${userIdUrl}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -115,11 +119,18 @@ const ProfilePage = () => {
 
   return (
     <View style={styles.container}>
+      {matchProfile && (
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+          <Ionicons name="arrow-back" size={24} color="#6B46C1" />
+          <Text style={styles.backButtonText}>Back</Text>
+        </TouchableOpacity>
+      )}
+      
       <ScrollView contentContainerStyle={styles.content}>
         {user.role === 'user' && (
           <Profile
             user={user}
-            framed={false}
+            framed={matchProfile === true}
             editing={editing}
             setEditing={setEditing}
             onSave={handleSave}
@@ -228,6 +239,17 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#6B46C1',
     marginBottom: 16,
+  },
+  backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+  },
+  backButtonText: {
+    color: '#6B46C1',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 

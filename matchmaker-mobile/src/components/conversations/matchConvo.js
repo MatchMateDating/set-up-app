@@ -226,7 +226,7 @@ const MatchConvo = () => {
         {matchUser && (
           <TouchableOpacity
             style={styles.matchAvatarSection}
-            onPress={() => navigation.navigate('ProfilePage', { userId: matchUser.id })}
+            onPress={() => navigation.navigate('ProfilePage', { userId: matchUser.id, matchProfile: true })}
           >
             {matchUser.first_image ? (
               <Image
