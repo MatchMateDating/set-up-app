@@ -586,17 +586,37 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   pickerWrapper: {
-    height: 48,
     borderWidth: 1,
     borderColor: '#ddd',
     borderRadius: 12,
     justifyContent: 'center',
     backgroundColor: '#fff',
     overflow: 'hidden',
+    ...Platform.select({
+      ios: {
+        height: 120,
+      },
+      android: {
+        height: 48,
+      },
+      default: {
+        height: 48,
+      },
+    }),
   },
   picker: {
-    height: 48,
     width: '100%',
+    ...Platform.select({
+      ios: {
+        height: 215,
+      },
+      android: {
+        height: 48,
+      },
+      default: {
+        height: 48,
+      },
+    }),
   },
   pickerSmall: {
     height: 48,
@@ -605,14 +625,34 @@ const styles = StyleSheet.create({
   heightGroup: {
     flexDirection: 'row',
     alignItems: 'center',
-    height: 48,
+    ...Platform.select({
+      ios: {
+        height: 120,
+      },
+      android: {
+        height: 48,
+      },
+      default: {
+        height: 48,
+      },
+    }),
   },
   heightPickerWrapper: {
     flex: 1,
-    height: 48,
     backgroundColor: '#fff',
     borderRadius: 12,
     overflow: 'hidden', // REQUIRED for Android
+    ...Platform.select({
+      ios: {
+        height: 215,
+      },
+      android: {
+        height: 48,
+      },
+      default: {
+        height: 48,
+      },
+    }),
   },
   heightInput: {
     flex: 1,
