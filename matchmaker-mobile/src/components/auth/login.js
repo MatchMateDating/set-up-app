@@ -13,7 +13,7 @@ import {
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
-import { API_BASE_URL} from '@env';
+import { API_BASE_URL } from '@env';
 
 const LoginScreen = () => {
   const [email, setEmail] = useState('');
@@ -46,7 +46,6 @@ const LoginScreen = () => {
     <KeyboardAvoidingView
           style={{ flex: 1 }}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}
       >
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
         <View style={styles.container}>

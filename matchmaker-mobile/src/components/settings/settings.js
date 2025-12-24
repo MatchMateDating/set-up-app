@@ -14,8 +14,7 @@ import * as Clipboard from 'expo-clipboard';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
-import { SIGNUP_URL } from '@env';
-import {API_BASE_URL} from '@env';
+import { API_BASE_URL, SIGNUP_URL } from '@env';
 import FormField from '../profile/components/formField';
 import MultiSelectGender from '../profile/components/multiSelectGender';
 

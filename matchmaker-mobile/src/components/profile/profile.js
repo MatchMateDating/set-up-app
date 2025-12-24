@@ -117,7 +117,7 @@ const Profile = ({ user, framed, editing, setEditing, onSave }) => {
         name: 'image.jpg',
       });
 
-      const response = await fetch(`${API_}/profile/upload_image`, {
+      const response = await fetch(`${API_BASE_URL}/profile/upload_image`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
