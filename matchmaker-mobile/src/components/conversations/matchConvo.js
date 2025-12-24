@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Image, ActivityIndicator, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { API_BASE_URL} from '@env';
+import { API_BASE_URL } from '@env';
 import { useUserInfo } from './hooks/useUserInfo';
 import SendPuzzle from './conversationPuzzle';
 import { games } from '../puzzles/puzzlesPage';

@@ -13,7 +13,7 @@ import {
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
-import { API_BASE_URL} from '@env';
+import { API_BASE_URL } from '@env';
 
 const LoginScreen = () => {
   const [email, setEmail] = useState('');
