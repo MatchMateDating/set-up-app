@@ -15,6 +15,7 @@ import { useNavigation } from '@react-navigation/native';
 import { Picker } from '@react-native-picker/picker';
 import Slider from '@react-native-community/slider';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import CalendarPicker from "react-native-calendar-picker";
 import ImageGallery from './images';
 import * as ImagePicker from 'expo-image-picker';
 import { API_BASE_URL } from '@env';
@@ -44,6 +45,7 @@ const CompleteProfile = () => {
   const [user, setUser] = useState(null);
   const [images, setImages] = useState([]);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [tempBirthdate, setTempBirthdate] = useState(null);
 
   const [formData, setFormData] = useState({
     first_name: '',
@@ -305,33 +307,75 @@ const CompleteProfile = () => {
           />
 
           <Text style={styles.label}>Birthdate</Text>
-
           <TouchableOpacity
-            style={[styles.field, styles.dateField]}
+            style={[
+              styles.field,
+              styles.dateField,
+              showDatePicker && styles.fieldActive
+            ]}
             onPress={() => setShowDatePicker(true)}
+            activeOpacity={0.8}
           >
-            <Text style={styles.dateText}>
-              {formData.birthdate}
+            <Text
+              style={[
+                styles.dateText,
+                !formData.birthdate && styles.placeholderText
+              ]}
+            >
+              {formData.birthdate || 'Select birthdate'}
             </Text>
           </TouchableOpacity>
 
           {showDatePicker && (
-            <DateTimePicker
-              value={new Date(formData.birthdate)}
-              mode="date"
-              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-              maximumDate={new Date()}
-              onChange={(event, selectedDate) => {
-                setShowDatePicker(false);
-                if (selectedDate) {
-                  update(
-                    'birthdate',
-                    selectedDate.toISOString().split('T')[0]
-                  );
-                }
-              }}
-            />
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalCard}>
+                <Text style={styles.modalTitle}>Select Birthdate</Text>
+
+                <CalendarPicker
+                  onDateChange={(date) => {
+                    setTempBirthdate(date);
+                  }}
+                  selectedStartDate={tempBirthdate}
+                  maxDate={new Date()}
+                  minimumDate={new Date(
+                    new Date().setFullYear(new Date().getFullYear() - 100)
+                  )}
+                  todayBackgroundColor="#E9D8FD"
+                  selectedDayColor="#6B46C1"
+                  selectedDayTextColor="#fff"
+                  textStyle={{ color: '#111' }}
+                />
+
+                <View style={styles.modalActions}>
+                  <TouchableOpacity
+                    style={styles.cancelButton}
+                    onPress={() => {
+                      setTempBirthdate(null);
+                      setShowDatePicker(false);
+                    }}
+                  >
+                    <Text style={styles.cancelText}>Cancel</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.confirmButton}
+                    onPress={() => {
+                      if (tempBirthdate) {
+                        update(
+                          'birthdate',
+                          tempBirthdate.toISOString().split('T')[0]
+                        );
+                      }
+                      setShowDatePicker(false);
+                    }}
+                  >
+                    <Text style={styles.confirmText}>Confirm</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
           )}
+
 
           <Text style={styles.label}>Gender</Text>
           <View style={styles.pickerWrapper}>
@@ -561,14 +605,75 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     overflow: 'hidden',
   },
+  calendarWrapper: {
+    marginTop: 8,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 12,
+    backgroundColor: '#fff',
+    padding: 8,
+  },
   dateField: {
-    height: 48,
     justifyContent: 'center',
-    paddingHorizontal: 12,
   },
   dateText: {
     fontSize: 16,
     color: '#111',
+  },
+  placeholderText: {
+    color: '#9CA3AF',
+  },
+  fieldActive: {
+    borderColor: '#6B46C1',
+  },
+  modalOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  modalCard: {
+    width: '90%',
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 16,
+    elevation: 5,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 16,
+  },
+  cancelButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+  },
+  cancelText: {
+    color: '#6B7280',
+    fontSize: 16,
+  },
+  confirmButton: {
+    backgroundColor: '#6B46C1',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+  },
+  confirmText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
   input: {
     height: 48,
