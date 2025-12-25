@@ -7,6 +7,9 @@ from app.models.imageDB import Image
 from flask import current_app
 from uuid import uuid4
 from app.routes.shared import token_required, calculate_age
+from sqlalchemy.exc import SQLAlchemyError
+from datetime import datetime
+
 
 profile_bp = Blueprint('profile', __name__)
 
@@ -50,6 +53,7 @@ def get_user_basic_profile(current_user, user_id):
 def update_profile(current_user):
     try:
         data = request.get_json()
+        print('error:', data)
         if not data:
             return jsonify({'error': 'Request body must be JSON'}), 400
 
@@ -79,7 +83,7 @@ def update_profile(current_user):
                         'error': 'Invalid birthdate format. Use YYYY-MM-DD'
                     }), 400
 
-            elif field in ['preferredAgeMin', 'preferredAgeMax', 'height', 'match_radius']:
+            elif field in ['preferredAgeMin', 'preferredAgeMax', 'match_radius']:
                 if not isinstance(value, (int, float)):
                     return jsonify({
                         'error': f'{field} must be a number'
@@ -94,6 +98,7 @@ def update_profile(current_user):
         return jsonify(current_user.to_dict()), 200
 
     except SQLAlchemyError as e:
+        print('here db')
         db.session.rollback()
         return jsonify({
             'error': 'Database error',
@@ -101,6 +106,7 @@ def update_profile(current_user):
         }), 500
 
     except Exception as e:
+        print('here server')
         return jsonify({
             'error': 'Unexpected server error',
             'details': str(e)

@@ -51,7 +51,10 @@ const Profile = ({ user, framed, editing, setEditing, onSave }) => {
 
       const heightString = user.height || "0'0";
       if (heightString.includes("'")) {
-        const [feet, inches] = heightString.split(/'|"/).map(Number);
+        const parts = heightString.split(/'|"/);
+        const feet = parts[0] || '0';
+        const inches = parts[1] || '0';
+
         setFormData({
           ...baseFormData,
           heightFeet: feet.toString(),
@@ -61,9 +64,10 @@ const Profile = ({ user, framed, editing, setEditing, onSave }) => {
         });
         setHeightUnit('ft');
       } else if (heightString.includes('m')) {
-        const [metersPart, cmPart] = heightString.split(' ');
-        const meters = metersPart.replace('m', '');
-        const centimeters = cmPart.replace('cm', '');
+        const parts = heightString.split(' ');
+        const meters = parts[0] ? parts[0].replace('m', '') : '0';
+        const centimeters = parts[1] ? parts[1].replace('cm', '') : '0';
+
         setFormData({
           ...baseFormData,
           heightFeet: '0',
@@ -210,7 +214,7 @@ const Profile = ({ user, framed, editing, setEditing, onSave }) => {
       }
 
       if (!res.ok) throw new Error('Failed to update profile');
-      
+
       await res.json();
       Alert.alert('Success', 'Profile updated successfully');
       onSave();

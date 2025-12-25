@@ -9,12 +9,12 @@ import {
   ActivityIndicator,
   Alert,
   Platform,
+  Dimensions,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import { Picker } from '@react-native-picker/picker';
 import Slider from '@react-native-community/slider';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import CalendarPicker from "react-native-calendar-picker";
 import ImageGallery from './images';
 import * as ImagePicker from 'expo-image-picker';
@@ -28,7 +28,9 @@ import {
 
 import Profile from './profile';
 import StepIndicator from './components/stepIndicator';
+import SelectGender from './components/selectGender';
 import MultiSelectGender from './components/multiSelectGender';
+import MultiSlider from '@ptomasroos/react-native-multi-slider';
 
 const CompleteProfile = () => {
   const navigation = useNavigation();
@@ -46,6 +48,7 @@ const CompleteProfile = () => {
   const [images, setImages] = useState([]);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [tempBirthdate, setTempBirthdate] = useState(null);
+  const SCREEN_WIDTH = Dimensions.get('window').width;
 
   const [formData, setFormData] = useState({
     first_name: '',
@@ -56,8 +59,8 @@ const CompleteProfile = () => {
     heightInches: '0',
     heightMeters: '0',
     heightCentimeters: '0',
-    preferredAgeMin: '',
-    preferredAgeMax: '',
+    preferredAgeMin: '18',
+    preferredAgeMax: '50',
     preferredGenders: [],
     matchRadius: 50,
   });
@@ -69,8 +72,9 @@ const CompleteProfile = () => {
       if (userRaw) {
         const user = JSON.parse(userRaw);
         setUser(user);
-        setFormData({ ...formData, 
-          first_name: user.first_name ?? '', 
+        setFormData({
+          ...formData,
+          first_name: user.first_name ?? '',
           last_name: user.last_name ?? ''
         });
       }
@@ -105,6 +109,18 @@ const CompleteProfile = () => {
     }
   };
 
+  const getHeightInCm = (formData, heightUnit) => {
+    if (heightUnit === 'ft') {
+      const feet = parseInt(formData.heightFeet, 10) || 0;
+      const inches = parseInt(formData.heightInches, 10) || 0;
+      return Math.round((feet * 12 + inches) * 2.54);
+    } else {
+      const meters = parseInt(formData.heightMeters, 10) || 0;
+      const cm = parseInt(formData.heightCentimeters, 10) || 0;
+      return meters * 100 + cm;
+    }
+  };
+
   // STEP 1 LOCAL VALIDATION
   const saveStep1 = async () => {
     setError('');
@@ -118,36 +134,53 @@ const CompleteProfile = () => {
     if (!formData.last_name.trim())
       return setError('Last name is required.');
 
+    if (formData.gender == "")
+      return setError('Please select your gender.');
+
+    if ((heightUnit == 'ft' && formData.heightFeet == '0' && formData.heightInches == '0')
+      || (heightUnit == 'm' && formData.heightMeters == '0' && formData.heightCentimeters == '0'))
+      return setError('Please select your height.');
+
+    if (!images || images.length === 0)
+      return setError('Please upload at least one image.');
+
     setStep(2);
   };
 
   const handleFinish = async () => {
     setError('');
     setLoading(true);
-  
+
     try {
       const token = await AsyncStorage.getItem('token');
       if (!token) {
         setError("Session expired. Please log in again.");
         return;
       }
-  
-      // Validate preferences
+
       if (formData.preferredAgeMin && formData.preferredAgeMax) {
         if (parseInt(formData.preferredAgeMin) > parseInt(formData.preferredAgeMax))
           return setError("Min age cannot be greater than max age");
       }
-  
+
+      if (!formData.preferredGenders || formData.preferredGenders.length === 0) {
+        return setError("Please select your preferred Gender(s).");
+      }
+
       const profilePayload = {
         birthdate: formData.birthdate,
         gender: formData.gender,
-        height: (formData.heightFeet || formData.heightInches || formData.heightMeters || formData.heightCentimeters) ? formatHeight(formData, heightUnit) : '',
-        preferredAgeMin: formData.preferredAgeMin ?? '',
-        preferredAgeMax: formData.preferredAgeMax ?? '',
+        height: formatHeight(formData, heightUnit),
+        preferredAgeMin: formData.preferredAgeMin
+          ? parseInt(formData.preferredAgeMin, 10)
+          : 18,
+        preferredAgeMax: formData.preferredAgeMax
+          ? parseInt(formData.preferredAgeMax, 10)
+          : 50,
         preferredGenders: formData.preferredGenders ?? [],
-        match_radius: formData.matchRadius ?? 50,
+        match_radius: Number(formData.matchRadius) ?? 50,
       };
-  
+
       const updateRes = await fetch(`${API_BASE_URL}/profile/update`, {
         method: "PUT",
         headers: {
@@ -156,13 +189,13 @@ const CompleteProfile = () => {
         },
         body: JSON.stringify(profilePayload),
       });
-  
+
       if (!updateRes.ok) {
         const updateError = await updateRes.json();
         setError(updateError.msg || "Profile update failed");
         return;
       }
-  
+
       navigation.navigate("Main");
     } catch (err) {
       console.error(err);
@@ -174,11 +207,11 @@ const CompleteProfile = () => {
 
   const setUserHeight = () => {
     if (heightUnit == "ft" && (formData.heightFeet || formData.heightInches)) {
-      return `${formData.heightFeet}'${formData.heightInches}`;
+      return `${formData.heightFeet}'${formData.heightInches}"`;
     } else if (heightUnit == "m" && (formData.heightMeters || formData.heightCentimeters)) {
       return `${formData.heightMeters}m ${formData.heightCentimeters}cm`
     } else {
-      return null;
+      return "0'0\"";
     }
   }
 
@@ -308,89 +341,83 @@ const CompleteProfile = () => {
 
           <Text style={styles.label}>Birthdate</Text>
           <TouchableOpacity
-            style={[
-              styles.field,
-              styles.dateField,
-              showDatePicker && styles.fieldActive
-            ]}
-            onPress={() => setShowDatePicker(true)}
+            style={[styles.field, styles.dateField, showDatePicker && styles.fieldActive]}
+            onPress={() => {
+              setTempBirthdate(
+                formData.birthdate ? new Date(formData.birthdate) : null
+              );
+              setShowDatePicker(true);
+            }}
             activeOpacity={0.8}
           >
-            <Text
-              style={[
-                styles.dateText,
-                !formData.birthdate && styles.placeholderText
-              ]}
-            >
+            <Text style={[styles.dateText, !formData.birthdate && styles.placeholderText]}>
               {formData.birthdate || 'Select birthdate'}
             </Text>
           </TouchableOpacity>
 
           {showDatePicker && (
-            <View style={styles.modalOverlay}>
-              <View style={styles.modalCard}>
-                <Text style={styles.modalTitle}>Select Birthdate</Text>
-
+            <View style={styles.modalCard}>
+              <Text style={styles.modalTitle}>Select Birthdate</Text>
+              <View style={styles.calendarWrapper}>
                 <CalendarPicker
-                  onDateChange={(date) => {
-                    setTempBirthdate(date);
-                  }}
+                  onDateChange={(date) => setTempBirthdate(date)}
                   selectedStartDate={tempBirthdate}
-                  maxDate={new Date()}
+                  initialDate={tempBirthdate}
+                  maxDate={new Date(defaultBirthdate)}
+                  width={SCREEN_WIDTH - 80}
                   minimumDate={new Date(
                     new Date().setFullYear(new Date().getFullYear() - 100)
                   )}
                   todayBackgroundColor="#E9D8FD"
                   selectedDayColor="#6B46C1"
                   selectedDayTextColor="#fff"
-                  textStyle={{ color: '#111' }}
+                  textStyle={{
+                    color: '#111',
+                    fontSize: 14,
+                  }}
+                  dayLabelsWrapper={styles.dayLabelsWrapper}
+                  style={{
+                    borderRadius: 8,
+                    overflow: 'hidden',
+                  }}
                 />
+              </View>
 
-                <View style={styles.modalActions}>
-                  <TouchableOpacity
-                    style={styles.cancelButton}
-                    onPress={() => {
-                      setTempBirthdate(null);
-                      setShowDatePicker(false);
-                    }}
-                  >
-                    <Text style={styles.cancelText}>Cancel</Text>
-                  </TouchableOpacity>
 
-                  <TouchableOpacity
-                    style={styles.confirmButton}
-                    onPress={() => {
-                      if (tempBirthdate) {
-                        update(
-                          'birthdate',
-                          tempBirthdate.toISOString().split('T')[0]
-                        );
-                      }
-                      setShowDatePicker(false);
-                    }}
-                  >
-                    <Text style={styles.confirmText}>Confirm</Text>
-                  </TouchableOpacity>
-                </View>
+              <View style={styles.modalActions}>
+                <TouchableOpacity
+                  style={styles.cancelButton}
+                  onPress={() => {
+                    setTempBirthdate(null);
+                    setShowDatePicker(false);
+                  }}
+                >
+                  <Text style={styles.cancelText}>Cancel</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.confirmButton}
+                  onPress={() => {
+                    if (tempBirthdate) {
+                      update(
+                        'birthdate', tempBirthdate.toISOString().split('T')[0]
+                      );
+                    }
+                    setShowDatePicker(false);
+                  }}
+                >
+                  <Text style={styles.confirmText}>Confirm</Text>
+                </TouchableOpacity>
               </View>
             </View>
           )}
 
 
           <Text style={styles.label}>Gender</Text>
-          <View style={styles.pickerWrapper}>
-              <Picker
-                selectedValue={formData.gender}
-                onValueChange={(v) => update("gender", v)}
-                style={styles.picker}
-                dropdownIconColor="#111"
-              >
-                <Picker.Item label="Select gender" value="" />
-                <Picker.Item label="Female" value="female" />
-                <Picker.Item label="Male" value="male" />
-                <Picker.Item label="Non-binary" value="nonbinary" />
-              </Picker>
-          </View>
+          <SelectGender
+            selected={formData.gender}
+            onChange={(value) => update("gender", value)}
+          />
 
           <Text style={styles.label}>Height ({heightUnit})</Text>
           <View style={[styles.field, styles.heightGroup]}>
@@ -469,8 +496,6 @@ const CompleteProfile = () => {
             )}
           </View>
 
-
-
           <TouchableOpacity onPress={handleUnitToggle}>
             <Text style={styles.toggle}>Switch to {heightUnit === 'ft' ? 'meters' : 'feet'}</Text>
           </TouchableOpacity>
@@ -482,7 +507,7 @@ const CompleteProfile = () => {
             onDeleteImage={handleDeleteImage}
             onPlaceholderClick={handlePlaceholderClick}
           />
-          
+
           {error ? <Text style={styles.error}>{error}</Text> : null}
 
           <TouchableOpacity style={styles.nextBtn} onPress={saveStep1}>
@@ -503,7 +528,7 @@ const CompleteProfile = () => {
               ...formData,
               images: images,
               height: setUserHeight(),
-              role: user.role
+              role: 'user'
             }}
             framed={true}
             editing={false}
@@ -525,23 +550,38 @@ const CompleteProfile = () => {
         <View>
           <Text style={styles.title}>Preferences</Text>
 
-          <Text style={styles.label}>Preferred Age Range</Text>
-          <View style={styles.row}>
-            <TextInput
-              style={[styles.input, styles.smallInput]}
-              keyboardType="numeric"
-              placeholder="Min"
-              value={formData.preferredAgeMin}
-              onChangeText={(v) => update("preferredAgeMin", v)}
-            />
-            <TextInput
-              style={[styles.input, styles.smallInput]}
-              keyboardType="numeric"
-              placeholder="Max"
-              value={formData.preferredAgeMax}
-              onChangeText={(v) => update("preferredAgeMax", v)}
+          <Text style={styles.label}>
+            Preferred Age Range ({formData.preferredAgeMin}–{formData.preferredAgeMax})
+          </Text>
+
+          <View style={{ alignItems: 'center', marginTop: 10 }}>
+            <MultiSlider
+              values={[
+                Number(formData.preferredAgeMin) || 18,
+                Number(formData.preferredAgeMax) || 60,
+              ]}
+              min={18}
+              max={100}
+              step={1}
+              sliderLength={280}
+              onValuesChange={(values) => {
+                update('preferredAgeMin', values[0].toString());
+                update('preferredAgeMax', values[1].toString());
+              }}
+              selectedStyle={{ backgroundColor: '#6B46C1' }}
+              unselectedStyle={{ backgroundColor: '#E5E7EB' }}
+              markerStyle={{
+                backgroundColor: '#6B46C1',
+                height: 22,
+                width: 22,
+                borderRadius: 11,
+                borderWidth: 0,
+              }}
+              trackStyle={{ height: 6, borderRadius: 3 }}
+              containerStyle={{ height: 40 }}
             />
           </View>
+
 
           <Text style={styles.label}>Preferred Genders</Text>
           <MultiSelectGender
@@ -550,13 +590,31 @@ const CompleteProfile = () => {
           />
 
           <Text style={styles.label}>Match Radius ({formData.matchRadius} mi)</Text>
-          <Slider
-            minimumValue={1}
-            maximumValue={500}
-            step={1}
-            value={formData.matchRadius}
-            onValueChange={(v) => update("matchRadius", v)}
-          />
+          <View style={{ alignItems: 'center', marginTop: 10 }}>
+            <MultiSlider
+              values={[formData.matchRadius]}
+              min={1}
+              max={500}
+              step={1}
+              sliderLength={280}
+              onValuesChange={(values) => {
+                update('matchRadius', values[0]);
+              }}
+              selectedStyle={{ backgroundColor: '#6B46C1' }}
+              unselectedStyle={{ backgroundColor: '#E5E7EB' }}
+              markerStyle={{
+                backgroundColor: '#6B46C1',
+                height: 22,
+                width: 22,
+                borderRadius: 11,
+              }}
+              trackStyle={{ height: 6, borderRadius: 3 }}
+              containerStyle={{ height: 40 }}
+              enableLabel={false}
+              allowOverlap={false}
+              snapped
+            />
+          </View>
 
           {error ? <Text style={styles.error}>{error}</Text> : null}
 
@@ -605,17 +663,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     overflow: 'hidden',
   },
-  calendarWrapper: {
-    marginTop: 8,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 12,
-    backgroundColor: '#fff',
-    padding: 8,
-  },
   dateField: {
+    height: 48,
     justifyContent: 'center',
+    paddingHorizontal: 12,
   },
   dateText: {
     fontSize: 16,
@@ -627,23 +678,18 @@ const styles = StyleSheet.create({
   fieldActive: {
     borderColor: '#6B46C1',
   },
-  modalOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 1000,
-  },
   modalCard: {
-    width: '90%',
     backgroundColor: '#fff',
     borderRadius: 16,
-    padding: 16,
+    paddingVertical: 16,
+    marginVertical: 10,
     elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    // Add overflow hidden to ensure nothing leaks out of the rounded corners
+    overflow: 'hidden',
   },
   modalTitle: {
     fontSize: 18,
@@ -651,10 +697,26 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 12,
   },
+  calendarWrapper: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+    // Adding a slight horizontal padding to the wrapper itself
+    paddingHorizontal: 10,
+  },
+  dayLabelsWrapper: {
+    borderBottomWidth: 1,
+    borderTopWidth: 0,
+    borderColor: '#eee',
+    paddingBottom: 10,
+    // Ensure this doesn't exceed the width of its parent
+    width: '100%',
+  },
   modalActions: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginTop: 16,
+    paddingHorizontal: 24,
   },
   cancelButton: {
     paddingVertical: 10,
@@ -724,38 +786,48 @@ const styles = StyleSheet.create({
     }),
   },
   pickerSmall: {
-    height: 48,
     width: '100%',
-  },
-  heightGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    ...Platform.select({
-      ios: {
-        height: 120,
-      },
-      android: {
-        height: 48,
-      },
-      default: {
-        height: 48,
-      },
-    }),
-  },
-  heightPickerWrapper: {
-    flex: 1,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    overflow: 'hidden', // REQUIRED for Android
+    paddingTop: 6,
     ...Platform.select({
       ios: {
         height: 215,
       },
       android: {
-        height: 48,
+        height: 50,
       },
       default: {
-        height: 48,
+        height: 50,
+      },
+    }),
+  },
+  heightGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    overflow: 'visible',
+    ...Platform.select({
+      ios: {
+        height: 215,
+      },
+      android: {
+        height: 50,
+      },
+      default: {
+        height: 50,
+      },
+    }),
+  },
+  heightPickerWrapper: {
+    flex: 1,
+    overflow: 'visible',
+    ...Platform.select({
+      ios: {
+        height: 215,
+      },
+      android: {
+        height: 50,
+      },
+      default: {
+        height: 50,
       },
     }),
   },
@@ -769,7 +841,6 @@ const styles = StyleSheet.create({
     height: '60%',
     backgroundColor: '#ddd',
   },
-
   toggle: {
     marginTop: 8,
     color: '#6B46C1',

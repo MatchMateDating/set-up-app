@@ -72,105 +72,113 @@ const SignUpScreen = () => {
 
   return (
     <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-            <ScrollView
-                contentContainerStyle={styles.container}
-                keyboardShouldPersistTaps="handled"
-                keyboardDismissMode="on-drag"
-            >
-              <Text style={styles.title}>Sign Up</Text>
+      <ScrollView
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+      >
+        <Text style={styles.title}>Sign Up</Text>
 
-              <View style={styles.roleToggleWrapper}>
-                <TouchableOpacity
-                  style={[styles.roleBtn, role === 'user' && styles.activeRoleBtn]}
-                  onPress={() => setRole('user')}
-                >
-                  <Text style={[styles.roleBtnText, role === 'user' && styles.activeRoleBtnText]}>Dater</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.roleBtn, role === 'matchmaker' && styles.activeRoleBtn]}
-                  onPress={() => setRole('matchmaker')}
-                >
-                  <Text style={[styles.roleBtnText, role === 'matchmaker' && styles.activeRoleBtnText]}>Matcher</Text>
-                </TouchableOpacity>
-              </View>
+        <View style={styles.roleToggleWrapper}>
+          <TouchableOpacity
+            style={[styles.roleBtn, role === 'user' && styles.activeRoleBtn]}
+            onPress={() => setRole('user')}
+          >
+            <Text style={[styles.roleBtnText, role === 'user' && styles.activeRoleBtnText]}>Dater</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.roleBtn, role === 'matchmaker' && styles.activeRoleBtn]}
+            onPress={() => setRole('matchmaker')}
+          >
+            <Text style={[styles.roleBtnText, role === 'matchmaker' && styles.activeRoleBtnText]}>Matcher</Text>
+          </TouchableOpacity>
+        </View>
 
-              <TextInput
-                ref={firstNameRef}
-                style={styles.input}
-                placeholder="First Name"
-                value={first_name}
-                onChangeText={setFirstName}
-                returnKeyType="next"
-                onSubmitEditing={() => lastNameRef.current?.focus()}
-              />
-              <TextInput
-                ref={lastNameRef}
-                style={styles.input}
-                placeholder="Last Name"
-                value={last_name}
-                onChangeText={setLastName}
-                returnKeyType="next"
-                onSubmitEditing={() => emailRef.current?.focus()}
-              />
-              <TextInput
-                ref={emailRef}
-                style={styles.input}
-                placeholder="Email"
-                value={email}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                onChangeText={setEmail}
-                returnKeyType="next"
-                onSubmitEditing={() => passwordRef.current?.focus()}
-              />
-              <TextInput
-                ref={passwordRef}
-                style={styles.input}
-                placeholder="Password"
-                value={password}
-                secureTextEntry
-                onChangeText={setPassword}
-                returnKeyType={role === 'matchmaker' ? 'next' : 'done'}
-                onSubmitEditing={() => {
-                  if (role === 'matchmaker') {
-                    referralRef.current?.focus();
-                  } else {
-                    handleRegister();
-                  }
-                }}
-              />
+        <TextInput
+          ref={firstNameRef}
+          style={styles.input}
+          placeholder="First Name"
+          value={first_name}
+          onChangeText={setFirstName}
+          blurOnSubmit={false}
+          returnKeyType="next"
+          onSubmitEditing={() => lastNameRef.current?.focus()}
+        />
+        <TextInput
+          ref={lastNameRef}
+          style={styles.input}
+          placeholder="Last Name"
+          value={last_name}
+          onChangeText={setLastName}
+          blurOnSubmit={false}
+          returnKeyType="next"
+          onSubmitEditing={() => emailRef.current?.focus()}
+        />
+        <TextInput
+          ref={emailRef}
+          style={styles.input}
+          placeholder="Email"
+          value={email}
+          keyboardType="email-address"
+          autoCapitalize="none"
+          onChangeText={setEmail}
+          blurOnSubmit={false}
+          returnKeyType="next"
+          onSubmitEditing={() => passwordRef.current?.focus()}
+        />
+        <TextInput
+          ref={passwordRef}
+          style={styles.input}
+          placeholder="Password"
+          value={password}
+          secureTextEntry
+          onChangeText={setPassword}
+          blurOnSubmit={() => {
+            if (role == '') {
+              false
+            } else {
+              true
+            }
+          }}
+          returnKeyType={role === 'matchmaker' ? 'next' : 'done'}
+          onSubmitEditing={() => {
+            if (role === 'matchmaker') {
+              referralRef.current?.focus();
+            } else {
+              handleRegister();
+            }
+          }}
+        />
 
-              {role === 'matchmaker' && (
-                <TextInput
-                    ref={referralRef}
-                    style={styles.input}
-                    placeholder="Enter Dater's Referral Code"
-                    value={referralCode}
-                    onChangeText={setReferralCode}
-                    returnKeyType="done"
-                    onSubmitEditing={handleRegister}
-                />
-              )}
+        {role === 'matchmaker' && (
+          <TextInput
+            ref={referralRef}
+            style={styles.input}
+            placeholder="Enter Dater's Referral Code"
+            value={referralCode}
+            onChangeText={setReferralCode}
+            returnKeyType="done"
+            onSubmitEditing={handleRegister}
+          />
+        )}
 
-              <TouchableOpacity style={styles.submitBtn} onPress={handleRegister}>
-                <Text style={styles.submitBtnText}>Sign Up</Text>
-              </TouchableOpacity>
+        <TouchableOpacity style={styles.submitBtn} onPress={handleRegister}>
+          <Text style={styles.submitBtnText}>Sign Up</Text>
+        </TouchableOpacity>
 
-              <Text style={styles.loginText}>Already have an account?</Text>
-              <View style={{ alignItems: 'center', marginTop: 6 }}>
-                  <TouchableOpacity
-                    onPress={goToLogin}
-                    activeOpacity={0.7}
-                    hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}>
-                    <Text style={styles.loginButton}>Login</Text>
-                  </TouchableOpacity>
-              </View>
-            </ScrollView>
-        </TouchableWithoutFeedback>
+        <Text style={styles.loginText}>Already have an account?</Text>
+        <View style={{ alignItems: 'center', marginTop: 6 }}>
+          <TouchableOpacity
+            onPress={goToLogin}
+            activeOpacity={0.7}
+            hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}>
+            <Text style={styles.loginButton}>Login</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 };
