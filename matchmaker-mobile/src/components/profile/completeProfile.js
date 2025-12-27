@@ -31,6 +31,10 @@ import StepIndicator from './components/stepIndicator';
 import SelectGender from './components/selectGender';
 import MultiSelectGender from './components/multiSelectGender';
 import MultiSlider from '@ptomasroos/react-native-multi-slider';
+import { EditToolbar } from './components/editToolbar';
+import PixelClouds from './components/PixelClouds';
+import PixelFlowers from './components/PixelFlowers';
+import PixelCactus from './components/PixelCactus';
 
 const CompleteProfile = () => {
   const navigation = useNavigation();
@@ -48,6 +52,10 @@ const CompleteProfile = () => {
   const [images, setImages] = useState([]);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [tempBirthdate, setTempBirthdate] = useState(null);
+  const radiusUnit = heightUnit === 'ft' ? 'mi' : 'km';
+  const milesToKm = (mi) => Math.round(mi * 1.60934);
+  const kmToMiles = (km) => Math.round(km / 1.60934);
+  const radiusMax = radiusUnit === 'km' ? 800 : 500;
   const SCREEN_WIDTH = Dimensions.get('window').width;
 
   const [formData, setFormData] = useState({
@@ -63,6 +71,9 @@ const CompleteProfile = () => {
     preferredAgeMax: '50',
     preferredGenders: [],
     matchRadius: 50,
+    imageLayout: 'grid',
+    profileStyle: 'Classic',
+    fontFamily: 'Arial',
   });
 
   const getSignUpData = async () => {
@@ -87,24 +98,59 @@ const CompleteProfile = () => {
 
   useEffect(() => {
     getSignUpData();
-  }, []);
+    setFormData(prev => {
+      const current = prev.matchRadius;
+
+      if (heightUnit === 'm') {
+        // switched to metric → km
+        return { ...prev, matchRadius: milesToKm(current) };
+      } else {
+        // switched to imperial → mi
+        return { ...prev, matchRadius: kmToMiles(current) };
+      }
+    });
+  }, [heightUnit]);
 
   const update = (name, value) => {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
+  const handleInputChange = (e) => {
+      const name = e.target?.name || e.name;
+      const value = e.target?.value !== undefined ? e.target.value : e.value;
+      setFormData((prev) => ({ ...prev, [name]: value }));
+    };
+
   const handleUnitToggle = () => {
     if (heightUnit === 'ft') {
+      // ft → m (radius km → mi)
       const { meters, centimeters } = convertFtInToMetersCm(
-        formData.heightFeet, formData.heightInches
+        formData.heightFeet,
+        formData.heightInches
       );
-      setFormData({ ...formData, heightMeters: meters, heightCentimeters: centimeters });
+
+      setFormData(prev => ({
+        ...prev,
+        heightMeters: meters,
+        heightCentimeters: centimeters,
+        matchRadius: kmToMiles(prev.matchRadius),
+      }));
+
       setHeightUnit('m');
     } else {
+      // m → ft (radius mi → km)
       const { feet, inches } = convertMetersCmToFtIn(
-        formData.heightMeters, formData.heightCentimeters
+        formData.heightMeters,
+        formData.heightCentimeters
       );
-      setFormData({ ...formData, heightFeet: feet, heightInches: inches });
+
+      setFormData(prev => ({
+        ...prev,
+        heightFeet: feet,
+        heightInches: inches,
+        matchRadius: milesToKm(prev.matchRadius),
+      }));
+
       setHeightUnit('ft');
     }
   };
@@ -125,6 +171,8 @@ const CompleteProfile = () => {
   const saveStep1 = async () => {
     setError('');
 
+    console.log('unit', heightUnit);
+
     if (calculateAge(formData.birthdate) < 18)
       return setError('You must be at least 18.');
 
@@ -144,7 +192,12 @@ const CompleteProfile = () => {
     if (!images || images.length === 0)
       return setError('Please upload at least one image.');
 
+    console.log('radius unit', radiusUnit);
+    console.log('radius max', radiusMax);
+
     setStep(2);
+    console.log('past');
+    console.log('step', step);
   };
 
   const handleFinish = async () => {
@@ -179,6 +232,10 @@ const CompleteProfile = () => {
           : 50,
         preferredGenders: formData.preferredGenders ?? [],
         match_radius: Number(formData.matchRadius) ?? 50,
+        profileStyle: formData.profileStyle,
+        fontFamily: formData.fontFamily,
+        imageLayout: formData.imageLayout,
+        unit: heightUnit === 'ft' ? 'imperial' : 'metric',
       };
 
       const updateRes = await fetch(`${API_BASE_URL}/profile/update`, {
@@ -196,7 +253,10 @@ const CompleteProfile = () => {
         return;
       }
 
-      navigation.navigate("Main");
+      navigation.navigate('Main', {
+        screen: 'Matches',
+      });
+
     } catch (err) {
       console.error(err);
       setError("Something went wrong during submission.");
@@ -322,93 +382,106 @@ const CompleteProfile = () => {
       <StepIndicator step={step} />
 
       {step === 1 && (
-        <View>
-          <Text style={styles.title}>Complete Your Profile</Text>
+        <View style={[
+            styles.stepContainer,
+            themeStyles[formData.profileStyle],
+        ]}>
+          <View style={styles.themeLayer}>
+            {formData.profileStyle === 'pixelCloud' && <PixelClouds />}
+            {formData.profileStyle === 'pixelFlower' && <PixelFlowers />}
+            {formData.profileStyle === 'pixelCactus' && <PixelCactus />}
+          </View>
+            <EditToolbar
+                formData={formData}
+                handleInputChange={handleInputChange}
+                editing={true}
+              />
+              <Text style={styles.title}>Complete Your Profile</Text>
 
-          <Text style={styles.label}>First Name</Text>
-          <TextInput
-            style={styles.input}
-            value={formData.first_name}
-            onChangeText={(v) => update("first_name", v)}
-          />
+              <Text style={styles.label}>First Name</Text>
+              <TextInput
+                style={styles.input}
+                value={formData.first_name}
+                onChangeText={(v) => update("first_name", v)}
+              />
 
-          <Text style={styles.label}>Last Name</Text>
-          <TextInput
-            style={styles.input}
-            value={formData.last_name}
-            onChangeText={(v) => update("last_name", v)}
-          />
+              <Text style={styles.label}>Last Name</Text>
+              <TextInput
+                style={styles.input}
+                value={formData.last_name}
+                onChangeText={(v) => update("last_name", v)}
+              />
 
-          <Text style={styles.label}>Birthdate</Text>
-          <TouchableOpacity
-            style={[styles.field, styles.dateField, showDatePicker && styles.fieldActive]}
-            onPress={() => {
-              setTempBirthdate(
-                formData.birthdate ? new Date(formData.birthdate) : null
-              );
-              setShowDatePicker(true);
-            }}
-            activeOpacity={0.8}
-          >
-            <Text style={[styles.dateText, !formData.birthdate && styles.placeholderText]}>
-              {formData.birthdate || 'Select birthdate'}
-            </Text>
-          </TouchableOpacity>
+              <Text style={styles.label}>Birthdate</Text>
+              <TouchableOpacity
+                style={[styles.field, styles.dateField, showDatePicker && styles.fieldActive]}
+                onPress={() => {
+                  setTempBirthdate(
+                    formData.birthdate ? new Date(formData.birthdate) : null
+                  );
+                  setShowDatePicker(true);
+                }}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.dateText, !formData.birthdate && styles.placeholderText]}>
+                  {formData.birthdate || 'Select birthdate'}
+                </Text>
+              </TouchableOpacity>
 
-          {showDatePicker && (
-            <View style={styles.modalCard}>
-              <Text style={styles.modalTitle}>Select Birthdate</Text>
-              <View style={styles.calendarWrapper}>
-                <CalendarPicker
-                  onDateChange={(date) => setTempBirthdate(date)}
-                  selectedStartDate={tempBirthdate}
-                  initialDate={tempBirthdate}
-                  maxDate={new Date(defaultBirthdate)}
-                  width={SCREEN_WIDTH - 80}
-                  minimumDate={new Date(
-                    new Date().setFullYear(new Date().getFullYear() - 100)
-                  )}
-                  todayBackgroundColor="#E9D8FD"
-                  selectedDayColor="#6B46C1"
-                  selectedDayTextColor="#fff"
-                  textStyle={{
-                    color: '#111',
-                    fontSize: 14,
-                  }}
-                  dayLabelsWrapper={styles.dayLabelsWrapper}
-                  style={{
-                    borderRadius: 8,
-                    overflow: 'hidden',
-                  }}
-                />
-              </View>
+              {showDatePicker && (
+                <View style={styles.modalCard}>
+                  <Text style={styles.modalTitle}>Select Birthdate</Text>
+                  <View style={styles.calendarWrapper}>
+                    <CalendarPicker
+                      onDateChange={(date) => setTempBirthdate(date)}
+                      selectedStartDate={tempBirthdate}
+                      initialDate={tempBirthdate}
+                      maxDate={new Date(defaultBirthdate)}
+                      width={SCREEN_WIDTH - 80}
+                      minimumDate={new Date(
+                        new Date().setFullYear(new Date().getFullYear() - 100)
+                      )}
+                      todayBackgroundColor="#E9D8FD"
+                      selectedDayColor="#6B46C1"
+                      selectedDayTextColor="#fff"
+                      textStyle={{
+                        color: '#111',
+                        fontSize: 14,
+                      }}
+                      dayLabelsWrapper={styles.dayLabelsWrapper}
+                      style={{
+                        borderRadius: 8,
+                        overflow: 'hidden',
+                      }}
+                    />
+                  </View>
 
 
-              <View style={styles.modalActions}>
-                <TouchableOpacity
-                  style={styles.cancelButton}
-                  onPress={() => {
-                    setTempBirthdate(null);
-                    setShowDatePicker(false);
-                  }}
-                >
-                  <Text style={styles.cancelText}>Cancel</Text>
-                </TouchableOpacity>
+                  <View style={styles.modalActions}>
+                    <TouchableOpacity
+                      style={styles.cancelButton}
+                      onPress={() => {
+                        setTempBirthdate(null);
+                        setShowDatePicker(false);
+                      }}
+                    >
+                      <Text style={styles.cancelText}>Cancel</Text>
+                    </TouchableOpacity>
 
-                <TouchableOpacity
-                  style={styles.confirmButton}
-                  onPress={() => {
-                    if (tempBirthdate) {
-                      update(
-                        'birthdate', tempBirthdate.toISOString().split('T')[0]
-                      );
-                    }
-                    setShowDatePicker(false);
-                  }}
-                >
-                  <Text style={styles.confirmText}>Confirm</Text>
-                </TouchableOpacity>
-              </View>
+                    <TouchableOpacity
+                      style={styles.confirmButton}
+                      onPress={() => {
+                        if (tempBirthdate) {
+                          update(
+                            'birthdate', tempBirthdate.toISOString().split('T')[0]
+                          );
+                        }
+                        setShowDatePicker(false);
+                      }}
+                    >
+                      <Text style={styles.confirmText}>Confirm</Text>
+                    </TouchableOpacity>
+                  </View>
             </View>
           )}
 
@@ -506,6 +579,7 @@ const CompleteProfile = () => {
             editing={true}
             onDeleteImage={handleDeleteImage}
             onPlaceholderClick={handlePlaceholderClick}
+            layout={formData.imageLayout}
           />
 
           {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -589,12 +663,14 @@ const CompleteProfile = () => {
             onChange={(v) => update("preferredGenders", v)}
           />
 
-          <Text style={styles.label}>Match Radius ({formData.matchRadius} mi)</Text>
+          <Text style={styles.label}>
+            Match Radius ({formData.matchRadius} {radiusUnit})
+          </Text>
           <View style={{ alignItems: 'center', marginTop: 10 }}>
             <MultiSlider
               values={[formData.matchRadius]}
               min={1}
-              max={500}
+              max={radiusMax}
               step={1}
               sliderLength={280}
               onValuesChange={(values) => {
@@ -639,6 +715,30 @@ const CompleteProfile = () => {
 
 export default CompleteProfile;
 
+const themeStyles = {
+  pixelCloud: {
+    backgroundColor: '#87CEEB',
+  },
+  pixelFlower: {
+    backgroundColor: '#F2F6FF',
+  },
+  pixelCactus: {
+    backgroundColor: '#FFEBF3',
+  },
+  minimal: {
+    backgroundColor: '#FFFFFF',
+  },
+  bold: {
+    backgroundColor: '#F5F3FF',
+  },
+  constitution: {
+    backgroundColor: '#FDF5D9',
+  },
+  classic: {
+    backgroundColor: '#FFFFFF',
+  },
+};
+
 const styles = StyleSheet.create({
   container: {
     padding: 20,
@@ -655,6 +755,20 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginBottom: 4,
     marginTop: 12,
+  },
+  stepContainer: {
+    position: 'relative',
+    borderRadius: 16,
+    overflow: 'hidden', // VERY important
+    padding: 16,
+  },
+  themeLayer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 0,
+  },
+  contentLayer: {
+    position: 'relative',
+    zIndex: 1,
   },
   field: {
     borderWidth: 1,

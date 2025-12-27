@@ -1,111 +1,240 @@
-import React from 'react';
-import { View, StyleSheet, TouchableOpacity } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
+import React, { useState } from 'react';
+import {
+  View,
+  StyleSheet,
+  TouchableOpacity,
+  Text,
+  Modal,
+  Pressable,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-export const editToolbar = ({ formData, handleInputChange, editing }) => {
+const Dropdown = ({ icon, value, options, onSelect }) => {
+  const [visible, setVisible] = useState(false);
+
+  return (
+    <>
+      <TouchableOpacity
+        style={styles.dropdownTrigger}
+        onPress={() => setVisible(true)}
+      >
+        <Ionicons name={icon} size={16} color="#6B46C1" />
+        <Text style={styles.dropdownText} numberOfLines={1}>
+          {value}
+        </Text>
+        <Ionicons name="chevron-down" size={14} color="#6B7280" />
+      </TouchableOpacity>
+
+      <Modal transparent animationType="fade" visible={visible}>
+        <Pressable
+          style={styles.backdrop}
+          onPress={() => setVisible(false)}
+        />
+
+        <View style={styles.dropdownMenu}>
+          {options.map((opt) => (
+            <TouchableOpacity
+              key={opt.value}
+              style={styles.dropdownItem}
+              onPress={() => {
+                onSelect(opt.value);
+                setVisible(false);
+              }}
+            >
+              <Text style={styles.dropdownItemText}>{opt.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </Modal>
+    </>
+  );
+};
+
+export const EditToolbar = ({ formData, handleInputChange, editing }) => {
   if (!editing) return null;
 
-  const handleInputChangeWrapper = (name, value) => {
+  const update = (name, value) => {
     handleInputChange({ target: { name, value } });
   };
 
   return (
-    <View style={styles.editToolbar}>
-      <View style={styles.toolbarItem}>
-        <Picker
-          selectedValue={formData.fontFamily}
-          onValueChange={(value) => handleInputChangeWrapper('fontFamily', value)}
-          style={styles.toolbarSelect}
-        >
-          <Picker.Item label="Arial" value="Arial" />
-          <Picker.Item label="Times New Roman" value="Times New Roman" />
-          <Picker.Item label="Courier New" value="Courier New" />
-          <Picker.Item label="Georgia" value="Georgia" />
-          <Picker.Item label="Verdana" value="Verdana" />
-          <Picker.Item label="Tahoma" value="Tahoma" />
-          <Picker.Item label="Trebuchet MS" value="Trebuchet MS" />
-        </Picker>
-      </View>
+    <View style={styles.container}>
+      <Text style={styles.sectionLabel}>Profile Customization</Text>
 
-      <View style={styles.toolbarItem}>
-        <Picker
-          selectedValue={formData.profileStyle}
-          onValueChange={(value) => handleInputChangeWrapper('profileStyle', value)}
-          style={styles.toolbarSelect}
-        >
-          <Picker.Item label="Classic Card" value="classic" />
-          <Picker.Item label="Minimalist" value="minimal" />
-          <Picker.Item label="Bold Header" value="bold" />
-          <Picker.Item label="Framed" value="framed" />
-          <Picker.Item label="Pixel Theme" value="pixel" />
-          <Picker.Item label="Constitution Theme" value="constitution" />
-        </Picker>
-      </View>
+      <View style={styles.toolbarGrid}>
+        {/* FONT */}
+        <View style={styles.toolbarItem}>
+          <Text style={styles.miniLabel}>Font</Text>
+          <Dropdown
+            icon="text"
+            value={formData.fontFamily}
+            options={[
+              { label: 'Arial', value: 'Arial' },
+              { label: 'Times', value: 'Times New Roman' },
+              { label: 'Courier', value: 'Courier New' },
+              { label: 'Georgia', value: 'Georgia' },
+              { label: 'Verdana', value: 'Verdana' },
+            ]}
+            onSelect={(v) => update('fontFamily', v)}
+          />
+        </View>
 
-      <View style={[styles.toolbarItem, styles.layoutToggle]}>
-        <TouchableOpacity
-          style={[
-            styles.layoutBtn,
-            formData.imageLayout === 'grid' && styles.layoutBtnActive
-          ]}
-          onPress={() => handleInputChangeWrapper('imageLayout', 'grid')}
-        >
-          <Ionicons
-            name="grid-outline"
-            size={20}
-            color={formData.imageLayout === 'grid' ? '#6B46C1' : '#999'}
+        {/* THEME */}
+        <View style={styles.toolbarItem}>
+          <Text style={styles.miniLabel}>Theme</Text>
+          <Dropdown
+            icon="color-palette"
+            value={formData.profileStyle}
+            options={[
+              { label: 'Classic', value: 'classic' },
+              { label: 'PixelCloud', value: 'pixelCloud' },
+              { label: 'PixelFlower', value: 'pixelFlower' },
+              { label: 'PixelCactus', value: 'pixelCactus' },
+            ]}
+            onSelect={(v) => update('profileStyle', v)}
           />
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[
-            styles.layoutBtn,
-            formData.imageLayout === 'vertical' && styles.layoutBtnActive
-          ]}
-          onPress={() => handleInputChangeWrapper('imageLayout', 'vertical')}
-        >
-          <Ionicons
-            name="list-outline"
-            size={20}
-            color={formData.imageLayout === 'vertical' ? '#6B46C1' : '#999'}
-          />
-        </TouchableOpacity>
+        </View>
+
+        {/* LAYOUT */}
+        <View style={[styles.toolbarItem, styles.layoutFull]}>
+          <Text style={styles.miniLabel}>Layout</Text>
+          <View style={styles.layoutToggle}>
+            <TouchableOpacity
+              style={[
+                styles.layoutBtn,
+                formData.imageLayout === 'grid' && styles.layoutBtnActive,
+              ]}
+              onPress={() => update('imageLayout', 'grid')}
+            >
+              <Ionicons
+                name="grid"
+                size={18}
+                color={formData.imageLayout === 'grid' ? '#FFF' : '#6B46C1'}
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.layoutBtn,
+                formData.imageLayout === 'vertical' && styles.layoutBtnActive,
+              ]}
+              onPress={() => update('imageLayout', 'vertical')}
+            >
+              <Ionicons
+                name="reorder-four"
+                size={18}
+                color={formData.imageLayout === 'vertical' ? '#FFF' : '#6B46C1'}
+              />
+            </TouchableOpacity>
+          </View>
+        </View>
       </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  editToolbar: {
+  container: {
+    backgroundColor: '#ebe7fb',
+    borderBottomWidth: 1,
+    borderBottomColor: '#EEE',
+    paddingBottom: 12,
+    opacity: 0.85,
+    borderRadius: 20,
+  },
+  sectionLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#9CA3AF',
+    textTransform: 'uppercase',
+    paddingHorizontal: 16,
+    marginBottom: 8,
+    letterSpacing: 0.5,
+  },
+
+  toolbarGrid: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 16,
     gap: 12,
-    marginBottom: 16,
-    padding: 12,
-    backgroundColor: '#f6f4fc',
-    borderRadius: 8,
   },
+
   toolbarItem: {
+    width: '48%',
+  },
+
+  layoutFull: {
+    width: '100%',
+  },
+
+  miniLabel: {
+    fontSize: 10,
+    color: '#6B7280',
+    marginBottom: 4,
+    fontWeight: '600',
+  },
+
+  dropdownTrigger: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F3F4F6',
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    height: 36,
+    gap: 6,
+  },
+
+  dropdownText: {
     flex: 1,
+    fontSize: 13,
+    color: '#374151',
   },
-  toolbarSelect: {
-    height: 40,
-    backgroundColor: '#fff',
-    borderRadius: 8,
+
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.2)',
   },
+
+  dropdownMenu: {
+    position: 'absolute',
+    top: '40%',
+    left: '10%',
+    right: '10%',
+    backgroundColor: '#FFF',
+    borderRadius: 12,
+    paddingVertical: 6,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+
+  dropdownItem: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+
+  dropdownItemText: {
+    fontSize: 15,
+    color: '#111827',
+  },
+
   layoutToggle: {
     flexDirection: 'row',
-    gap: 8,
-    flex: 0,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 10,
+    padding: 4,
+    height: 36,
   },
+
   layoutBtn: {
-    padding: 8,
+    paddingHorizontal: 14,
     borderRadius: 8,
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#e0e6ef',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
+
   layoutBtnActive: {
-    borderColor: '#6B46C1',
-    backgroundColor: '#f6f4fc',
+    backgroundColor: '#6B46C1',
   },
 });

@@ -153,6 +153,38 @@ const Preferences = () => {
           )}
         </View>
 
+        <Text style={styles.label}>
+           Preferred Age Range ({formData.preferredAgeMin}–{formData.preferredAgeMax})
+        </Text>
+
+        <View style={{ alignItems: 'center', marginTop: 10 }}>
+          <MultiSlider
+            values={[
+              Number(formData.preferredAgeMin) || 18,
+              Number(formData.preferredAgeMax) || 60,
+            ]}
+            min={18}
+            max={100}
+            step={1}
+            sliderLength={280}
+            onValuesChange={(values) => {
+              update('preferredAgeMin', values[0].toString());
+              update('preferredAgeMax', values[1].toString());
+            }}
+            selectedStyle={{ backgroundColor: '#6B46C1' }}
+            unselectedStyle={{ backgroundColor: '#E5E7EB' }}
+            markerStyle={{
+              backgroundColor: '#6B46C1',
+              height: 22,
+              width: 22,
+              borderRadius: 11,
+              borderWidth: 0,
+            }}
+            trackStyle={{ height: 6, borderRadius: 3 }}
+            containerStyle={{ height: 40 }}
+          />
+        </View>
+{/*
         <FormField
           label="Preferred Age"
           editing={editing}
@@ -182,6 +214,7 @@ const Preferences = () => {
             ) : null
           }
         />
+*/}
 
         <FormField
           label="Preferred Gender(s)"

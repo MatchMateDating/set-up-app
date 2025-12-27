@@ -5,12 +5,12 @@ import { Ionicons } from '@expo/vector-icons';
 
 const ImageGallery = ({ images = [], editing, onDeleteImage, onPlaceholderClick, layout = 'grid' }) => {
   const maxImages = 9;
-  const placeholdersNeeded = Math.max(0, maxImages - images.length);
+//  const placeholdersNeeded = Math.max(0, maxImages - images.length);
 
   return (
     <View style={[styles.imageGallery, layout === 'grid' ? styles.gridLayout : styles.verticalLayout]}>
       {images.map((img, index) => (
-        <View key={img.id || index} style={styles.imageWrapper}>
+        <View key={img.id || index} style={layout === 'grid' ? styles.imageWrapper : styles.listWrapper}>
           <Image
             source={{ uri: `${API_BASE_URL}${img.image_url}` }}
             style={layout === 'grid' ? styles.gridImage : styles.fullImage}
@@ -27,16 +27,18 @@ const ImageGallery = ({ images = [], editing, onDeleteImage, onPlaceholderClick,
         </View>
       ))}
 
-      {editing &&
-        Array.from({ length: placeholdersNeeded }).map((_, index) => (
-          <TouchableOpacity
-            key={`placeholder-${index}`}
-            style={styles.imagePlaceholder}
-            onPress={onPlaceholderClick}
-          >
-            <Ionicons name="add" size={32} color="#bbb" />
-          </TouchableOpacity>
-        ))}
+      {editing && images.length < maxImages && (
+        <TouchableOpacity
+          style={
+            layout === 'grid'
+              ? styles.imagePlaceholder
+              : styles.listPlaceholder
+          }
+          onPress={onPlaceholderClick}
+        >
+          <Ionicons name="add" size={32} color="#bbb" />
+        </TouchableOpacity>
+      )}
     </View>
   );
 };
@@ -44,6 +46,19 @@ const ImageGallery = ({ images = [], editing, onDeleteImage, onPlaceholderClick,
 const styles = StyleSheet.create({
   imageGallery: {
     marginTop: 12,
+  },
+  listPlaceholder: {
+    width: '100%',
+    maxWidth: 250,
+    height: 200,
+    backgroundColor: '#fafafa',
+    borderWidth: 2,
+    borderColor: '#bbb',
+    borderStyle: 'dashed',
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    alignSelf: 'center',
   },
   gridLayout: {
     flexDirection: 'row',
@@ -58,6 +73,12 @@ const styles = StyleSheet.create({
     position: 'relative',
     width: '31%',
     aspectRatio: 1,
+  },
+  listWrapper: {
+    width: '100%',
+    maxWidth: 250,
+    height: 200,
+    alignSelf: 'center',
   },
   gridImage: {
     width: '100%',

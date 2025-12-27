@@ -45,7 +45,8 @@ def get_user_basic_profile(current_user, user_id):
         "last_name": user.last_name,
         "birthdate": user.birthdate,
         "role": user.role,
-        "user": user_data
+        "user": user_data,
+        "unit": user.unit,
     }), 200
 
 @profile_bp.route('/update', methods=['PUT'])
@@ -62,7 +63,7 @@ def update_profile(current_user):
                 'first_name', 'last_name', 'bio', 'birthdate', 'gender',
                 'height', 'preferredAgeMin', 'preferredAgeMax',
                 'preferredGenders', 'fontFamily', 'profileStyle',
-                'imageLayout', 'match_radius'
+                'imageLayout', 'match_radius', 'unit'
             ]
         else:
             return jsonify({'error': 'You are not allowed to update this profile'}), 403

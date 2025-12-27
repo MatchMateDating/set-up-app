@@ -31,7 +31,9 @@ const LoginScreen = () => {
         await AsyncStorage.setItem('user', JSON.stringify(res.data.user));
       }
       Alert.alert('Success', 'Login successful!');
-      navigation.navigate('Main');
+      navigation.navigate('Main', {
+              screen: 'Matches',
+            });
     } catch (err) {
       console.log(err)
       Alert.alert('Error', err.response?.data?.msg || 'Login failed');

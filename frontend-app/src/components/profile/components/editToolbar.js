@@ -44,7 +44,7 @@ export const editToolbar = ({ formData, handleInputChange }) => {
           <option value="minimal">Minimalist</option>
           <option value="bold">Bold Header</option>
           <option value="framed">Framed</option>
-          <option value="pixel">Pixel Theme</option>
+          <option value="pixelClouds">Pixel Clouds</option>
           <option value="constitution">Constitution Theme</option>
         </select>
       </div>

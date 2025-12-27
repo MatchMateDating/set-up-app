@@ -12,7 +12,7 @@ import { Picker } from '@react-native-picker/picker';
 import CalendarPicker from 'react-native-calendar-picker';
 import ImageGallery from './images';
 import SelectGender from './components/selectGender';
-import { editToolbar } from './components/editToolbar';
+import { EditToolbar } from './components/editToolbar';
 
 // Get screen width for responsive sizing
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -69,21 +69,22 @@ const ProfileInfoCard = ({
         <>
           {editing ? (
             <>
-              {editToolbar({
-                formData,
-                handleInputChange: onInputChange,
-                editing
-              })}
+              <EditToolbar
+                formData={formData}
+                handleInputChange={onInputChange}
+                editing={editing}
+              />
+
               <Text style={styles.label}>First Name</Text>
               <TextInput
-                style={styles.input}
+                style={[styles.input, { fontFamily: formData.profileStyle === 'constitution' ? 'Pinyon Script' : formData.fontFamily }]}
                 value={formData.first_name}
                 onChangeText={(v) => update('first_name', v)}
               />
             </>
           ) : (
             <>
-              <Text style={styles.previewText}>
+              <Text style={[styles.previewText, { fontFamily: formData.profileStyle === 'constitution' ? 'Pinyon Script' : formData.fontFamily }]}>
                 {formData.first_name || '—'}
               </Text>
             </>
@@ -93,7 +94,7 @@ const ProfileInfoCard = ({
             <>
               <Text style={styles.label}>Last Name</Text>
               <TextInput
-                style={styles.input}
+                style={[styles.input, { fontFamily: formData.profileStyle === 'constitution' ? 'Pinyon Script' : formData.fontFamily }]}
                 value={formData.last_name}
                 onChangeText={(v) => update('last_name', v)}
               />
@@ -104,7 +105,7 @@ const ProfileInfoCard = ({
             <>
               <Text style={styles.label}>Birthdate</Text>
               <TouchableOpacity
-                style={[styles.field, styles.dateField]}
+                style={[styles.field, styles.dateField, { fontFamily: formData.profileStyle === 'constitution' ? 'Pinyon Script' : formData.fontFamily }]}
                 onPress={() => {
                   setTempBirthdate(
                     formData.birthdate ? new Date(formData.birthdate) : null
@@ -112,7 +113,7 @@ const ProfileInfoCard = ({
                   setShowDatePicker(true);
                 }}
               >
-                <Text style={styles.dateText}>
+                <Text style={[styles.dateText, { fontFamily: formData.profileStyle === 'constitution' ? 'Pinyon Script' : formData.fontFamily }]}>
                   {formData.birthdate || 'Select birthdate'}
                 </Text>
               </TouchableOpacity>
@@ -126,7 +127,7 @@ const ProfileInfoCard = ({
                       selectedStartDate={tempBirthdate}
                       initialDate={tempBirthdate}
                       maxDate={new Date(defaultBirthdate)}
-                      width={SCREEN_WIDTH - 64} // 2. Ensures calendar fits inside the padding of the card
+                      width={SCREEN_WIDTH - 80} // 2. Ensures calendar fits inside the padding of the card
                       restrictMonthNavigation={true}
                       selectedDayColor="#6B46C1"
                       selectedDayTextColor="#fff"
@@ -168,7 +169,7 @@ const ProfileInfoCard = ({
             </>
           ) : (
             <>
-              <Text style={styles.previewText}>
+              <Text style={[styles.previewText, { fontFamily: formData.profileStyle === 'constitution' ? 'Pinyon Script' : formData.fontFamily }]}>
                 {formData.birthdate
                   ? `${calculateAge(formData.birthdate)}`
                   : '—'}
@@ -186,7 +187,7 @@ const ProfileInfoCard = ({
             </>
           ) : (
             <>
-              <Text style={styles.previewText}>
+              <Text style={[styles.previewText, { fontFamily: formData.profileStyle === 'constitution' ? 'Pinyon Script' : formData.fontFamily }]}>
                 {formData.gender ? formData.gender : '—'}
               </Text>
             </>
@@ -263,7 +264,7 @@ const ProfileInfoCard = ({
             </>
           ) : (
             <>
-              <Text style={styles.previewText}>
+              <Text style={[styles.previewText, { fontFamily: formData.profileStyle === 'constitution' ? 'Pinyon Script' : formData.fontFamily }]}>
                 {formatHeight()}
               </Text>
             </>
@@ -275,6 +276,7 @@ const ProfileInfoCard = ({
             editing={editing}
             onDeleteImage={onDeleteImage}
             onPlaceholderClick={onPlaceholderClick}
+            layout={formData.imageLayout}
           />
 
           {editing && (

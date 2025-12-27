@@ -6,6 +6,9 @@ import * as ImagePicker from 'expo-image-picker';
 import { API_BASE_URL } from '@env';
 import { calculateAge, convertFtInToMetersCm, convertMetersCmToFtIn, formatHeight } from './utils/profileUtils';
 import ProfileInfoCard from './profileInfoCard';
+import PixelClouds from './components/PixelClouds';
+import PixelFlowers from './components/PixelFlowers';
+import PixelCactus from './components/PixelCactus';
 import { Ionicons } from '@expo/vector-icons';
 
 const Profile = ({ user, framed, editing, setEditing, onSave }) => {
@@ -191,7 +194,8 @@ const Profile = ({ user, framed, editing, setEditing, onSave }) => {
         preferredGenders: formData.preferredGenders,
         fontFamily: formData.fontFamily,
         profileStyle: formData.profileStyle,
-        imageLayout: formData.imageLayout
+        imageLayout: formData.imageLayout,
+        unit: heightUnit === 'ft' ? 'imperial' : 'metric',
       };
 
       const res = await fetch(`${API_BASE_URL}/profile/update`, {
@@ -265,12 +269,15 @@ const Profile = ({ user, framed, editing, setEditing, onSave }) => {
   if (!user) return null;
 
   return (
-    <ScrollView style={[styles.container, framed && styles.framed]}>
+    <ScrollView style={[styles.container, framed && styles.framed, formData.profileStyle === 'pixelCloud' && styles.pixelCloud, formData.profileStyle === 'pixelFlower' && styles.pixelFlower, formData.profileStyle === 'minimal' && styles.minimal, formData.profileStyle === 'bold' && styles.bold, formData.profileStyle === 'classic' && styles.classic]}>
+      {formData.profileStyle === 'pixelCloud' && <PixelClouds />}
+      {formData.profileStyle === 'pixelFlower' && <PixelFlowers />}
+      {formData.profileStyle === 'pixelCactus' && <PixelCactus />}
       {user.role === 'user' && (
         <View style={styles.profileHeader}>
           <View style={styles.nameSection}>
             {!editing && (
-              <Text style={styles.name}>{user.first_name}</Text>
+              <Text style={[styles.name, { fontFamily: formData.fontFamily }]}>{user.first_name}</Text>
             )}
           </View>
           {!framed && !editing && (
@@ -284,25 +291,27 @@ const Profile = ({ user, framed, editing, setEditing, onSave }) => {
       )}
 
       {user.role === 'user' && (
-        <ProfileInfoCard
-          user={user}
-          formData={formData}
-          editing={editing}
-          heightUnit={heightUnit}
-          onInputChange={handleInputChange}
-          onUnitToggle={handleUnitToggle}
-          onSubmit={handleFormSubmit}
-          onCancel={handleCancel}
-          calculateAge={calculateAge}
-          images={images}
-          onDeleteImage={handleDeleteImage}
-          onPlaceholderClick={handlePlaceholderClick}
-          profileStyle={formData.profileStyle}
-        />
+          <ProfileInfoCard
+            user={user}
+            formData={formData}
+            editing={editing}
+            heightUnit={heightUnit}
+            onInputChange={handleInputChange}
+            onUnitToggle={handleUnitToggle}
+            onSubmit={handleFormSubmit}
+            onCancel={handleCancel}
+            calculateAge={calculateAge}
+            images={images}
+            onDeleteImage={handleDeleteImage}
+            onPlaceholderClick={handlePlaceholderClick}
+            profileStyle={formData.profileStyle}
+          />
       )}
     </ScrollView>
   );
 };
+
+export default Profile;
 
 const styles = StyleSheet.create({
   container: {
@@ -310,6 +319,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
     padding: 16,
     borderRadius: 8,
+  },
+  card: {
+    padding: 16,
+    backgroundColor: 'transparent',
   },
   framed: {
     borderWidth: 2,
@@ -335,6 +348,29 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
   },
+  /* Theme styles */
+  pixelCloud: {
+    backgroundColor: '#87CEEB',
+  },
+  pixelFlower: {
+    backgroundColor: '#F2F6FF',
+  },
+  pixelCactus: {
+    backgroundColor: '#FFEBF3',
+  },
+  minimal: {
+    backgroundColor: '#FFFFFF',
+  },
+  bold: {
+    backgroundColor: '#F5F3FF',
+  },
+  constitution: {
+    backgroundColor: '#FDF5D9',
+    // subtle frame to mimic papyrus
+    borderWidth: 1,
+    borderColor: '#eed8a8',
+  },
+  classic: {
+    backgroundColor: '#FFFFFF',
+  },
 });
-
-export default Profile;

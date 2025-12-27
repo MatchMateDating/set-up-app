@@ -380,7 +380,7 @@ const CompleteProfile = () => {
                   font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
                 }
               `}</style>
-              {formData.profileStyle === "pixel" && <PixelClouds />}
+              {formData.profileStyle === "pixelClouds" && <PixelClouds />}
 
               <input type="file" accept="image/*" ref={fileInputRef} style={{ display: 'none' }} onChange={handleFileChange} />
               {previewUrl && (
@@ -440,7 +440,7 @@ const CompleteProfile = () => {
                   font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
                 }
               `}</style>
-              {formData.profileStyle === "pixel" && <PixelClouds />}
+              {formData.profileStyle === "pixelClouds" && <PixelClouds />}
 
               <div className="profile-header">
                 <div className="name-section">
