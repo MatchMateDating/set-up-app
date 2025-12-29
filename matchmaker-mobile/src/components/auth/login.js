@@ -1,5 +1,15 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import React, { useState, useRef } from 'react';
+import {
+    View,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    StyleSheet,
+    Alert,
+    KeyboardAvoidingView,
+    Platform,
+    TouchableWithoutFeedback,
+    Keyboard,} from 'react-native';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
@@ -9,6 +19,8 @@ const LoginScreen = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const navigation = useNavigation();
+  const emailRef = useRef(null);
+  const passwordRef = useRef(null);
 
   const handleLogin = async () => {
     try {
@@ -19,7 +31,9 @@ const LoginScreen = () => {
         await AsyncStorage.setItem('user', JSON.stringify(res.data.user));
       }
       Alert.alert('Success', 'Login successful!');
-      navigation.navigate('Main');
+      navigation.navigate('Main', {
+              screen: 'Matches',
+            });
     } catch (err) {
       console.log(err)
       Alert.alert('Error', err.response?.data?.msg || 'Login failed');
@@ -31,90 +45,107 @@ const LoginScreen = () => {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Login</Text>
+    <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <View style={styles.container}>
+          <Text style={styles.title}>Login</Text>
 
-      <TextInput
-        style={styles.input}
-        placeholder="Email"
-        value={email}
-        onChangeText={setEmail}
-        keyboardType="email-address"
-        autoCapitalize="none"
-      />
-      <TextInput
-        style={styles.input}
-        placeholder="Password"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-      />
+          <TextInput
+            ref={emailRef}
+            style={styles.input}
+            placeholder="Email"
+            value={email}
+            onChangeText={setEmail}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            returnKeyType="next"
+            onSubmitEditing={() => passwordRef.current?.focus()}
+          />
+          <TextInput
+            ref={passwordRef}
+            style={styles.input}
+            placeholder="Password"
+            value={password}
+            onChangeText={setPassword}
+            returnKeyType="done"
+            onSubmitEditing={handleLogin}
+            secureTextEntry
+          />
 
-      <TouchableOpacity style={styles.button} onPress={handleLogin}>
-        <Text style={styles.buttonText}>Login</Text>
-      </TouchableOpacity>
+          <TouchableOpacity style={styles.button} onPress={handleLogin}>
+            <Text style={styles.buttonText}>Login</Text>
+          </TouchableOpacity>
 
-      <Text style={styles.signupText}>Don't have an account?</Text>
-      <TouchableOpacity onPress={goToSignUp}>
-        <Text style={styles.signupButton}>Sign Up</Text>
-      </TouchableOpacity>
-    </View>
+          <Text style={styles.signupText}>Don't have an account?</Text>
+          <TouchableOpacity onPress={goToSignUp}>
+            <Text style={styles.signupButton}>Sign Up</Text>
+          </TouchableOpacity>
+        </View>
+      </TouchableWithoutFeedback>
+    </KeyboardAvoidingView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    maxWidth: 300,
-    marginHorizontal: 'auto',
+    width: '90%',
+    maxWidth: 400,
     marginTop: 100,
-    padding: 20,
-    borderWidth: 1,
+    padding: 24,
     borderColor: '#ddd',
-    borderRadius: 8,
+    borderRadius: 12,
     alignSelf: 'center',
     backgroundColor: '#fff',
     shadowColor: '#000',
     shadowOpacity: 0.1,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 3, // Android shadow
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4, // Android shadow
   },
   title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 20,
+    fontSize: 26,
+    fontWeight: '700',
+    marginBottom: 24,
     textAlign: 'center',
   },
   input: {
-    // width: '100%',
-    marginVertical: 8,
-    padding: 10,
+    width: '100%',
+    marginVertical: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
     borderWidth: 1,
     borderColor: '#ddd',
-    borderRadius: 4,
-    boxSizing: 'border-box',
+    borderRadius: 8,
+    fontSize: 16,
   },
   button: {
     width: '100%',
-    marginVertical: 8,
-    padding: 10,
+    marginTop: 16,
+    paddingVertical: 14,
     backgroundColor: '#6B46C1',
-    borderRadius: 4,
+    borderRadius: 8,
     alignItems: 'center',
   },
   buttonText: {
-    color: 'white',
-    fontWeight: 'bold',
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
   signupText: {
     textAlign: 'center',
-    marginTop: 20,
+    marginTop: 24,
+    fontSize: 14,
+    color: '#555',
   },
   signupButton: {
     textAlign: 'center',
     color: '#6B46C1',
-    fontWeight: 'bold',
-    marginTop: 5,
+    fontWeight: '600',
+    marginTop: 6,
+    fontSize: 15,
   },
 });
 

@@ -291,7 +291,7 @@ const Profile = ({ user, framed, editing, setEditing, onSave, editable }) => {
           font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
         }
       `}</style>
-      {formData.profileStyle === "pixel" && <PixelClouds />}
+      {formData.profileStyle === "pixelClouds" && <PixelClouds />}
       <input type="file" accept="image/*" ref={fileInputRef} style={{ display: 'none' }} onChange={handleFileChange} />
       {previewUrl && (
         <CropperModal

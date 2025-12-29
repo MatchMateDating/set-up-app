@@ -26,6 +26,7 @@ class User(db.Model):
     latitude = db.Column(db.Float, nullable=True)
     longitude = db.Column(db.Float, nullable=True)
     match_radius = db.Column(db.Integer, nullable=True, default=50)
+    unit = db.Column(db.String(20), nullable=False, default='Imperial')
 
     referred_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
 
@@ -96,6 +97,7 @@ class User(db.Model):
             "latitude": self.latitude,
             "longitude": self.longitude,
             "match_radius": self.match_radius,
+            "unit": self.unit,
         }
 
 class ReferredUsers(db.Model):
@@ -129,7 +131,8 @@ class ReferredUsers(db.Model):
                         "id": user.id,
                         "name": f"{user.first_name or ''}".strip(),
                         "referral_code": user.referral_code,
-                        "first_image": user.images[0].image_url if user.images else None
+                        "first_image": user.images[0].image_url if user.images else None,
+                        "unit": user.unit,
                     })
         return {
             "matchmaker_id": self.matchmaker_id,

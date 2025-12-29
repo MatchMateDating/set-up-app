@@ -34,4 +34,5 @@ export const formatHeight = (formData, heightUnit) => {
     return `${formData.heightFeet}'${formData.heightInches}"`;
   }
   return `${formData.heightMeters}m ${formData.heightCentimeters}cm`;
-}; 
+};
+

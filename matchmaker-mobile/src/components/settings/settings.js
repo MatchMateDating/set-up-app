@@ -17,6 +17,7 @@ import { useNavigation } from '@react-navigation/native';
 import { API_BASE_URL, SIGNUP_URL } from '@env';
 import FormField from '../profile/components/formField';
 import MultiSelectGender from '../profile/components/multiSelectGender';
+import MultiSlider from '@ptomasroos/react-native-multi-slider';
 
 const Settings = () => {
   const [referralCode, setReferralCode] = useState('');
@@ -28,14 +29,18 @@ const Settings = () => {
   const [editing, setEditing] = useState(false);
   const navigation = useNavigation();
   const [user, setUser] = useState(null);
+  const radiusUnit = user?.unit === 'ft' ? 'mi' : 'km';
+  const radiusMax = radiusUnit === 'km' ? 800 : 500;
   const [formData, setFormData] = useState({
     preferredAgeMin: '0',
     preferredAgeMax: '0',
     preferredGenders: [],
+    matchRadius: 50,
     fontFamily: 'Arial',
     profileStyle: 'classic',
     imageLayout: 'grid'
   });
+  const [originalFormData, setOriginalFormData] = useState(null);
 
   const fetchUserProfile = async () => {
     try {
@@ -101,6 +106,7 @@ const Settings = () => {
         preferredAgeMin: user.preferredAgeMin || '',
         preferredAgeMax: user.preferredAgeMax || '',
         preferredGenders: user.preferredGenders || [],
+        matchRadius: user.matchRadius ?? 50,
         fontFamily: user.fontFamily || 'Arial',
         profileStyle: user.profileStyle || 'classic',
         imageLayout: user.imageLayout || 'grid'
@@ -108,6 +114,27 @@ const Settings = () => {
       setFormData(baseFormData);
     }
   }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    setFormData(prev => {
+      let newRadius = prev.matchRadius;
+
+      if (user.unit === 'ft') {
+        // km → mi
+        newRadius = Math.round(prev.matchRadius * 0.621371);
+      } else {
+        // mi → km
+        newRadius = Math.round(prev.matchRadius / 0.621371);
+      }
+
+      return {
+        ...prev,
+        matchRadius: Math.min(newRadius, radiusMax),
+      };
+    });
+  }, [user?.unit]);
 
   const handleToggleCode = () => setShowCode((prev) => !prev);
 
@@ -249,9 +276,10 @@ const Settings = () => {
       }
 
       const payload = {
-        preferredAgeMin: formData.preferredAgeMin,
-        preferredAgeMax: formData.preferredAgeMax,
+        preferredAgeMin: Number(formData.preferredAgeMin),
+        preferredAgeMax: Number(formData.preferredAgeMax),
         preferredGenders: formData.preferredGenders,
+        matchRadius: Number(formData.matchRadius),
         fontFamily: formData.fontFamily,
         profileStyle: formData.profileStyle
       };
@@ -287,6 +315,9 @@ const Settings = () => {
   };
 
   const handleCancel = () => {
+    if (originalFormData) {
+        setFormData(originalFormData);
+    }
     setEditing(false);
   };
 
@@ -410,44 +441,60 @@ const Settings = () => {
               <Text style={styles.cardHeader}>Dating Preferences</Text>
               {!editing && (
                 <View style={styles.profileActions}>
-                  <TouchableOpacity onPress={() => setEditing(true)}>
+                  <TouchableOpacity onPress={() => {
+                                            setOriginalFormData({ ...formData });
+                                            setEditing(true);
+                                            }}
+                  >
                     <Ionicons name="create-outline" size={24} color="#6B46C1" />
                   </TouchableOpacity>
                 </View>
               )}
             </View>
-            <View style={styles.preferencesCard}>
-              <FormField
-                label="Preferred Age"
-                editing={editing}
-                value={
-                  (formData.preferredAgeMin && formData.preferredAgeMax) ?
-                  `${formData.preferredAgeMin ?? ''} - ${formData.preferredAgeMax ?? ''}` 
-                  : ""
-                }
-                input={
-                  editing ? (
-                    <View style={styles.ageInputContainer}>
-                    <TextInput
-                      style={[styles.input, styles.ageInput]}
-                      value={formData.preferredAgeMin?.toString() ?? ''}
-                      onChangeText={(value) => handleInputChangeWrapper('preferredAgeMin', value)}
-                      placeholder="Min"
-                      keyboardType="numeric"
-                    />
-                    <TextInput
-                      style={[styles.input, styles.ageInput]}
-                      value={formData.preferredAgeMax?.toString() ?? ''}
-                      onChangeText={(value) => handleInputChangeWrapper('preferredAgeMax', value)}
-                      placeholder="Max"
-                      keyboardType="numeric"
-                    />
+            <FormField
+              label={editing
+               ? `Preferred Age (${formData.preferredAgeMin}–${formData.preferredAgeMax})`
+               : 'Preferred Age'}
+              editing={editing}
+              value={
+                formData.preferredAgeMin || formData.preferredAgeMax
+                  ? `${formData.preferredAgeMin || ''} - ${formData.preferredAgeMax || ''}`
+                  : ''
+              }
+              input={
+                editing ? (
+                  <View style={{ alignItems: 'center', marginTop: 10 }}>
+                      <MultiSlider
+                        values={[
+                          Number(formData.preferredAgeMin) || 18,
+                          Number(formData.preferredAgeMax) || 60,
+                        ]}
+                        min={18}
+                        max={100}
+                        step={1}
+                        sliderLength={280}
+                        onValuesChange={(values) => {
+                          handleInputChangeWrapper('preferredAgeMin', values[0].toString());
+                          handleInputChangeWrapper('preferredAgeMax', values[1].toString());
+                        }}
+                        selectedStyle={{ backgroundColor: '#6B46C1' }}
+                        unselectedStyle={{ backgroundColor: '#E5E7EB' }}
+                        markerStyle={{
+                          backgroundColor: '#6B46C1',
+                          height: 22,
+                          width: 22,
+                          borderRadius: 11,
+                          borderWidth: 0,
+                        }}
+                        trackStyle={{ height: 6, borderRadius: 3 }}
+                        containerStyle={{ height: 40 }}
+                      />
                   </View>
-                  ) : null
-                }
-              />
+                ) : null
+              }
+            />
 
-              <FormField
+            <FormField
                 label="Preferred Gender(s)"
                 editing={editing}
                 value={(formData.preferredGenders || []).join(', ')}
@@ -459,9 +506,49 @@ const Settings = () => {
                     />
                   ) : null
                 }
-              />
+            />
 
-              {editing && (
+            <FormField
+              label={
+                editing ? `Match Radius (${formData.matchRadius} ${radiusUnit})`
+                    : `Match Radius (${radiusUnit})`
+              }
+              editing={editing}
+              value={
+                formData.matchRadius
+              }
+              input={
+                editing ? (
+                  <View style={{ alignItems: 'center', marginTop: 10 }}>
+                      <MultiSlider
+                        values={[formData.matchRadius]}
+                        min={1}
+                        max={radiusMax}
+                        step={1}
+                        sliderLength={280}
+                        onValuesChange={(values) => {
+                          handleInputChangeWrapper('matchRadius', values[0]);
+                        }}
+                        selectedStyle={{ backgroundColor: '#6B46C1' }}
+                        unselectedStyle={{ backgroundColor: '#E5E7EB' }}
+                        markerStyle={{
+                          backgroundColor: '#6B46C1',
+                          height: 22,
+                          width: 22,
+                          borderRadius: 11,
+                        }}
+                        trackStyle={{ height: 6, borderRadius: 3 }}
+                        containerStyle={{ height: 40 }}
+                        enableLabel={false}
+                        allowOverlap={false}
+                        snapped
+                      />
+                  </View>
+                ) : null
+              }
+            />
+
+            {editing && (
                 <View style={styles.formActions}>
                   <TouchableOpacity style={styles.saveBtn} onPress={handleFormSubmit}>
                     <Text style={styles.saveBtnText}>Save</Text>
@@ -470,8 +557,7 @@ const Settings = () => {
                     <Text style={styles.cancelBtnText}>Cancel</Text>
                   </TouchableOpacity>
                 </View>
-              )}
-            </View>
+            )}
           </View>
         )}
 

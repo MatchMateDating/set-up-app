@@ -7,6 +7,9 @@ from app.models.imageDB import Image
 from flask import current_app
 from uuid import uuid4
 from app.routes.shared import token_required, calculate_age
+from sqlalchemy.exc import SQLAlchemyError
+from datetime import datetime
+
 
 profile_bp = Blueprint('profile', __name__)
 
@@ -42,35 +45,73 @@ def get_user_basic_profile(current_user, user_id):
         "last_name": user.last_name,
         "birthdate": user.birthdate,
         "role": user.role,
-        "user": user_data
+        "user": user_data,
+        "unit": user.unit,
     }), 200
 
 @profile_bp.route('/update', methods=['PUT'])
 @token_required
 def update_profile(current_user):
-    data = request.get_json()
-    if current_user.role == 'user':
-        allowed_fields = ['first_name', 'last_name', 'bio', 'birthdate', 'gender', 
-                          'height', 'preferredAgeMin', 'preferredAgeMax', 
-                          'preferredGenders', 'fontFamily', 'profileStyle', 'imageLayout', 'match_radius']
-    else:
-        allowed_fields = []
+    try:
+        data = request.get_json()
+        print('error:', data)
+        if not data:
+            return jsonify({'error': 'Request body must be JSON'}), 400
 
-    for field in allowed_fields:
-        if field in data:
+        if current_user.role == 'user':
+            allowed_fields = [
+                'first_name', 'last_name', 'bio', 'birthdate', 'gender',
+                'height', 'preferredAgeMin', 'preferredAgeMax',
+                'preferredGenders', 'fontFamily', 'profileStyle',
+                'imageLayout', 'match_radius', 'unit'
+            ]
+        else:
+            return jsonify({'error': 'You are not allowed to update this profile'}), 403
+
+        for field in allowed_fields:
+            if field not in data:
+                continue
+
+            value = data[field]
+
             if field == 'birthdate':
-                from datetime import datetime
                 try:
-                    current_user.birthdate = datetime.strptime(data['birthdate'], '%Y-%m-%d').date()
-                    current_user.age = calculate_age(current_user.birthdate)
-                except ValueError:
-                    return jsonify({'msg': 'Invalid birthdate format'}), 400
+                    birthdate = datetime.strptime(value, '%Y-%m-%d').date()
+                    current_user.birthdate = birthdate
+                    current_user.age = calculate_age(birthdate)
+                except (ValueError, TypeError):
+                    return jsonify({
+                        'error': 'Invalid birthdate format. Use YYYY-MM-DD'
+                    }), 400
+
+            elif field in ['preferredAgeMin', 'preferredAgeMax', 'match_radius']:
+                if not isinstance(value, (int, float)):
+                    return jsonify({
+                        'error': f'{field} must be a number'
+                    }), 400
+                setattr(current_user, field, value)
+
             else:
-                setattr(current_user, field, data[field])
+                setattr(current_user, field, value)
 
-    db.session.commit()
+        db.session.commit()
 
-    return jsonify(current_user.to_dict()), 200
+        return jsonify(current_user.to_dict()), 200
+
+    except SQLAlchemyError as e:
+        print('here db')
+        db.session.rollback()
+        return jsonify({
+            'error': 'Database error',
+            'details': str(e)
+        }), 500
+
+    except Exception as e:
+        print('here server')
+        return jsonify({
+            'error': 'Unexpected server error',
+            'details': str(e)
+        }), 500
 
 @profile_bp.route('/upload_image', methods=['POST'])
 @token_required
