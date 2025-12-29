@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useContext } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
@@ -10,8 +10,10 @@ import PixelClouds from './components/PixelClouds';
 import PixelFlowers from './components/PixelFlowers';
 import PixelCactus from './components/PixelCactus';
 import { Ionicons } from '@expo/vector-icons';
+import { UserContext } from '../../context/UserContext';
 
-const Profile = ({ user, framed, editing, setEditing, onSave }) => {
+const Profile = ({ user, framed, viewerUnit, editing, setEditing, onSave }) => {
+  const { setUser } = useContext(UserContext);
   const [formData, setFormData] = useState({
     first_name: '',
     last_name: '',
@@ -219,7 +221,15 @@ const Profile = ({ user, framed, editing, setEditing, onSave }) => {
 
       if (!res.ok) throw new Error('Failed to update profile');
 
-      await res.json();
+      const updatedUser = await res.json();
+
+      setUser(prev => ({
+        ...prev,
+        ...updatedUser,              // keep user data in sync
+        unit: payload.unit,          // ← THIS is the critical line
+        height: payload.height,      // keep height consistent too
+      }));
+
       Alert.alert('Success', 'Profile updated successfully');
       onSave();
     } catch (err) {
@@ -262,6 +272,27 @@ const Profile = ({ user, framed, editing, setEditing, onSave }) => {
     }
   };
 
+  const formatHeightForViewer = (profile, unit) => {
+    if (!profile) return '—';
+
+    if (unit === 'imperial') {
+      const feet = profile.height_feet;
+      const inches = profile.height_inches;
+      if (feet == null && inches == null) return '—';
+      return `${feet || 0}' ${inches || 0}"`;
+    }
+
+    // metric
+    const meters = profile.height_meters;
+    const centimeters = profile.height_centimeters;
+    if (meters == null && centimeters == null) return '—';
+
+    const totalMeters =
+      Number(meters || 0) + Number(centimeters || 0) / 100;
+
+    return `${totalMeters.toFixed(2)} m`;
+  };
+
   const handleCancel = () => {
     setEditing(false);
   };
@@ -296,6 +327,7 @@ const Profile = ({ user, framed, editing, setEditing, onSave }) => {
             formData={formData}
             editing={editing}
             heightUnit={heightUnit}
+            viewerUnit={viewerUnit}
             onInputChange={handleInputChange}
             onUnitToggle={handleUnitToggle}
             onSubmit={handleFormSubmit}

@@ -3,6 +3,8 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import Profile from '../profile/profile';
 import CompatibilityScore from './compatibilityScore';
 import { Ionicons } from '@expo/vector-icons';
+import { useContext } from 'react';
+import { UserContext } from '../../context/UserContext';
 
 const ProfileCard = ({
   profile,
@@ -12,6 +14,9 @@ const ProfileCard = ({
   onBlindMatch,
   onOpenNote
 }) => {
+  const { user } = useContext(UserContext);
+  const viewerUnit = user?.unit;
+
   return (
     <View style={styles.profileBox}>
       {profile.note && (
@@ -27,7 +32,11 @@ const ProfileCard = ({
         <Ionicons name="close-circle" size={32} color="#e53e3e" />
       </TouchableOpacity>
 
-      <Profile user={profile} framed={true} />
+      <Profile
+        user={profile}
+        framed={true}
+        viewerUnit={viewerUnit}
+      />
 
       <TouchableOpacity style={styles.noteButton} onPress={onOpenNote}>
         <Ionicons name="create-outline" size={24} color="#6B46C1" />

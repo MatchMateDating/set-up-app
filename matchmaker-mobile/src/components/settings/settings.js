@@ -29,7 +29,7 @@ const Settings = () => {
   const [editing, setEditing] = useState(false);
   const navigation = useNavigation();
   const [user, setUser] = useState(null);
-  const radiusUnit = user?.unit === 'ft' ? 'mi' : 'km';
+  const radiusUnit = user?.unit === 'imperial' ? 'mi' : 'km';
   const radiusMax = radiusUnit === 'km' ? 800 : 500;
   const [formData, setFormData] = useState({
     preferredAgeMin: '0',
@@ -40,6 +40,9 @@ const Settings = () => {
     profileStyle: 'classic',
     imageLayout: 'grid'
   });
+  const displayRadius = user?.unit === 'imperial'
+      ? Math.round(formData.matchRadius * 0.621371)
+      : formData.matchRadius;
   const [originalFormData, setOriginalFormData] = useState(null);
 
   const fetchUserProfile = async () => {
@@ -106,7 +109,7 @@ const Settings = () => {
         preferredAgeMin: user.preferredAgeMin || '',
         preferredAgeMax: user.preferredAgeMax || '',
         preferredGenders: user.preferredGenders || [],
-        matchRadius: user.matchRadius ?? 50,
+        matchRadius: user.match_radius ?? 50,
         fontFamily: user.fontFamily || 'Arial',
         profileStyle: user.profileStyle || 'classic',
         imageLayout: user.imageLayout || 'grid'
@@ -115,26 +118,24 @@ const Settings = () => {
     }
   }, [user]);
 
-  useEffect(() => {
-    if (!user) return;
-
-    setFormData(prev => {
-      let newRadius = prev.matchRadius;
-
-      if (user.unit === 'ft') {
-        // km → mi
-        newRadius = Math.round(prev.matchRadius * 0.621371);
-      } else {
-        // mi → km
-        newRadius = Math.round(prev.matchRadius / 0.621371);
-      }
-
-      return {
-        ...prev,
-        matchRadius: Math.min(newRadius, radiusMax),
-      };
-    });
-  }, [user?.unit]);
+//  useEffect(() => {
+//    if (!user) return;
+//
+//    setFormData(prev => {
+//      let newRadius = prev.matchRadius;
+//
+//      if (user.unit === 'imperial') {
+//        newRadius = Math.round(prev.matchRadius * 0.621371);
+//      } else {
+//        newRadius = Math.round(prev.matchRadius / 0.621371);
+//      }
+//
+//      return {
+//        ...prev,
+//        matchRadius: Math.min(newRadius, radiusMax),
+//      };
+//    });
+//  }, [user?.unit]);
 
   const handleToggleCode = () => setShowCode((prev) => !prev);
 
@@ -510,7 +511,7 @@ const Settings = () => {
 
             <FormField
               label={
-                editing ? `Match Radius (${formData.matchRadius} ${radiusUnit})`
+                editing ? `Match Radius (${displayRadius} ${radiusUnit})`
                     : `Match Radius (${radiusUnit})`
               }
               editing={editing}
@@ -527,7 +528,13 @@ const Settings = () => {
                         step={1}
                         sliderLength={280}
                         onValuesChange={(values) => {
-                          handleInputChangeWrapper('matchRadius', values[0]);
+                            const displayValue = values[0];
+
+                                const canonicalKm =
+                                  user?.unit === 'imperial'
+                                    ? Math.round(displayValue / 0.621371)
+                                    : displayValue;
+                            handleInputChangeWrapper('matchRadius', values[0]);
                         }}
                         selectedStyle={{ backgroundColor: '#6B46C1' }}
                         unselectedStyle={{ backgroundColor: '#E5E7EB' }}
