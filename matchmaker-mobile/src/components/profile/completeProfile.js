@@ -171,8 +171,6 @@ const CompleteProfile = () => {
   const saveStep1 = async () => {
     setError('');
 
-    console.log('unit', heightUnit);
-
     if (calculateAge(formData.birthdate) < 18)
       return setError('You must be at least 18.');
 
@@ -192,12 +190,7 @@ const CompleteProfile = () => {
     if (!images || images.length === 0)
       return setError('Please upload at least one image.');
 
-    console.log('radius unit', radiusUnit);
-    console.log('radius max', radiusMax);
-
     setStep(2);
-    console.log('past');
-    console.log('step', step);
   };
 
   const handleFinish = async () => {
