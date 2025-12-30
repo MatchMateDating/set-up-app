@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, Alert, ScrollView, Image, TouchableOpacity } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { API_BASE_URL } from '@env';
+import { API_BASE_URL } from '../../env';
 import Profile from './profile';
 import AvatarSelectorModal from './avatarSelectorModal';
 import { avatarMap } from './avatarSelectorModal';

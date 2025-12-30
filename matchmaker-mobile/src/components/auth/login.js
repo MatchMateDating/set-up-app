@@ -1,6 +1,5 @@
 import React, { useState, useRef } from 'react';
 import {
-    View,
     Text,
     TextInput,
     TouchableOpacity,
@@ -8,13 +7,12 @@ import {
     Alert,
     ScrollView,
     KeyboardAvoidingView,
-    Platform,
-    TouchableWithoutFeedback,
-    Keyboard,} from 'react-native';
+    Platform
+  } from 'react-native';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
-import { API_BASE_URL } from '@env';
+import { API_BASE_URL } from '../../env';
 
 const LoginScreen = () => {
   const [email, setEmail] = useState('');
@@ -33,8 +31,8 @@ const LoginScreen = () => {
       }
       Alert.alert('Success', 'Login successful!');
       navigation.navigate('Main', {
-              screen: 'Matches',
-            });
+        screen: 'Matches',
+      });
     } catch (err) {
       Alert.alert('Error', err.response?.data?.msg || 'Login failed');
     }

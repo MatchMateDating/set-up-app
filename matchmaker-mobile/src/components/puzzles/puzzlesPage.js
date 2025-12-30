@@ -4,8 +4,8 @@ import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 
 export const games = [
-  { name: 'Personality Quiz', path: 'PersonalityQuiz' },
-  { name: 'Memory Match', path: 'MemoryMatch' },
+  { name: 'Spirit Animal Quiz', path: 'SpiritAnimalQuiz' },
+  { name: 'Zodiac Sign Quiz', path: 'ZodiacQuiz' },
   { name: 'Trivia Challenge', path: 'TriviaChallenge' }
 ];
 

@@ -12,7 +12,8 @@ import Settings from '../components/settings/settings';
 import Preferences from '../components/preferences/preferences';
 import MatchConvo from '../components/conversations/matchConvo';
 import PuzzlesHub from '../components/puzzles/puzzlesPage';
-import PersonalityQuiz from '../components/puzzles/personalityQuiz';
+import SpiritAnimalQuiz from '../components/puzzles/spiritAnimalQuiz';
+import ZodiacQuiz from '../components/puzzles/zodiacQuiz';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -60,7 +61,8 @@ export default function AppNavigator() {
       <Stack.Screen name="Preferences" component={Preferences} />
       <Stack.Screen name="MatchConvo" component={MatchConvo} />
       <Stack.Screen name="PuzzlesHub" component={PuzzlesHub} />
-      <Stack.Screen name="PersonalityQuiz" component={PersonalityQuiz} />
+      <Stack.Screen name="SpiritAnimalQuiz" component={SpiritAnimalQuiz} />
+      <Stack.Screen name="ZodiacQuiz" component={ZodiacQuiz} />
     </Stack.Navigator>
   );
 }

@@ -19,7 +19,7 @@ import Slider from '@react-native-community/slider';
 import CalendarPicker from "react-native-calendar-picker";
 import ImageGallery from './images';
 import * as ImagePicker from 'expo-image-picker';
-import { API_BASE_URL } from '@env';
+import { API_BASE_URL } from '../../env';
 import {
   calculateAge,
   convertFtInToMetersCm,

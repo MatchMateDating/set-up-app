@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Image, StyleSheet, TouchableOpacity, Text } from 'react-native';
-import { API_BASE_URL } from '@env';
+import { API_BASE_URL } from '../../env';
 import { Ionicons } from '@expo/vector-icons';
 
 const ImageGallery = ({ images = [], editing, onDeleteImage, onPlaceholderClick, layout = 'grid' }) => {
