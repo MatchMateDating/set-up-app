@@ -6,6 +6,8 @@ import {
   Text,
   Modal,
   Pressable,
+  Platform,
+  StatusBar,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -50,16 +52,19 @@ const Dropdown = ({ icon, value, options, onSelect }) => {
   );
 };
 
-export const EditToolbar = ({ formData, handleInputChange, editing }) => {
+export const EditToolbar = ({ formData, handleInputChange, editing, extendToTop = false }) => {
   if (!editing) return null;
 
   const update = (name, value) => {
     handleInputChange({ target: { name, value } });
   };
 
+  const containerStyle = extendToTop 
+    ? [styles.container, styles.containerExtendTop]
+    : styles.container;
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.sectionLabel}>Profile Customization</Text>
+    <View style={containerStyle}>
 
       <View style={styles.toolbarGrid}>
         {/* FONT */}
@@ -137,17 +142,22 @@ const styles = StyleSheet.create({
   container: {
     backgroundColor: '#ebe7fb',
     borderBottomWidth: 1,
-    borderBottomColor: '#EEE',
+    borderBottomColor: '#E5E7EB',
+    paddingTop: 0,
     paddingBottom: 12,
-    opacity: 0.85,
-    borderRadius: 20,
+    paddingHorizontal: 0,
+    width: '100%',
+    opacity: 0.95,
+  },
+  containerExtendTop: {
+    paddingTop: Platform.OS === 'ios' ? 50 : (StatusBar.currentHeight || 24) + 12,
   },
   sectionLabel: {
     fontSize: 12,
     fontWeight: '700',
     color: '#9CA3AF',
     textTransform: 'uppercase',
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     marginBottom: 8,
     letterSpacing: 0.5,
   },
@@ -155,7 +165,7 @@ const styles = StyleSheet.create({
   toolbarGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     gap: 12,
   },
 

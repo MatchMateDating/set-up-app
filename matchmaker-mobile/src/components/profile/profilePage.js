@@ -7,6 +7,7 @@ import Profile from './profile';
 import AvatarSelectorModal from './avatarSelectorModal';
 import { avatarMap } from './avatarSelectorModal';
 import { Ionicons } from '@expo/vector-icons';
+import { EditToolbar } from './components/editToolbar';
 
 const ProfilePage = () => {
   const route = useRoute();
@@ -17,6 +18,8 @@ const ProfilePage = () => {
   const [loading, setLoading] = useState(true);
   const [showAvatarModal, setShowAvatarModal] = useState(false);
   const [avatar, setAvatar] = useState(null);
+  const [profileFormData, setProfileFormData] = useState(null);
+  const [profileHandleInputChange, setProfileHandleInputChange] = useState(null);
   const navigation = useNavigation();
 
   const fetchProfile = async () => {
@@ -98,6 +101,18 @@ const ProfilePage = () => {
   const handleSave = () => {
     fetchProfile();
     setEditing(false);
+    setProfileFormData(null);
+    setProfileHandleInputChange(null);
+  };
+
+  const handleEditingFormData = (data) => {
+    if (data) {
+      setProfileFormData(data.formData);
+      setProfileHandleInputChange(() => data.handleInputChange);
+    } else {
+      setProfileFormData(null);
+      setProfileHandleInputChange(null);
+    }
   };
 
   if (loading) {
@@ -118,12 +133,21 @@ const ProfilePage = () => {
   }
 
   return (
-    <View style={styles.container}>
-      {matchProfile && (
+    <View style={[styles.container, editing && styles.containerWithToolbar]}>
+      {matchProfile && !editing && (
         <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={24} color="#6B46C1" />
           <Text style={styles.backButtonText}>Back</Text>
         </TouchableOpacity>
+      )}
+      
+      {editing && profileFormData && profileHandleInputChange && (
+        <EditToolbar
+          formData={profileFormData}
+          handleInputChange={profileHandleInputChange}
+          editing={editing}
+          extendToTop={true}
+        />
       )}
       
       <ScrollView contentContainerStyle={styles.content}>
@@ -134,6 +158,7 @@ const ProfilePage = () => {
             editing={editing}
             setEditing={setEditing}
             onSave={handleSave}
+            onEditingFormData={handleEditingFormData}
           />
         )}
 
@@ -179,6 +204,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f6f4fc',
     paddingTop: 50
+  },
+  containerWithToolbar: {
+    paddingTop: 0,
   },
   content: {
     paddingTop: 20,

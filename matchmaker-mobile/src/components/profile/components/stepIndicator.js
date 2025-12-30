@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Platform, StatusBar } from 'react-native';
 
 const StepIndicator = ({ step }) => {
   const steps = [
@@ -53,7 +53,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     gap: 24, // RN now supports gap on iOS+Android
-    marginBottom: 16,
+    paddingTop: Platform.OS === 'ios' ? 50 : (StatusBar.currentHeight || 24) + 12,
+    paddingBottom: 12,
+    paddingHorizontal: 20,
+    backgroundColor: '#ebe7fb',
+    opacity: 0.95,
   },
   stepItem: {
     alignItems: 'center',
