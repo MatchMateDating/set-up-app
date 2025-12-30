@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
-import { API_BASE_URL } from '@env';
+import { API_BASE_URL } from '../../env';
 import MatchCard from './matchCard';
 import ToggleConversations from './toggleConversations';
 import { useMatches } from './hooks/useMatches';

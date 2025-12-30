@@ -26,7 +26,6 @@ def save_quiz_result(current_user):
         result=result,
         answers=answers,
     )
-    print("adding quiz result", quiz_result)
     db.session.add(quiz_result)
     db.session.commit()
 

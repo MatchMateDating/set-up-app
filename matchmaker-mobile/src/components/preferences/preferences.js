@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert,
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { API_BASE_URL } from '@env';
+import { API_BASE_URL } from '../../env';
 import FormField from '../profile/components/formField';
 
 const Preferences = () => {

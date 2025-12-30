@@ -15,7 +15,7 @@ import {
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
-import { API_BASE_URL } from '@env';
+import { API_BASE_URL } from '../../env';
 
 const SignUpScreen = () => {
   const navigation = useNavigation();
@@ -62,6 +62,7 @@ const SignUpScreen = () => {
         Alert.alert('Error', 'Registration successful, but no token received.');
       }
     } catch (err) {
+      console.log(err)
       Alert.alert('Error', err.response?.data?.msg || 'Registration failed');
     }
   };

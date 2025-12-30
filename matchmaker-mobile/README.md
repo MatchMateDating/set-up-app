@@ -24,7 +24,10 @@ npm install react-native@0.81.5
 #### To prebuild cleanly `npx expo prebuild --clean`
 
 
-I also have a .env file under the parent folder, this will be used by the babel.config.js file to load the local variables.
+Create a .env file under the parent folder to use for any local environment variables.
+Make sure the variables start with "EXPO_PUBLIC"
 This file currently just has:
-API_BASE_URL=http://192.168.1.29:5000
+EXPO_PUBLIC_API_BASE_URL=http://192.168.12.187:5000
 
+Then, create an env.js file under src with:
+export const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL;
