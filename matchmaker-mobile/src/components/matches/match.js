@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { API_BASE_URL } from '@env';
 import SendNoteModal from './sendNoteModal';
 import BlindMatchButton from './blindMatchButton';
@@ -16,7 +16,6 @@ const Match = () => {
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [referrer, setReferrer] = useState(null);
   const navigation = useNavigation();
-
   const fetchProfile = async () => {
     try {
       const token = await AsyncStorage.getItem('token');

@@ -22,6 +22,7 @@ const ProfileInfoCard = ({
   formData,
   editing,
   heightUnit,
+  viewerUnit,
   onInputChange,
   onUnitToggle,
   calculateAge,
@@ -33,7 +34,11 @@ const ProfileInfoCard = ({
 }) => {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [tempBirthdate, setTempBirthdate] = useState(null);
+  const heightSource = editing ? formData : user;
   const today = new Date();
+  const effectiveUnit = editing
+    ? heightUnit
+    : viewerUnit ?? heightUnit;
   const defaultBirthdate = new Date(today.setFullYear(today.getFullYear() - 18))
     .toISOString()
     .split('T')[0];
@@ -41,27 +46,60 @@ const ProfileInfoCard = ({
   const update = (name, value) =>
     onInputChange({ target: { name, value } });
 
-  const formatHeight = () => {
-    if (heightUnit === 'ft') {
-      const feet = formData.heightFeet;
-      const inches = formData.heightInches;
+  const formatHeight = (unit, source) => {
+    let totalCm = null;
 
-      if (!feet && !inches) return '—';
+    // ---------- CASE 1: formData (editing or own profile) ----------
+    if (
+      source.heightFeet !== undefined ||
+      source.heightMeters !== undefined
+    ) {
+      const feet = Number(source.heightFeet || 0);
+      const inches = Number(source.heightInches || 0);
+      const meters = Number(source.heightMeters || 0);
+      const centimeters = Number(source.heightCentimeters || 0);
 
-      return `${feet || 0}' ${inches || 0}"`;
+      if (feet || inches) {
+        totalCm = feet * 30.48 + inches * 2.54;
+      } else if (meters || centimeters) {
+        totalCm = meters * 100 + centimeters;
+      }
     }
 
-    // meters
-    const meters = formData.heightMeters;
-    const centimeters = formData.heightCentimeters;
+    // ---------- CASE 2: user (match card) ----------
+    else if (typeof source.height === 'string') {
+      if (source.unit === 'imperial') {
+        const match = source.height.match(/(\d+)'\s*(\d+)?/);
 
-    if (!meters && !centimeters) return '—';
+        if (match) {
+          const feet = Number(match[1] || 0);
+          const inches = Number(match[2] || 0);
+          totalCm = feet * 30.48 + inches * 2.54;
+        }
+      }
+      else {
+        const match = source.height.match(/(\d+)m\s*(\d+)?cm?/);
+        if (match) {
+          const meters = Number(match[1] || 0);
+          const cm = Number(match[2] || 0);
+          totalCm = meters * 100 + cm;
+        }
+      }
+    }
 
-    const totalMeters =
-      Number(meters || 0) + Number(centimeters || 0) / 100;
+    // ---------- FORMAT FOR VIEWER ----------
+    if (unit === 'imperial' || unit === 'ft') {
+      const totalInches = totalCm / 2.54;
+      const feet = Math.floor(totalInches / 12);
+      const inches = Math.round(totalInches % 12);
+      return `${feet}' ${inches}"`;
+    }
 
-    return `${totalMeters.toFixed(2)} m`;
+    const meters = Math.floor(totalCm / 100);
+    const centimeters = Math.round(totalCm % 100);
+    return `${meters}.${String(centimeters).padStart(2, '0')} m`;
   };
+
 
   return (
     <View style={styles.card}>
@@ -265,7 +303,7 @@ const ProfileInfoCard = ({
           ) : (
             <>
               <Text style={[styles.previewText, { fontFamily: formData.profileStyle === 'constitution' ? 'Pinyon Script' : formData.fontFamily }]}>
-                {formatHeight()}
+                {formatHeight(effectiveUnit, heightSource)}
               </Text>
             </>
           )}

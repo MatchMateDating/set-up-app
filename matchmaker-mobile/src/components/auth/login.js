@@ -6,6 +6,7 @@ import {
     TouchableOpacity,
     StyleSheet,
     Alert,
+    ScrollView,
     KeyboardAvoidingView,
     Platform,
     TouchableWithoutFeedback,
@@ -35,7 +36,6 @@ const LoginScreen = () => {
               screen: 'Matches',
             });
     } catch (err) {
-      console.log(err)
       Alert.alert('Error', err.response?.data?.msg || 'Login failed');
     }
   };
@@ -49,8 +49,11 @@ const LoginScreen = () => {
           style={{ flex: 1 }}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <View style={styles.container}>
+      <ScrollView
+          contentContainerStyle={styles.container}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+        >
           <Text style={styles.title}>Login</Text>
 
           <TextInput
@@ -59,6 +62,7 @@ const LoginScreen = () => {
             placeholder="Email"
             value={email}
             onChangeText={setEmail}
+            blurOnSubmit={false}
             keyboardType="email-address"
             autoCapitalize="none"
             returnKeyType="next"
@@ -70,6 +74,7 @@ const LoginScreen = () => {
             placeholder="Password"
             value={password}
             onChangeText={setPassword}
+            blurOnSubmit={false}
             returnKeyType="done"
             onSubmitEditing={handleLogin}
             secureTextEntry
@@ -83,27 +88,17 @@ const LoginScreen = () => {
           <TouchableOpacity onPress={goToSignUp}>
             <Text style={styles.signupButton}>Sign Up</Text>
           </TouchableOpacity>
-        </View>
-      </TouchableWithoutFeedback>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    width: '90%',
-    maxWidth: 400,
-    marginTop: 100,
+    flexGrow: 1,           // fill the screen like SignUp
+    justifyContent: 'center',
     padding: 24,
-    borderColor: '#ddd',
-    borderRadius: 12,
-    alignSelf: 'center',
     backgroundColor: '#fff',
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 4, // Android shadow
   },
   title: {
     fontSize: 26,

@@ -3,6 +3,7 @@ import {
   View,
   Text,
   StyleSheet,
+  KeyboardAvoidingView,
   ScrollView,
   TouchableOpacity,
   TextInput,
@@ -38,7 +39,7 @@ import PixelCactus from './components/PixelCactus';
 
 const CompleteProfile = () => {
   const navigation = useNavigation();
-
+  const scrollRef = React.useRef(null);
   const today = new Date();
   const defaultBirthdate = new Date(today.setFullYear(today.getFullYear() - 18))
     .toISOString()
@@ -371,338 +372,354 @@ const CompleteProfile = () => {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <StepIndicator step={step} />
+    <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}
+      >
+        <ScrollView
+          ref={scrollRef}
+          contentContainerStyle={styles.container}
+          keyboardShouldPersistTaps="handled"
+        >
+          <StepIndicator step={step} />
 
-      {step === 1 && (
-        <View style={[
-            styles.stepContainer,
-            themeStyles[formData.profileStyle],
-        ]}>
-          <View style={styles.themeLayer}>
-            {formData.profileStyle === 'pixelCloud' && <PixelClouds />}
-            {formData.profileStyle === 'pixelFlower' && <PixelFlowers />}
-            {formData.profileStyle === 'pixelCactus' && <PixelCactus />}
-          </View>
-            <EditToolbar
-                formData={formData}
-                handleInputChange={handleInputChange}
+          {step === 1 && (
+            <View style={[
+                styles.stepContainer,
+                themeStyles[formData.profileStyle],
+            ]}>
+              <View style={styles.themeLayer}>
+                {formData.profileStyle === 'pixelCloud' && <PixelClouds />}
+                {formData.profileStyle === 'pixelFlower' && <PixelFlowers />}
+                {formData.profileStyle === 'pixelCactus' && <PixelCactus />}
+              </View>
+                <EditToolbar
+                    formData={formData}
+                    handleInputChange={handleInputChange}
+                    editing={true}
+                  />
+                  <Text style={styles.title}>Complete Your Profile</Text>
+
+                  <Text style={styles.label}>First Name</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={formData.first_name}
+                    onChangeText={(v) => update("first_name", v)}
+                  />
+
+                  <Text style={styles.label}>Last Name</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={formData.last_name}
+                    onChangeText={(v) => update("last_name", v)}
+                  />
+
+                  <Text style={styles.label}>Birthdate</Text>
+                  <TouchableOpacity
+                    style={[styles.field, styles.dateField, showDatePicker && styles.fieldActive]}
+                    onPress={() => {
+                      setTempBirthdate(
+                        formData.birthdate ? new Date(formData.birthdate) : null
+                      );
+                      setShowDatePicker(true);
+                      setTimeout(() => {
+                            scrollRef.current?.scrollTo({
+                              y: 300, // adjust if needed
+                              animated: true,
+                            });
+                          }, 200);
+                      }}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.dateText, !formData.birthdate && styles.placeholderText]}>
+                      {formData.birthdate || 'Select birthdate'}
+                    </Text>
+                  </TouchableOpacity>
+
+                  {showDatePicker && (
+                    <View style={styles.modalCard}>
+                      <Text style={styles.modalTitle}>Select Birthdate</Text>
+                      <View style={styles.calendarWrapper}>
+                        <CalendarPicker
+                          onDateChange={(date) => setTempBirthdate(date)}
+                          selectedStartDate={tempBirthdate}
+                          initialDate={tempBirthdate}
+                          maxDate={new Date(defaultBirthdate)}
+                          width={SCREEN_WIDTH - 80}
+                          minimumDate={new Date(
+                            new Date().setFullYear(new Date().getFullYear() - 100)
+                          )}
+                          todayBackgroundColor="#E9D8FD"
+                          selectedDayColor="#6B46C1"
+                          selectedDayTextColor="#fff"
+                          textStyle={{
+                            color: '#111',
+                            fontSize: 14,
+                          }}
+                          dayLabelsWrapper={styles.dayLabelsWrapper}
+                          style={{
+                            borderRadius: 8,
+                            overflow: 'hidden',
+                          }}
+                        />
+                      </View>
+
+
+                      <View style={styles.modalActions}>
+                        <TouchableOpacity
+                          style={styles.cancelButton}
+                          onPress={() => {
+                            setTempBirthdate(null);
+                            setShowDatePicker(false);
+                          }}
+                        >
+                          <Text style={styles.cancelText}>Cancel</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={styles.confirmButton}
+                          onPress={() => {
+                            if (tempBirthdate) {
+                              update(
+                                'birthdate', tempBirthdate.toISOString().split('T')[0]
+                              );
+                            }
+                            setShowDatePicker(false);
+                          }}
+                        >
+                          <Text style={styles.confirmText}>Confirm</Text>
+                        </TouchableOpacity>
+                      </View>
+                </View>
+              )}
+
+
+              <Text style={styles.label}>Gender</Text>
+              <SelectGender
+                selected={formData.gender}
+                onChange={(value) => update("gender", value)}
+              />
+
+              <Text style={styles.label}>Height ({heightUnit})</Text>
+              <View style={[styles.field, styles.heightGroup]}>
+                {heightUnit === 'ft' ? (
+                  <>
+                    {/* FEET */}
+                    <View style={styles.heightPickerWrapper}>
+                      <Picker
+                        selectedValue={formData.heightFeet}
+                        style={styles.pickerSmall}
+                        onValueChange={(v) => {
+                          update('heightFeet', v);
+                          update('heightMeters', '');
+                        }}
+                      >
+                        {Array.from({ length: 8 }, (_, i) => (
+                          <Picker.Item key={i} label={`${i}`} value={`${i}`} />
+                        ))}
+                      </Picker>
+                    </View>
+
+                    <View style={styles.divider} />
+
+                    {/* INCHES */}
+                    <View style={styles.heightPickerWrapper}>
+                      <Picker
+                        selectedValue={formData.heightInches}
+                        style={styles.pickerSmall}
+                        onValueChange={(v) => {
+                          update('heightInches', v);
+                          update('heightCentimeters', '');
+                        }}
+                      >
+                        {Array.from({ length: 12 }, (_, i) => (
+                          <Picker.Item key={i} label={`${i}`} value={`${i}`} />
+                        ))}
+                      </Picker>
+                    </View>
+                  </>
+                ) : (
+                  <>
+                    {/* METERS */}
+                    <View style={styles.heightPickerWrapper}>
+                      <Picker
+                        selectedValue={formData.heightMeters}
+                        style={styles.pickerSmall}
+                        onValueChange={(v) => {
+                          update('heightMeters', v);
+                          update('heightFeet', '');
+                        }}
+                      >
+                        {Array.from({ length: 3 }, (_, i) => (
+                          <Picker.Item key={i} label={`${i}`} value={`${i}`} />
+                        ))}
+                      </Picker>
+                    </View>
+
+                    <View style={styles.divider} />
+
+                    {/* CENTIMETERS */}
+                    <View style={styles.heightPickerWrapper}>
+                      <Picker
+                        selectedValue={formData.heightCentimeters}
+                        style={styles.pickerSmall}
+                        onValueChange={(v) => {
+                          update('heightCentimeters', v);
+                          update('heightInches', '');
+                        }}
+                      >
+                        {Array.from({ length: 100 }, (_, i) => (
+                          <Picker.Item key={i} label={`${i}`} value={`${i}`} />
+                        ))}
+                      </Picker>
+                    </View>
+                  </>
+                )}
+              </View>
+
+              <TouchableOpacity onPress={handleUnitToggle}>
+                <Text style={styles.toggle}>Switch to {heightUnit === 'ft' ? 'meters' : 'feet'}</Text>
+              </TouchableOpacity>
+
+              <Text style={styles.label}>Add Images:</Text>
+              <ImageGallery
+                images={images}
                 editing={true}
-              />
-              <Text style={styles.title}>Complete Your Profile</Text>
-
-              <Text style={styles.label}>First Name</Text>
-              <TextInput
-                style={styles.input}
-                value={formData.first_name}
-                onChangeText={(v) => update("first_name", v)}
+                onDeleteImage={handleDeleteImage}
+                onPlaceholderClick={handlePlaceholderClick}
+                layout={formData.imageLayout}
               />
 
-              <Text style={styles.label}>Last Name</Text>
-              <TextInput
-                style={styles.input}
-                value={formData.last_name}
-                onChangeText={(v) => update("last_name", v)}
-              />
+              {error ? <Text style={styles.error}>{error}</Text> : null}
 
-              <Text style={styles.label}>Birthdate</Text>
-              <TouchableOpacity
-                style={[styles.field, styles.dateField, showDatePicker && styles.fieldActive]}
-                onPress={() => {
-                  setTempBirthdate(
-                    formData.birthdate ? new Date(formData.birthdate) : null
-                  );
-                  setShowDatePicker(true);
+              <TouchableOpacity style={styles.nextBtn} onPress={saveStep1}>
+                <Text style={styles.nextBtnText}>Next</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.skipBtn} onPress={() => setStep(3)}>
+                <Text style={styles.skipBtnText}>Skip</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {step === 2 && (
+            <View>
+              <Text style={styles.title}>Preview</Text>
+
+              <Profile
+                user={{
+                  ...formData,
+                  images: images,
+                  height: setUserHeight(),
+                  role: 'user'
                 }}
-                activeOpacity={0.8}
-              >
-                <Text style={[styles.dateText, !formData.birthdate && styles.placeholderText]}>
-                  {formData.birthdate || 'Select birthdate'}
-                </Text>
-              </TouchableOpacity>
+                framed={true}
+                editing={false}
+              />
 
-              {showDatePicker && (
-                <View style={styles.modalCard}>
-                  <Text style={styles.modalTitle}>Select Birthdate</Text>
-                  <View style={styles.calendarWrapper}>
-                    <CalendarPicker
-                      onDateChange={(date) => setTempBirthdate(date)}
-                      selectedStartDate={tempBirthdate}
-                      initialDate={tempBirthdate}
-                      maxDate={new Date(defaultBirthdate)}
-                      width={SCREEN_WIDTH - 80}
-                      minimumDate={new Date(
-                        new Date().setFullYear(new Date().getFullYear() - 100)
-                      )}
-                      todayBackgroundColor="#E9D8FD"
-                      selectedDayColor="#6B46C1"
-                      selectedDayTextColor="#fff"
-                      textStyle={{
-                        color: '#111',
-                        fontSize: 14,
-                      }}
-                      dayLabelsWrapper={styles.dayLabelsWrapper}
-                      style={{
-                        borderRadius: 8,
-                        overflow: 'hidden',
-                      }}
-                    />
-                  </View>
+              <View style={styles.rowBetween}>
+                <TouchableOpacity style={styles.secondaryBtn} onPress={() => setStep(1)}>
+                  <Text style={styles.secondaryBtnText}>Back</Text>
+                </TouchableOpacity>
 
-
-                  <View style={styles.modalActions}>
-                    <TouchableOpacity
-                      style={styles.cancelButton}
-                      onPress={() => {
-                        setTempBirthdate(null);
-                        setShowDatePicker(false);
-                      }}
-                    >
-                      <Text style={styles.cancelText}>Cancel</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={styles.confirmButton}
-                      onPress={() => {
-                        if (tempBirthdate) {
-                          update(
-                            'birthdate', tempBirthdate.toISOString().split('T')[0]
-                          );
-                        }
-                        setShowDatePicker(false);
-                      }}
-                    >
-                      <Text style={styles.confirmText}>Confirm</Text>
-                    </TouchableOpacity>
-                  </View>
+                <TouchableOpacity style={styles.nextBtn} onPress={() => setStep(3)}>
+                  <Text style={styles.nextBtnText}>Next</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           )}
 
+          {step === 3 && (
+            <View>
+              <Text style={styles.title}>Preferences</Text>
 
-          <Text style={styles.label}>Gender</Text>
-          <SelectGender
-            selected={formData.gender}
-            onChange={(value) => update("gender", value)}
-          />
+              <Text style={styles.label}>
+                Preferred Age Range ({formData.preferredAgeMin}–{formData.preferredAgeMax})
+              </Text>
 
-          <Text style={styles.label}>Height ({heightUnit})</Text>
-          <View style={[styles.field, styles.heightGroup]}>
-            {heightUnit === 'ft' ? (
-              <>
-                {/* FEET */}
-                <View style={styles.heightPickerWrapper}>
-                  <Picker
-                    selectedValue={formData.heightFeet}
-                    style={styles.pickerSmall}
-                    onValueChange={(v) => {
-                      update('heightFeet', v);
-                      update('heightMeters', '');
-                    }}
-                  >
-                    {Array.from({ length: 8 }, (_, i) => (
-                      <Picker.Item key={i} label={`${i}`} value={`${i}`} />
-                    ))}
-                  </Picker>
+              <View style={{ alignItems: 'center', marginTop: 10 }}>
+                <MultiSlider
+                  values={[
+                    Number(formData.preferredAgeMin) || 18,
+                    Number(formData.preferredAgeMax) || 60,
+                  ]}
+                  min={18}
+                  max={100}
+                  step={1}
+                  sliderLength={280}
+                  onValuesChange={(values) => {
+                    update('preferredAgeMin', values[0].toString());
+                    update('preferredAgeMax', values[1].toString());
+                  }}
+                  selectedStyle={{ backgroundColor: '#6B46C1' }}
+                  unselectedStyle={{ backgroundColor: '#E5E7EB' }}
+                  markerStyle={{
+                    backgroundColor: '#6B46C1',
+                    height: 22,
+                    width: 22,
+                    borderRadius: 11,
+                    borderWidth: 0,
+                  }}
+                  trackStyle={{ height: 6, borderRadius: 3 }}
+                  containerStyle={{ height: 40 }}
+                />
+              </View>
+
+
+              <Text style={styles.label}>Preferred Genders</Text>
+              <MultiSelectGender
+                selected={formData.preferredGenders || []}
+                onChange={(v) => update("preferredGenders", v)}
+              />
+
+              <Text style={styles.label}>
+                Match Radius ({formData.matchRadius} {radiusUnit})
+              </Text>
+              <View style={{ alignItems: 'center', marginTop: 10 }}>
+                <MultiSlider
+                  values={[formData.matchRadius]}
+                  min={1}
+                  max={radiusMax}
+                  step={1}
+                  sliderLength={280}
+                  onValuesChange={(values) => {
+                    update('matchRadius', values[0]);
+                  }}
+                  selectedStyle={{ backgroundColor: '#6B46C1' }}
+                  unselectedStyle={{ backgroundColor: '#E5E7EB' }}
+                  markerStyle={{
+                    backgroundColor: '#6B46C1',
+                    height: 22,
+                    width: 22,
+                    borderRadius: 11,
+                  }}
+                  trackStyle={{ height: 6, borderRadius: 3 }}
+                  containerStyle={{ height: 40 }}
+                  enableLabel={false}
+                  allowOverlap={false}
+                  snapped
+                />
+              </View>
+
+              {error ? <Text style={styles.error}>{error}</Text> : null}
+
+              {loading ? (
+                <ActivityIndicator size="large" color="#6B46C1" />
+              ) : (
+                <View style={styles.rowBetween}>
+                  <TouchableOpacity style={styles.secondaryBtn} onPress={() => setStep(2)}>
+                    <Text style={styles.secondaryBtnText}>Back</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity style={styles.nextBtn} onPress={handleFinish}>
+                    <Text style={styles.nextBtnText}>Submit</Text>
+                  </TouchableOpacity>
                 </View>
-
-                <View style={styles.divider} />
-
-                {/* INCHES */}
-                <View style={styles.heightPickerWrapper}>
-                  <Picker
-                    selectedValue={formData.heightInches}
-                    style={styles.pickerSmall}
-                    onValueChange={(v) => {
-                      update('heightInches', v);
-                      update('heightCentimeters', '');
-                    }}
-                  >
-                    {Array.from({ length: 12 }, (_, i) => (
-                      <Picker.Item key={i} label={`${i}`} value={`${i}`} />
-                    ))}
-                  </Picker>
-                </View>
-              </>
-            ) : (
-              <>
-                {/* METERS */}
-                <View style={styles.heightPickerWrapper}>
-                  <Picker
-                    selectedValue={formData.heightMeters}
-                    style={styles.pickerSmall}
-                    onValueChange={(v) => {
-                      update('heightMeters', v);
-                      update('heightFeet', '');
-                    }}
-                  >
-                    {Array.from({ length: 3 }, (_, i) => (
-                      <Picker.Item key={i} label={`${i}`} value={`${i}`} />
-                    ))}
-                  </Picker>
-                </View>
-
-                <View style={styles.divider} />
-
-                {/* CENTIMETERS */}
-                <View style={styles.heightPickerWrapper}>
-                  <Picker
-                    selectedValue={formData.heightCentimeters}
-                    style={styles.pickerSmall}
-                    onValueChange={(v) => {
-                      update('heightCentimeters', v);
-                      update('heightInches', '');
-                    }}
-                  >
-                    {Array.from({ length: 100 }, (_, i) => (
-                      <Picker.Item key={i} label={`${i}`} value={`${i}`} />
-                    ))}
-                  </Picker>
-                </View>
-              </>
-            )}
-          </View>
-
-          <TouchableOpacity onPress={handleUnitToggle}>
-            <Text style={styles.toggle}>Switch to {heightUnit === 'ft' ? 'meters' : 'feet'}</Text>
-          </TouchableOpacity>
-
-          <Text style={styles.label}>Add Images:</Text>
-          <ImageGallery
-            images={images}
-            editing={true}
-            onDeleteImage={handleDeleteImage}
-            onPlaceholderClick={handlePlaceholderClick}
-            layout={formData.imageLayout}
-          />
-
-          {error ? <Text style={styles.error}>{error}</Text> : null}
-
-          <TouchableOpacity style={styles.nextBtn} onPress={saveStep1}>
-            <Text style={styles.nextBtnText}>Next</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.skipBtn} onPress={() => setStep(3)}>
-            <Text style={styles.skipBtnText}>Skip</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {step === 2 && (
-        <View>
-          <Text style={styles.title}>Preview</Text>
-
-          <Profile
-            user={{
-              ...formData,
-              images: images,
-              height: setUserHeight(),
-              role: 'user'
-            }}
-            framed={true}
-            editing={false}
-          />
-
-          <View style={styles.rowBetween}>
-            <TouchableOpacity style={styles.secondaryBtn} onPress={() => setStep(1)}>
-              <Text style={styles.secondaryBtnText}>Back</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.nextBtn} onPress={() => setStep(3)}>
-              <Text style={styles.nextBtnText}>Next</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
-
-      {step === 3 && (
-        <View>
-          <Text style={styles.title}>Preferences</Text>
-
-          <Text style={styles.label}>
-            Preferred Age Range ({formData.preferredAgeMin}–{formData.preferredAgeMax})
-          </Text>
-
-          <View style={{ alignItems: 'center', marginTop: 10 }}>
-            <MultiSlider
-              values={[
-                Number(formData.preferredAgeMin) || 18,
-                Number(formData.preferredAgeMax) || 60,
-              ]}
-              min={18}
-              max={100}
-              step={1}
-              sliderLength={280}
-              onValuesChange={(values) => {
-                update('preferredAgeMin', values[0].toString());
-                update('preferredAgeMax', values[1].toString());
-              }}
-              selectedStyle={{ backgroundColor: '#6B46C1' }}
-              unselectedStyle={{ backgroundColor: '#E5E7EB' }}
-              markerStyle={{
-                backgroundColor: '#6B46C1',
-                height: 22,
-                width: 22,
-                borderRadius: 11,
-                borderWidth: 0,
-              }}
-              trackStyle={{ height: 6, borderRadius: 3 }}
-              containerStyle={{ height: 40 }}
-            />
-          </View>
-
-
-          <Text style={styles.label}>Preferred Genders</Text>
-          <MultiSelectGender
-            selected={formData.preferredGenders || []}
-            onChange={(v) => update("preferredGenders", v)}
-          />
-
-          <Text style={styles.label}>
-            Match Radius ({formData.matchRadius} {radiusUnit})
-          </Text>
-          <View style={{ alignItems: 'center', marginTop: 10 }}>
-            <MultiSlider
-              values={[formData.matchRadius]}
-              min={1}
-              max={radiusMax}
-              step={1}
-              sliderLength={280}
-              onValuesChange={(values) => {
-                update('matchRadius', values[0]);
-              }}
-              selectedStyle={{ backgroundColor: '#6B46C1' }}
-              unselectedStyle={{ backgroundColor: '#E5E7EB' }}
-              markerStyle={{
-                backgroundColor: '#6B46C1',
-                height: 22,
-                width: 22,
-                borderRadius: 11,
-              }}
-              trackStyle={{ height: 6, borderRadius: 3 }}
-              containerStyle={{ height: 40 }}
-              enableLabel={false}
-              allowOverlap={false}
-              snapped
-            />
-          </View>
-
-          {error ? <Text style={styles.error}>{error}</Text> : null}
-
-          {loading ? (
-            <ActivityIndicator size="large" color="#6B46C1" />
-          ) : (
-            <View style={styles.rowBetween}>
-              <TouchableOpacity style={styles.secondaryBtn} onPress={() => setStep(2)}>
-                <Text style={styles.secondaryBtnText}>Back</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.nextBtn} onPress={handleFinish}>
-                <Text style={styles.nextBtnText}>Submit</Text>
-              </TouchableOpacity>
+              )}
             </View>
           )}
-        </View>
-      )}
-    </ScrollView>
+        </ScrollView>
+    </KeyboardAvoidingView>
   );
 };
 
