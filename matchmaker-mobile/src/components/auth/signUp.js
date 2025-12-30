@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useContext } from 'react';
 import {
   View,
   Text,
@@ -16,9 +16,11 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import { API_BASE_URL } from '../../env';
+import { UserContext } from '../../context/UserContext';
 
 const SignUpScreen = () => {
   const navigation = useNavigation();
+  const { setUser } = useContext(UserContext);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [first_name, setFirstName] = useState('');
@@ -51,6 +53,8 @@ const SignUpScreen = () => {
         await AsyncStorage.setItem('token', res.data.token);
         if (res.data.user) {
           await AsyncStorage.setItem('user', JSON.stringify(res.data.user));
+          // Update UserContext immediately so viewerUnit is correct
+          setUser(res.data.user);
         }
         Alert.alert('Success', 'Registration successful!');
         if (role === 'user') {

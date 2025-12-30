@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import {
   View,
   Text,
@@ -36,9 +36,11 @@ import { EditToolbar } from './components/editToolbar';
 import PixelClouds from './components/PixelClouds';
 import PixelFlowers from './components/PixelFlowers';
 import PixelCactus from './components/PixelCactus';
+import { UserContext } from '../../context/UserContext';
 
 const CompleteProfile = () => {
   const navigation = useNavigation();
+  const { setUser: setContextUser } = useContext(UserContext);
   const scrollRef = React.useRef(null);
   const today = new Date();
   const defaultBirthdate = new Date(today.setFullYear(today.getFullYear() - 18))
@@ -246,6 +248,13 @@ const CompleteProfile = () => {
         setError(updateError.msg || "Profile update failed");
         return;
       }
+
+      // Get the updated user data from the response
+      const updatedUser = await updateRes.json();
+      
+      // Update AsyncStorage and UserContext with the updated user (including unit)
+      await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
+      setContextUser(updatedUser);
 
       navigation.navigate('Main', {
         screen: 'Matches',
