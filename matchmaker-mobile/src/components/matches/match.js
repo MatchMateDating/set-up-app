@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Alert, TouchableOpacity } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 import { API_BASE_URL } from '../../env';
 import SendNoteModal from './sendNoteModal';
-import BlindMatchButton from './blindMatchButton';
 import ProfileCard from './profileCard';
 import { useProfiles } from './hooks/useProfiles';
 import { useUserInfo } from './hooks/useUserInfo';
@@ -156,9 +156,18 @@ const Match = () => {
   };
 
   const handleLike = () => {
-    const likedUser = profiles[currentIndex];
-    likeUser(likedUser.id);
-    nextProfile();
+    if (profiles.length > 0 && currentIndex < profiles.length) {
+      const likedUser = profiles[currentIndex];
+      likeUser(likedUser.id);
+      nextProfile();
+    }
+  };
+
+  const handleBlindMatch = () => {
+    if (profiles.length > 0 && currentIndex < profiles.length) {
+      const likedUser = profiles[currentIndex];
+      blindMatch(likedUser.id);
+    }
   };
 
   const handleSendNote = async (note) => {
@@ -197,34 +206,59 @@ const Match = () => {
     );
   }
 
+  const currentProfile = profiles.length > 0 && currentIndex < profiles.length ? profiles[currentIndex] : null;
+
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {profiles.length > 0 && currentIndex < profiles.length ? (
-        <>
-          {userInfo?.role === 'matchmaker' && !profiles[currentIndex].liked_linked_dater && (
-            <BlindMatchButton onPress={() => blindMatch(profiles[currentIndex].id)} />
-          )}
-          <ProfileCard
-            profile={profiles[currentIndex]}
-            userInfo={userInfo}
-            onSkip={nextProfile}
-            onLike={handleLike}
-            onBlindMatch={blindMatch}
-            onOpenNote={() => setShowNoteModal(true)}
-          />
-          {showNoteModal && (
-            <SendNoteModal
-              onClose={() => setShowNoteModal(false)}
-              onSend={handleSendNote}
+    <View style={styles.container}>
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
+        {currentProfile ? (
+          <>
+            <ProfileCard
+              profile={currentProfile}
+              userInfo={userInfo}
+              onSkip={nextProfile}
             />
-          )}
-        </>
-      ) : (
-        <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>No profiles to match with currently, come back later!</Text>
+            {showNoteModal && (
+              <SendNoteModal
+                onClose={() => setShowNoteModal(false)}
+                onSend={handleSendNote}
+              />
+            )}
+          </>
+        ) : (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>No profiles to match with currently, come back later!</Text>
+          </View>
+        )}
+      </ScrollView>
+      {currentProfile && (
+        <View style={styles.buttonContainer}>
+          <View style={styles.leftButtonContainer}>
+            {userInfo?.role === 'matchmaker' && !currentProfile.liked_linked_dater && (
+              <TouchableOpacity style={styles.smallButton} onPress={handleBlindMatch}>
+                <Ionicons name="person" size={24} color="#6B46C1" />
+              </TouchableOpacity>
+            )}
+          </View>
+          <View style={styles.centerButtonContainer}>
+            {userInfo?.role === 'matchmaker' && currentProfile.liked_linked_dater ? (
+              <TouchableOpacity style={styles.likeButton} onPress={handleBlindMatch}>
+                <Ionicons name="heart" size={40} color="#e53e3e" />
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity style={styles.likeButton} onPress={handleLike}>
+                <Ionicons name="heart" size={40} color="#e53e3e" />
+              </TouchableOpacity>
+            )}
+          </View>
+          <View style={styles.rightButtonContainer}>
+            <TouchableOpacity style={styles.smallButton} onPress={() => setShowNoteModal(true)}>
+              <Ionicons name="create-outline" size={24} color="#6B46C1" />
+            </TouchableOpacity>
+          </View>
         </View>
       )}
-    </ScrollView>
+    </View>
   );
 };
 
@@ -232,10 +266,14 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f6f4fc',
-    paddingTop: 15
+  },
+  scrollView: {
+    flex: 1,
+    paddingTop: 50,
   },
   content: {
     padding: 20,
+    paddingBottom: 100, // Space for buttons at bottom
   },
   loadingContainer: {
     flex: 1,
@@ -256,6 +294,49 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#6b7280',
     textAlign: 'center',
+  },
+  buttonContainer: {
+    position: 'absolute',
+    bottom: 80, // Position above bottom tabs (typical tab height ~60-80px)
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: 'transparent',
+  },
+  leftButtonContainer: {
+    flex: 1,
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+  },
+  centerButtonContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rightButtonContainer: {
+    flex: 1,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+  },
+  smallButton: {
+    padding: 12,
+    borderRadius: 8,
+    backgroundColor: '#f6f4fc',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 56,
+    height: 56,
+  },
+  likeButton: {
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 72,
+    height: 72,
   },
 });
 
