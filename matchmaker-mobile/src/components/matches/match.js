@@ -1,21 +1,57 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Alert, TouchableOpacity } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { API_BASE_URL } from '../../env';
 import SendNoteModal from './sendNoteModal';
 import ProfileCard from './profileCard';
 import { useProfiles } from './hooks/useProfiles';
 import { useUserInfo } from './hooks/useUserInfo';
+import DaterDropdown from '../layout/daterDropdown';
 
 const Match = () => {
   const { profiles, setProfiles, loading } = useProfiles(API_BASE_URL);
-  const { userInfo } = useUserInfo(API_BASE_URL);
+  const { userInfo, setUserInfo } = useUserInfo(API_BASE_URL);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [referrer, setReferrer] = useState(null);
   const navigation = useNavigation();
+
+  const refreshUserInfo = async () => {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) return;
+
+      const res = await fetch(`${API_BASE_URL}/profile/`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (res.status === 401) {
+        const data = await res.json();
+        if (data.error_code === 'TOKEN_EXPIRED') {
+          await AsyncStorage.removeItem('token');
+          Alert.alert('Session expired', 'Please log in again.');
+          navigation.navigate('Login');
+          return;
+        }
+      }
+
+      if (!res.ok) return;
+
+      const data = await res.json();
+      setUserInfo(data.user);
+    } catch (err) {
+      console.error('Error refreshing user info:', err);
+    }
+  };
+
+  const handleDaterChange = async (daterId) => {
+    // Refresh userInfo to get updated referred_by_id, then refresh profiles
+    await refreshUserInfo();
+    setCurrentIndex(0);
+    fetchProfiles();
+  };
   const fetchProfile = async () => {
     try {
       const token = await AsyncStorage.getItem('token');
@@ -80,6 +116,17 @@ const Match = () => {
   useEffect(() => {
     fetchProfile();
   }, []);
+
+  // Refresh userInfo when page comes into focus to get latest selected dater
+  useFocusEffect(
+    React.useCallback(() => {
+      // Small delay to ensure backend has updated after dater selection
+      const timer = setTimeout(() => {
+        refreshUserInfo();
+      }, 100);
+      return () => clearTimeout(timer);
+    }, [])
+  );
 
   const nextProfile = () => {
     if (currentIndex < profiles.length - 1) {
@@ -210,7 +257,16 @@ const Match = () => {
 
   return (
     <View style={styles.container}>
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
+      {userInfo?.role === 'matchmaker' && (
+        <View style={styles.dropdownContainer}>
+          <DaterDropdown
+            API_BASE_URL={API_BASE_URL}
+            userInfo={userInfo}
+            onDaterChange={handleDaterChange}
+          />
+        </View>
+      )}
+      <ScrollView style={styles.scrollView} contentContainerStyle={[styles.content, userInfo?.role === 'matchmaker' && styles.contentWithDropdown]}>
         {currentProfile ? (
           <>
             <ProfileCard
@@ -267,6 +323,13 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f6f4fc',
   },
+  dropdownContainer: {
+    position: 'absolute',
+    top: 50,
+    left: 20,
+    right: 20,
+    zIndex: 100,
+  },
   scrollView: {
     flex: 1,
     paddingTop: 50,
@@ -274,6 +337,9 @@ const styles = StyleSheet.create({
   content: {
     padding: 20,
     paddingBottom: 100, // Space for buttons at bottom
+  },
+  contentWithDropdown: {
+    paddingTop: 70, // Extra space for dropdown
   },
   loadingContainer: {
     flex: 1,

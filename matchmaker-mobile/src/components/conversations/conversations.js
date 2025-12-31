@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { API_BASE_URL } from '../../env';
 import MatchCard from './matchCard';
 import ToggleConversations from './toggleConversations';
 import { useMatches } from './hooks/useMatches';
 import { useUserInfo } from './hooks/useUserInfo';
+import DaterDropdown from '../layout/daterDropdown';
 
 const Conversations = () => {
   const [showDaterMatches, setShowDaterMatches] = useState(true);
@@ -57,6 +58,17 @@ const Conversations = () => {
     fetchProfile();
     fetchMatches();
   }, []);
+
+  // Refresh userInfo when page comes into focus to get latest selected dater
+  useFocusEffect(
+    React.useCallback(() => {
+      // Small delay to ensure backend has updated after dater selection
+      const timer = setTimeout(() => {
+        fetchProfile();
+      }, 100);
+      return () => clearTimeout(timer);
+    }, [])
+  );
 
   const getFilteredMatches = () => {
     if (!userInfo || userInfo.role !== 'user') return matches;
@@ -191,6 +203,12 @@ const Conversations = () => {
     }
   };
 
+  const handleDaterChange = async (daterId) => {
+    // Refresh userInfo to get updated referred_by_id, then refresh matches
+    await fetchProfile();
+    fetchMatches();
+  };
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -204,6 +222,15 @@ const Conversations = () => {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      {userInfo?.role === 'matchmaker' && (
+        <View style={styles.dropdownContainer}>
+          <DaterDropdown
+            API_BASE_URL={API_BASE_URL}
+            userInfo={userInfo}
+            onDaterChange={handleDaterChange}
+          />
+        </View>
+      )}
       {userInfo && userInfo.role === 'user' && matches.length > 0 && (
         <ToggleConversations
           showDaterMatches={showDaterMatches}
@@ -243,6 +270,10 @@ const styles = StyleSheet.create({
     paddingTop: 20,
     paddingBottom: 20,
     paddingHorizontal: 16,
+  },
+  dropdownContainer: {
+    marginBottom: 16,
+    zIndex: 100,
   },
   loadingContainer: {
     flex: 1,
