@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useContext } from 'react';
+import React, { useEffect, useState, useContext, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
@@ -12,7 +12,7 @@ import PixelCactus from './components/PixelCactus';
 import { Ionicons } from '@expo/vector-icons';
 import { UserContext } from '../../context/UserContext';
 
-const Profile = ({ user, framed, viewerUnit, editing, setEditing, onSave }) => {
+const Profile = ({ user, framed, viewerUnit, editing, setEditing, onSave, onEditingFormData }) => {
   const { setUser } = useContext(UserContext);
   const [formData, setFormData] = useState({
     first_name: '',
@@ -87,6 +87,15 @@ const Profile = ({ user, framed, viewerUnit, editing, setEditing, onSave }) => {
     }
   }, [user]);
 
+  useEffect(() => {
+    if (editing && onEditingFormData) {
+      onEditingFormData({ formData, handleInputChange });
+    } else if (!editing && onEditingFormData) {
+      // Clear form data when editing is turned off
+      onEditingFormData(null);
+    }
+  }, [editing, formData, handleInputChange, onEditingFormData]);
+
   const handlePlaceholderClick = async () => {
     if (!editing) return;
 
@@ -156,11 +165,11 @@ const Profile = ({ user, framed, viewerUnit, editing, setEditing, onSave }) => {
     }
   };
 
-  const handleInputChange = (e) => {
+  const handleInputChange = useCallback((e) => {
     const name = e.target?.name || e.name;
     const value = e.target?.value !== undefined ? e.target.value : e.value;
     setFormData((prev) => ({ ...prev, [name]: value }));
-  };
+  }, []);
 
   const handleUnitToggle = () => {
     if (heightUnit === 'ft') {

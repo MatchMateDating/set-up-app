@@ -75,7 +75,7 @@ const CompleteProfile = () => {
     preferredGenders: [],
     matchRadius: 50,
     imageLayout: 'grid',
-    profileStyle: 'Classic',
+    profileStyle: 'classic',
     fontFamily: 'Arial',
   });
 
@@ -386,12 +386,21 @@ const CompleteProfile = () => {
         style={{ flex: 1 }}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}
       >
+        <View style={styles.fixedHeader}>
+          <StepIndicator step={step} />
+          {step === 1 && (
+            <EditToolbar
+              formData={formData}
+              handleInputChange={handleInputChange}
+              editing={true}
+            />
+          )}
+        </View>
         <ScrollView
           ref={scrollRef}
           contentContainerStyle={styles.container}
           keyboardShouldPersistTaps="handled"
         >
-          <StepIndicator step={step} />
 
           {step === 1 && (
             <View style={[
@@ -403,12 +412,7 @@ const CompleteProfile = () => {
                 {formData.profileStyle === 'pixelFlower' && <PixelFlowers />}
                 {formData.profileStyle === 'pixelCactus' && <PixelCactus />}
               </View>
-                <EditToolbar
-                    formData={formData}
-                    handleInputChange={handleInputChange}
-                    editing={true}
-                  />
-                  <Text style={styles.title}>Complete Your Profile</Text>
+              <Text style={styles.title}>Complete Your Profile</Text>
 
                   <Text style={styles.label}>First Name</Text>
                   <TextInput
@@ -759,10 +763,14 @@ const themeStyles = {
 };
 
 const styles = StyleSheet.create({
+  fixedHeader: {
+    backgroundColor: '#ebe7fb',
+    zIndex: 10,
+  },
   container: {
     padding: 20,
     paddingBottom: 80,
-    paddingTop: 60
+    paddingTop: 12,
   },
   title: {
     fontSize: 22,

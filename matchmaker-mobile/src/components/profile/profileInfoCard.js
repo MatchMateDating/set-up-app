@@ -12,7 +12,6 @@ import { Picker } from '@react-native-picker/picker';
 import CalendarPicker from 'react-native-calendar-picker';
 import ImageGallery from './images';
 import SelectGender from './components/selectGender';
-import { EditToolbar } from './components/editToolbar';
 
 // Get screen width for responsive sizing
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -105,26 +104,14 @@ const ProfileInfoCard = ({
     <View style={styles.card}>
       {user.role === 'user' && (
         <>
-          {editing ? (
+          {editing && (
             <>
-              <EditToolbar
-                formData={formData}
-                handleInputChange={onInputChange}
-                editing={editing}
-              />
-
               <Text style={styles.label}>First Name</Text>
               <TextInput
                 style={[styles.input, { fontFamily: formData.profileStyle === 'constitution' ? 'Pinyon Script' : formData.fontFamily }]}
                 value={formData.first_name}
                 onChangeText={(v) => update('first_name', v)}
               />
-            </>
-          ) : (
-            <>
-              <Text style={[styles.previewText, { fontFamily: formData.profileStyle === 'constitution' ? 'Pinyon Script' : formData.fontFamily }]}>
-                {formData.first_name || '—'}
-              </Text>
             </>
           )}
 
