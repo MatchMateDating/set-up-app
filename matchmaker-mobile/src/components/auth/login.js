@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useContext } from 'react';
 import {
     Text,
     TextInput,
@@ -13,6 +13,7 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import { API_BASE_URL } from '../../env';
+import { UserContext } from '../../context/UserContext';
 
 const LoginScreen = () => {
   const [email, setEmail] = useState('');
@@ -20,6 +21,7 @@ const LoginScreen = () => {
   const navigation = useNavigation();
   const emailRef = useRef(null);
   const passwordRef = useRef(null);
+  const { setUser } = useContext(UserContext);
 
   const handleLogin = async () => {
     try {
@@ -28,6 +30,8 @@ const LoginScreen = () => {
       await AsyncStorage.setItem('token', res.data.token);
       if (res.data.user) {
         await AsyncStorage.setItem('user', JSON.stringify(res.data.user));
+        // Update UserContext immediately so viewerUnit is correct
+        setUser(res.data.user);
       }
       Alert.alert('Success', 'Login successful!');
       navigation.navigate('Main', {
