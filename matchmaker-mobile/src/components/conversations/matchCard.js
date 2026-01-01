@@ -17,6 +17,36 @@ const MatchCard = ({ matchObj, API_BASE_URL, userInfo, navigation, unmatch, reve
     return null;
   };
 
+  const renderOverlappedImages = () => {
+    if (!matchObj.linked_dater) return null;
+
+    return (
+      <View style={styles.vennContainer}>
+        {/* Linked dater (right, behind) */}
+        {matchObj.linked_dater.first_image ? (
+          <Image
+            source={{ uri: `${API_BASE_URL}${matchObj.linked_dater.first_image}` }}
+            style={[styles.vennImage, styles.vennRight]}
+          />
+        ) : (
+          <View style={[styles.matchPlaceholder, styles.vennRight]} />
+        )}
+
+        {/* Match user (left, on top) */}
+        {matchObj.match_user.first_image ? (
+          <Image
+            source={{ uri: `${API_BASE_URL}${matchObj.match_user.first_image}` }}
+            style={[styles.vennImage, styles.vennLeft]}
+          />
+        ) : (
+          <View style={[styles.matchPlaceholder, styles.vennLeft]} />
+        )}
+
+        {isBlind && <View style={styles.vennBlur} />}
+      </View>
+    );
+  };
+
   return (
     <TouchableOpacity
       style={styles.matchCard}
@@ -24,20 +54,27 @@ const MatchCard = ({ matchObj, API_BASE_URL, userInfo, navigation, unmatch, reve
       activeOpacity={0.7}
     >
       <View style={styles.profileSection}>
-        {matchObj.match_user.first_image ? (
-          <View style={styles.imageContainer}>
-            <Image
-              source={{ uri: `${API_BASE_URL}${matchObj.match_user.first_image}` }}
-              style={styles.matchImage}
-              resizeMode="cover"
-            />
-            {isBlind && <View style={styles.blurOverlay} />}
-          </View>
-        ) : (
-          <View style={styles.matchPlaceholder}>
-            <Text style={styles.placeholderText}>No Image</Text>
-          </View>
-        )}
+        {userInfo?.role === 'matchmaker' && matchObj.linked_dater
+          ? renderOverlappedImages()
+          : (
+            <>
+              {matchObj.match_user.first_image ? (
+                <View style={styles.imageContainer}>
+                  <Image
+                    source={{ uri: `${API_BASE_URL}${matchObj.match_user.first_image}` }}
+                    style={styles.matchImage}
+                    resizeMode="cover"
+                  />
+                  {isBlind && <View style={styles.blurOverlay} />}
+                </View>
+              ) : (
+                <View style={styles.matchPlaceholder}>
+                  <Text style={styles.placeholderText}>No Image</Text>
+                </View>
+              )}
+            </>
+          )
+        }
 
         <View style={styles.matchInfo}>
           <Text style={styles.matchName}>{matchObj.match_user.first_name}</Text>
@@ -75,23 +112,6 @@ const MatchCard = ({ matchObj, API_BASE_URL, userInfo, navigation, unmatch, reve
           )}
         </View>
       </View>
-
-      {matchObj.linked_dater && userInfo?.role === 'matchmaker' && (
-        <View style={styles.linkedSection}>
-          {matchObj.linked_dater.first_image ? (
-            <Image
-              source={{ uri: `${API_BASE_URL}${matchObj.linked_dater.first_image}` }}
-              style={styles.linkedImage}
-              resizeMode="cover"
-            />
-          ) : (
-            <View style={styles.matchPlaceholder}>
-              <Text style={styles.placeholderText}>No Image</Text>
-            </View>
-          )}
-          <Text style={styles.matchName}>{matchObj.linked_dater.first_name}</Text>
-        </View>
-      )}
     </TouchableOpacity>
   );
 };
@@ -112,6 +132,39 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 3,
     marginBottom: 16,
+  },
+  vennContainer: {
+    width: 110,
+    height: 85,
+    position: 'relative',
+    marginBottom: 6,
+  },
+  vennImage: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    borderWidth: 2,
+    borderColor: '#fff',
+    position: 'absolute',
+  },
+  vennLeft: {
+    left: 0,
+    zIndex: 2,
+  },
+  vennRight: {
+    right: 0,
+    zIndex: 1,
+    opacity: 0.95,
+  },
+  vennBlur: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.0)',
+    borderRadius: 40,
+    zIndex: 3,
   },
   profileSection: {
     flexDirection: 'column',
