@@ -133,7 +133,12 @@ const ProfileInfoCard = ({
                 style={[styles.field, styles.dateField, { fontFamily: formData.profileStyle === 'constitution' ? 'Pinyon Script' : formData.fontFamily }]}
                 onPress={() => {
                   setTempBirthdate(
-                    formData.birthdate ? new Date(formData.birthdate) : null
+                    formData.birthdate
+                      ? (() => {
+                          const [year, month, day] = formData.birthdate.split('-').map(Number);
+                          return new Date(year, month - 1, day); // month is 0-indexed
+                        })()
+                      : null
                   );
                   setShowDatePicker(true);
                 }}

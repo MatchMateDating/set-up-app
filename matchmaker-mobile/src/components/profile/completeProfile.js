@@ -433,7 +433,12 @@ const CompleteProfile = () => {
                     style={[styles.field, styles.dateField, showDatePicker && styles.fieldActive]}
                     onPress={() => {
                       setTempBirthdate(
-                        formData.birthdate ? new Date(formData.birthdate) : null
+                        formData.birthdate
+                          ? (() => {
+                              const [year, month, day] = formData.birthdate.split('-').map(Number);
+                              return new Date(year, month - 1, day); // month is 0-indexed
+                            })()
+                          : null
                       );
                       setShowDatePicker(true);
                       setTimeout(() => {
