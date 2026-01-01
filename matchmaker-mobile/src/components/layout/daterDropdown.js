@@ -15,24 +15,24 @@ const DaterDropdown = ({ API_BASE_URL, userInfo, onDaterChange }) => {
     }
   }, [userInfo?.id, API_BASE_URL]);
 
-  // Update selected dater when userInfo.referred_by_id or linkedDaters changes
+  // Update selected dater when userInfo.referrer_id or linkedDaters changes
   // This ensures the dropdown stays in sync when navigating between pages
   useEffect(() => {
     if (!userInfo || userInfo.role !== 'matchmaker' || linkedDaters.length === 0) {
       return;
     }
 
-    const currentSelectedId = userInfo.referred_by_id;
+    const currentSelectedId = userInfo.referrer_id;
     let targetDater = null;
 
     if (currentSelectedId) {
       targetDater = linkedDaters.find(d => d.id === parseInt(currentSelectedId));
-      // If referred_by_id doesn't match any dater, fallback to first dater
+      // If referrer_id doesn't match any dater, fallback to first dater
       if (!targetDater && linkedDaters.length > 0) {
         targetDater = linkedDaters[0];
       }
     } else if (linkedDaters.length > 0) {
-      // If referred_by_id is null/undefined, use first dater
+      // If referrer_id is null/undefined, use first dater
       targetDater = linkedDaters[0];
     }
 
@@ -46,7 +46,7 @@ const DaterDropdown = ({ API_BASE_URL, userInfo, onDaterChange }) => {
         return prev;
       });
     }
-  }, [userInfo?.referred_by_id, linkedDaters]);
+  }, [userInfo?.referrer_id, linkedDaters]);
 
   const fetchLinkedDaters = async () => {
     try {
@@ -74,19 +74,19 @@ const DaterDropdown = ({ API_BASE_URL, userInfo, onDaterChange }) => {
       const daters = data.linked_daters || [];
       setLinkedDaters(daters);
 
-      // Set selected dater based on userInfo.referred_by_id
+      // Set selected dater based on userInfo.referrer_id
       // The useEffect will handle syncing when userInfo changes
-      const currentSelectedId = userInfo.referred_by_id;
+      const currentSelectedId = userInfo.referrer_id;
       if (currentSelectedId) {
         const selected = daters.find(d => d.id === parseInt(currentSelectedId));
         if (selected) {
           setSelectedDater(selected);
         } else if (daters.length > 0) {
-          // Fallback to first dater if referred_by_id doesn't match
+          // Fallback to first dater if referrer_id doesn't match
           setSelectedDater(daters[0]);
         }
       } else if (daters.length > 0) {
-        // Set to first dater if referred_by_id is null/undefined
+        // Set to first dater if referrer_id is null/undefined
         setSelectedDater(daters[0]);
       }
     } catch (err) {

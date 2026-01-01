@@ -48,10 +48,12 @@ const Match = () => {
 
   const handleDaterChange = async (daterId) => {
     // Refresh userInfo to get updated referred_by_id, then refresh profiles
+    console.log('match dater change');
     await refreshUserInfo();
     setCurrentIndex(0);
     fetchProfiles();
   };
+
   const fetchProfile = async () => {
     try {
       const token = await AsyncStorage.getItem('token');

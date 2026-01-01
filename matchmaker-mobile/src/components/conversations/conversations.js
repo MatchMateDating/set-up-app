@@ -204,7 +204,7 @@ const Conversations = () => {
   };
 
   const handleDaterChange = async (daterId) => {
-    // Refresh userInfo to get updated referred_by_id, then refresh matches
+    console.log('conversation dater change');
     await fetchProfile();
     fetchMatches();
   };

@@ -191,10 +191,8 @@ const ProfilePage = () => {
   };
 
   const handleDaterChange = async (daterId) => {
-    // Mark as initialized to prevent auto-setting first dater
+    console.log('profile dater change');
     setHasInitializedDater(true);
-    // Refresh profile when dater changes to get updated userInfo
-    // This ensures the referrer (dater profile) is updated
     await fetchProfile();
   };
 
