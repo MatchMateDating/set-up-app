@@ -26,9 +26,8 @@ import { Ionicons } from '@expo/vector-icons';
 const MatchConvo = () => {
   const route = useRoute();
   const navigation = useNavigation();
-  const { matchId } = route.params || {};
+  const { matchId, isBlind } = route.params || {};
   const { userInfo } = useUserInfo(API_BASE_URL);
-
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [newMessageText, setNewMessageText] = useState('');
@@ -217,6 +216,8 @@ const MatchConvo = () => {
         {matchUser && (
           <TouchableOpacity
             style={styles.matchAvatarSection}
+            disabled={isBlind && userInfo?.role !== 'matchmaker'}
+            activeOpacity={0.7}
             onPress={() => navigation.navigate('ProfilePage', { userId: matchUser.id, matchProfile: true })}
           >
             {matchUser.first_image ? (
@@ -293,7 +294,7 @@ const MatchConvo = () => {
       <View style={styles.sendActions}>
         <TouchableOpacity
           style={[
-            styles.sendButton, 
+            styles.sendButton,
             !newMessageText.trim() && !selectedPuzzleLink && styles.sendButtonDisabled
           ]}
           onPress={sendMessage}

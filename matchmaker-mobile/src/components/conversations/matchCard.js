@@ -1,11 +1,16 @@
-import React from 'react';
+import React, {useEffect} from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
 
 const MatchCard = ({ matchObj, API_BASE_URL, userInfo, navigation, unmatch, reveal, hide }) => {
   const bothMm = !!matchObj.both_matchmakers_involved;
   const oneMm = !!matchObj.user_1_matchmaker_involved || !!matchObj.user_2_matchmaker_involved;
   const isBlind = matchObj.blind_match === 'Blind';
+
+  useEffect(() => {
+    console.log('blindMatch', isBlind);
+  }, []);
 
   const renderMatchmakerIcons = () => {
     if (bothMm) {
@@ -41,8 +46,6 @@ const MatchCard = ({ matchObj, API_BASE_URL, userInfo, navigation, unmatch, reve
         ) : (
           <View style={[styles.matchPlaceholder, styles.vennLeft]} />
         )}
-
-        {isBlind && <View style={styles.vennBlur} />}
       </View>
     );
   };
@@ -50,7 +53,7 @@ const MatchCard = ({ matchObj, API_BASE_URL, userInfo, navigation, unmatch, reve
   return (
     <TouchableOpacity
       style={styles.matchCard}
-      onPress={() => navigation.navigate('MatchConvo', { matchId: matchObj.match_id })}
+      onPress={() => navigation.navigate('MatchConvo', { matchId: matchObj.match_id, isBlind: isBlind, })}
       activeOpacity={0.7}
     >
       <View style={styles.profileSection}>
@@ -60,12 +63,19 @@ const MatchCard = ({ matchObj, API_BASE_URL, userInfo, navigation, unmatch, reve
             <>
               {matchObj.match_user.first_image ? (
                 <View style={styles.imageContainer}>
-                  <Image
-                    source={{ uri: `${API_BASE_URL}${matchObj.match_user.first_image}` }}
-                    style={styles.matchImage}
-                    resizeMode="cover"
-                  />
-                  {isBlind && <View style={styles.blurOverlay} />}
+                  {isBlind ? (
+                    <Image
+                      source={{ uri: `${API_BASE_URL}${matchObj.match_user.first_image}` }}
+                      style={styles.matchImage}
+                      resizeMode="cover"
+                      blurRadius={isBlind ? 40 : 0}
+                    />
+                  ):(
+                    <Image
+                      source={{ uri: `${API_BASE_URL}${matchObj.match_user.first_image}` }}
+                      style={styles.matchImage}
+                      resizeMode="cover"
+                    />)}
                 </View>
               ) : (
                 <View style={styles.matchPlaceholder}>
@@ -156,16 +166,6 @@ const styles = StyleSheet.create({
     zIndex: 1,
     opacity: 0.95,
   },
-  vennBlur: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.0)',
-    borderRadius: 40,
-    zIndex: 3,
-  },
   profileSection: {
     flexDirection: 'column',
     alignItems: 'center',
@@ -181,15 +181,6 @@ const styles = StyleSheet.create({
     borderRadius: 42.5,
     borderWidth: 2,
     borderColor: '#eee',
-  },
-  blurOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    borderRadius: 42.5,
   },
   matchPlaceholder: {
     width: 85,

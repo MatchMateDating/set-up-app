@@ -10,6 +10,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { EditToolbar } from './components/editToolbar';
 import DaterDropdown from '../layout/daterDropdown';
 import MatcherHeader from '../layout/components/matcherHeader';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const ProfilePage = () => {
   const route = useRoute();
@@ -215,7 +216,7 @@ const ProfilePage = () => {
   }
 
   return (
-    <View style={[styles.container, editing && styles.containerWithToolbar]}>
+    <SafeAreaView style={[styles.container, editing && styles.containerWithToolbar]}>
       {matchProfile && !editing && (
         <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={24} color="#6B46C1" />
@@ -287,7 +288,7 @@ const ProfilePage = () => {
           />
         )}
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 };
 
