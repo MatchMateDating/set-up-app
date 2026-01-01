@@ -76,7 +76,7 @@ def add_to_conversation(current_user, match_id):
             'text': msg.text,
             'puzzle_type': getattr(msg, 'puzzle_type', None),
             'puzzle_link': getattr(msg, 'puzzle_link', None),
-            'timestamp': msg.timestamp.isoformat()
+            'timestamp': msg.timestamp.isoformat() + "Z"
         }
         for msg in conversation.messages
     ]
