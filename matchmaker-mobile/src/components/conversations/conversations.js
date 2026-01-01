@@ -8,6 +8,7 @@ import ToggleConversations from './toggleConversations';
 import { useMatches } from './hooks/useMatches';
 import { useUserInfo } from './hooks/useUserInfo';
 import DaterDropdown from '../layout/daterDropdown';
+import MatcherHeader from '../layout/components/matcherHeader';
 
 const Conversations = () => {
   const [showDaterMatches, setShowDaterMatches] = useState(true);
@@ -221,43 +222,45 @@ const Conversations = () => {
   const filteredMatches = getFilteredMatches();
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <View style={styles.container}>
       {userInfo?.role === 'matchmaker' && (
-        <View style={styles.dropdownContainer}>
+        <MatcherHeader>
           <DaterDropdown
             API_BASE_URL={API_BASE_URL}
             userInfo={userInfo}
             onDaterChange={handleDaterChange}
           />
-        </View>
+        </MatcherHeader>
       )}
-      {userInfo && userInfo.role === 'user' && matches.length > 0 && (
-        <ToggleConversations
-          showDaterMatches={showDaterMatches}
-          setShowDaterMatches={setShowDaterMatches}
-        />
-      )}
-      <View style={styles.matchList}>
-        {filteredMatches.length > 0 ? (
-          filteredMatches.map((matchObj, index) => (
-            <MatchCard
-              key={index}
-              matchObj={matchObj}
-              API_BASE_URL={API_BASE_URL}
-              userInfo={userInfo}
-              navigation={navigation}
-              unmatch={unmatch}
-              reveal={reveal}
-              hide={hide}
-            />
-          ))
-        ) : (
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>No matches yet!</Text>
-          </View>
+      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+        {userInfo && userInfo.role === 'user' && matches.length > 0 && (
+          <ToggleConversations
+            showDaterMatches={showDaterMatches}
+            setShowDaterMatches={setShowDaterMatches}
+          />
         )}
-      </View>
-    </ScrollView>
+        <View style={styles.matchList}>
+          {filteredMatches.length > 0 ? (
+            filteredMatches.map((matchObj, index) => (
+              <MatchCard
+                key={index}
+                matchObj={matchObj}
+                API_BASE_URL={API_BASE_URL}
+                userInfo={userInfo}
+                navigation={navigation}
+                unmatch={unmatch}
+                reveal={reveal}
+                hide={hide}
+              />
+            ))
+          ) : (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>No matches yet!</Text>
+            </View>
+          )}
+        </View>
+      </ScrollView>
+    </View>
   );
 };
 
@@ -270,10 +273,6 @@ const styles = StyleSheet.create({
     paddingTop: 20,
     paddingBottom: 20,
     paddingHorizontal: 16,
-  },
-  dropdownContainer: {
-    marginBottom: 16,
-    zIndex: 100,
   },
   loadingContainer: {
     flex: 1,

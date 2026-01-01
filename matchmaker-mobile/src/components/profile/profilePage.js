@@ -9,6 +9,7 @@ import { avatarMap } from './avatarSelectorModal';
 import { Ionicons } from '@expo/vector-icons';
 import { EditToolbar } from './components/editToolbar';
 import DaterDropdown from '../layout/daterDropdown';
+import MatcherHeader from '../layout/components/matcherHeader';
 
 const ProfilePage = () => {
   const route = useRoute();
@@ -230,17 +231,18 @@ const ProfilePage = () => {
           extendToTop={true}
         />
       )}
+
+      {user?.role === 'matchmaker' && !matchProfile && (
+        <MatcherHeader>
+          <DaterDropdown
+            API_BASE_URL={API_BASE_URL}
+            userInfo={user}
+            onDaterChange={handleDaterChange}
+          />
+        </MatcherHeader>
+      )}
       
       <ScrollView contentContainerStyle={styles.content}>
-        {user?.role === 'matchmaker' && !matchProfile && (
-          <View style={styles.dropdownContainer}>
-            <DaterDropdown
-              API_BASE_URL={API_BASE_URL}
-              userInfo={user}
-              onDaterChange={handleDaterChange}
-            />
-          </View>
-        )}
         {user.role === 'user' && (
           <Profile
             user={user}
@@ -293,7 +295,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f6f4fc',
-    paddingTop: 50
   },
   containerWithToolbar: {
     paddingTop: 0,
@@ -304,8 +305,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   dropdownContainer: {
-    marginBottom: 16,
+    position: 'absolute',
+    top: 50,
+    left: 20,
+    right: 20,
     zIndex: 100,
+    marginBottom: 16,
   },
   loadingContainer: {
     flex: 1,

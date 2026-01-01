@@ -9,6 +9,7 @@ import ProfileCard from './profileCard';
 import { useProfiles } from './hooks/useProfiles';
 import { useUserInfo } from './hooks/useUserInfo';
 import DaterDropdown from '../layout/daterDropdown';
+import MatcherHeader from '../layout/components/matcherHeader';
 
 const Match = () => {
   const { profiles, setProfiles, loading } = useProfiles(API_BASE_URL);
@@ -260,13 +261,13 @@ const Match = () => {
   return (
     <View style={styles.container}>
       {userInfo?.role === 'matchmaker' && (
-        <View style={styles.dropdownContainer}>
+        <MatcherHeader>
           <DaterDropdown
             API_BASE_URL={API_BASE_URL}
             userInfo={userInfo}
             onDaterChange={handleDaterChange}
           />
-        </View>
+        </MatcherHeader>
       )}
       <ScrollView style={styles.scrollView} contentContainerStyle={[styles.content, userInfo?.role === 'matchmaker' && styles.contentWithDropdown]}>
         {currentProfile ? (
@@ -341,7 +342,7 @@ const styles = StyleSheet.create({
     paddingBottom: 100, // Space for buttons at bottom
   },
   contentWithDropdown: {
-    paddingTop: 70, // Extra space for dropdown
+    paddingTop: 8, // Extra space for dropdown
   },
   loadingContainer: {
     flex: 1,
