@@ -117,15 +117,27 @@ const Match = () => {
   };
 
   useEffect(() => {
+    console.log('userInfo', userInfo);
     fetchProfile();
   }, []);
 
-  // Refresh userInfo when page comes into focus to get latest selected dater
+  // Refresh profiles when userInfo.referrer_id changes (selected dater changed)
+  useEffect(() => {
+    if (userInfo && userInfo.role === 'matchmaker') {
+      console.log('userInfo.referrer_id changed, refreshing profiles', userInfo.referrer_id);
+      fetchProfiles();
+      setCurrentIndex(0); // Reset to first profile
+    }
+  }, [userInfo?.referrer_id]);
+
+  // Refresh userInfo and profiles when page comes into focus to get latest selected dater
   useFocusEffect(
     React.useCallback(() => {
       // Small delay to ensure backend has updated after dater selection
-      const timer = setTimeout(() => {
-        refreshUserInfo();
+      const timer = setTimeout(async () => {
+        await refreshUserInfo();
+        // Refresh profiles after userInfo is updated
+        fetchProfiles();
       }, 100);
       return () => clearTimeout(timer);
     }, [])

@@ -231,6 +231,8 @@ const Settings = () => {
         setSavedReferrals((prev) => [...prev, newDater]);
         setReferralCode('');
         Alert.alert('Success', 'Referral code linked successfully!');
+        // Refresh user profile to get updated linked daters list
+        fetchUserProfile();
       } else {
         Alert.alert('Error', data.error || 'Failed to link referral');
       }
