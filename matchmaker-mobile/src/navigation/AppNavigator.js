@@ -14,6 +14,7 @@ import MatchConvo from '../components/conversations/matchConvo';
 import PuzzlesHub from '../components/puzzles/puzzlesPage';
 import SpiritAnimalQuiz from '../components/puzzles/spiritAnimalQuiz';
 import ZodiacQuiz from '../components/puzzles/zodiacQuiz';
+import TriviaChallenge from '../components/puzzles/triviaChallenge';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -63,6 +64,7 @@ export default function AppNavigator() {
       <Stack.Screen name="PuzzlesHub" component={PuzzlesHub} />
       <Stack.Screen name="SpiritAnimalQuiz" component={SpiritAnimalQuiz} />
       <Stack.Screen name="ZodiacQuiz" component={ZodiacQuiz} />
+      <Stack.Screen name="TriviaChallenge" component={TriviaChallenge} />
     </Stack.Navigator>
   );
 }
