@@ -14,7 +14,10 @@ def register():
     if not data or not all(k in data for k in required_fields):
         return jsonify({'msg': 'Missing required fields'}), 400
 
-    if User.query.filter_by(email=data['email']).first():
+    # Check for existing email, but allow if it's for a linked account creation
+    # (linked accounts will be created via the profile routes, not registration)
+    existing_user = User.query.filter_by(email=data['email']).first()
+    if existing_user and not data.get('allow_duplicate_email', False):
         return jsonify({'msg': 'Email already registered'}), 400
     
     role = data.get('role', 'user')  # default is normal user
@@ -56,9 +59,17 @@ def register():
 @auth_bp.route('/login', methods=['POST'])
 def login():
     data = request.json
-    user = User.query.filter_by(email=data['email']).first()
-
-    if user and user.check_password(data['password']):
+    # Handle multiple accounts with same email (linked accounts)
+    users = User.query.filter_by(email=data['email']).all()
+    
+    # Find the user with matching password
+    user = None
+    for u in users:
+        if u.check_password(data['password']):
+            user = u
+            break
+    
+    if user:
         token = create_access_token(identity=str(user.id))
         return jsonify({
             'message': 'Login successful', 

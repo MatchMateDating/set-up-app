@@ -8,7 +8,7 @@ class User(db.Model):
     __tablename__ = 'users'
 
     id = db.Column(db.Integer, primary_key=True)
-    email = db.Column(db.String(120), unique=True, nullable=False)
+    email = db.Column(db.String(120), nullable=False)  # unique removed to allow linked accounts with same email
     password_hash = db.Column(db.String(128), nullable=False)
     first_name = db.Column(db.String(120), nullable=True)
     last_name = db.Column(db.String(120), nullable=True)
@@ -29,6 +29,7 @@ class User(db.Model):
     unit = db.Column(db.String(20), nullable=False, default='Imperial')
 
     referred_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    linked_account_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
 
     def get_linked_daters(self):
         if self.role != "matchmaker":
@@ -71,7 +72,24 @@ class User(db.Model):
     def check_password(self, password):
         return bcrypt.check_password_hash(self.password_hash, password)
     
+    def get_linked_account(self):
+        """Get the linked account (matchmaker or dater)"""
+        if self.linked_account_id:
+            return User.query.get(self.linked_account_id)
+        return None
+
     def to_dict(self):
+        linked_account = self.get_linked_account()
+        linked_account_info = None
+        if linked_account:
+            # Include only basic info to avoid infinite recursion
+            linked_account_info = {
+                "id": linked_account.id,
+                "role": linked_account.role,
+                "first_name": linked_account.first_name,
+                "last_name": linked_account.last_name
+            }
+        
         return {
             "id": self.id,
             "email": self.email,
@@ -80,6 +98,8 @@ class User(db.Model):
             "role": self.role,
             "referral_code":self.referral_code,
             "referrer_id": self.referred_by_id,
+            "linked_account_id": self.linked_account_id,
+            "linked_account": linked_account_info,
             "linked_daters": [d.id for d in self.get_linked_daters()],
             "bio": self.bio,
             "age": self.age,
