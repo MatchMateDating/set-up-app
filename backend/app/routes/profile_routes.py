@@ -207,6 +207,9 @@ def create_linked_dater(current_user):
         current_user.linked_account_id = new_dater.id
         new_dater.linked_account_id = current_user.id
         
+        # Set last_active_at for the new account being switched to
+        new_dater.last_active_at = datetime.utcnow()
+        
         db.session.commit()
         
         # Return a new token for the dater account so user is switched to dater context
@@ -293,6 +296,9 @@ def create_linked_matchmaker(current_user):
         current_user.linked_account_id = new_matchmaker.id
         new_matchmaker.linked_account_id = current_user.id
         
+        # Set last_active_at for the new account being switched to
+        new_matchmaker.last_active_at = datetime.utcnow()
+        
         db.session.commit()
         
         # Verify the referred_by_id is set correctly (should be referrer.id, not current_user.id)
@@ -336,6 +342,10 @@ def switch_account(current_user):
         linked_account = User.query.get(current_user.linked_account_id)
         if not linked_account:
             return jsonify({'error': 'Linked account not found'}), 404
+        
+        # Update last_active_at for the account being switched to
+        linked_account.last_active_at = datetime.utcnow()
+        db.session.commit()
         
         # Return the linked account's data and a new token
         from flask_jwt_extended import create_access_token

@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify
 from app.models import db, User
 from flask_jwt_extended import create_access_token
 from flask import current_app
+from datetime import datetime
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
 
@@ -46,6 +47,9 @@ def register():
     if role == 'user':
         user.referral_code = user.generate_referral_code()
 
+    # Set last_active_at for newly created account
+    user.last_active_at = datetime.utcnow()
+
     db.session.add(user)
     db.session.commit()
 
@@ -62,19 +66,27 @@ def login():
     # Handle multiple accounts with same email (linked accounts)
     users = User.query.filter_by(email=data['email']).all()
     
-    # Find the user with matching password
-    user = None
+    # Find all users with matching password
+    matching_users = []
     for u in users:
         if u.check_password(data['password']):
-            user = u
-            break
+            matching_users.append(u)
     
-    if user:
-        token = create_access_token(identity=str(user.id))
-        return jsonify({
-            'message': 'Login successful', 
-            'user': user.to_dict(),
-            'token': token}), 200
-    else:
+    if not matching_users:
         return jsonify({'error': 'Invalid credentials'}), 401
+    
+    # If multiple accounts match, prefer the one that was last active
+    # Sort by last_active_at (most recent first), with None values treated as oldest
+    matching_users.sort(key=lambda u: u.last_active_at if u.last_active_at else datetime.min, reverse=True)
+    user = matching_users[0]
+    
+    # Update last_active_at to current time
+    user.last_active_at = datetime.utcnow()
+    db.session.commit()
+    
+    token = create_access_token(identity=str(user.id))
+    return jsonify({
+        'message': 'Login successful', 
+        'user': user.to_dict(),
+        'token': token}), 200
 

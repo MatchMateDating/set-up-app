@@ -3,6 +3,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import uuid
 from sqlalchemy.ext.mutable import MutableList
 from sqlalchemy import JSON
+from datetime import datetime
 
 class User(db.Model):
     __tablename__ = 'users'
@@ -27,6 +28,7 @@ class User(db.Model):
     longitude = db.Column(db.Float, nullable=True)
     match_radius = db.Column(db.Integer, nullable=True, default=50)
     unit = db.Column(db.String(20), nullable=False, default='Imperial')
+    last_active_at = db.Column(db.DateTime, nullable=True)
 
     referred_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     linked_account_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
