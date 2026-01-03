@@ -1,13 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, Alert, ScrollView, Image, TouchableOpacity } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import { API_BASE_URL } from '../../env';
 import Profile from './profile';
 import AvatarSelectorModal from './avatarSelectorModal';
 import { avatarMap } from './avatarSelectorModal';
 import { Ionicons } from '@expo/vector-icons';
 import { EditToolbar } from './components/editToolbar';
+import DaterDropdown from '../layout/daterDropdown';
+import MatcherHeader from '../layout/components/matcherHeader';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const ProfilePage = () => {
   const route = useRoute();
@@ -20,6 +23,7 @@ const ProfilePage = () => {
   const [avatar, setAvatar] = useState(null);
   const [profileFormData, setProfileFormData] = useState(null);
   const [profileHandleInputChange, setProfileHandleInputChange] = useState(null);
+  const [hasInitializedDater, setHasInitializedDater] = useState(false);
   const navigation = useNavigation();
 
   const fetchProfile = async () => {
@@ -89,10 +93,83 @@ const ProfilePage = () => {
   }, []);
 
   useEffect(() => {
-    if (user?.role === 'matchmaker' && user.referred_by_id) {
-      fetchReferrer(user.referred_by_id);
+    if (user?.role === 'matchmaker') {
+      if (user.referred_by_id) {
+        fetchReferrer(user.referred_by_id);
+        // Mark as initialized once we have a referred_by_id
+        // This prevents auto-setting first dater when switching daters
+        if (!hasInitializedDater) {
+          setHasInitializedDater(true);
+        }
+      } else if (!hasInitializedDater && !matchProfile) {
+        // Only fetch and set first dater on initial load if no referred_by_id
+        // This prevents resetting when switching daters
+        fetchLinkedDatersAndSetFirst();
+      }
     }
-  }, [user]);
+  }, [user?.referred_by_id, matchProfile, hasInitializedDater]);
+
+  const fetchLinkedDatersAndSetFirst = async () => {
+    if (!user || user.role !== 'matchmaker' || user.referred_by_id) return;
+    
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) return;
+
+      const res = await fetch(`${API_BASE_URL}/referral/referrals/${user.id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (res.status === 401) {
+        const data = await res.json();
+        if (data.error_code === 'TOKEN_EXPIRED') {
+          await AsyncStorage.removeItem('token');
+          Alert.alert('Session expired', 'Please log in again.');
+          navigation.navigate('Login');
+          return;
+        }
+      }
+
+      if (!res.ok) return;
+
+      const data = await res.json();
+      const linkedDaters = data.linked_daters || [];
+      
+      if (linkedDaters.length > 0) {
+        // Set the first linked dater as selected
+        const firstDaterId = linkedDaters[0].id;
+        
+        const setRes = await fetch(`${API_BASE_URL}/referral/set_selected_dater`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ selected_dater_id: firstDaterId }),
+        });
+
+        if (setRes.ok) {
+          // Refresh profile to get updated user with referred_by_id
+          await fetchProfile();
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching linked daters:', err);
+    }
+  };
+
+  // Refresh profile when page comes into focus to get latest selected dater
+  useFocusEffect(
+    React.useCallback(() => {
+      if (!matchProfile) {
+        // Small delay to ensure backend has updated after dater selection
+        const timer = setTimeout(() => {
+          fetchProfile();
+        }, 100);
+        return () => clearTimeout(timer);
+      }
+    }, [matchProfile])
+  );
 
   const handleAvatarClick = () => {
     setShowAvatarModal(true);
@@ -115,6 +192,11 @@ const ProfilePage = () => {
     }
   };
 
+  const handleDaterChange = async (daterId) => {
+    setHasInitializedDater(true);
+    await fetchProfile();
+  };
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -133,7 +215,7 @@ const ProfilePage = () => {
   }
 
   return (
-    <View style={[styles.container, editing && styles.containerWithToolbar]}>
+    <SafeAreaView style={[styles.container, editing && styles.containerWithToolbar]}>
       {matchProfile && !editing && (
         <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={24} color="#6B46C1" />
@@ -148,6 +230,15 @@ const ProfilePage = () => {
           editing={editing}
           extendToTop={true}
         />
+      )}
+
+      {user?.role === 'matchmaker' && !matchProfile && (
+        <MatcherHeader>
+          <DaterDropdown
+            userInfo={user}
+            onDaterChange={handleDaterChange}
+          />
+        </MatcherHeader>
       )}
       
       <ScrollView contentContainerStyle={styles.content}>
@@ -195,7 +286,7 @@ const ProfilePage = () => {
           />
         )}
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 };
 
@@ -203,7 +294,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f6f4fc',
-    paddingTop: 50
   },
   containerWithToolbar: {
     paddingTop: 0,
@@ -212,6 +302,14 @@ const styles = StyleSheet.create({
     paddingTop: 20,
     paddingBottom: 20,
     paddingHorizontal: 16,
+  },
+  dropdownContainer: {
+    position: 'absolute',
+    top: 50,
+    left: 20,
+    right: 20,
+    zIndex: 100,
+    marginBottom: 16,
   },
   loadingContainer: {
     flex: 1,

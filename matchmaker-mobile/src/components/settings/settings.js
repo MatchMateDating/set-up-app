@@ -9,6 +9,10 @@ import {
   Alert,
   Share,
   Modal,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { Ionicons } from '@expo/vector-icons';
@@ -29,6 +33,8 @@ const Settings = () => {
   const [editing, setEditing] = useState(false);
   const navigation = useNavigation();
   const [user, setUser] = useState(null);
+  const [showReferralModal, setShowReferralModal] = useState(false);
+  const [referralInput, setReferralInput] = useState('');
   const radiusUnit = user?.unit === 'imperial' ? 'mi' : 'km';
   const radiusMax = radiusUnit === 'km' ? 800 : 500;
   const [formData, setFormData] = useState({
@@ -75,8 +81,12 @@ const Settings = () => {
       const data = await res.json();
       setUser(data.user);
       setRole(data.user.role);
-      if (data.user?.referral_code) {
+      
+      // Only set referralCode for daters (users) - for matchmakers, keep it empty for the input field
+      if (data.user.role === 'user' && data.user?.referral_code) {
         setReferralCode(data.user.referral_code);
+      } else {
+        setReferralCode(''); // Clear referral code for matchmakers
       }
 
       if (data.user.role === 'matchmaker') {
@@ -157,6 +167,8 @@ const Settings = () => {
   };
 
   const sendInvite = async () => {
+    Keyboard.dismiss(); // Dismiss keyboard before executing action
+    
     if (!emailInput.trim()) {
       Alert.alert('Error', 'Please enter an email address');
       return;
@@ -198,6 +210,8 @@ const Settings = () => {
   };
 
   const handleSaveReferral = async () => {
+    Keyboard.dismiss(); // Dismiss keyboard before executing action
+    
     const code = referralCode.trim();
     if (!code) {
       Alert.alert('Error', 'Please enter a referral code');
@@ -229,6 +243,8 @@ const Settings = () => {
         setSavedReferrals((prev) => [...prev, newDater]);
         setReferralCode('');
         Alert.alert('Success', 'Referral code linked successfully!');
+        // Refresh user profile to get updated linked daters list
+        fetchUserProfile();
       } else {
         Alert.alert('Error', data.error || 'Failed to link referral');
       }
@@ -322,10 +338,213 @@ const Settings = () => {
     setEditing(false);
   };
 
+  const handleCreateDaterAccount = async () => {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) {
+        Alert.alert('Error', 'Please log in');
+        navigation.navigate('Login');
+        return;
+      }
+
+      const res = await fetch(`${API_BASE_URL}/profile/create_linked_dater`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (res.status === 401) {
+        const data = await res.json();
+        if (data.error_code === 'TOKEN_EXPIRED') {
+          await AsyncStorage.removeItem('token');
+          Alert.alert('Session expired', 'Please log in again.');
+          navigation.navigate('Login');
+          return;
+        }
+      }
+
+      if (!res.ok) {
+        const data = await res.json();
+        Alert.alert('Error', data.error || 'Failed to create dater account');
+        return;
+      }
+
+      const data = await res.json();
+      // Update token to switch to dater account context
+      if (data.token) {
+        await AsyncStorage.setItem('token', data.token);
+      }
+      await AsyncStorage.setItem('user', JSON.stringify(data.user));
+      Alert.alert('Success', 'Dater account created! You can now complete your profile.');
+      navigation.navigate('CompleteProfile');
+    } catch (err) {
+      console.error(err);
+      Alert.alert('Error', 'Failed to create dater account');
+    }
+  };
+
+  const handleCreateMatchmakerAccount = () => {
+    setShowReferralModal(true);
+  };
+
+  const submitCreateMatchmaker = async () => {
+    Keyboard.dismiss(); // Dismiss keyboard before executing action
+    
+    if (!referralInput.trim()) {
+      Alert.alert('Error', 'Please enter a referral code');
+      return;
+    }
+
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) {
+        Alert.alert('Error', 'Please log in');
+        navigation.navigate('Login');
+        return;
+      }
+
+      const res = await fetch(`${API_BASE_URL}/profile/create_linked_matchmaker`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ referral_code: referralInput.trim() }),
+      });
+
+      if (res.status === 401) {
+        const data = await res.json();
+        if (data.error_code === 'TOKEN_EXPIRED') {
+          await AsyncStorage.removeItem('token');
+          Alert.alert('Session expired', 'Please log in again.');
+          navigation.navigate('Login');
+          return;
+        }
+      }
+
+      if (!res.ok) {
+        const data = await res.json();
+        Alert.alert('Error', data.error || 'Failed to create matchmaker account');
+        return;
+      }
+
+      const data = await res.json();
+      // Update token to switch to matchmaker account context
+      if (data.token) {
+        await AsyncStorage.setItem('token', data.token);
+      }
+      await AsyncStorage.setItem('user', JSON.stringify(data.user));
+      setShowReferralModal(false);
+      setReferralInput('');
+      Alert.alert('Success', 'Matchmaker account created successfully!');
+      fetchUserProfile();
+    } catch (err) {
+      console.error(err);
+      Alert.alert('Error', 'Failed to create matchmaker account');
+    }
+  };
+
+  const handleSwitchAccount = async () => {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) {
+        Alert.alert('Error', 'Please log in');
+        navigation.navigate('Login');
+        return;
+      }
+
+      const res = await fetch(`${API_BASE_URL}/profile/switch_account`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (res.status === 401) {
+        const data = await res.json();
+        if (data.error_code === 'TOKEN_EXPIRED') {
+          await AsyncStorage.removeItem('token');
+          Alert.alert('Session expired', 'Please log in again.');
+          navigation.navigate('Login');
+          return;
+        }
+      }
+
+      if (!res.ok) {
+        const data = await res.json();
+        Alert.alert('Error', data.error || 'Failed to switch account');
+        return;
+      }
+
+      const data = await res.json();
+      await AsyncStorage.setItem('token', data.token);
+      await AsyncStorage.setItem('user', JSON.stringify(data.user));
+      Alert.alert('Success', `Switched to ${data.user.role} account`);
+      fetchUserProfile();
+    } catch (err) {
+      console.error(err);
+      Alert.alert('Error', 'Failed to switch account');
+    }
+  };
+
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.content}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+    >
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <ScrollView 
+          style={styles.container}
+          contentContainerStyle={styles.contentContainer}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.content}>
         <Text style={styles.title}>Settings</Text>
+
+        {/* Role Toggle - Show if user has both accounts */}
+        {user?.linked_account && (
+          <View style={styles.card}>
+            <Text style={styles.cardHeader}>Account Type</Text>
+            <Text style={styles.cardDescription}>
+              You have both a dater and matchmaker account. Switch between them below.
+            </Text>
+            <TouchableOpacity style={styles.switchBtn} onPress={handleSwitchAccount}>
+              <Text style={styles.switchBtnText}>
+                Switch to {user.linked_account.role === 'matchmaker' ? 'Matchmaker' : 'Dater'} Account
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Create Matchmaker Account Button - Show if user is dater and doesn't have linked account */}
+        {role === 'user' && !user?.linked_account && (
+          <View style={styles.card}>
+            <Text style={styles.cardHeader}>Create Matchmaker Account</Text>
+            <Text style={styles.cardDescription}>
+              Create a matchmaker account linked to your dater account. Both accounts will share the same email and password.
+            </Text>
+            <TouchableOpacity style={styles.primaryBtn} onPress={handleCreateMatchmakerAccount}>
+              <Text style={styles.primaryBtnText}>Create Matchmaker Account</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Create Dater Account Button - Show if user is matchmaker and doesn't have linked account */}
+        {role === 'matchmaker' && !user?.linked_account && (
+          <View style={styles.card}>
+            <Text style={styles.cardHeader}>Create Dater Account</Text>
+            <Text style={styles.cardDescription}>
+              Create a dater account linked to your matchmaker account. Both accounts will share the same email and password.
+            </Text>
+            <TouchableOpacity style={styles.primaryBtn} onPress={handleCreateDaterAccount}>
+              <Text style={styles.primaryBtnText}>Create Dater Account</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* User Referral Code */}
         {role === 'user' && (
@@ -401,9 +620,15 @@ const Settings = () => {
           animationType="slide"
           onRequestClose={() => setShowEmailModal(false)}
         >
-          <View style={styles.modalBackdrop}>
-            <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>Invite by Email</Text>
+          <KeyboardAvoidingView
+            style={styles.modalBackdrop}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+          >
+            <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+              <View style={{ flex: 1 }}>
+                <View style={styles.modalContent}>
+                  <Text style={styles.modalTitle}>Invite by Email</Text>
               <TextInput
                 style={styles.modalInput}
                 placeholder="Enter email address"
@@ -431,8 +656,59 @@ const Settings = () => {
                   <Text style={styles.modalButtonTextSend}>Send</Text>
                 </TouchableOpacity>
               </View>
-            </View>
-          </View>
+                </View>
+              </View>
+            </TouchableWithoutFeedback>
+          </KeyboardAvoidingView>
+        </Modal>
+
+        {/* Referral Code Modal for Matchmaker Account Creation */}
+        <Modal
+          visible={showReferralModal}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => setShowReferralModal(false)}
+        >
+          <KeyboardAvoidingView
+            style={styles.modalBackdrop}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+          >
+            <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+              <View style={{ flex: 1 }}>
+                <View style={styles.modalContent}>
+                  <Text style={styles.modalTitle}>Create Matchmaker Account</Text>
+              <Text style={styles.modalSubtitle}>Enter a referral code to create your matchmaker account</Text>
+              <TextInput
+                style={styles.modalInput}
+                placeholder="Enter referral code"
+                placeholderTextColor="#999"
+                value={referralInput}
+                onChangeText={setReferralInput}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.modalButtonCancel]}
+                  onPress={() => {
+                    setShowReferralModal(false);
+                    setReferralInput('');
+                  }}
+                >
+                  <Text style={styles.modalButtonTextCancel}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.modalButtonSend]}
+                  onPress={submitCreateMatchmaker}
+                >
+                  <Text style={styles.modalButtonTextSend}>Create</Text>
+                </TouchableOpacity>
+              </View>
+                </View>
+              </View>
+            </TouchableWithoutFeedback>
+          </KeyboardAvoidingView>
         </Modal>
 
         {/* User Dating Preferences */}
@@ -573,7 +849,9 @@ const Settings = () => {
           <Text style={styles.signOutBtnText}>Sign Out</Text>
         </TouchableOpacity>
       </View>
-    </ScrollView>
+        </ScrollView>
+      </TouchableWithoutFeedback>
+    </KeyboardAvoidingView>
   );
 };
 
@@ -582,6 +860,10 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f6f4fc',
     paddingTop: 40,
+  },
+  contentContainer: {
+    flexGrow: 1,
+    paddingBottom: 40,
   },
   content: {
     padding: 20,
@@ -623,6 +905,30 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#222',
     marginBottom: 16,
+  },
+  cardDescription: {
+    fontSize: 14,
+    color: '#6b7280',
+    marginBottom: 16,
+    lineHeight: 20,
+  },
+  switchBtn: {
+    backgroundColor: '#6B46C1',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  switchBtnText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: '#6b7280',
+    marginBottom: 16,
+    lineHeight: 20,
   },
   primaryBtn: {
     backgroundColor: '#6B46C1',

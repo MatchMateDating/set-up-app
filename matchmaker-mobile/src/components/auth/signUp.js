@@ -66,7 +66,6 @@ const SignUpScreen = () => {
         Alert.alert('Error', 'Registration successful, but no token received.');
       }
     } catch (err) {
-      console.log(err)
       Alert.alert('Error', err.response?.data?.msg || 'Registration failed');
     }
   };

@@ -24,23 +24,31 @@ def haversine_distance(lat1, lon1, lat2, lon2):
 @match_bp.route('/users_to_match', methods=['GET'])
 @token_required
 def get_users_to_match(current_user):
-    query = User.query.filter(User.role == 'user', User.id != current_user.id)
+    # Determine the acting user - for matchmakers, use their linked dater
+    acting_user = current_user
+    referred_dater_id = None
+    if current_user.role == 'matchmaker' and current_user.referred_by_id:
+        referred_dater_id = current_user.referred_by_id
+        acting_user = User.query.get(referred_dater_id)
+        if not acting_user:
+            return jsonify([]), 404
+    
+    query = User.query.filter(User.role == 'user', User.id != acting_user.id)
 
-    # Add preferences filtering
+    # Add preferences filtering using acting_user (linked dater for matchmakers)
     # Age filtering
-    if current_user.preferredAgeMin and current_user.preferredAgeMax:
+    if acting_user.preferredAgeMin and acting_user.preferredAgeMax:
         query = query.filter(User.age.between(
-            current_user.preferredAgeMin, 
-            current_user.preferredAgeMax
+            acting_user.preferredAgeMin, 
+            acting_user.preferredAgeMax
         ))
 
     # Gender filtering
-    if current_user.preferredGenders:
-        query = query.filter(User.gender.in_(current_user.preferredGenders))
+    if acting_user.preferredGenders:
+        query = query.filter(User.gender.in_(acting_user.preferredGenders))
 
     # If matchmaker, exclude their referred dater from the list
-    if current_user.role == 'matchmaker' and current_user.referred_by_id:
-        referred_dater_id = current_user.referred_by_id
+    if current_user.role == 'matchmaker' and referred_dater_id:
         liked_by_linked_dater = Match.query.filter(
             (Match.user_id_1 == referred_dater_id) | (Match.user_id_2 == referred_dater_id)
         ).all()
@@ -70,32 +78,32 @@ def get_users_to_match(current_user):
             ~User.id.in_(liked_user_ids),
             User.id != referred_dater_id)
 
-    if current_user.role == 'user':
+    if acting_user.role == 'user':
         existing_matches = Match.query.filter(
-            ((Match.user_id_1 == current_user.id) | (Match.user_id_2 == current_user.id)) &
+            ((Match.user_id_1 == acting_user.id) | (Match.user_id_2 == acting_user.id)) &
             (Match.status == 'matched')
         ).all()
 
         matched_user_ids = set()
         for match in existing_matches:
-            if match.user_id_1 != current_user.id:
+            if match.user_id_1 != acting_user.id:
                 matched_user_ids.add(match.user_id_1)
-            if match.user_id_2 != current_user.id:
+            if match.user_id_2 != acting_user.id:
                 matched_user_ids.add(match.user_id_2)
 
         query = query.filter(~User.id.in_(matched_user_ids))
 
         pending_likes = Match.query.filter(
-            ((Match.user_id_1 == current_user.id) | (Match.user_id_2 == current_user.id)) &
+            ((Match.user_id_1 == acting_user.id) | (Match.user_id_2 == acting_user.id)) &
             (Match.status == 'pending')
         ).all()
 
         pending_user_ids = set()
         for match in pending_likes:
-            if any(u.id == current_user.id for u in match.liked_by):
-                if match.user_id_1 != current_user.id:
+            if any(u.id == acting_user.id for u in match.liked_by):
+                if match.user_id_1 != acting_user.id:
                     pending_user_ids.add(match.user_id_1)
-                if match.user_id_2 != current_user.id:
+                if match.user_id_2 != acting_user.id:
                     pending_user_ids.add(match.user_id_2)
 
         query = query.filter(~User.id.in_(pending_user_ids))
@@ -103,19 +111,24 @@ def get_users_to_match(current_user):
     users = query.all()
     users_data = []
     for user in users:
-        if current_user.latitude and current_user.longitude and user.latitude and user.longitude:
-            distance = haversine_distance(current_user.latitude, current_user.longitude,
+        # Use acting_user's location and radius (linked dater for matchmakers)
+        if acting_user.latitude and acting_user.longitude and user.latitude and user.longitude:
+            distance = haversine_distance(acting_user.latitude, acting_user.longitude,
                                           user.latitude, user.longitude)
             if distance is None:
                 continue
-            # user must be within current_user's radius AND vice versa
-            if (distance > (current_user.match_radius or 50)) or (distance > (user.match_radius or 50)):
+            # user must be within acting_user's radius AND vice versa
+            if (distance > (acting_user.match_radius or 50)) or (distance > (user.match_radius or 50)):
                 continue
-        if current_user.preferredAgeMin and current_user.preferredAgeMax and user.preferredAgeMin and user.preferredAgeMax:
-            if not (user.preferredAgeMin <= current_user.age <= user.preferredAgeMax):
+        # Check if user's age preferences match acting_user's age
+        if acting_user.preferredAgeMin and acting_user.preferredAgeMax and user.preferredAgeMin and user.preferredAgeMax:
+            if not (user.preferredAgeMin <= acting_user.age <= user.preferredAgeMax):
                 continue
-        if current_user.preferredGenders and user.preferredGenders:
-            if current_user.gender not in user.preferredGenders:
+        # Check if user's gender preferences include acting_user's gender
+        # If user has preferences, acting_user's gender must be in them
+        # If user has no preferences, they're open to anyone (don't filter)
+        if user.preferredGenders:
+            if not acting_user.gender or acting_user.gender not in user.preferredGenders:
                 continue
         liked_linked_dater = False
         note_text = None
@@ -123,8 +136,8 @@ def get_users_to_match(current_user):
         matched_by_matcher_user_2 = None
 
         match = Match.query.filter(
-            ((Match.user_id_1 == current_user.id) & (Match.user_id_2 == user.id)) |
-            ((Match.user_id_1 == user.id) & (Match.user_id_2 == current_user.id))
+            ((Match.user_id_1 == acting_user.id) & (Match.user_id_2 == user.id)) |
+            ((Match.user_id_1 == user.id) & (Match.user_id_2 == acting_user.id))
         ).first()
 
         if match:
@@ -134,8 +147,7 @@ def get_users_to_match(current_user):
             matched_by_matcher_user_1 = match.matched_by_user_id_1_matcher
             matched_by_matcher_user_2 = match.matched_by_user_id_2_matcher
 
-        if current_user.role == 'matchmaker' and current_user.referred_by_id:
-            referred_dater_id = current_user.referred_by_id
+        if current_user.role == 'matchmaker' and referred_dater_id:
             match = Match.query.filter(
                 ((Match.user_id_1 == user.id) & (Match.user_id_2 == referred_dater_id)) |
                 ((Match.user_id_1 == referred_dater_id) & (Match.user_id_2 == user.id))
@@ -148,8 +160,7 @@ def get_users_to_match(current_user):
         user_dict['note'] = note_text
         user_dict['matched_by_matcher_user_1'] = matched_by_matcher_user_1
         user_dict['matched_by_matcher_user_2'] = matched_by_matcher_user_2
-        if current_user.role == 'matchmaker' and current_user.referred_by_id:
-            referred_dater_id = current_user.referred_by_id
+        if current_user.role == 'matchmaker' and referred_dater_id:
             try:
                 ai_score = get_conversation_similarity(referred_dater_id, user.id)
                 if ai_score is None or math.isnan(ai_score):

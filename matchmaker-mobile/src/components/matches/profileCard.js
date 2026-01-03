@@ -9,10 +9,7 @@ import { UserContext } from '../../context/UserContext';
 const ProfileCard = ({
   profile,
   userInfo,
-  onSkip,
-  onLike,
-  onBlindMatch,
-  onOpenNote
+  onSkip
 }) => {
   const { user } = useContext(UserContext);
   const viewerUnit = user?.unit;
@@ -38,39 +35,10 @@ const ProfileCard = ({
         viewerUnit={viewerUnit}
       />
 
-      <TouchableOpacity style={styles.noteButton} onPress={onOpenNote}>
-        <Ionicons name="create-outline" size={24} color="#6B46C1" />
-      </TouchableOpacity>
-
       {userInfo?.role === 'matchmaker' && profile.ai_score !== undefined && (
         <View style={styles.aiScoreBox}>
           <CompatibilityScore score={profile.ai_score} />
         </View>
-      )}
-
-      {userInfo?.role === 'matchmaker' ? (
-        profile.liked_linked_dater ? (
-          <TouchableOpacity
-            style={styles.likeButton}
-            onPress={() => onBlindMatch(profile.id)}
-          >
-            <Ionicons name="heart" size={32} color="#e53e3e" />
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity
-            style={styles.likeButton}
-            onPress={() => onLike(profile.id)}
-          >
-            <Ionicons name="heart" size={32} color="#e53e3e" />
-          </TouchableOpacity>
-        )
-      ) : (
-        <TouchableOpacity
-          style={styles.likeButton}
-          onPress={() => onLike(profile.id)}
-        >
-          <Ionicons name="heart" size={32} color="#e53e3e" />
-        </TouchableOpacity>
       )}
     </View>
   );
@@ -112,23 +80,9 @@ const styles = StyleSheet.create({
     right: 16,
     zIndex: 10,
   },
-  noteButton: {
-    position: 'absolute',
-    top: 16,
-    left: 16,
-    zIndex: 10,
-    backgroundColor: '#f6f4fc',
-    borderRadius: 20,
-    padding: 8,
-  },
   aiScoreBox: {
     marginTop: 16,
     marginBottom: 16,
-  },
-  likeButton: {
-    alignSelf: 'center',
-    marginTop: 16,
-    padding: 12,
   },
 });
 

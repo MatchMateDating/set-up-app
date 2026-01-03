@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { API_BASE_URL } from '../../env';
 import MatchCard from './matchCard';
 import ToggleConversations from './toggleConversations';
 import { useMatches } from './hooks/useMatches';
 import { useUserInfo } from './hooks/useUserInfo';
+import DaterDropdown from '../layout/daterDropdown';
+import MatcherHeader from '../layout/components/matcherHeader';
 
 const Conversations = () => {
   const [showDaterMatches, setShowDaterMatches] = useState(true);
@@ -57,6 +59,17 @@ const Conversations = () => {
     fetchProfile();
     fetchMatches();
   }, []);
+
+  // Refresh userInfo when page comes into focus to get latest selected dater
+  useFocusEffect(
+    React.useCallback(() => {
+      // Small delay to ensure backend has updated after dater selection
+      const timer = setTimeout(() => {
+        fetchProfile();
+      }, 100);
+      return () => clearTimeout(timer);
+    }, [])
+  );
 
   const getFilteredMatches = () => {
     if (!userInfo || userInfo.role !== 'user') return matches;
@@ -191,6 +204,11 @@ const Conversations = () => {
     }
   };
 
+  const handleDaterChange = async (daterId) => {
+    await fetchProfile();
+    fetchMatches();
+  };
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -203,34 +221,43 @@ const Conversations = () => {
   const filteredMatches = getFilteredMatches();
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {userInfo && userInfo.role === 'user' && matches.length > 0 && (
-        <ToggleConversations
-          showDaterMatches={showDaterMatches}
-          setShowDaterMatches={setShowDaterMatches}
-        />
+    <View style={styles.container}>
+      {userInfo?.role === 'matchmaker' && (
+        <MatcherHeader>
+          <DaterDropdown
+            userInfo={userInfo}
+            onDaterChange={handleDaterChange}
+          />
+        </MatcherHeader>
       )}
-      <View style={styles.matchList}>
-        {filteredMatches.length > 0 ? (
-          filteredMatches.map((matchObj, index) => (
-            <MatchCard
-              key={index}
-              matchObj={matchObj}
-              API_BASE_URL={API_BASE_URL}
-              userInfo={userInfo}
-              navigation={navigation}
-              unmatch={unmatch}
-              reveal={reveal}
-              hide={hide}
-            />
-          ))
-        ) : (
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>No matches yet!</Text>
-          </View>
+      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+        {userInfo && userInfo.role === 'user' && matches.length > 0 && (
+          <ToggleConversations
+            showDaterMatches={showDaterMatches}
+            setShowDaterMatches={setShowDaterMatches}
+          />
         )}
-      </View>
-    </ScrollView>
+        <View style={styles.matchList}>
+          {filteredMatches.length > 0 ? (
+            filteredMatches.map((matchObj, index) => (
+              <MatchCard
+                key={index}
+                matchObj={matchObj}
+                userInfo={userInfo}
+                navigation={navigation}
+                unmatch={unmatch}
+                reveal={reveal}
+                hide={hide}
+              />
+            ))
+          ) : (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>No matches yet!</Text>
+            </View>
+          )}
+        </View>
+      </ScrollView>
+    </View>
   );
 };
 

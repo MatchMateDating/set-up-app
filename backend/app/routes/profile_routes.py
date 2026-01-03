@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify, request
-from app.models.userDB import User
+from app.models.userDB import User, ReferredUsers
 from app import db
 import os
 from werkzeug.utils import secure_filename
@@ -173,4 +173,193 @@ def update_avatar(user_id):
     db.session.commit()
 
     return jsonify({"message": "Avatar updated", "avatar": user.avatar})
+
+@profile_bp.route('/create_linked_dater', methods=['POST'])
+@token_required
+def create_linked_dater(current_user):
+    """Create a dater account linked to the current matchmaker account"""
+    try:
+        if current_user.role != 'matchmaker':
+            return jsonify({'error': 'Only matchmakers can create linked dater accounts'}), 403
+        
+        # Check if already has a linked dater account
+        if current_user.linked_account_id:
+            linked_account = User.query.get(current_user.linked_account_id)
+            if linked_account and linked_account.role == 'user':
+                return jsonify({'error': 'You already have a linked dater account'}), 400
+        
+        # Create new dater account with same email and password
+        new_dater = User(
+            email=current_user.email,
+            first_name=current_user.first_name or '',
+            last_name=current_user.last_name or '',
+            role='user',
+            referred_by_id=None
+        )
+        # Copy password hash (same password)
+        new_dater.password_hash = current_user.password_hash
+        new_dater.referral_code = new_dater.generate_referral_code()
+        
+        db.session.add(new_dater)
+        db.session.flush()  # Get the ID
+        
+        # Link accounts bidirectionally
+        current_user.linked_account_id = new_dater.id
+        new_dater.linked_account_id = current_user.id
+        
+        # Set last_active_at for the new account being switched to
+        new_dater.last_active_at = datetime.utcnow()
+        
+        db.session.commit()
+        
+        # Return a new token for the dater account so user is switched to dater context
+        from flask_jwt_extended import create_access_token
+        token = create_access_token(identity=str(new_dater.id))
+        
+        return jsonify({
+            'message': 'Linked dater account created successfully',
+            'user': new_dater.to_dict(),
+            'token': token
+        }), 201
+        
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        return jsonify({
+            'error': 'Database error',
+            'details': str(e)
+        }), 500
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            'error': 'Unexpected server error',
+            'details': str(e)
+        }), 500
+
+@profile_bp.route('/create_linked_matchmaker', methods=['POST'])
+@token_required
+def create_linked_matchmaker(current_user):
+    """Create a matchmaker account linked to the current dater account"""
+    try:
+        if current_user.role != 'user':
+            return jsonify({'error': 'Only daters can create linked matchmaker accounts'}), 403
+        
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'Request body must be JSON'}), 400
+        
+        referral_code = data.get('referral_code')
+        
+        if not referral_code:
+            return jsonify({'error': 'Referral code is required'}), 400
+        
+        # Find the referrer (the dater who provided the referral code - this is the dater the matchmaker will match for)
+        referrer = User.query.filter_by(referral_code=referral_code).first()
+        if not referrer:
+            return jsonify({'error': 'Invalid referral code'}), 400
+        
+        # Ensure the referrer is a dater (user role)
+        if referrer.role != 'user':
+            return jsonify({'error': 'Referral code must be from a dater account'}), 400
+        
+        # Check if already has a linked matchmaker account
+        if current_user.linked_account_id:
+            linked_account = User.query.get(current_user.linked_account_id)
+            if linked_account and linked_account.role == 'matchmaker':
+                return jsonify({'error': 'You already have a linked matchmaker account'}), 400
+        
+        # Create new matchmaker account with same email and password
+        new_matchmaker = User(
+            email=current_user.email,
+            first_name=current_user.first_name or '',
+            last_name=current_user.last_name or '',
+            role='matchmaker',
+            referred_by_id=referrer.id
+        )
+        # Copy password hash (same password)
+        new_matchmaker.password_hash = current_user.password_hash
+        
+        db.session.add(new_matchmaker)
+        db.session.flush()  # Get the ID to ensure it's available and trigger after_insert event
+        
+        # The after_insert event should have created the ReferredUsers row, but we'll ensure it exists and is correct
+        referral_row = ReferredUsers.query.filter_by(matchmaker_id=new_matchmaker.id).first()
+        if not referral_row:
+            referral_row = ReferredUsers(matchmaker_id=new_matchmaker.id)
+            db.session.add(referral_row)
+        
+        # Set the linked_dater_1_id to the referrer (the dater who provided the referral code)
+        # This is the dater the matchmaker will be matching for
+        # Note: The after_insert event might have already set this, but we'll ensure it's correct
+        referral_row.linked_dater_1_id = referrer.id
+        
+        # Link accounts bidirectionally
+        current_user.linked_account_id = new_matchmaker.id
+        new_matchmaker.linked_account_id = current_user.id
+        
+        # Set last_active_at for the new account being switched to
+        new_matchmaker.last_active_at = datetime.utcnow()
+        
+        db.session.commit()
+        
+        # Verify the referred_by_id is set correctly (should be referrer.id, not current_user.id)
+        # Refresh the object to ensure all relationships are loaded
+        db.session.refresh(new_matchmaker)
+        if new_matchmaker.referred_by_id != referrer.id:
+            # This should never happen, but log it if it does
+            print(f"WARNING: referred_by_id mismatch! Expected {referrer.id}, got {new_matchmaker.referred_by_id}")
+        
+        # Return a new token for the matchmaker account so user is switched to matchmaker context
+        from flask_jwt_extended import create_access_token
+        token = create_access_token(identity=str(new_matchmaker.id))
+        
+        return jsonify({
+            'message': 'Linked matchmaker account created successfully',
+            'user': new_matchmaker.to_dict(),
+            'token': token
+        }), 201
+        
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        return jsonify({
+            'error': 'Database error',
+            'details': str(e)
+        }), 500
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            'error': 'Unexpected server error',
+            'details': str(e)
+        }), 500
+
+@profile_bp.route('/switch_account', methods=['POST'])
+@token_required
+def switch_account(current_user):
+    """Switch to the linked account (dater <-> matchmaker)"""
+    try:
+        if not current_user.linked_account_id:
+            return jsonify({'error': 'No linked account found'}), 404
+        
+        linked_account = User.query.get(current_user.linked_account_id)
+        if not linked_account:
+            return jsonify({'error': 'Linked account not found'}), 404
+        
+        # Update last_active_at for the account being switched to
+        linked_account.last_active_at = datetime.utcnow()
+        db.session.commit()
+        
+        # Return the linked account's data and a new token
+        from flask_jwt_extended import create_access_token
+        token = create_access_token(identity=str(linked_account.id))
+        
+        return jsonify({
+            'message': 'Account switched successfully',
+            'user': linked_account.to_dict(),
+            'token': token
+        }), 200
+        
+    except Exception as e:
+        return jsonify({
+            'error': 'Unexpected server error',
+            'details': str(e)
+        }), 500
 
