@@ -1,16 +1,13 @@
-import React, {useEffect} from 'react';
+import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
+import { API_BASE_URL } from '../../env';
 
-const MatchCard = ({ matchObj, API_BASE_URL, userInfo, navigation, unmatch, reveal, hide }) => {
+const MatchCard = ({ matchObj, userInfo, navigation, unmatch, reveal, hide }) => {
   const bothMm = !!matchObj.both_matchmakers_involved;
   const oneMm = !!matchObj.user_1_matchmaker_involved || !!matchObj.user_2_matchmaker_involved;
   const isBlind = matchObj.blind_match === 'Blind';
-
-  useEffect(() => {
-    console.log('blindMatch', isBlind);
-  }, []);
 
   const renderMatchmakerIcons = () => {
     if (bothMm) {

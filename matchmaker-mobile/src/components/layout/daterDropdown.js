@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, Modal, ScrollView, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {API_BASE_URL } from '../../env';
 
-const DaterDropdown = ({ API_BASE_URL, userInfo, onDaterChange }) => {
+const DaterDropdown = ({ userInfo, onDaterChange }) => {
   const [open, setOpen] = useState(false);
   const [linkedDaters, setLinkedDaters] = useState([]);
   const [selectedDater, setSelectedDater] = useState(null);

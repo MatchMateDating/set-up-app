@@ -205,7 +205,6 @@ const Conversations = () => {
   };
 
   const handleDaterChange = async (daterId) => {
-    console.log('conversation dater change');
     await fetchProfile();
     fetchMatches();
   };
@@ -226,7 +225,6 @@ const Conversations = () => {
       {userInfo?.role === 'matchmaker' && (
         <MatcherHeader>
           <DaterDropdown
-            API_BASE_URL={API_BASE_URL}
             userInfo={userInfo}
             onDaterChange={handleDaterChange}
           />
@@ -245,7 +243,6 @@ const Conversations = () => {
               <MatchCard
                 key={index}
                 matchObj={matchObj}
-                API_BASE_URL={API_BASE_URL}
                 userInfo={userInfo}
                 navigation={navigation}
                 unmatch={unmatch}

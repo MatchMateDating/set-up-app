@@ -49,7 +49,6 @@ const Match = () => {
 
   const handleDaterChange = async (daterId) => {
     // Refresh userInfo to get updated referred_by_id, then refresh profiles
-    console.log('match dater change');
     await refreshUserInfo();
     setCurrentIndex(0);
     fetchProfiles();
@@ -117,14 +116,12 @@ const Match = () => {
   };
 
   useEffect(() => {
-    console.log('userInfo', userInfo);
     fetchProfile();
   }, []);
 
   // Refresh profiles when userInfo.referrer_id changes (selected dater changed)
   useEffect(() => {
     if (userInfo && userInfo.role === 'matchmaker') {
-      console.log('userInfo.referrer_id changed, refreshing profiles', userInfo.referrer_id);
       fetchProfiles();
       setCurrentIndex(0); // Reset to first profile
     }
@@ -275,7 +272,6 @@ const Match = () => {
       {userInfo?.role === 'matchmaker' && (
         <MatcherHeader>
           <DaterDropdown
-            API_BASE_URL={API_BASE_URL}
             userInfo={userInfo}
             onDaterChange={handleDaterChange}
           />

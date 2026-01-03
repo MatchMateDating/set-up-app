@@ -193,7 +193,6 @@ const ProfilePage = () => {
   };
 
   const handleDaterChange = async (daterId) => {
-    console.log('profile dater change');
     setHasInitializedDater(true);
     await fetchProfile();
   };
@@ -236,7 +235,6 @@ const ProfilePage = () => {
       {user?.role === 'matchmaker' && !matchProfile && (
         <MatcherHeader>
           <DaterDropdown
-            API_BASE_URL={API_BASE_URL}
             userInfo={user}
             onDaterChange={handleDaterChange}
           />
