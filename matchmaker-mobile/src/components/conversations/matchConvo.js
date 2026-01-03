@@ -224,6 +224,7 @@ const MatchConvo = () => {
               <Image
                 source={{ uri: matchUser.first_image.startsWith('http') ? matchUser.first_image : `${API_BASE_URL}${matchUser.first_image}` }}
                 style={styles.matchAvatarImg}
+                blurRadius={isBlind && userInfo?.role !== 'matchmaker' ? 40 : 0}
               />
             ) : (
               <View style={styles.matchPlaceholder}>
