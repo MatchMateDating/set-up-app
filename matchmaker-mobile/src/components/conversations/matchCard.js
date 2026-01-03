@@ -1,7 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
 import { API_BASE_URL } from '../../env';
 
 const MatchCard = ({ matchObj, userInfo, navigation, unmatch, reveal, hide }) => {
