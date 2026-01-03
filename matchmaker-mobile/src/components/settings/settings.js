@@ -77,8 +77,12 @@ const Settings = () => {
       const data = await res.json();
       setUser(data.user);
       setRole(data.user.role);
-      if (data.user?.referral_code) {
+      
+      // Only set referralCode for daters (users) - for matchmakers, keep it empty for the input field
+      if (data.user.role === 'user' && data.user?.referral_code) {
         setReferralCode(data.user.referral_code);
+      } else {
+        setReferralCode(''); // Clear referral code for matchmakers
       }
 
       if (data.user.role === 'matchmaker') {
@@ -473,7 +477,10 @@ const Settings = () => {
   };
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView 
+      style={styles.container}
+      contentContainerStyle={styles.contentContainer}
+    >
       <View style={styles.content}>
         <Text style={styles.title}>Settings</Text>
 
@@ -814,6 +821,10 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f6f4fc',
     paddingTop: 40,
+  },
+  contentContainer: {
+    flexGrow: 1,
+    paddingBottom: 40,
   },
   content: {
     padding: 20,
