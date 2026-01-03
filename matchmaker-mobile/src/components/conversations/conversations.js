@@ -244,7 +244,6 @@ const Conversations = () => {
                 key={index}
                 matchObj={matchObj}
                 userInfo={userInfo}
-                navigation={navigation}
                 unmatch={unmatch}
                 reveal={reveal}
                 hide={hide}
