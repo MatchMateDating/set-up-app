@@ -421,6 +421,10 @@ const Settings = () => {
       }
 
       const data = await res.json();
+      // Update token to switch to matchmaker account context
+      if (data.token) {
+        await AsyncStorage.setItem('token', data.token);
+      }
       await AsyncStorage.setItem('user', JSON.stringify(data.user));
       setShowReferralModal(false);
       setReferralInput('');

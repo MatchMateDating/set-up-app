@@ -241,6 +241,9 @@ def create_linked_matchmaker(current_user):
             return jsonify({'error': 'Only daters can create linked matchmaker accounts'}), 403
         
         data = request.get_json()
+        if not data:
+            return jsonify({'error': 'Request body must be JSON'}), 400
+        
         referral_code = data.get('referral_code')
         
         if not referral_code:
@@ -299,9 +302,14 @@ def create_linked_matchmaker(current_user):
             # This should never happen, but log it if it does
             print(f"WARNING: referred_by_id mismatch! Expected {referrer.id}, got {new_matchmaker.referred_by_id}")
         
+        # Return a new token for the matchmaker account so user is switched to matchmaker context
+        from flask_jwt_extended import create_access_token
+        token = create_access_token(identity=str(new_matchmaker.id))
+        
         return jsonify({
             'message': 'Linked matchmaker account created successfully',
-            'user': new_matchmaker.to_dict()
+            'user': new_matchmaker.to_dict(),
+            'token': token
         }), 201
         
     except SQLAlchemyError as e:
