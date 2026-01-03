@@ -14,10 +14,10 @@ def register():
     if not data or not all(k in data for k in required_fields):
         return jsonify({'msg': 'Missing required fields'}), 400
 
-    # Check for existing email, but allow if it's for a linked account creation
-    # (linked accounts will be created via the profile routes, not registration)
+    # Check for existing email - enforce uniqueness for public registration
+    # Linked accounts (dater/matchmaker pairs) are created via authenticated profile routes
     existing_user = User.query.filter_by(email=data['email']).first()
-    if existing_user and not data.get('allow_duplicate_email', False):
+    if existing_user:
         return jsonify({'msg': 'Email already registered'}), 400
     
     role = data.get('role', 'user')  # default is normal user
