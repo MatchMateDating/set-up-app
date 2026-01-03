@@ -9,6 +9,10 @@ import {
   Alert,
   Share,
   Modal,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { Ionicons } from '@expo/vector-icons';
@@ -163,6 +167,8 @@ const Settings = () => {
   };
 
   const sendInvite = async () => {
+    Keyboard.dismiss(); // Dismiss keyboard before executing action
+    
     if (!emailInput.trim()) {
       Alert.alert('Error', 'Please enter an email address');
       return;
@@ -204,6 +210,8 @@ const Settings = () => {
   };
 
   const handleSaveReferral = async () => {
+    Keyboard.dismiss(); // Dismiss keyboard before executing action
+    
     const code = referralCode.trim();
     if (!code) {
       Alert.alert('Error', 'Please enter a referral code');
@@ -382,6 +390,8 @@ const Settings = () => {
   };
 
   const submitCreateMatchmaker = async () => {
+    Keyboard.dismiss(); // Dismiss keyboard before executing action
+    
     if (!referralInput.trim()) {
       Alert.alert('Error', 'Please enter a referral code');
       return;
@@ -481,11 +491,18 @@ const Settings = () => {
   };
 
   return (
-    <ScrollView 
+    <KeyboardAvoidingView
       style={styles.container}
-      contentContainerStyle={styles.contentContainer}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
     >
-      <View style={styles.content}>
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <ScrollView 
+          style={styles.container}
+          contentContainerStyle={styles.contentContainer}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.content}>
         <Text style={styles.title}>Settings</Text>
 
         {/* Role Toggle - Show if user has both accounts */}
@@ -603,9 +620,15 @@ const Settings = () => {
           animationType="slide"
           onRequestClose={() => setShowEmailModal(false)}
         >
-          <View style={styles.modalBackdrop}>
-            <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>Invite by Email</Text>
+          <KeyboardAvoidingView
+            style={styles.modalBackdrop}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+          >
+            <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+              <View style={{ flex: 1 }}>
+                <View style={styles.modalContent}>
+                  <Text style={styles.modalTitle}>Invite by Email</Text>
               <TextInput
                 style={styles.modalInput}
                 placeholder="Enter email address"
@@ -633,8 +656,10 @@ const Settings = () => {
                   <Text style={styles.modalButtonTextSend}>Send</Text>
                 </TouchableOpacity>
               </View>
-            </View>
-          </View>
+                </View>
+              </View>
+            </TouchableWithoutFeedback>
+          </KeyboardAvoidingView>
         </Modal>
 
         {/* Referral Code Modal for Matchmaker Account Creation */}
@@ -644,9 +669,15 @@ const Settings = () => {
           animationType="slide"
           onRequestClose={() => setShowReferralModal(false)}
         >
-          <View style={styles.modalBackdrop}>
-            <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>Create Matchmaker Account</Text>
+          <KeyboardAvoidingView
+            style={styles.modalBackdrop}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+          >
+            <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+              <View style={{ flex: 1 }}>
+                <View style={styles.modalContent}>
+                  <Text style={styles.modalTitle}>Create Matchmaker Account</Text>
               <Text style={styles.modalSubtitle}>Enter a referral code to create your matchmaker account</Text>
               <TextInput
                 style={styles.modalInput}
@@ -674,8 +705,10 @@ const Settings = () => {
                   <Text style={styles.modalButtonTextSend}>Create</Text>
                 </TouchableOpacity>
               </View>
-            </View>
-          </View>
+                </View>
+              </View>
+            </TouchableWithoutFeedback>
+          </KeyboardAvoidingView>
         </Modal>
 
         {/* User Dating Preferences */}
@@ -816,7 +849,9 @@ const Settings = () => {
           <Text style={styles.signOutBtnText}>Sign Out</Text>
         </TouchableOpacity>
       </View>
-    </ScrollView>
+        </ScrollView>
+      </TouchableWithoutFeedback>
+    </KeyboardAvoidingView>
   );
 };
 
