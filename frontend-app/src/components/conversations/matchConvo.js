@@ -208,6 +208,7 @@ const MatchConvo = () => {
   const isPendingApproval = matchInfo?.status === 'pending_approval' || matchInfo?.message_count !== undefined;
   const messageCount = matchInfo?.message_count || 0;
   const canSendMore = messageCount < 10;
+  const waitingForOtherApproval = matchInfo?.waiting_for_other_approval || false;
 
   if (loading) return <p>Loading conversation...</p>;
 
@@ -305,8 +306,8 @@ const MatchConvo = () => {
           </div>
         )}
 
-        {/* Message input for matchmakers when pending approval and under limit */}
-        {userInfo?.role === 'matchmaker' && isPendingApproval && canSendMore && (
+        {/* Message input for matchmakers when pending approval and under limit and not waiting */}
+        {userInfo?.role === 'matchmaker' && isPendingApproval && canSendMore && !waitingForOtherApproval && (
           <textarea
             value={newMessageText}
             onChange={(e) => setNewMessageText(e.target.value)}
@@ -330,7 +331,7 @@ const MatchConvo = () => {
           <button
             className="send-convo-button"
             onClick={sendMessage}
-            disabled={(!newMessageText.trim() && !sendPuzzle) || (userInfo?.role === 'matchmaker' && isPendingApproval && !canSendMore)}
+            disabled={(!newMessageText.trim() && !sendPuzzle) || (userInfo?.role === 'matchmaker' && isPendingApproval && (!canSendMore || waitingForOtherApproval))}
           >
             Send
           </button>
