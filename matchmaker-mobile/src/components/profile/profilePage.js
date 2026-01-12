@@ -242,6 +242,15 @@ const ProfilePage = () => {
       )}
       
       <ScrollView contentContainerStyle={styles.content}>
+        {user?.role === 'matchmaker' && !matchProfile && (
+          <View style={styles.dropdownContainer}>
+            <DaterDropdown
+              API_BASE_URL={API_BASE_URL}
+              userInfo={user}
+              onDaterChange={handleDaterChange}
+            />
+          </View>
+        )}
         {user.role === 'user' && (
           <Profile
             user={user}

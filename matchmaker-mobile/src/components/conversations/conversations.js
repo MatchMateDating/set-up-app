@@ -4,7 +4,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { API_BASE_URL } from '../../env';
 import MatchCard from './matchCard';
-import ToggleConversations from './toggleConversations';
+import ToggleConversationsDater from './toggleConversationsDater';
+import ToggleConversationsMatcher from './toggleConversationsMatcher';
 import { useMatches } from './hooks/useMatches';
 import { useUserInfo } from './hooks/useUserInfo';
 import DaterDropdown from '../layout/daterDropdown';
@@ -14,6 +15,8 @@ const Conversations = () => {
   const [showDaterMatches, setShowDaterMatches] = useState(true);
   const { userInfo, setUserInfo, referrerInfo, setReferrerInfo, loading: userLoading } = useUserInfo(API_BASE_URL);
   const { matches, setMatches, loading: matchesLoading, fetchMatches } = useMatches(API_BASE_URL);
+  const matchedList = Array.isArray(matches) ? matches : (matches?.matched || []);
+  const pendingApprovalList = Array.isArray(matches) ? [] : (matches?.pending_approval || []);
   const navigation = useNavigation();
   const [referrer, setReferrer] = useState(null);
 
@@ -72,15 +75,22 @@ const Conversations = () => {
   );
 
   const getFilteredMatches = () => {
-    if (!userInfo || userInfo.role !== 'user') return matches;
+    if (!userInfo || userInfo.role !== 'user') {
+      // For matchmakers, return both matched and pending_approval
+      return { matched: matchedList, pending_approval: pendingApprovalList };
+    }
 
-    return matches.filter(match => {
+    // For daters, filter matched list
+    const filteredMatched = matchedList.filter(match => {
       if (showDaterMatches) {
         return !match.both_matchmakers_involved && match.linked_dater === null;
       } else {
         return match.both_matchmakers_involved || match.linked_dater !== null;
       }
     });
+    
+    // Pending approval matches go in dater section
+    return { matched: filteredMatched, pending_approval: pendingApprovalList };
   };
 
   const unmatch = async (matchId) => {
@@ -108,7 +118,15 @@ const Conversations = () => {
       }
 
       if (res.ok) {
-        setMatches(matches.filter(match => match.match_id !== matchId));
+        // Handle both array and object structures
+        if (Array.isArray(matches)) {
+          setMatches(matches.filter(match => match.match_id !== matchId));
+        } else {
+          setMatches({
+            matched: (matches?.matched || []).filter(match => match.match_id !== matchId),
+            pending_approval: (matches?.pending_approval || []).filter(match => match.match_id !== matchId)
+          });
+        }
         Alert.alert('Success', 'Unmatched successfully');
       } else {
         const data = await res.json();
@@ -150,11 +168,22 @@ const Conversations = () => {
         return;
       }
 
-      setMatches(prevMatches =>
-        prevMatches.map(m =>
-          m.match_id === matchId ? { ...m, blind_match: 'Revealed' } : m
-        )
-      );
+      setMatches(prevMatches => {
+        if (Array.isArray(prevMatches)) {
+          return prevMatches.map(m =>
+            m.match_id === matchId ? { ...m, blind_match: 'Revealed' } : m
+          );
+        } else {
+          return {
+            matched: (prevMatches?.matched || []).map(m =>
+              m.match_id === matchId ? { ...m, blind_match: 'Revealed' } : m
+            ),
+            pending_approval: (prevMatches?.pending_approval || []).map(m =>
+              m.match_id === matchId ? { ...m, blind_match: 'Revealed' } : m
+            )
+          };
+        }
+      });
       Alert.alert('Success', 'Match revealed');
     } catch (err) {
       console.error('Error revealing match:', err);
@@ -192,11 +221,22 @@ const Conversations = () => {
         return;
       }
 
-      setMatches(prevMatches =>
-        prevMatches.map(m =>
-          m.match_id === matchId ? { ...m, blind_match: 'Blind' } : m
-        )
-      );
+      setMatches(prevMatches => {
+        if (Array.isArray(prevMatches)) {
+          return prevMatches.map(m =>
+            m.match_id === matchId ? { ...m, blind_match: 'Blind' } : m
+          );
+        } else {
+          return {
+            matched: (prevMatches?.matched || []).map(m =>
+              m.match_id === matchId ? { ...m, blind_match: 'Blind' } : m
+            ),
+            pending_approval: (prevMatches?.pending_approval || []).map(m =>
+              m.match_id === matchId ? { ...m, blind_match: 'Blind' } : m
+            )
+          };
+        }
+      });
       Alert.alert('Success', 'Match hidden');
     } catch (err) {
       console.error('Error hiding match:', err);
@@ -219,6 +259,12 @@ const Conversations = () => {
   }
 
   const filteredMatches = getFilteredMatches();
+  
+  // Update unmatch to handle new structure
+  const handleUnmatch = async (matchId) => {
+    await unmatch(matchId);
+    fetchMatches();
+  };
 
   return (
     <View style={styles.container}>
@@ -231,30 +277,115 @@ const Conversations = () => {
         </MatcherHeader>
       )}
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-        {userInfo && userInfo.role === 'user' && matches.length > 0 && (
-          <ToggleConversations
+        {userInfo && userInfo.role === 'user' && (matchedList.length > 0 || pendingApprovalList.length > 0) && (
+          <ToggleConversationsDater
             showDaterMatches={showDaterMatches}
             setShowDaterMatches={setShowDaterMatches}
           />
         )}
-        <View style={styles.matchList}>
-          {filteredMatches.length > 0 ? (
-            filteredMatches.map((matchObj, index) => (
-              <MatchCard
-                key={index}
-                matchObj={matchObj}
-                userInfo={userInfo}
-                unmatch={unmatch}
-                reveal={reveal}
-                hide={hide}
-              />
-            ))
-          ) : (
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>No matches yet!</Text>
+
+        {userInfo && userInfo.role === 'matchmaker' && (filteredMatches.pending_approval.length > 0 || filteredMatches.matched.length > 0) && (
+          <ToggleConversationsMatcher
+            showDaterMatches={showDaterMatches}
+            setShowDaterMatches={setShowDaterMatches}
+          />
+        )}
+        
+        {/* Pending Approval Section - for matchmakers */}
+        {userInfo?.role === 'matchmaker' && showDaterMatches && (
+          <View style={styles.sectionContainer}>
+            <Text style={styles.sectionTitle}>Pending</Text>
+            <View style={styles.matchList}>
+              {filteredMatches.pending_approval.length > 0 ? (
+                filteredMatches.pending_approval.map((matchObj, index) => (
+                  <MatchCard
+                    key={`pending-${index}`}
+                    matchObj={matchObj}
+                    userInfo={userInfo}
+                    navigation={navigation}
+                    unmatch={handleUnmatch}
+                    reveal={reveal}
+                    hide={hide}
+                  />
+                ))
+              ) : (
+                <View style={styles.emptyContainer}>
+                  <Text style={styles.emptyText}>No pending matches yet!</Text>
+                </View>
+              )}
             </View>
-          )}
-        </View>
+          </View>
+        )}
+        
+        {/* Approved/Matched Section - for matchmakers */}
+        {userInfo?.role === 'matchmaker' && !showDaterMatches && (
+          <View style={styles.sectionContainer}>
+            <Text style={styles.sectionTitle}>Approved</Text>
+            <View style={styles.matchList}>
+              {filteredMatches.matched.length > 0 ? (
+                filteredMatches.matched.map((matchObj, index) => (
+                  <MatchCard
+                    key={`matched-${index}`}
+                    matchObj={matchObj}
+                    userInfo={userInfo}
+                    navigation={navigation}
+                    unmatch={handleUnmatch}
+                    reveal={reveal}
+                    hide={hide}
+                  />
+                ))
+              ) : (
+                <View style={styles.emptyContainer}>
+                  <Text style={styles.emptyText}>No matches yet!</Text>
+                </View>
+              )}
+            </View>
+          </View>
+        )}
+        
+        {/* Matched Section - for daters */}
+        {userInfo?.role === 'user' && (
+          <View style={styles.sectionContainer}>
+            <View style={styles.matchList}>
+              {filteredMatches.matched.length > 0 ? (
+                filteredMatches.matched.map((matchObj, index) => (
+                  <MatchCard
+                    key={`matched-${index}`}
+                    matchObj={matchObj}
+                    userInfo={userInfo}
+                    navigation={navigation}
+                    unmatch={handleUnmatch}
+                    reveal={reveal}
+                    hide={hide}
+                  />
+                ))
+              ) : filteredMatches.pending_approval.length === 0 ? (
+                <View style={styles.emptyContainer}>
+                  <Text style={styles.emptyText}>No matches yet!</Text>
+                </View>
+              ) : null}
+            </View>
+          </View>
+        )}
+        
+        {/* Pending Approval Section - for daters (in dater section) */}
+        {userInfo?.role === 'user' && showDaterMatches && filteredMatches.pending_approval.length > 0 && (
+          <View style={styles.sectionContainer}>
+            <View style={styles.matchList}>
+              {filteredMatches.pending_approval.map((matchObj, index) => (
+                <MatchCard
+                  key={`pending-${index}`}
+                  matchObj={matchObj}
+                  userInfo={userInfo}
+                  navigation={navigation}
+                  unmatch={handleUnmatch}
+                  reveal={reveal}
+                  hide={hide}
+                />
+              ))}
+            </View>
+          </View>
+        )}
       </ScrollView>
     </View>
   );
@@ -291,6 +422,16 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 16,
     color: '#6b7280',
+  },
+  sectionContainer: {
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#222',
+    marginBottom: 12,
+    paddingHorizontal: 16,
   },
 });
 

@@ -9,6 +9,7 @@ const MatchCard = ({ matchObj, userInfo, unmatch, reveal, hide }) => {
   const bothMm = !!matchObj.both_matchmakers_involved;
   const oneMm = !!matchObj.user_1_matchmaker_involved || !!matchObj.user_2_matchmaker_involved;
   const isBlind = matchObj.blind_match === 'Blind';
+  const isPendingApproval = matchObj.status === 'pending_approval' || matchObj.message_count !== undefined;
 
   const renderMatchmakerIcons = () => {
     if (bothMm) {
@@ -51,7 +52,7 @@ const MatchCard = ({ matchObj, userInfo, unmatch, reveal, hide }) => {
   return (
     <TouchableOpacity
       style={styles.matchCard}
-      onPress={() => navigation.navigate('MatchConvo', { matchId: matchObj.match_id, isBlind: isBlind, })}
+      onPress={() => navigation.navigate('MatchConvo', { matchId: matchObj.match_id, isBlind: isBlind })}
       activeOpacity={0.7}
     >
       <View style={styles.profileSection}>
@@ -84,8 +85,24 @@ const MatchCard = ({ matchObj, userInfo, unmatch, reveal, hide }) => {
           )
         }
 
+        {/* Purple matchmaker banner for pending approval matches between 2 matchmakers */}
+        {isPendingApproval && matchObj.both_matchmakers_involved && (
+          <View style={styles.matchmakerBanner}>
+            <Text style={styles.matchmakerBannerText}>matchmaker</Text>
+          </View>
+        )}
+
         <View style={styles.matchInfo}>
-          <Text style={styles.matchName}>{matchObj.match_user.first_name}</Text>
+          <View style={styles.nameRow}>
+            <Text style={styles.matchName}>{matchObj.match_user.first_name}</Text>
+            {isPendingApproval && (
+              matchObj.waiting_for_other_approval ? (
+                <Ionicons name="hourglass-outline" size={18} color="#6B46C1" style={styles.clockIcon} />
+              ) : (
+                <Ionicons name="time-outline" size={18} color="#f59e0b" style={styles.clockIcon} />
+              )
+            )}
+          </View>
           {userInfo?.role === 'user' && (
             <View style={styles.matchIcons}>
               {renderMatchmakerIcons()}
@@ -196,10 +213,18 @@ const styles = StyleSheet.create({
     marginTop: 8,
     alignItems: 'center',
   },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   matchName: {
     fontWeight: '600',
     fontSize: 15,
     color: '#333',
+    marginBottom: 4,
+  },
+  clockIcon: {
     marginBottom: 4,
   },
   matchIcons: {
@@ -239,6 +264,21 @@ const styles = StyleSheet.create({
     borderRadius: 42.5,
     borderWidth: 2,
     borderColor: '#eee',
+  },
+  matchmakerBanner: {
+    backgroundColor: '#6B46C1',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    marginTop: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  matchmakerBannerText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'lowercase',
   },
 });
 

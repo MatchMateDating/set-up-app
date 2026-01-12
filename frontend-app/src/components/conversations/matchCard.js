@@ -1,11 +1,12 @@
 import React from "react";
 import './matchCard.css';
-import { FaUser, FaUserFriends, FaRegEye, FaRegEyeSlash, FaTimes } from "react-icons/fa";
+import { FaUser, FaUserFriends, FaRegEye, FaRegEyeSlash, FaTimes, FaClock } from "react-icons/fa";
 
 const MatchCard = ({ matchObj, API_BASE_URL, userInfo, navigate, unmatch, reveal, hide }) => {
   const bothMm = !!matchObj.both_matchmakers_involved;
   const oneMm = (!!matchObj.user_1_matchmaker_involved || !!matchObj.user_2_matchmaker_involved);
   const isBlind = matchObj.blind_match === 'Blind';
+  const isPendingApproval = matchObj.status === 'pending_approval' || matchObj.message_count !== undefined;
   console.log('MatchCard matchObj:', matchObj.match_user);
 
   const renderMatchmakerIcons = () => {
@@ -31,7 +32,10 @@ const MatchCard = ({ matchObj, API_BASE_URL, userInfo, navigate, unmatch, reveal
         )}
 
         <div className="match-info">
-          <div className="match-name">{matchObj.match_user.first_name}</div>
+          <div className="match-name-row">
+            <div className="match-name">{matchObj.match_user.first_name}</div>
+            {isPendingApproval && <FaClock className="clock-icon" title="Pending Approval" />}
+          </div>
           {userInfo?.role === "user" && renderMatchmakerIcons()}
         </div>
 

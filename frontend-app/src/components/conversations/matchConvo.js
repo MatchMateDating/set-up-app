@@ -21,6 +21,7 @@ const MatchConvo = () => {
   const [senderNames, setSenderNames] = useState({});
   const [senderRoles, setSenderRoles] = useState({});
   const [matchUser, setMatchUser] = useState(null);
+  const [matchInfo, setMatchInfo] = useState(null);
 
   const messagesEndRef = useRef(null);
 
@@ -84,8 +85,13 @@ const MatchConvo = () => {
         });
         if (res.ok) {
           const data = await res.json();
-          const matchInfo = data.find((m) => m.match_id === Number(matchId));
-          if (matchInfo) setMatchUser(matchInfo.match_user);
+          // Handle new structure: {matched: [], pending_approval: []}
+          const allMatches = Array.isArray(data) ? data : [...(data.matched || []), ...(data.pending_approval || [])];
+          const matchInfo = allMatches.find((m) => m.match_id === Number(matchId));
+          if (matchInfo) {
+            setMatchUser(matchInfo.match_user);
+            setMatchInfo(matchInfo);
+          }
         }
       } catch (err) {
         console.error("Error fetching match user:", err);
@@ -124,6 +130,21 @@ const MatchConvo = () => {
         setMessages(data.messages || []);
         setNewMessageText("");
         setSendPuzzle(false);
+        // Refresh match info to get updated message count
+        if (matchId) {
+          const matchRes = await fetch(`${API_BASE_URL}/match/matches`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (matchRes.ok) {
+            const matchData = await matchRes.json();
+            const allMatches = Array.isArray(matchData) ? matchData : [...(matchData.matched || []), ...(matchData.pending_approval || [])];
+            const updatedMatch = allMatches.find((m) => m.match_id === Number(matchId));
+            if (updatedMatch) setMatchInfo(updatedMatch);
+          }
+        }
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        alert(errorData.error || 'Failed to send message');
       }
     } catch (err) {
       console.error(err);
@@ -150,6 +171,43 @@ const MatchConvo = () => {
 
     return senderName;
   };
+
+  const handleApprove = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/match/approve/${matchId}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (res.ok) {
+        alert('Match approved successfully');
+        // Refresh match info
+        const matchRes = await fetch(`${API_BASE_URL}/match/matches`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (matchRes.ok) {
+          const matchData = await matchRes.json();
+          const allMatches = Array.isArray(matchData) ? matchData : [...(matchData.matched || []), ...(matchData.pending_approval || [])];
+          const updatedMatch = allMatches.find((m) => m.match_id === Number(matchId));
+          if (updatedMatch) {
+            setMatchInfo(updatedMatch);
+            // Navigate back to conversations
+            navigate('/conversations');
+          }
+        }
+      } else {
+        const data = await res.json();
+        alert(data.message || 'Failed to approve match');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Failed to approve match');
+    }
+  };
+
+  const isPendingApproval = matchInfo?.status === 'pending_approval' || matchInfo?.message_count !== undefined;
+  const messageCount = matchInfo?.message_count || 0;
+  const canSendMore = messageCount < 10;
 
   if (loading) return <p>Loading conversation...</p>;
 
@@ -234,6 +292,30 @@ const MatchConvo = () => {
           />
         )}
 
+        {/* Message count and approve button for matchmakers */}
+        {userInfo?.role === 'matchmaker' && isPendingApproval && (
+          <div className="pending-approval-info">
+            <p className="message-count-text">Messages: {messageCount}/10</p>
+            {!canSendMore && (
+              <p className="limit-reached-text">Message limit reached. Please approve to continue.</p>
+            )}
+            <button className="approve-button" onClick={handleApprove}>
+              Approve Match
+            </button>
+          </div>
+        )}
+
+        {/* Message input for matchmakers when pending approval and under limit */}
+        {userInfo?.role === 'matchmaker' && isPendingApproval && canSendMore && (
+          <textarea
+            value={newMessageText}
+            onChange={(e) => setNewMessageText(e.target.value)}
+            rows={3}
+            className="message-input"
+            placeholder="Type a message..."
+          />
+        )}
+
         {userInfo?.role !== "matchmaker" && (
           <textarea
             value={newMessageText}
@@ -248,7 +330,7 @@ const MatchConvo = () => {
           <button
             className="send-convo-button"
             onClick={sendMessage}
-            disabled={!newMessageText.trim() && !sendPuzzle}
+            disabled={(!newMessageText.trim() && !sendPuzzle) || (userInfo?.role === 'matchmaker' && isPendingApproval && !canSendMore)}
           >
             Send
           </button>

@@ -1,14 +1,14 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 
-const ToggleConversations = ({ showDaterMatches, setShowDaterMatches }) => (
+const ToggleConversationsMatcher = ({ showDaterMatches, setShowDaterMatches }) => (
   <View style={styles.container}>
     <TouchableOpacity
       style={[styles.button, showDaterMatches && styles.buttonActive]}
       onPress={() => setShowDaterMatches(true)}
     >
       <Text style={[styles.buttonText, showDaterMatches && styles.buttonTextActive]}>
-        Dater Matches
+        Pending
       </Text>
     </TouchableOpacity>
     <TouchableOpacity
@@ -16,7 +16,7 @@ const ToggleConversations = ({ showDaterMatches, setShowDaterMatches }) => (
       onPress={() => setShowDaterMatches(false)}
     >
       <Text style={[styles.buttonText, !showDaterMatches && styles.buttonTextActive]}>
-        Matchmaker Matches
+        Approved
       </Text>
     </TouchableOpacity>
   </View>
@@ -49,4 +49,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default ToggleConversations;
+export default ToggleConversationsMatcher;

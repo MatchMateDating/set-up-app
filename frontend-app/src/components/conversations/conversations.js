@@ -13,6 +13,8 @@ const Conversations = () => {
   const [showDaterMatches, setShowDaterMatches, loading] = useState(true);
   const { userInfo, setUserInfo} = useUserInfo(API_BASE_URL);
   const { matches, setMatches, fetchMatches } = useMatches(API_BASE_URL);
+  const matchedList = Array.isArray(matches) ? matches : (matches?.matched || []);
+  const pendingApprovalList = Array.isArray(matches) ? [] : (matches?.pending_approval || []);
   const navigate = useNavigate();
   const [referrer, setReferrer] = useState(null);
 
@@ -47,15 +49,22 @@ const Conversations = () => {
   }, []);
 
   const getFilteredMatches = () => {
-    if (!userInfo || userInfo.role !== 'user') return matches;
+    if (!userInfo || userInfo.role !== 'user') {
+      // For matchmakers, return both matched and pending_approval
+      return { matched: matchedList, pending_approval: pendingApprovalList };
+    }
 
-    return matches.filter(match => {
+    // For daters, filter matched list
+    const filteredMatched = matchedList.filter(match => {
       if (showDaterMatches) {
         return !match.both_matchmakers_involved && match.linked_dater === null;
       } else {
         return match.both_matchmakers_involved || match.linked_dater !== null;
       }
     });
+    
+    // Pending approval matches go in dater section
+    return { matched: filteredMatched, pending_approval: pendingApprovalList };
   };
 
   const unmatch = async (matchId) => {
@@ -75,7 +84,15 @@ const Conversations = () => {
     }
 
     if (res.ok) {
-      setMatches(matches.filter(match => match.match_id !== matchId));
+      // Handle both old and new structure
+      if (Array.isArray(matches)) {
+        setMatches(matches.filter(match => match.match_id !== matchId));
+      } else {
+        const updatedMatched = (matches.matched || []).filter(match => match.match_id !== matchId);
+        const updatedPending = (matches.pending_approval || []).filter(match => match.match_id !== matchId);
+        setMatches({ matched: updatedMatched, pending_approval: updatedPending });
+      }
+      fetchMatches(); // Refresh to get latest data
     } else {
       const data = await res.json();
       alert(`Failed to unmatch: ${data.message}`);
@@ -170,17 +187,63 @@ const Conversations = () => {
         fetchMatches()
       }}/>
       <div style={{ paddingBottom: '60px', paddingTop: '66px' }}>
-        {userInfo && userInfo.role === 'user' && matches.length > 0 && (
+        {userInfo && userInfo.role === 'user' && (matchedList.length > 0 || pendingApprovalList.length > 0) && (
           <ToggleConversations
             showDaterMatches={showDaterMatches}
             setShowDaterMatches={setShowDaterMatches}
           />
         )}
-        <div className="match-list">
-          {getFilteredMatches().length > 0 ? (
-            getFilteredMatches().map((matchObj, index) => (
+        
+        {/* Pending Approval Section - for matchmakers */}
+        {userInfo?.role === 'matchmaker' && getFilteredMatches().pending_approval.length > 0 && (
+          <div>
+            <h2 style={{ padding: '16px', margin: 0 }}>Pending</h2>
+            <div className="match-list">
+              {getFilteredMatches().pending_approval.map((matchObj, index) => (
+                <MatchCard
+                  key={`pending-${index}`}
+                  matchObj={matchObj}
+                  API_BASE_URL={API_BASE_URL}
+                  userInfo={userInfo}
+                  navigate={navigate}
+                  unmatch={unmatch}
+                  reveal={reveal}
+                  hide={hide}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+        
+        {/* Approved/Matched Section */}
+        <div>
+          {userInfo?.role === 'matchmaker' && <h2 style={{ padding: '16px', margin: 0 }}>Approved</h2>}
+          <div className="match-list">
+            {getFilteredMatches().matched.length > 0 ? (
+              getFilteredMatches().matched.map((matchObj, index) => (
+                <MatchCard
+                  key={`matched-${index}`}
+                  matchObj={matchObj}
+                  API_BASE_URL={API_BASE_URL}
+                  userInfo={userInfo}
+                  navigate={navigate}
+                  unmatch={unmatch}
+                  reveal={reveal}
+                  hide={hide}
+                />
+              ))
+            ) : getFilteredMatches().pending_approval.length === 0 ? (
+              <p>No matches yet!</p>
+            ) : null}
+          </div>
+        </div>
+        
+        {/* Pending Approval Section - for daters (in dater section) */}
+        {userInfo?.role === 'user' && showDaterMatches && getFilteredMatches().pending_approval.length > 0 && (
+          <div className="match-list">
+            {getFilteredMatches().pending_approval.map((matchObj, index) => (
               <MatchCard
-                key={index}
+                key={`pending-${index}`}
                 matchObj={matchObj}
                 API_BASE_URL={API_BASE_URL}
                 userInfo={userInfo}
@@ -189,11 +252,9 @@ const Conversations = () => {
                 reveal={reveal}
                 hide={hide}
               />
-            ))
-          ) : (
-            <p>No matches yet!</p>
-          )}
-        </div>
+            ))}
+          </div>
+        )}
         <BottomTab />
       </div>
     </div>

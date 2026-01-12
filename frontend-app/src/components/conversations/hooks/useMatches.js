@@ -21,7 +21,14 @@ export const useMatches = (API_BASE_URL) => {
             }
 
             const data = await res.json();
-            setMatches(data);
+            // Handle new structure: {matched: [], pending_approval: []} or old structure: []
+            if (Array.isArray(data)) {
+                // Old structure - backward compatibility
+                setMatches({ matched: data, pending_approval: [] });
+            } else {
+                // New structure
+                setMatches({ matched: data.matched || [], pending_approval: data.pending_approval || [] });
+            }
         } catch (err) {
             console.error("Error fetching matches:", err);
         } finally {
