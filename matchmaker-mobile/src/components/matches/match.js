@@ -130,6 +130,8 @@ const Match = () => {
   // Refresh userInfo and profiles when page comes into focus to get latest selected dater
   useFocusEffect(
     React.useCallback(() => {
+      setCurrentIndex(0);
+      
       // Small delay to ensure backend has updated after dater selection
       const timer = setTimeout(async () => {
         await refreshUserInfo();
@@ -140,13 +142,71 @@ const Match = () => {
     }, [])
   );
 
+  const skipUser = async (skippedUserId) => {
+    // Immediately remove the skipped user from local state (optimistic update)
+    setProfiles(prevProfiles => {
+      const filtered = prevProfiles.filter(profile => profile.id !== skippedUserId);
+      
+      // Adjust index: if we removed the current item, stay at current index (which is now the next item)
+      setCurrentIndex(prevIndex => {
+        const removedIndex = prevProfiles.findIndex(p => p.id === skippedUserId);
+        if (removedIndex < prevIndex) {
+          // Removed item was before current, decrement index
+          return Math.max(0, prevIndex - 1);
+        } else if (removedIndex === prevIndex) {
+          // Removed current item, stay at same index (next item moves into current position)
+          return Math.min(prevIndex, filtered.length - 1);
+        }
+        // Removed item was after current, no change needed
+        return prevIndex;
+      });
+      
+      return filtered;
+    });
+
+    // Call the skip API in the background (fire and forget)
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) {
+        return; // Already updated UI, no need to show error
+      }
+
+      const res = await fetch(`${API_BASE_URL}/match/skip/${skippedUserId}`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      if (res.status === 401) {
+        const data = await res.json();
+        if (data.error_code === 'TOKEN_EXPIRED') {
+          await AsyncStorage.removeItem('token');
+          Alert.alert('Session expired', 'Please log in again.');
+          navigation.navigate('Login');
+          return;
+        }
+      }
+
+      // Don't refresh profiles - skipped user should stay hidden until page is reloaded
+    } catch (err) {
+      console.error('Error skipping user:', err);
+      // Error is logged but UI already updated, so user experience is not affected
+    }
+  };
+
   const nextProfile = () => {
-    if (currentIndex < profiles.length - 1) {
-      setCurrentIndex(currentIndex + 1);
+    if (profiles.length > 0 && currentIndex < profiles.length) {
+      const currentProfile = profiles[currentIndex];
+      
+      // Skip the current profile (removes from local state immediately, calls API in background)
+      skipUser(currentProfile.id);
+      
+      // skipUser handles the state update and index adjustment
+      // The skipped user will stay hidden until the user leaves and returns to the page
     } else {
       Alert.alert('No more profiles', 'No more profiles to show!');
     }
-    fetchProfiles();
   };
 
   const likeUser = async (likedUserId) => {
@@ -175,6 +235,29 @@ const Match = () => {
           navigation.navigate('Login');
           return;
         }
+      }
+
+      if (res.ok) {
+        // Remove the liked user from local state immediately
+        setProfiles(prevProfiles => {
+          const filtered = prevProfiles.filter(profile => profile.id !== likedUserId);
+          
+          // Adjust index: if we removed the current item, stay at current index (which is now the next item)
+          setCurrentIndex(prevIndex => {
+            const removedIndex = prevProfiles.findIndex(p => p.id === likedUserId);
+            if (removedIndex < prevIndex) {
+              // Removed item was before current, decrement index
+              return Math.max(0, prevIndex - 1);
+            } else if (removedIndex === prevIndex) {
+              // Removed current item, stay at same index (next item moves into current position)
+              return Math.min(prevIndex, filtered.length - 1);
+            }
+            // Removed item was after current, no change needed
+            return prevIndex;
+          });
+          
+          return filtered;
+        });
       }
     } catch (err) {
       console.error('Error liking user:', err);
@@ -208,7 +291,29 @@ const Match = () => {
           return;
         }
       }
-      nextProfile();
+
+      if (res.ok) {
+        // Remove the matched user from local state immediately
+        setProfiles(prevProfiles => {
+          const filtered = prevProfiles.filter(profile => profile.id !== likedUserId);
+          
+          // Adjust index: if we removed the current item, stay at current index (which is now the next item)
+          setCurrentIndex(prevIndex => {
+            const removedIndex = prevProfiles.findIndex(p => p.id === likedUserId);
+            if (removedIndex < prevIndex) {
+              // Removed item was before current, decrement index
+              return Math.max(0, prevIndex - 1);
+            } else if (removedIndex === prevIndex) {
+              // Removed current item, stay at same index (next item moves into current position)
+              return Math.min(prevIndex, filtered.length - 1);
+            }
+            // Removed item was after current, no change needed
+            return prevIndex;
+          });
+          
+          return filtered;
+        });
+      }
     } catch (err) {
       console.error('Error blind matching:', err);
     }
@@ -218,7 +323,7 @@ const Match = () => {
     if (profiles.length > 0 && currentIndex < profiles.length) {
       const likedUser = profiles[currentIndex];
       likeUser(likedUser.id);
-      nextProfile();
+      // likeUser now handles profile removal and index adjustment, no need to call nextProfile
     }
   };
 
@@ -226,6 +331,80 @@ const Match = () => {
     if (profiles.length > 0 && currentIndex < profiles.length) {
       const likedUser = profiles[currentIndex];
       blindMatch(likedUser.id);
+    }
+  };
+
+  const blockUser = async (blockedUserId) => {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) {
+        Alert.alert('Error', 'Please log in');
+        navigation.navigate('Login');
+        return;
+      }
+
+      Alert.alert(
+        'Block User',
+        'Are you sure you want to block this user? You will never see each other again.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Block',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                const res = await fetch(`${API_BASE_URL}/match/block/${blockedUserId}`, {
+                  method: 'POST',
+                  headers: {
+                    Authorization: `Bearer ${token}`
+                  }
+                });
+
+                if (res.status === 401) {
+                  const data = await res.json();
+                  if (data.error_code === 'TOKEN_EXPIRED') {
+                    await AsyncStorage.removeItem('token');
+                    Alert.alert('Session expired', 'Please log in again.');
+                    navigation.navigate('Login');
+                    return;
+                  }
+                }
+
+                if (res.ok) {
+                  // Remove the blocked user from local state immediately
+                  setProfiles(prevProfiles => {
+                    const filtered = prevProfiles.filter(profile => profile.id !== blockedUserId);
+                    
+                    // Adjust index: if we removed the current item, stay at current index (which is now the next item)
+                    setCurrentIndex(prevIndex => {
+                      const removedIndex = prevProfiles.findIndex(p => p.id === blockedUserId);
+                      if (removedIndex < prevIndex) {
+                        return Math.max(0, prevIndex - 1);
+                      } else if (removedIndex === prevIndex) {
+                        return Math.min(prevIndex, filtered.length - 1);
+                      }
+                      return prevIndex;
+                    });
+                    
+                    return filtered;
+                  });
+                  
+                  Alert.alert('Success', 'User blocked successfully');
+                } else {
+                  const data = await res.json();
+                  Alert.alert('Error', data.message || 'Failed to block user');
+                }
+              } catch (err) {
+                console.error('Error blocking user:', err);
+                Alert.alert('Error', 'Failed to block user');
+              }
+            }
+          }
+        ]
+      );
+    } catch (err) {
+      console.error('Error:', err);
+      Alert.alert('Error', 'Failed to block user');
     }
   };
 
@@ -249,7 +428,26 @@ const Match = () => {
       });
 
       setShowNoteModal(false);
-      nextProfile();
+      // Remove the user from profiles after sending note (note creates a pending match)
+      setProfiles(prevProfiles => {
+        const filtered = prevProfiles.filter(profile => profile.id !== likedUser.id);
+        
+        // Adjust index: if we removed the current item, stay at current index (which is now the next item)
+        setCurrentIndex(prevIndex => {
+          const removedIndex = prevProfiles.findIndex(p => p.id === likedUser.id);
+          if (removedIndex < prevIndex) {
+            // Removed item was before current, decrement index
+            return Math.max(0, prevIndex - 1);
+          } else if (removedIndex === prevIndex) {
+            // Removed current item, stay at same index (next item moves into current position)
+            return Math.min(prevIndex, filtered.length - 1);
+          }
+          // Removed item was after current, no change needed
+          return prevIndex;
+        });
+        
+        return filtered;
+      });
     } catch (err) {
       console.error('Error sending note:', err);
       Alert.alert('Error', 'Failed to send note');
@@ -301,6 +499,11 @@ const Match = () => {
       {currentProfile && (
         <View style={styles.buttonContainer}>
           <View style={styles.leftButtonContainer}>
+            {userInfo?.role === 'user' && (
+              <TouchableOpacity style={styles.smallButton} onPress={() => blockUser(currentProfile.id)}>
+                <Ionicons name="ban-outline" size={24} color="#e53e3e" />
+              </TouchableOpacity>
+            )}
             {userInfo?.role === 'matchmaker' && !currentProfile.liked_linked_dater && (
               <TouchableOpacity style={styles.smallButton} onPress={handleBlindMatch}>
                 <Ionicons name="person" size={24} color="#6B46C1" />

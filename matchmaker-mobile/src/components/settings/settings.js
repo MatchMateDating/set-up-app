@@ -675,36 +675,34 @@ const Settings = () => {
             keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
           >
             <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-              <View style={{ flex: 1 }}>
-                <View style={styles.modalContent}>
-                  <Text style={styles.modalTitle}>Create Matchmaker Account</Text>
-              <Text style={styles.modalSubtitle}>Enter a referral code to create your matchmaker account</Text>
-              <TextInput
-                style={styles.modalInput}
-                placeholder="Enter referral code"
-                placeholderTextColor="#999"
-                value={referralInput}
-                onChangeText={setReferralInput}
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-              <View style={styles.modalButtons}>
-                <TouchableOpacity
-                  style={[styles.modalButton, styles.modalButtonCancel]}
-                  onPress={() => {
-                    setShowReferralModal(false);
-                    setReferralInput('');
-                  }}
-                >
-                  <Text style={styles.modalButtonTextCancel}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.modalButton, styles.modalButtonSend]}
-                  onPress={submitCreateMatchmaker}
-                >
-                  <Text style={styles.modalButtonTextSend}>Create</Text>
-                </TouchableOpacity>
-              </View>
+              <View style={styles.modalContent}>
+                <Text style={styles.modalTitle}>Create Matchmaker Account</Text>
+                <Text style={styles.modalSubtitle}>Enter a referral code to create your matchmaker account</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  placeholder="Enter referral code"
+                  placeholderTextColor="#999"
+                  value={referralInput}
+                  onChangeText={setReferralInput}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                <View style={styles.modalButtons}>
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.modalButtonCancel]}
+                    onPress={() => {
+                      setShowReferralModal(false);
+                      setReferralInput('');
+                    }}
+                  >
+                    <Text style={styles.modalButtonTextCancel}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.modalButtonSend]}
+                    onPress={submitCreateMatchmaker}
+                  >
+                    <Text style={styles.modalButtonTextSend}>Create</Text>
+                  </TouchableOpacity>
                 </View>
               </View>
             </TouchableWithoutFeedback>

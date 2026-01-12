@@ -235,6 +235,7 @@ const ProfilePage = () => {
       {user?.role === 'matchmaker' && !matchProfile && (
         <MatcherHeader>
           <DaterDropdown
+            API_BASE_URL={API_BASE_URL}
             userInfo={user}
             onDaterChange={handleDaterChange}
           />
