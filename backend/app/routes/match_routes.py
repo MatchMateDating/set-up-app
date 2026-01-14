@@ -8,6 +8,7 @@ from app.routes.shared import token_required
 from app.services.ai_embeddings import get_conversation_similarity
 import math
 from math import radians, sin, cos, sqrt, atan2
+from app.services.notification_service import send_match_notification
 
 match_bp = Blueprint('match', __name__)
 
@@ -283,8 +284,6 @@ def blind_match(current_user):
     
     # Send push notifications to both users about the new match
     try:
-        from app.services.notification_service import send_match_notification
-        
         # Get user names for notifications
         referred_dater = User.query.get(referred_dater_id)
         liked_user = User.query.get(liked_user_id)

@@ -37,7 +37,7 @@ activate: venv
 # Run Flask app
 run: venv
 	@echo "Starting Flask app..."
-	$(PYTHON) -m flask run --host=0.0.0.0 --port=5001
+	$(PYTHON) -m flask run --host=0.0.0.0 --port=5000
 
 # Initialize database
 db-init: venv
