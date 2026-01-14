@@ -29,6 +29,8 @@ class User(db.Model):
     match_radius = db.Column(db.Integer, nullable=True, default=50)
     unit = db.Column(db.String(20), nullable=False, default='Imperial')
     last_active_at = db.Column(db.DateTime, nullable=True)
+    push_token = db.Column(db.String(255), nullable=True)  # Expo push notification token
+    notifications_enabled = db.Column(db.Boolean, nullable=False, default=False)  # User's notification preference
 
     referred_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     linked_account_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
@@ -55,6 +57,7 @@ class User(db.Model):
     # Clarify both sides of the Match relationships
     matches_as_user1 = db.relationship('Match', foreign_keys='Match.user_id_1', back_populates='user1')
     matches_as_user2 = db.relationship('Match', foreign_keys='Match.user_id_2', back_populates='user2')
+    push_tokens = db.relationship('PushToken', backref='user', lazy=True, cascade='all, delete-orphan')
 
     def __init__(self, email, first_name, last_name, role='user', referred_by_id=None):
         self.email = email
@@ -120,6 +123,7 @@ class User(db.Model):
             "longitude": self.longitude,
             "match_radius": self.match_radius,
             "unit": self.unit,
+            "notifications_enabled": self.notifications_enabled,
         }
 
 class ReferredUsers(db.Model):
@@ -159,6 +163,26 @@ class ReferredUsers(db.Model):
         return {
             "matchmaker_id": self.matchmaker_id,
             "linked_daters": linked_daters,
+        }
+
+class PushToken(db.Model):
+    __tablename__ = 'push_tokens'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    token = db.Column(db.String(255), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    
+    def __init__(self, user_id, token):
+        self.user_id = user_id
+        self.token = token
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'user_id': self.user_id,
+            'token': self.token,
+            'created_at': self.created_at.isoformat() if self.created_at else None
         }
 
 @db.event.listens_for(User, 'after_insert')
