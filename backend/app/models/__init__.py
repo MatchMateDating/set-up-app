@@ -1,5 +1,5 @@
 from app import db
-from .userDB import User
+from .userDB import User, PushToken
 from .imageDB import Image
 from .matchDB import Match
 from .conversationDB import Conversation

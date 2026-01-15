@@ -37,10 +37,14 @@ import PixelClouds from './components/PixelClouds';
 import PixelFlowers from './components/PixelFlowers';
 import PixelCactus from './components/PixelCactus';
 import { UserContext } from '../../context/UserContext';
+import { useNotifications } from '../../context/NotificationContext';
+import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
 
 const CompleteProfile = () => {
   const navigation = useNavigation();
   const { setUser: setContextUser } = useContext(UserContext);
+  const { enableNotifications } = useNotifications();
   const scrollRef = React.useRef(null);
   const today = new Date();
   const defaultBirthdate = new Date(today.setFullYear(today.getFullYear() - 18))
@@ -256,15 +260,111 @@ const CompleteProfile = () => {
       await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
       setContextUser(updatedUser);
 
-      navigation.navigate('Main', {
-        screen: 'Matches',
-      });
+      // Ask user if they want to enable notifications after profile completion
+      Alert.alert(
+        'Enable Notifications?',
+        'Would you like to receive push notifications for new messages and matches?',
+        [
+          {
+            text: 'Not Now',
+            style: 'cancel',
+            onPress: () => {
+              navigation.navigate('Main', {
+                screen: 'Matches',
+              });
+            },
+          },
+          {
+            text: 'Enable',
+            onPress: async () => {
+              // User wants to enable - request permissions
+              await requestNotificationPermissions();
+              // Navigate after handling notifications
+              navigation.navigate('Main', {
+                screen: 'Matches',
+              });
+            },
+          },
+        ],
+        { cancelable: false }
+      );
 
     } catch (err) {
       console.error(err);
       setError("Something went wrong during submission.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const requestNotificationPermissions = async () => {
+    try {
+      // Request permissions
+      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      let finalStatus = existingStatus;
+
+      if (existingStatus !== 'granted') {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+      }
+
+      if (finalStatus === 'granted') {
+        // Enable notifications in the context (this will save to backend)
+        // Wait a moment for UserContext to update with the new user
+        setTimeout(async () => {
+          try {
+            await enableNotifications();
+          } catch (err) {
+            console.error('Error enabling notifications:', err);
+            // This is okay - user can enable notifications later in settings
+          }
+        }, 500);
+        
+        // Get push token and register with backend
+        if (Platform.OS !== 'web') {
+          try {
+            // Try to get projectId from Constants
+            let projectId = null;
+            try {
+              if (Constants.expoConfig?.extra?.eas?.projectId) {
+                projectId = Constants.expoConfig.extra.eas.projectId;
+              } else if (Constants.expoConfig?.extra?.projectId) {
+                projectId = Constants.expoConfig.extra.projectId;
+              } else if (Constants.manifest2?.extra?.eas?.projectId) {
+                projectId = Constants.manifest2.extra.eas.projectId;
+              }
+            } catch (e) {
+              console.log('Could not get projectId from Constants:', e);
+            }
+
+            if (projectId && projectId !== 'your-project-id-here' && projectId !== 'matchmate') {
+              const token = await Notifications.getExpoPushTokenAsync({ projectId });
+              
+              // Register push token with backend using the new notifications endpoint
+              const authToken = await AsyncStorage.getItem('token');
+              if (authToken) {
+                await fetch(`${API_BASE_URL}/notifications/register_token`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${authToken}`,
+                  },
+                  body: JSON.stringify({ push_token: token.data }),
+                });
+              }
+            }
+          } catch (error) {
+            console.log('Could not get push token during profile completion:', error);
+            // This is okay - user can enable notifications later in settings
+          }
+        }
+      } else {
+        // User denied permissions - that's fine, they can enable later
+        console.log('User denied notification permissions during profile completion');
+      }
+    } catch (error) {
+      console.error('Error requesting notification permissions during profile completion:', error);
+      // Don't block navigation if notification request fails
     }
   };
 

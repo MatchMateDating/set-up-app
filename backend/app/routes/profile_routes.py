@@ -1,9 +1,15 @@
 from flask import Blueprint, jsonify, request
-from app.models.userDB import User, ReferredUsers
+from app.models.userDB import User, ReferredUsers, PushToken
 from app import db
 import os
 from werkzeug.utils import secure_filename
 from app.models.imageDB import Image
+from app.models.matchDB import Match
+from app.models.messageDB import Message
+from app.models.conversationDB import Conversation
+from app.models.quizDB import QuizResult
+from app.models.skipDB import UserSkip
+from app.models.blockDB import UserBlock
 from flask import current_app
 from uuid import uuid4
 from app.routes.shared import token_required, calculate_age
@@ -363,3 +369,115 @@ def switch_account(current_user):
             'details': str(e)
         }), 500
 
+@profile_bp.route('/delete_account', methods=['DELETE'])
+@token_required
+def delete_account(current_user):
+    """
+    Delete user account and all associated data (GDPR/CCPA Right to be Forgotten).
+    No password required - user is already authenticated via JWT token.
+    """
+    try:
+        # No password required - user is already authenticated via JWT token
+        user_id = current_user.id
+        
+        # Delete all user-related data
+        
+        # 1. Delete matches where user is involved
+        matches_as_user1 = Match.query.filter_by(user_id_1=user_id).all()
+        matches_as_user2 = Match.query.filter_by(user_id_2=user_id).all()
+        all_matches = matches_as_user1 + matches_as_user2
+        
+        for match in all_matches:
+            # Delete conversations associated with matches
+            conversations = Conversation.query.filter_by(match_id=match.id).all()
+            for conversation in conversations:
+                # Delete messages in conversations
+                Message.query.filter_by(conversation_id=conversation.id).delete()
+                db.session.delete(conversation)
+            db.session.delete(match)
+        
+        # 2. Delete messages where user is sender or receiver (standalone messages)
+        Message.query.filter(
+            (Message.sender_id == user_id) | (Message.receiver_id == user_id)
+        ).delete()
+        
+        # 3. Delete quiz results
+        QuizResult.query.filter_by(user_id=user_id).delete()
+        
+        # 4. Delete user skips (where user skipped others or was skipped)
+        UserSkip.query.filter(
+            (UserSkip.user_id == user_id) | (UserSkip.skipped_user_id == user_id)
+        ).delete()
+        
+        # 5. Delete user blocks (where user blocked others or was blocked)
+        UserBlock.query.filter(
+            (UserBlock.blocker_id == user_id) | (UserBlock.blocked_id == user_id)
+        ).delete()
+        
+        # 6. Handle ReferredUsers (matchmaker relationships)
+        if current_user.role == 'matchmaker':
+            # Delete the ReferredUsers row if user is a matchmaker
+            ReferredUsers.query.filter_by(matchmaker_id=user_id).delete()
+        else:
+            # If user is a linked dater, remove them from matchmaker's ReferredUsers
+            referral_rows = ReferredUsers.query.filter(
+                (ReferredUsers.linked_dater_1_id == user_id) |
+                (ReferredUsers.linked_dater_2_id == user_id) |
+                (ReferredUsers.linked_dater_3_id == user_id) |
+                (ReferredUsers.linked_dater_4_id == user_id) |
+                (ReferredUsers.linked_dater_5_id == user_id) |
+                (ReferredUsers.linked_dater_6_id == user_id) |
+                (ReferredUsers.linked_dater_7_id == user_id) |
+                (ReferredUsers.linked_dater_8_id == user_id) |
+                (ReferredUsers.linked_dater_9_id == user_id) |
+                (ReferredUsers.linked_dater_10_id == user_id)
+            ).all()
+            
+            for ref_row in referral_rows:
+                # Clear the linked dater field that matches this user
+                for i in range(1, 11):
+                    field_name = f'linked_dater_{i}_id'
+                    if getattr(ref_row, field_name) == user_id:
+                        setattr(ref_row, field_name, None)
+        
+        # 7. Handle linked accounts
+        if current_user.linked_account_id:
+            linked_account = User.query.get(current_user.linked_account_id)
+            if linked_account:
+                linked_account.linked_account_id = None
+        
+        # Clear linked_account_id from any user that links to this user
+        linked_users = User.query.filter_by(linked_account_id=user_id).all()
+        for linked_user in linked_users:
+            linked_user.linked_account_id = None
+        
+        # 8. Clear referred_by_id from any users this user referred
+        referred_users = User.query.filter_by(referred_by_id=user_id).all()
+        for referred_user in referred_users:
+            referred_user.referred_by_id = None
+        
+        # 9. Images and PushTokens will be automatically deleted via cascade='all, delete-orphan'
+        # But we can explicitly delete them for clarity
+        Image.query.filter_by(user_id=user_id).delete()
+        PushToken.query.filter_by(user_id=user_id).delete()
+        
+        # 10. Finally, delete the user account itself
+        db.session.delete(current_user)
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Account and all associated data deleted successfully'
+        }), 200
+        
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        return jsonify({
+            'error': 'Database error during account deletion',
+            'details': str(e)
+        }), 500
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            'error': 'Unexpected server error',
+            'details': str(e)
+        }), 500

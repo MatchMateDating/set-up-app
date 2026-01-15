@@ -8,6 +8,7 @@ import ToggleConversationsDater from './toggleConversationsDater';
 import ToggleConversationsMatcher from './toggleConversationsMatcher';
 import { useMatches } from './hooks/useMatches';
 import { useUserInfo } from './hooks/useUserInfo';
+import { useNotificationPolling } from './hooks/useNotificationPolling';
 import DaterDropdown from '../layout/daterDropdown';
 import MatcherHeader from '../layout/components/matcherHeader';
 
@@ -19,6 +20,9 @@ const Conversations = () => {
   const pendingApprovalList = Array.isArray(matches) ? [] : (matches?.pending_approval || []);
   const navigation = useNavigation();
   const [referrer, setReferrer] = useState(null);
+  
+  // Initialize notification polling
+  useNotificationPolling();
 
   const loading = userLoading || matchesLoading;
 

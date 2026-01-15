@@ -48,48 +48,48 @@ const LoginScreen = () => {
 
   return (
     <KeyboardAvoidingView
-          style={{ flex: 1 }}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
       <ScrollView
-          contentContainerStyle={styles.container}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="on-drag"
-        >
-          <Text style={styles.title}>Login</Text>
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+      >
+        <Text style={styles.title}>Login</Text>
 
-          <TextInput
-            ref={emailRef}
-            style={styles.input}
-            placeholder="Email"
-            value={email}
-            onChangeText={setEmail}
-            blurOnSubmit={false}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            returnKeyType="next"
-            onSubmitEditing={() => passwordRef.current?.focus()}
-          />
-          <TextInput
-            ref={passwordRef}
-            style={styles.input}
-            placeholder="Password"
-            value={password}
-            onChangeText={setPassword}
-            blurOnSubmit={false}
-            returnKeyType="done"
-            onSubmitEditing={handleLogin}
-            secureTextEntry
-          />
+        <TextInput
+          ref={emailRef}
+          style={styles.input}
+          placeholder="Email"
+          value={email}
+          onChangeText={setEmail}
+          blurOnSubmit={false}
+          keyboardType="email-address"
+          autoCapitalize="none"
+          returnKeyType="next"
+          onSubmitEditing={() => passwordRef.current?.focus()}
+        />
+        <TextInput
+          ref={passwordRef}
+          style={styles.input}
+          placeholder="Password"
+          value={password}
+          onChangeText={setPassword}
+          blurOnSubmit={false}
+          returnKeyType="done"
+          onSubmitEditing={handleLogin}
+          secureTextEntry
+        />
 
-          <TouchableOpacity style={styles.button} onPress={handleLogin}>
-            <Text style={styles.buttonText}>Login</Text>
-          </TouchableOpacity>
+        <TouchableOpacity style={styles.button} onPress={handleLogin}>
+          <Text style={styles.buttonText}>Login</Text>
+        </TouchableOpacity>
 
-          <Text style={styles.signupText}>Don't have an account?</Text>
-          <TouchableOpacity onPress={goToSignUp}>
-            <Text style={styles.signupButton}>Sign Up</Text>
-          </TouchableOpacity>
+        <Text style={styles.signupText}>Don't have an account?</Text>
+        <TouchableOpacity onPress={goToSignUp}>
+          <Text style={styles.signupButton}>Sign Up</Text>
+        </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>
   );

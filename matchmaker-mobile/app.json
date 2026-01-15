@@ -8,6 +8,11 @@
     "userInterfaceStyle": "light",
     "jsEngine": "hermes",
     "newArchEnabled": true,
+    "extra": {
+      "eas": {
+        "projectId": "1b2bd6ca-592d-48d6-8e37-9498d29fb228"
+      }
+    },
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -15,8 +20,24 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.allyaoyao.matchmaker-mobile"
+      "bundleIdentifier": "com.allyaoyao.matchmaker-mobile",
+      "infoPlist": {
+        "UIBackgroundModes": [
+          "remote-notification",
+          "remote-notification"
+        ]
+      }
     },
+    "plugins": [
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#6B46C1",
+          "sounds": []
+        }
+      ]
+    ],
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
@@ -27,6 +48,13 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "owner": "allyaoyao",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/1b2bd6ca-592d-48d6-8e37-9498d29fb228"
     }
   }
 }

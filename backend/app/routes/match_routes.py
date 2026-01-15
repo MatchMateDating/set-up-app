@@ -8,6 +8,7 @@ from app.routes.shared import token_required
 from app.services.ai_embeddings import get_conversation_similarity
 import math
 from math import radians, sin, cos, sqrt, atan2
+from app.services.notification_service import send_match_notification
 
 match_bp = Blueprint('match', __name__)
 
@@ -280,6 +281,25 @@ def blind_match(current_user):
         db.session.add(new_match)
 
     db.session.commit()
+    
+    # Send push notifications to both users about the new match
+    try:
+        # Get user names for notifications
+        referred_dater = User.query.get(referred_dater_id)
+        liked_user = User.query.get(liked_user_id)
+        
+        if referred_dater and liked_user:
+            # Notify the referred dater
+            other_name = liked_user.first_name or 'Someone'
+            send_match_notification(referred_dater_id, new_match.id if not existing_match else existing_match.id, other_name)
+            
+            # Notify the liked user
+            other_name = referred_dater.first_name or 'Someone'
+            send_match_notification(liked_user_id, new_match.id if not existing_match else existing_match.id, other_name)
+    except Exception as e:
+        # Log error but don't fail the request
+        print(f"Error sending match notifications: {e}")
+    
     return jsonify({'message': 'Blind match created successfully'}), 201
 
 
@@ -348,6 +368,27 @@ def like_user(current_user):
 
         db.session.add(existing_match)
         db.session.commit()
+        
+        # Send push notifications when match becomes mutual or pending_approval
+        if existing_match.user_id_1 in liked_ids and existing_match.user_id_2 in liked_ids:
+            try:
+                from app.services.notification_service import send_match_notification
+                
+                user1 = User.query.get(existing_match.user_id_1)
+                user2 = User.query.get(existing_match.user_id_2)
+                
+                if user1 and user2:
+                    # Notify user1
+                    other_name = user2.first_name or 'Someone'
+                    send_match_notification(existing_match.user_id_1, existing_match.id, other_name)
+                    
+                    # Notify user2
+                    other_name = user1.first_name or 'Someone'
+                    send_match_notification(existing_match.user_id_2, existing_match.id, other_name)
+            except Exception as e:
+                # Log error but don't fail the request
+                print(f"Error sending match notifications: {e}")
+        
         return jsonify({'message': 'Like processed', 'match': existing_match.to_dict()}), 200
 
     # No existing match — create new pending match where user_id_1 is acting_dater_id

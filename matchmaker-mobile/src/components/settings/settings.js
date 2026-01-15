@@ -13,6 +13,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   TouchableWithoutFeedback,
+  Switch,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { Ionicons } from '@expo/vector-icons';
@@ -22,6 +23,7 @@ import { API_BASE_URL, SIGNUP_URL } from '../../env';
 import FormField from '../profile/components/formField';
 import MultiSelectGender from '../profile/components/multiSelectGender';
 import MultiSlider from '@ptomasroos/react-native-multi-slider';
+import { useNotifications } from '../../context/NotificationContext';
 
 const Settings = () => {
   const [referralCode, setReferralCode] = useState('');
@@ -35,8 +37,10 @@ const Settings = () => {
   const [user, setUser] = useState(null);
   const [showReferralModal, setShowReferralModal] = useState(false);
   const [referralInput, setReferralInput] = useState('');
+  const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
   const radiusUnit = user?.unit === 'imperial' ? 'mi' : 'km';
   const radiusMax = radiusUnit === 'km' ? 800 : 500;
+  const { notificationsEnabled, enableNotifications, disableNotifications, permissionStatus } = useNotifications();
   const [formData, setFormData] = useState({
     preferredAgeMin: '0',
     preferredAgeMax: '0',
@@ -251,6 +255,87 @@ const Settings = () => {
     } catch (err) {
       console.error('Error linking referral:', err);
       Alert.alert('Error', 'Failed to link referral');
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    // Show confirmation alert first
+    Alert.alert(
+      'Delete Account',
+      'Are you sure you want to delete your account? This action cannot be undone. All your data, including matches, messages, and profile information, will be permanently deleted.',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Continue',
+          style: 'destructive',
+          onPress: () => {
+            setShowDeleteAccountModal(true);
+          },
+        },
+      ]
+    );
+  };
+
+  const confirmDeleteAccount = async () => {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) {
+        Alert.alert('Error', 'Please log in');
+        navigation.navigate('Login');
+        return;
+      }
+
+      const res = await fetch(`${API_BASE_URL}/profile/delete_account`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (res.status === 401) {
+        const data = await res.json();
+        if (data.error_code === 'TOKEN_EXPIRED') {
+          await AsyncStorage.removeItem('token');
+          Alert.alert('Session expired', 'Please log in again.');
+          navigation.navigate('Login');
+          return;
+        }
+        Alert.alert('Error', data.error || 'Failed to delete account');
+        return;
+      }
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        Alert.alert('Error', errorData.error || 'Failed to delete account');
+        return;
+      }
+
+      // Account deleted successfully
+      await AsyncStorage.removeItem('token');
+      await AsyncStorage.removeItem('user');
+      setShowDeleteAccountModal(false);
+      Alert.alert(
+        'Account Deleted',
+        'Your account and all associated data have been permanently deleted.',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              navigation.reset({
+                index: 0,
+                routes: [{ name: 'Login' }],
+              });
+            },
+          },
+        ]
+      );
+    } catch (err) {
+      console.error('Error deleting account:', err);
+      Alert.alert('Error', 'Failed to delete account. Please try again.');
     }
   };
 
@@ -490,6 +575,21 @@ const Settings = () => {
     }
   };
 
+  const handleNotificationToggle = async (value) => {
+    if (value) {
+      const granted = await enableNotifications();
+      if (!granted) {
+        Alert.alert(
+          'Permission Required',
+          'Please enable notifications in your device settings to receive notifications for new messages and matches.',
+          [{ text: 'OK' }]
+        );
+      }
+    } else {
+      disableNotifications();
+    }
+  };
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -613,101 +713,6 @@ const Settings = () => {
           </View>
         )}
 
-        {/* Email Invite Modal */}
-        <Modal
-          visible={showEmailModal}
-          transparent={true}
-          animationType="slide"
-          onRequestClose={() => setShowEmailModal(false)}
-        >
-          <KeyboardAvoidingView
-            style={styles.modalBackdrop}
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
-          >
-            <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-              <View style={{ flex: 1 }}>
-                <View style={styles.modalContent}>
-                  <Text style={styles.modalTitle}>Invite by Email</Text>
-              <TextInput
-                style={styles.modalInput}
-                placeholder="Enter email address"
-                placeholderTextColor="#999"
-                value={emailInput}
-                onChangeText={setEmailInput}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-              <View style={styles.modalButtons}>
-                <TouchableOpacity
-                  style={[styles.modalButton, styles.modalButtonCancel]}
-                  onPress={() => {
-                    setShowEmailModal(false);
-                    setEmailInput('');
-                  }}
-                >
-                  <Text style={styles.modalButtonTextCancel}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.modalButton, styles.modalButtonSend]}
-                  onPress={sendInvite}
-                >
-                  <Text style={styles.modalButtonTextSend}>Send</Text>
-                </TouchableOpacity>
-              </View>
-                </View>
-              </View>
-            </TouchableWithoutFeedback>
-          </KeyboardAvoidingView>
-        </Modal>
-
-        {/* Referral Code Modal for Matchmaker Account Creation */}
-        <Modal
-          visible={showReferralModal}
-          transparent={true}
-          animationType="slide"
-          onRequestClose={() => setShowReferralModal(false)}
-        >
-          <KeyboardAvoidingView
-            style={styles.modalBackdrop}
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
-          >
-            <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-              <View style={styles.modalContent}>
-                <Text style={styles.modalTitle}>Create Matchmaker Account</Text>
-                <Text style={styles.modalSubtitle}>Enter a referral code to create your matchmaker account</Text>
-                <TextInput
-                  style={styles.modalInput}
-                  placeholder="Enter referral code"
-                  placeholderTextColor="#999"
-                  value={referralInput}
-                  onChangeText={setReferralInput}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-                <View style={styles.modalButtons}>
-                  <TouchableOpacity
-                    style={[styles.modalButton, styles.modalButtonCancel]}
-                    onPress={() => {
-                      setShowReferralModal(false);
-                      setReferralInput('');
-                    }}
-                  >
-                    <Text style={styles.modalButtonTextCancel}>Cancel</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.modalButton, styles.modalButtonSend]}
-                    onPress={submitCreateMatchmaker}
-                  >
-                    <Text style={styles.modalButtonTextSend}>Create</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </TouchableWithoutFeedback>
-          </KeyboardAvoidingView>
-        </Modal>
 
         {/* User Dating Preferences */}
         {role === 'user' && (
@@ -842,13 +847,171 @@ const Settings = () => {
           </View>
         )}
 
+        {/* Notifications Settings */}
+        <View style={styles.card}>
+          <Text style={styles.cardHeader}>Notifications</Text>
+          <Text style={styles.cardDescription}>
+            Receive notifications for new messages and new matches
+          </Text>
+          <View style={styles.notificationToggle}>
+            <Text style={styles.notificationLabel}>Enable Notifications</Text>
+            <Switch
+              value={notificationsEnabled}
+              onValueChange={handleNotificationToggle}
+              trackColor={{ false: '#E5E7EB', true: '#6B46C1' }}
+              thumbColor={notificationsEnabled ? '#fff' : '#f4f3f4'}
+            />
+          </View>
+          {permissionStatus === 'denied' && (
+            <Text style={styles.permissionWarning}>
+              Notifications are disabled in your device settings. Please enable them to receive notifications.
+            </Text>
+          )}
+        </View>
+
         {/* Sign Out Button */}
         <TouchableOpacity style={styles.signOutBtn} onPress={handleSignOut}>
           <Text style={styles.signOutBtnText}>Sign Out</Text>
         </TouchableOpacity>
+
+        {/* Delete Account Button */}
+        <TouchableOpacity style={styles.deleteAccountBtn} onPress={handleDeleteAccount}>
+          <Text style={styles.deleteAccountBtnText}>Delete Account</Text>
+        </TouchableOpacity>
       </View>
         </ScrollView>
       </TouchableWithoutFeedback>
+
+      {/* Email Invite Modal */}
+      <Modal
+        visible={showEmailModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowEmailModal(false)}
+      >
+        <KeyboardAvoidingView
+          style={styles.modalBackdrop}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+        >
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <View style={{ flex: 1 }}>
+              <View style={styles.modalContent}>
+                <Text style={styles.modalTitle}>Invite by Email</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  placeholder="Enter email address"
+                  placeholderTextColor="#999"
+                  value={emailInput}
+                  onChangeText={setEmailInput}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                <View style={styles.modalButtons}>
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.modalButtonCancel]}
+                    onPress={() => {
+                      setShowEmailModal(false);
+                      setEmailInput('');
+                    }}
+                  >
+                    <Text style={styles.modalButtonTextCancel}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.modalButtonSend]}
+                    onPress={sendInvite}
+                  >
+                    <Text style={styles.modalButtonTextSend}>Send</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Referral Code Modal for Matchmaker Account Creation */}
+      <Modal
+        visible={showReferralModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowReferralModal(false)}
+      >
+        <KeyboardAvoidingView
+          style={styles.modalBackdrop}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+        >
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Create Matchmaker Account</Text>
+              <Text style={styles.modalSubtitle}>Enter a referral code to create your matchmaker account</Text>
+              <TextInput
+                style={styles.modalInput}
+                placeholder="Enter referral code"
+                placeholderTextColor="#999"
+                value={referralInput}
+                onChangeText={setReferralInput}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.modalButtonCancel]}
+                  onPress={() => {
+                    setShowReferralModal(false);
+                    setReferralInput('');
+                  }}
+                >
+                  <Text style={styles.modalButtonTextCancel}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.modalButtonSend]}
+                  onPress={submitCreateMatchmaker}
+                >
+                  <Text style={styles.modalButtonTextSend}>Create</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Delete Account Modal */}
+      <Modal
+        visible={showDeleteAccountModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => {
+          setShowDeleteAccountModal(false);
+        }}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Confirm Account Deletion</Text>
+            <Text style={styles.modalDescription}>
+              This action cannot be undone. All your data will be permanently deleted.
+            </Text>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonCancel]}
+                onPress={() => {
+                  setShowDeleteAccountModal(false);
+                }}
+              >
+                <Text style={styles.modalButtonTextCancel}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonDelete]}
+                onPress={confirmDeleteAccount}
+              >
+                <Text style={styles.modalButtonTextDelete}>Delete Account</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 };
@@ -1109,6 +1272,42 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+  deleteAccountBtn: {
+    marginTop: 24,
+    marginBottom: 32,
+    alignSelf: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#DC2626',
+    backgroundColor: 'transparent',
+  },
+  deleteAccountBtnText: {
+    color: '#DC2626',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  modalLabel: {
+    fontSize: 14,
+    color: '#374151',
+    marginBottom: 8,
+    fontWeight: '500',
+  },
+  modalDescription: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  modalButtonDelete: {
+    backgroundColor: '#DC2626',
+  },
+  modalButtonTextDelete: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
   ageInputContainer: {
     flexDirection: 'row',
     gap: 8,
@@ -1153,6 +1352,23 @@ const styles = StyleSheet.create({
     color: '#6b7280',
     fontSize: 16,
     fontWeight: '600',
+  },
+  notificationToggle: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 12,
+  },
+  notificationLabel: {
+    fontSize: 16,
+    color: '#222',
+    fontWeight: '500',
+  },
+  permissionWarning: {
+    fontSize: 12,
+    color: '#E53E3E',
+    marginTop: 12,
+    fontStyle: 'italic',
   },
 });
 
