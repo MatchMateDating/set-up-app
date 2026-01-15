@@ -16,16 +16,20 @@ import { API_BASE_URL } from '../../env';
 import { UserContext } from '../../context/UserContext';
 
 const LoginScreen = () => {
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const navigation = useNavigation();
-  const emailRef = useRef(null);
+  const identifierRef = useRef(null);
   const passwordRef = useRef(null);
   const { setUser } = useContext(UserContext);
 
   const handleLogin = async () => {
     try {
-      const res = await axios.post(`${API_BASE_URL}/auth/login`, { email, password });
+      // Support both email and phone number login
+      const res = await axios.post(`${API_BASE_URL}/auth/login`, { 
+        identifier: identifier,
+        password 
+      });
       // Store token in AsyncStorage
       await AsyncStorage.setItem('token', res.data.token);
       if (res.data.user) {
@@ -34,9 +38,15 @@ const LoginScreen = () => {
         setUser(res.data.user);
       }
       Alert.alert('Success', 'Login successful!');
-      navigation.navigate('Main', {
-        screen: 'Matches',
-      });
+      
+      // Check if user needs to complete profile
+      if (res.data.user && res.data.user.role === 'user' && res.data.user.profile_completion_step) {
+        navigation.navigate('CompleteProfile');
+      } else {
+        navigation.navigate('Main', {
+          screen: 'Matches',
+        });
+      }
     } catch (err) {
       Alert.alert('Error', err.response?.data?.msg || 'Login failed');
     }
@@ -58,29 +68,29 @@ const LoginScreen = () => {
       >
         <Text style={styles.title}>Login</Text>
 
-        <TextInput
-          ref={emailRef}
-          style={styles.input}
-          placeholder="Email"
-          value={email}
-          onChangeText={setEmail}
-          blurOnSubmit={false}
-          keyboardType="email-address"
-          autoCapitalize="none"
-          returnKeyType="next"
-          onSubmitEditing={() => passwordRef.current?.focus()}
-        />
-        <TextInput
-          ref={passwordRef}
-          style={styles.input}
-          placeholder="Password"
-          value={password}
-          onChangeText={setPassword}
-          blurOnSubmit={false}
-          returnKeyType="done"
-          onSubmitEditing={handleLogin}
-          secureTextEntry
-        />
+          <TextInput
+            ref={identifierRef}
+            style={styles.input}
+            placeholder="Email or Phone Number"
+            value={identifier}
+            onChangeText={setIdentifier}
+            blurOnSubmit={false}
+            keyboardType="default"
+            autoCapitalize="none"
+            returnKeyType="next"
+            onSubmitEditing={() => passwordRef.current?.focus()}
+          />
+          <TextInput
+            ref={passwordRef}
+            style={styles.input}
+            placeholder="Password"
+            value={password}
+            onChangeText={setPassword}
+            blurOnSubmit={false}
+            returnKeyType="done"
+            onSubmitEditing={handleLogin}
+            secureTextEntry
+          />
 
         <TouchableOpacity style={styles.button} onPress={handleLogin}>
           <Text style={styles.buttonText}>Login</Text>

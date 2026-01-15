@@ -69,7 +69,7 @@ def update_profile(current_user):
                 'first_name', 'last_name', 'bio', 'birthdate', 'gender',
                 'height', 'preferredAgeMin', 'preferredAgeMax',
                 'preferredGenders', 'fontFamily', 'profileStyle',
-                'imageLayout', 'match_radius', 'unit'
+                'imageLayout', 'match_radius', 'unit', 'profile_completion_step'
             ]
         else:
             return jsonify({'error': 'You are not allowed to update this profile'}), 403
@@ -90,12 +90,20 @@ def update_profile(current_user):
                         'error': 'Invalid birthdate format. Use YYYY-MM-DD'
                     }), 400
 
-            elif field in ['preferredAgeMin', 'preferredAgeMax', 'match_radius']:
-                if not isinstance(value, (int, float)):
+            elif field in ['preferredAgeMin', 'preferredAgeMax', 'match_radius', 'profile_completion_step']:
+                if field == 'profile_completion_step':
+                    # Allow None, 1, 2, or 3
+                    if value is not None and value not in [1, 2, 3]:
+                        return jsonify({
+                            'error': f'{field} must be 1, 2, 3, or null'
+                        }), 400
+                    setattr(current_user, field, value)
+                elif not isinstance(value, (int, float)):
                     return jsonify({
                         'error': f'{field} must be a number'
                     }), 400
-                setattr(current_user, field, value)
+                else:
+                    setattr(current_user, field, value)
 
             else:
                 setattr(current_user, field, value)
@@ -197,9 +205,10 @@ def create_linked_dater(current_user):
         # Create new dater account with same email and password
         new_dater = User(
             email=current_user.email,
-            first_name=current_user.first_name or '',
-            last_name=current_user.last_name or '',
+            phone_number=current_user.phone_number,
             role='user',
+            first_name=current_user.first_name or None,
+            last_name=current_user.last_name or None,
             referred_by_id=None
         )
         # Copy password hash (same password)
@@ -276,9 +285,10 @@ def create_linked_matchmaker(current_user):
         # Create new matchmaker account with same email and password
         new_matchmaker = User(
             email=current_user.email,
-            first_name=current_user.first_name or '',
-            last_name=current_user.last_name or '',
+            phone_number=current_user.phone_number,
             role='matchmaker',
+            first_name=current_user.first_name or None,
+            last_name=current_user.last_name or None,
             referred_by_id=referrer.id
         )
         # Copy password hash (same password)

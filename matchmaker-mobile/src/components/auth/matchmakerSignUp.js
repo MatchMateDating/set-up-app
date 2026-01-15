@@ -1,4 +1,4 @@
-import React, { useState, useRef, useContext } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -12,25 +12,20 @@ import {
 } from 'react-native';
 import axios from 'axios';
 import { useNavigation } from '@react-navigation/native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_BASE_URL } from '../../env';
-import { UserContext } from '../../context/UserContext';
-import { useNotifications } from '../../context/NotificationContext';
-import * as Notifications from 'expo-notifications';
-import Constants from 'expo-constants';
 
-const SignUpScreen = () => {
+const MatchmakerSignUpScreen = () => {
   const navigation = useNavigation();
-  const { setUser } = useContext(UserContext);
-  const { enableNotifications } = useNotifications();
   const [email, setEmail] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [useEmail, setUseEmail] = useState(true); // Toggle between email and phone
   const [password, setPassword] = useState('');
+  const [referralCode, setReferralCode] = useState('');
   const [agreeToTexts, setAgreeToTexts] = useState(false);
   const emailRef = useRef(null);
   const phoneRef = useRef(null);
   const passwordRef = useRef(null);
+  const referralRef = useRef(null);
 
   const handleRegister = async () => {
     try {
@@ -49,12 +44,17 @@ const SignUpScreen = () => {
         return;
       }
       
+      if (!referralCode) {
+        Alert.alert('Error', 'Referral code is required for matchmakers.');
+        return;
+      }
+      
       if (!useEmail && !agreeToTexts) {
         Alert.alert('Error', 'Please agree to receive texts to continue.');
         return;
       }
-
-      const payload = { password, role: 'user' };
+      
+      const payload = { password, role: 'matchmaker', referral_code: referralCode };
       if (useEmail && email) {
         payload.email = email;
       } else if (!useEmail && phoneNumber) {
@@ -95,83 +95,12 @@ const SignUpScreen = () => {
     }
   };
 
-  const requestNotificationPermissions = async () => {
-    try {
-      // Request permissions
-      const { status: existingStatus } = await Notifications.getPermissionsAsync();
-      let finalStatus = existingStatus;
-
-      if (existingStatus !== 'granted') {
-        const { status } = await Notifications.requestPermissionsAsync();
-        finalStatus = status;
-      }
-
-      if (finalStatus === 'granted') {
-        // Enable notifications in the context (this will save to backend)
-        // Wait a moment for UserContext to update with the new user
-        setTimeout(async () => {
-          try {
-            await enableNotifications();
-          } catch (err) {
-            console.error('Error enabling notifications:', err);
-            // This is okay - user can enable notifications later in settings
-          }
-        }, 500);
-        
-        // Get push token and register with backend
-        if (Platform.OS !== 'web') {
-          try {
-            // Try to get projectId from Constants
-            let projectId = null;
-            try {
-              if (Constants.expoConfig?.extra?.eas?.projectId) {
-                projectId = Constants.expoConfig.extra.eas.projectId;
-              } else if (Constants.expoConfig?.extra?.projectId) {
-                projectId = Constants.expoConfig.extra.projectId;
-              } else if (Constants.manifest2?.extra?.eas?.projectId) {
-                projectId = Constants.manifest2.extra.eas.projectId;
-              }
-            } catch (e) {
-              console.log('Could not get projectId from Constants:', e);
-            }
-
-            if (projectId && projectId !== 'your-project-id-here' && projectId !== 'matchmate') {
-              const token = await Notifications.getExpoPushTokenAsync({ projectId });
-              
-              // Register push token with backend using the new notifications endpoint
-              const authToken = await AsyncStorage.getItem('token');
-              if (authToken) {
-                await fetch(`${API_BASE_URL}/notifications/register_token`, {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${authToken}`,
-                  },
-                  body: JSON.stringify({ push_token: token.data }),
-                });
-              }
-            }
-          } catch (error) {
-            console.log('Could not get push token during signup:', error);
-            // This is okay - user can enable notifications later in settings
-          }
-        }
-      } else {
-        // User denied permissions - that's fine, they can enable later
-        console.log('User denied notification permissions during signup');
-      }
-    } catch (error) {
-      console.error('Error requesting notification permissions during signup:', error);
-      // Don't block signup if notification request fails
-    }
-  };
-
   const goToLogin = () => {
     navigation.navigate('Login');
   };
 
-  const goToMatchmakerSignUp = () => {
-    navigation.navigate('MatchmakerSignUp');
+  const goToDaterSignUp = () => {
+    navigation.navigate('SignUp');
   };
 
   return (
@@ -186,8 +115,8 @@ const SignUpScreen = () => {
       >
         <Text style={styles.title}>Sign Up</Text>
 
-        <TouchableOpacity style={styles.switchButton} onPress={goToMatchmakerSignUp}>
-          <Text style={styles.switchButtonText}>Switch to Matchmaker Sign Up</Text>
+        <TouchableOpacity style={styles.switchButton} onPress={goToDaterSignUp}>
+          <Text style={styles.switchButtonText}>Switch to Dater Sign Up</Text>
         </TouchableOpacity>
 
         <View style={styles.authMethodToggleWrapper}>
@@ -246,6 +175,17 @@ const SignUpScreen = () => {
           value={password}
           secureTextEntry
           onChangeText={setPassword}
+          blurOnSubmit={false}
+          returnKeyType="next"
+          onSubmitEditing={() => referralRef.current?.focus()}
+        />
+
+        <TextInput
+          ref={referralRef}
+          style={styles.input}
+          placeholder="Enter Dater's Referral Code"
+          value={referralCode}
+          onChangeText={setReferralCode}
           returnKeyType="done"
           onSubmitEditing={handleRegister}
         />
@@ -390,4 +330,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default SignUpScreen;
+export default MatchmakerSignUpScreen;
