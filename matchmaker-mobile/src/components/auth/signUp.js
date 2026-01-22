@@ -9,6 +9,7 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  Modal,
 } from 'react-native';
 import axios from 'axios';
 import { useNavigation } from '@react-navigation/native';
@@ -28,6 +29,8 @@ const SignUpScreen = () => {
   const [password, setPassword] = useState('');
   const [referralCode, setReferralCode] = useState('');
   const [agreeToTexts, setAgreeToTexts] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
+  const [agreeToTerms, setAgreeToTerms] = useState(false);
   const identifierRef = useRef(null);
   const passwordRef = useRef(null);
   const referralRef = useRef(null);
@@ -38,28 +41,40 @@ const SignUpScreen = () => {
     return emailPattern.test(value);
   };
 
+  const handleSignUpClick = () => {
+    // Validate basic fields first
+    if (!identifier.trim()) {
+      Alert.alert('Error', 'Please enter your email or phone number.');
+      return;
+    }
+
+    if (!password) {
+      Alert.alert('Error', 'Please enter a password.');
+      return;
+    }
+
+    if (role === 'matchmaker' && !referralCode.trim()) {
+      Alert.alert('Error', 'Referral code is required for matchmakers.');
+      return;
+    }
+
+    if (!agreeToTexts) {
+      Alert.alert('Error', 'Please agree to receive non promotional texts or emails to continue.');
+      return;
+    }
+
+    // Show terms modal
+    setShowTermsModal(true);
+    setAgreeToTerms(false);
+  };
+
   const handleRegister = async () => {
+    if (!agreeToTerms) {
+      Alert.alert('Error', 'Please agree to the terms of service to continue.');
+      return;
+    }
+
     try {
-      if (!identifier.trim()) {
-        Alert.alert('Error', 'Please enter your email or phone number.');
-        return;
-      }
-
-      if (!password) {
-        Alert.alert('Error', 'Please enter a password.');
-        return;
-      }
-
-      if (role === 'matchmaker' && !referralCode.trim()) {
-        Alert.alert('Error', 'Referral code is required for matchmakers.');
-        return;
-      }
-
-      if (!agreeToTexts) {
-        Alert.alert('Error', 'Please agree to receive non promotional texts or emails to continue.');
-        return;
-      }
-
       const payload = { password, role };
       const isEmailInput = isEmail(identifier.trim());
       
@@ -102,8 +117,15 @@ const SignUpScreen = () => {
         Alert.alert('Error', 'Registration failed. Please try again.');
       }
     } catch (err) {
-      Alert.alert('Error', err.response?.data?.msg || 'Registration failed');
+        Alert.alert('Error', err.response?.data?.msg || 'Registration failed');
+    } finally {
+      setShowTermsModal(false);
     }
+  };
+
+  const handleCloseTermsModal = () => {
+    setShowTermsModal(false);
+    setAgreeToTerms(false);
   };
 
   const requestNotificationPermissions = async () => {
@@ -239,7 +261,7 @@ const SignUpScreen = () => {
             if (role === 'matchmaker') {
               referralRef.current?.focus();
             } else {
-              handleRegister();
+              handleSignUpClick();
             }
           }}
         />
@@ -252,7 +274,7 @@ const SignUpScreen = () => {
             value={referralCode}
             onChangeText={setReferralCode}
             returnKeyType="done"
-            onSubmitEditing={handleRegister}
+            onSubmitEditing={handleSignUpClick}
           />
         )}
 
@@ -267,7 +289,7 @@ const SignUpScreen = () => {
           <Text style={styles.checkboxLabel}>By checking this box, you agree to receive non promotional texts or emails.</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.submitBtn} onPress={handleRegister}>
+        <TouchableOpacity style={styles.submitBtn} onPress={handleSignUpClick}>
           <Text style={styles.submitBtnText}>Sign Up</Text>
         </TouchableOpacity>
 
@@ -281,6 +303,111 @@ const SignUpScreen = () => {
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* Terms of Service Modal */}
+      <Modal
+        visible={showTermsModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={handleCloseTermsModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Terms of Service</Text>
+            
+            <ScrollView style={styles.termsScrollView} contentContainerStyle={styles.termsContent}>
+              <Text style={styles.termsText}>
+                {`Last Updated: ${new Date().toLocaleDateString()}
+
+1. ACCEPTANCE OF TERMS
+
+By accessing and using this application, you accept and agree to be bound by the terms and provision of this agreement.
+
+2. USE LICENSE
+
+Permission is granted to temporarily use this application for personal, non-commercial transitory viewing only. This is the grant of a license, not a transfer of title, and under this license you may not:
+
+- Modify or copy the materials;
+- Use the materials for any commercial purpose or for any public display;
+- Attempt to decompile or reverse engineer any software contained in the application;
+- Remove any copyright or other proprietary notations from the materials; or
+- Transfer the materials to another person or "mirror" the materials on any other server.
+
+3. USER ACCOUNTS
+
+You are responsible for maintaining the confidentiality of your account and password. You agree to accept responsibility for all activities that occur under your account or password.
+
+4. USER CONDUCT
+
+You agree to use the application only for lawful purposes and in a way that does not infringe the rights of, restrict or inhibit anyone else's use and enjoyment of the application.
+
+5. PRIVACY POLICY
+
+Your use of the application is also governed by our Privacy Policy. Please review our Privacy Policy to understand our practices.
+
+6. INTELLECTUAL PROPERTY
+
+The application and its original content, features, and functionality are and will remain the exclusive property of the application and its licensors.
+
+7. TERMINATION
+
+We may terminate or suspend your account and bar access to the application immediately, without prior notice or liability, under our sole discretion, for any reason whatsoever and without limitation.
+
+8. DISCLAIMER
+
+The information on this application is provided on an "as is" basis. To the fullest extent permitted by law, this application excludes all representations, warranties, and conditions.
+
+9. LIMITATION OF LIABILITY
+
+In no event shall the application, nor its directors, employees, partners, agents, suppliers, or affiliates, be liable for any indirect, incidental, special, consequential, or punitive damages.
+
+10. GOVERNING LAW
+
+These terms shall be governed and construed in accordance with the laws, without regard to its conflict of law provisions.
+
+11. CHANGES TO TERMS
+
+We reserve the right, at our sole discretion, to modify or replace these Terms at any time. If a revision is material, we will provide at least 30 days notice prior to any new terms taking effect.
+
+12. CONTACT INFORMATION
+
+If you have any questions about these Terms of Service, please contact us.`}
+              </Text>
+            </ScrollView>
+
+            <View style={styles.modalFooter}>
+              <TouchableOpacity
+                style={styles.termsCheckboxContainer}
+                onPress={() => setAgreeToTerms(!agreeToTerms)}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.checkbox, agreeToTerms && styles.checkboxChecked]}>
+                  {agreeToTerms && <Text style={styles.checkmark}>✓</Text>}
+                </View>
+                <Text style={styles.termsCheckboxLabel}>I agree to these terms of service</Text>
+              </TouchableOpacity>
+
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.modalButtonCancel]}
+                  onPress={handleCloseTermsModal}
+                >
+                  <Text style={styles.modalButtonCancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.modalButtonAccept, !agreeToTerms && styles.modalButtonDisabled]}
+                  onPress={handleRegister}
+                  disabled={!agreeToTerms}
+                >
+                  <Text style={[styles.modalButtonAcceptText, !agreeToTerms && styles.modalButtonTextDisabled]}>
+                    Accept & Continue
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 };
@@ -382,6 +509,87 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14,
     color: '#333',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    width: '90%',
+    maxHeight: '85%',
+    padding: 20,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    marginBottom: 16,
+    textAlign: 'center',
+    color: '#333',
+  },
+  termsScrollView: {
+    maxHeight: 400,
+    marginBottom: 16,
+  },
+  termsContent: {
+    paddingBottom: 10,
+  },
+  termsText: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: '#333',
+  },
+  modalFooter: {
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
+    paddingTop: 16,
+  },
+  termsCheckboxContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  termsCheckboxLabel: {
+    flex: 1,
+    fontSize: 14,
+    color: '#333',
+    marginLeft: 10,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  modalButtonCancel: {
+    backgroundColor: '#f0f0f0',
+  },
+  modalButtonAccept: {
+    backgroundColor: '#6B46C1',
+  },
+  modalButtonDisabled: {
+    backgroundColor: '#ccc',
+  },
+  modalButtonCancelText: {
+    color: '#333',
+    fontWeight: '600',
+    fontSize: 16,
+  },
+  modalButtonAcceptText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 16,
+  },
+  modalButtonTextDisabled: {
+    color: '#999',
   },
 });
 
