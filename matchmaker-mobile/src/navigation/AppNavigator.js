@@ -4,8 +4,8 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import LoginScreen from '../components/auth/login';
 import SignUpScreen from '../components/auth/signUp';
-import MatchmakerSignUpScreen from '../components/auth/matchmakerSignUp';
 import EmailVerificationScreen from '../components/auth/emailVerification';
+import ForgotPasswordScreen from '../components/auth/forgotPassword';
 import ProfilePage from '../components/profile/profilePage';
 import Conversations from '../components/conversations/conversations';
 import Match from '../components/matches/match';
@@ -58,8 +58,8 @@ export default function AppNavigator() {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="Login" component={LoginScreen} />
       <Stack.Screen name="SignUp" component={SignUpScreen} />
-      <Stack.Screen name="MatchmakerSignUp" component={MatchmakerSignUpScreen} />
       <Stack.Screen name="EmailVerification" component={EmailVerificationScreen} />
+      <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
       <Stack.Screen name="CompleteProfile" component={CompleteProfile} />
       <Stack.Screen name="Main" component={MainTabs} />
       <Stack.Screen name="ProfilePage" component={ProfilePage} />

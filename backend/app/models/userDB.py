@@ -40,6 +40,8 @@ class User(db.Model):
     email_verification_token = db.Column(db.String(100), nullable=True, unique=True)
     phone_verified = db.Column(db.Boolean, nullable=False, default=False)
     phone_verification_token = db.Column(db.String(100), nullable=True, unique=True)
+    password_reset_token = db.Column(db.String(100), nullable=True, unique=True)
+    password_reset_token_expires = db.Column(db.DateTime, nullable=True)
     profile_completion_step = db.Column(db.Integer, nullable=True)  # 1, 2, or 3 if incomplete, None if complete
 
     referred_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
@@ -92,7 +94,11 @@ class User(db.Model):
         """Generate an 8-digit email verification code"""
         # Generate a random 8-digit code (00000000 to 99999999)
         return f"{secrets.randbelow(100000000):08d}"
-
+    
+    def generate_password_reset_token(self):
+        """Generate a secure password reset token"""
+        return secrets.token_urlsafe(32)
+    
     def set_password(self, password):
         self.password_hash = bcrypt.generate_password_hash(password).decode('utf-8')
 

@@ -23,42 +23,54 @@ const SignUpScreen = () => {
   const navigation = useNavigation();
   const { setUser } = useContext(UserContext);
   const { enableNotifications } = useNotifications();
-  const [email, setEmail] = useState('');
-  const [phoneNumber, setPhoneNumber] = useState('');
-  const [useEmail, setUseEmail] = useState(true); // Toggle between email and phone
+  const [role, setRole] = useState('user'); // 'user' = dater, 'matchmaker' = matchmaker
+  const [identifier, setIdentifier] = useState(''); // Email or phone number
   const [password, setPassword] = useState('');
+  const [referralCode, setReferralCode] = useState('');
   const [agreeToTexts, setAgreeToTexts] = useState(false);
-  const emailRef = useRef(null);
-  const phoneRef = useRef(null);
+  const identifierRef = useRef(null);
   const passwordRef = useRef(null);
+  const referralRef = useRef(null);
+
+  // Helper function to detect if identifier is email or phone
+  const isEmail = (value) => {
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailPattern.test(value);
+  };
 
   const handleRegister = async () => {
     try {
-      if (!password) {
-        Alert.alert('Error', 'Please fill out all fields.');
-        return;
-      }
-      
-      if (!email && !phoneNumber) {
-        Alert.alert('Error', 'Please provide either an email or phone number.');
-        return;
-      }
-      
-      if (email && phoneNumber) {
-        Alert.alert('Error', 'Please provide either an email OR phone number, not both.');
-        return;
-      }
-      
-      if (!useEmail && !agreeToTexts) {
-        Alert.alert('Error', 'Please agree to receive texts to continue.');
+      if (!identifier.trim()) {
+        Alert.alert('Error', 'Please enter your email or phone number.');
         return;
       }
 
-      const payload = { password, role: 'user' };
-      if (useEmail && email) {
-        payload.email = email;
-      } else if (!useEmail && phoneNumber) {
-        payload.phone_number = phoneNumber;
+      if (!password) {
+        Alert.alert('Error', 'Please enter a password.');
+        return;
+      }
+
+      if (role === 'matchmaker' && !referralCode.trim()) {
+        Alert.alert('Error', 'Referral code is required for matchmakers.');
+        return;
+      }
+
+      if (!agreeToTexts) {
+        Alert.alert('Error', 'Please agree to receive non promotional texts or emails to continue.');
+        return;
+      }
+
+      const payload = { password, role };
+      const isEmailInput = isEmail(identifier.trim());
+      
+      if (isEmailInput) {
+        payload.email = identifier.trim();
+      } else {
+        payload.phone_number = identifier.trim();
+      }
+
+      if (role === 'matchmaker') {
+        payload.referral_code = referralCode.trim();
       }
       
       const res = await axios.post(`${API_BASE_URL}/auth/register`, payload);
@@ -66,9 +78,8 @@ const SignUpScreen = () => {
       if (res.data.user) {
         // Store user data temporarily (will be saved after verification)
         // Navigate to verification screen
-        const identifier = useEmail ? email : phoneNumber;
-        const method = useEmail ? 'email' : 'phone';
-        const message = useEmail 
+        const method = isEmailInput ? 'email' : 'phone';
+        const message = isEmailInput 
           ? 'Registration successful! Please check your email for a verification code.'
           : 'Registration successful! Please check your phone for a verification code.';
         
@@ -80,7 +91,7 @@ const SignUpScreen = () => {
               text: 'OK',
               onPress: () => {
                 navigation.navigate('EmailVerification', { 
-                  identifier: identifier,
+                  identifier: identifier.trim(),
                   verificationMethod: method
                 });
               },
@@ -170,10 +181,6 @@ const SignUpScreen = () => {
     navigation.navigate('Login');
   };
 
-  const goToMatchmakerSignUp = () => {
-    navigation.navigate('MatchmakerSignUp');
-  };
-
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
@@ -186,59 +193,39 @@ const SignUpScreen = () => {
       >
         <Text style={styles.title}>Sign Up</Text>
 
-        <TouchableOpacity style={styles.switchButton} onPress={goToMatchmakerSignUp}>
-          <Text style={styles.switchButtonText}>Switch to Matchmaker Sign Up</Text>
-        </TouchableOpacity>
-
-        <View style={styles.authMethodToggleWrapper}>
+        {/* Role toggle */}
+        <View style={styles.roleToggleWrapper}>
           <TouchableOpacity
-            style={[styles.authMethodBtn, useEmail && styles.activeAuthMethodBtn]}
+            style={[styles.roleBtn, role === 'user' && styles.activeRoleBtn]}
             onPress={() => {
-              setUseEmail(true);
-              setPhoneNumber('');
+              setRole('user');
+              setReferralCode('');
             }}
           >
-            <Text style={[styles.authMethodBtnText, useEmail && styles.activeAuthMethodBtnText]}>Email</Text>
+            <Text style={[styles.roleBtnText, role === 'user' && styles.activeRoleBtnText]}>Dater</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.authMethodBtn, !useEmail && styles.activeAuthMethodBtn]}
+            style={[styles.roleBtn, role === 'matchmaker' && styles.activeRoleBtn]}
             onPress={() => {
-              setUseEmail(false);
-              setEmail('');
-              setAgreeToTexts(false);
+              setRole('matchmaker');
             }}
           >
-            <Text style={[styles.authMethodBtnText, !useEmail && styles.activeAuthMethodBtnText]}>Phone</Text>
+            <Text style={[styles.roleBtnText, role === 'matchmaker' && styles.activeRoleBtnText]}>Matchmaker</Text>
           </TouchableOpacity>
         </View>
 
-        {useEmail ? (
-          <TextInput
-            ref={emailRef}
-            style={styles.input}
-            placeholder="Email"
-            value={email}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            onChangeText={setEmail}
-            blurOnSubmit={false}
-            returnKeyType="next"
-            onSubmitEditing={() => passwordRef.current?.focus()}
-          />
-        ) : (
-          <TextInput
-            ref={phoneRef}
-            style={styles.input}
-            placeholder="Phone Number (e.g., +1234567890)"
-            value={phoneNumber}
-            keyboardType="phone-pad"
-            autoCapitalize="none"
-            onChangeText={setPhoneNumber}
-            blurOnSubmit={false}
-            returnKeyType="next"
-            onSubmitEditing={() => passwordRef.current?.focus()}
-          />
-        )}
+        <TextInput
+          ref={identifierRef}
+          style={styles.input}
+          placeholder="Email or Phone Number"
+          value={identifier}
+          keyboardType="default"
+          autoCapitalize="none"
+          onChangeText={setIdentifier}
+          blurOnSubmit={false}
+          returnKeyType="next"
+          onSubmitEditing={() => passwordRef.current?.focus()}
+        />
         <TextInput
           ref={passwordRef}
           style={styles.input}
@@ -246,22 +233,39 @@ const SignUpScreen = () => {
           value={password}
           secureTextEntry
           onChangeText={setPassword}
-          returnKeyType="done"
-          onSubmitEditing={handleRegister}
+          blurOnSubmit={false}
+          returnKeyType={role === 'matchmaker' ? 'next' : 'done'}
+          onSubmitEditing={() => {
+            if (role === 'matchmaker') {
+              referralRef.current?.focus();
+            } else {
+              handleRegister();
+            }
+          }}
         />
 
-        {!useEmail && (
-          <TouchableOpacity
-            style={styles.checkboxContainer}
-            onPress={() => setAgreeToTexts(!agreeToTexts)}
-            activeOpacity={0.7}
-          >
-            <View style={[styles.checkbox, agreeToTexts && styles.checkboxChecked]}>
-              {agreeToTexts && <Text style={styles.checkmark}>✓</Text>}
-            </View>
-            <Text style={styles.checkboxLabel}>By checking this box, you agree to receive texts.</Text>
-          </TouchableOpacity>
+        {role === 'matchmaker' && (
+          <TextInput
+            ref={referralRef}
+            style={styles.input}
+            placeholder="Enter Dater's Referral Code"
+            value={referralCode}
+            onChangeText={setReferralCode}
+            returnKeyType="done"
+            onSubmitEditing={handleRegister}
+          />
         )}
+
+        <TouchableOpacity
+          style={styles.checkboxContainer}
+          onPress={() => setAgreeToTexts(!agreeToTexts)}
+          activeOpacity={0.7}
+        >
+          <View style={[styles.checkbox, agreeToTexts && styles.checkboxChecked]}>
+            {agreeToTexts && <Text style={styles.checkmark}>✓</Text>}
+          </View>
+          <Text style={styles.checkboxLabel}>By checking this box, you agree to receive non promotional texts or emails.</Text>
+        </TouchableOpacity>
 
         <TouchableOpacity style={styles.submitBtn} onPress={handleRegister}>
           <Text style={styles.submitBtnText}>Sign Up</Text>
@@ -294,31 +298,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 20,
   },
-  authMethodToggleWrapper: {
-    flexDirection: 'row',
-    marginBottom: 14,
-    borderRadius: 10,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: '#ddd',
-  },
-  authMethodBtn: {
-    flex: 1,
-    paddingVertical: 12,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-  },
-  authMethodBtnText: {
-    color: '#6B46C1',
-    fontWeight: '600',
-  },
-  activeAuthMethodBtn: {
-    backgroundColor: '#6B46C1',
-  },
-  activeAuthMethodBtnText: {
-    color: '#fff',
-    fontWeight: '700',
-  },
   input: {
     borderWidth: 1,
     borderColor: '#ddd',
@@ -349,14 +328,30 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginTop: 5,
   },
-  switchButton: {
-    marginBottom: 16,
+  roleToggleWrapper: {
+    flexDirection: 'row',
+    marginBottom: 14,
+    borderRadius: 10,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  roleBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    backgroundColor: '#fff',
     alignItems: 'center',
   },
-  switchButtonText: {
+  roleBtnText: {
     color: '#6B46C1',
     fontWeight: '600',
-    fontSize: 14,
+  },
+  activeRoleBtn: {
+    backgroundColor: '#6B46C1',
+  },
+  activeRoleBtnText: {
+    color: '#fff',
+    fontWeight: '700',
   },
   checkboxContainer: {
     flexDirection: 'row',

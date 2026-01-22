@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify
 from app.models import db, User
 from flask_jwt_extended import create_access_token
 from flask import current_app
-from datetime import datetime
+from datetime import datetime, timedelta
 import boto3
 import os
 import re
@@ -380,3 +380,163 @@ def resend_verification():
         'verification_sent': True,
         'verification_method': verification_method
     }), 200
+
+def send_password_reset_email(email, reset_token, first_name):
+    """Send password reset email using AWS SES"""
+    try:
+        ses = get_ses_client()
+        sender_email = os.getenv("SES_SENDER_EMAIL")
+        frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
+        
+        reset_url = f"{frontend_url}/reset-password?token={reset_token}"
+        
+        subject = "Reset Your Password"
+        body_text = f"""Hello {first_name or 'there'},
+        
+You requested to reset your password. Click the link below to reset it:
+
+{reset_url}
+
+This link will expire in 1 hour.
+
+If you didn't request a password reset, please ignore this email.
+
+Best regards,
+The Team"""
+        
+        body_html = f"""<html>
+            <head></head>
+            <body>
+              <h2>Hello {first_name or 'there'},</h2>
+              <p>You requested to reset your password. Click the link below to reset it:</p>
+              <p><a href="{reset_url}" style="background-color: #6B46C1; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">Reset Password</a></p>
+              <p>Or copy and paste this link into your browser:</p>
+              <p>{reset_url}</p>
+              <p>This link will expire in 1 hour.</p>
+              <p>If you didn't request a password reset, please ignore this email.</p>
+              <p>Best regards,<br>The Team</p>
+            </body>
+            </html>"""
+        
+        response = ses.send_email(
+            Source=sender_email,
+            Destination={"ToAddresses": [email]},
+            Message={
+                "Subject": {"Data": subject},
+                "Body": {
+                    "Text": {"Data": body_text},
+                    "Html": {"Data": body_html}
+                },
+            },
+        )
+        print(f"Password reset email sent to {email}: {response.get('MessageId')}")
+        return True
+    except Exception as e:
+        print(f"Error sending password reset email: {str(e)}")
+        return False
+
+def send_password_reset_sms(phone_number, reset_token, first_name):
+    """Send password reset SMS using Twilio"""
+    try:
+        client = get_twilio_client()
+        if not client:
+            print("Twilio credentials not configured")
+            return False
+        
+        twilio_phone = os.getenv("TWILIO_PHONE_NUMBER")
+        if not twilio_phone:
+            print("TWILIO_PHONE_NUMBER not configured")
+            return False
+        
+        frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
+        reset_url = f"{frontend_url}/reset-password?token={reset_token}"
+        
+        message_body = f"Hello {first_name or 'there'}, you requested to reset your password. Click this link: {reset_url} This link expires in 1 hour. If you didn't request this, please ignore."
+        
+        message = client.messages.create(
+            body=message_body,
+            from_=twilio_phone,
+            to=phone_number
+        )
+        print(f"Password reset SMS sent to {phone_number}: {message.sid}")
+        return True
+    except Exception as e:
+        print(f"Error sending password reset SMS: {str(e)}")
+        return False
+
+@auth_bp.route('/forgot-password', methods=['POST'])
+def forgot_password():
+    """Request password reset - sends email or SMS with reset link"""
+    data = request.get_json()
+    identifier = data.get('identifier')
+    
+    if not identifier:
+        return jsonify({'msg': 'Email or phone number is required'}), 400
+    
+    # Determine if identifier is email or phone
+    if is_email(identifier):
+        user = User.query.filter_by(email=identifier).first()
+        method = 'email'
+    else:
+        phone_number = normalize_phone_number(identifier)
+        user = User.query.filter_by(phone_number=phone_number).first()
+        method = 'phone'
+    
+    # Don't reveal if user exists or not (security best practice)
+    if not user:
+        return jsonify({
+            'message': 'If an account exists with that email or phone number, password reset instructions have been sent.'
+        }), 200
+    
+    # Generate reset token
+    reset_token = user.generate_password_reset_token()
+    user.password_reset_token = reset_token
+    user.password_reset_token_expires = datetime.utcnow() + timedelta(hours=1)
+    db.session.commit()
+    
+    # Send reset link via email or SMS
+    if method == 'email':
+        sent = send_password_reset_email(user.email, reset_token, user.first_name)
+    else:
+        sent = send_password_reset_sms(user.phone_number, reset_token, user.first_name)
+    
+    if not sent:
+        return jsonify({'msg': 'Failed to send reset instructions. Please try again later.'}), 500
+    
+    return jsonify({
+        'message': 'If an account exists with that email or phone number, password reset instructions have been sent.'
+    }), 200
+
+@auth_bp.route('/reset-password', methods=['POST'])
+def reset_password():
+    """Reset password using reset token"""
+    data = request.get_json()
+    token = data.get('token')
+    new_password = data.get('password')
+    
+    if not token or not new_password:
+        return jsonify({'msg': 'Token and password are required'}), 400
+    
+    if len(new_password) < 6:
+        return jsonify({'msg': 'Password must be at least 6 characters long'}), 400
+    
+    # Find user by reset token
+    user = User.query.filter_by(password_reset_token=token).first()
+    
+    if not user:
+        return jsonify({'msg': 'Invalid or expired reset token'}), 400
+    
+    # Check if token has expired
+    if user.password_reset_token_expires and user.password_reset_token_expires < datetime.utcnow():
+        user.password_reset_token = None
+        user.password_reset_token_expires = None
+        db.session.commit()
+        return jsonify({'msg': 'Reset token has expired. Please request a new one.'}), 400
+    
+    # Reset password
+    user.set_password(new_password)
+    user.password_reset_token = None
+    user.password_reset_token_expires = None
+    db.session.commit()
+    
+    return jsonify({'message': 'Password reset successfully'}), 200
