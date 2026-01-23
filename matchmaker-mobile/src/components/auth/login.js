@@ -112,14 +112,15 @@ const LoginScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flexGrow: 1,           // fill the screen like SignUp
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     padding: 24,
+    paddingTop: 300,
     backgroundColor: '#fff',
   },
   title: {
     fontSize: 26,
     fontWeight: '700',
-    marginBottom: 24,
+    marginBottom: 20,
     textAlign: 'center',
   },
   input: {

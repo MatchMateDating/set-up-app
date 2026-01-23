@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import axios from 'axios';
 import { useNavigation } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 import { API_BASE_URL } from '../../env';
 
 const ForgotPasswordScreen = () => {
@@ -54,7 +55,16 @@ const ForgotPasswordScreen = () => {
       style={{ flex: 1 }}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
+      <View style={styles.header}>
+        <View style={styles.headerTopRow}>
+          <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+            <Ionicons name="arrow-back" size={24} color="#6B46C1" />
+            <Text style={styles.backButtonText}>Back</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
       <ScrollView
+        style={styles.scrollView}
         contentContainerStyle={styles.container}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
@@ -89,16 +99,33 @@ const ForgotPasswordScreen = () => {
 };
 
 const styles = StyleSheet.create({
+  scrollView: {
+    flex: 1,
+  },
   container: {
     flexGrow: 1,
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     padding: 24,
+    paddingTop: 300,
     backgroundColor: '#fff',
   },
+  header: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+    backgroundColor: '#fff',
+    paddingTop: 50,
+    paddingHorizontal: 16,
+  },
+  headerTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center'},
+  backButton: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  backButtonText: { color: '#6B46C1', fontSize: 16, fontWeight: '600' },
   title: {
     fontSize: 26,
     fontWeight: '700',
-    marginBottom: 12,
+    marginBottom: 20,
     textAlign: 'center',
   },
   subtitle: {
@@ -133,15 +160,6 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
-  },
-  backButton: {
-    marginTop: 24,
-    alignItems: 'center',
-  },
-  backButtonText: {
-    color: '#6B46C1',
-    fontSize: 14,
-    fontWeight: '500',
   },
 });
 

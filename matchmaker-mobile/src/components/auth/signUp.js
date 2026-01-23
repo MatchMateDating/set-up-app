@@ -415,8 +415,9 @@ If you have any questions about these Terms of Service, please contact us.`}
 const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
-    padding: 20,
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
+    padding: 24,
+    paddingTop: 300,
     backgroundColor: '#fff',
   },
   title: {
