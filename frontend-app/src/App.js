@@ -4,6 +4,7 @@ import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Login from './components/auth/login';
 import SignUp from './components/auth/signUp';
+import ResetPassword from './components/auth/resetPassword';
 import ProfilePage from './components/profile/profilePage';
 import Conversations from './components/conversations/conversations';
 import Match from './components/matches/match';
@@ -21,6 +22,7 @@ function App() {
       <Routes>
         <Route path="/" element={<Login />} />
         <Route path="/signup" element={<SignUp />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/complete-profile" element={<CompleteProfile />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/profile/:userId?" element={<ProfilePage />} />

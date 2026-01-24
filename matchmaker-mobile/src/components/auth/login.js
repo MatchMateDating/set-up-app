@@ -16,16 +16,20 @@ import { API_BASE_URL } from '../../env';
 import { UserContext } from '../../context/UserContext';
 
 const LoginScreen = () => {
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const navigation = useNavigation();
-  const emailRef = useRef(null);
+  const identifierRef = useRef(null);
   const passwordRef = useRef(null);
   const { setUser } = useContext(UserContext);
 
   const handleLogin = async () => {
     try {
-      const res = await axios.post(`${API_BASE_URL}/auth/login`, { email, password });
+      // Support both email and phone number login
+      const res = await axios.post(`${API_BASE_URL}/auth/login`, { 
+        identifier: identifier,
+        password 
+      });
       // Store token in AsyncStorage
       await AsyncStorage.setItem('token', res.data.token);
       if (res.data.user) {
@@ -34,11 +38,18 @@ const LoginScreen = () => {
         setUser(res.data.user);
       }
       Alert.alert('Success', 'Login successful!');
-      navigation.navigate('Main', {
-        screen: 'Matches',
-      });
+      
+      // Check if user needs to complete profile
+      if (res.data.user && res.data.user.role === 'user' && res.data.user.profile_completion_step) {
+        navigation.navigate('CompleteProfile');
+      } else {
+        navigation.navigate('Main', {
+          screen: 'Matches',
+        });
+      }
     } catch (err) {
-      Alert.alert('Error', err.response?.data?.msg || 'Login failed');
+      const errorMessage = err.response?.data?.error || err.response?.data?.msg || 'Login failed';
+      Alert.alert('Error', errorMessage);
     }
   };
 
@@ -58,32 +69,36 @@ const LoginScreen = () => {
       >
         <Text style={styles.title}>Login</Text>
 
-        <TextInput
-          ref={emailRef}
-          style={styles.input}
-          placeholder="Email"
-          value={email}
-          onChangeText={setEmail}
-          blurOnSubmit={false}
-          keyboardType="email-address"
-          autoCapitalize="none"
-          returnKeyType="next"
-          onSubmitEditing={() => passwordRef.current?.focus()}
-        />
-        <TextInput
-          ref={passwordRef}
-          style={styles.input}
-          placeholder="Password"
-          value={password}
-          onChangeText={setPassword}
-          blurOnSubmit={false}
-          returnKeyType="done"
-          onSubmitEditing={handleLogin}
-          secureTextEntry
-        />
+          <TextInput
+            ref={identifierRef}
+            style={styles.input}
+            placeholder="Email or Phone Number"
+            value={identifier}
+            onChangeText={setIdentifier}
+            blurOnSubmit={false}
+            keyboardType="default"
+            autoCapitalize="none"
+            returnKeyType="next"
+            onSubmitEditing={() => passwordRef.current?.focus()}
+          />
+          <TextInput
+            ref={passwordRef}
+            style={styles.input}
+            placeholder="Password"
+            value={password}
+            onChangeText={setPassword}
+            blurOnSubmit={false}
+            returnKeyType="done"
+            onSubmitEditing={handleLogin}
+            secureTextEntry
+          />
 
         <TouchableOpacity style={styles.button} onPress={handleLogin}>
           <Text style={styles.buttonText}>Login</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity onPress={() => navigation.navigate('ForgotPassword')} style={styles.forgotPasswordButton}>
+          <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
         </TouchableOpacity>
 
         <Text style={styles.signupText}>Don't have an account?</Text>
@@ -98,14 +113,15 @@ const LoginScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flexGrow: 1,           // fill the screen like SignUp
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     padding: 24,
+    paddingTop: 300,
     backgroundColor: '#fff',
   },
   title: {
     fontSize: 26,
     fontWeight: '700',
-    marginBottom: 24,
+    marginBottom: 20,
     textAlign: 'center',
   },
   input: {
@@ -143,6 +159,15 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginTop: 6,
     fontSize: 15,
+  },
+  forgotPasswordButton: {
+    marginTop: 16,
+    alignItems: 'center',
+  },
+  forgotPasswordText: {
+    color: '#6B46C1',
+    fontSize: 14,
+    fontWeight: '500',
   },
 });
 

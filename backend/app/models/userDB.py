@@ -1,6 +1,8 @@
 from app import db, bcrypt
 from werkzeug.security import generate_password_hash, check_password_hash
 import uuid
+import secrets
+import secrets
 from sqlalchemy.ext.mutable import MutableList
 from sqlalchemy import JSON
 from datetime import datetime
@@ -9,7 +11,8 @@ class User(db.Model):
     __tablename__ = 'users'
 
     id = db.Column(db.Integer, primary_key=True)
-    email = db.Column(db.String(120), nullable=False)  # unique removed to allow linked accounts with same email
+    email = db.Column(db.String(120), nullable=True)  # nullable to allow phone-only accounts
+    phone_number = db.Column(db.String(20), nullable=True)  # E.164 format: +1234567890
     password_hash = db.Column(db.String(128), nullable=False)
     first_name = db.Column(db.String(120), nullable=True)
     last_name = db.Column(db.String(120), nullable=True)
@@ -31,6 +34,13 @@ class User(db.Model):
     last_active_at = db.Column(db.DateTime, nullable=True)
     push_token = db.Column(db.String(255), nullable=True)  # Expo push notification token
     notifications_enabled = db.Column(db.Boolean, nullable=False, default=False)  # User's notification preference
+    email_verified = db.Column(db.Boolean, nullable=False, default=False)
+    email_verification_token = db.Column(db.String(100), nullable=True, unique=True)
+    phone_verified = db.Column(db.Boolean, nullable=False, default=False)
+    phone_verification_token = db.Column(db.String(100), nullable=True, unique=True)
+    password_reset_token = db.Column(db.String(100), nullable=True, unique=True)
+    password_reset_token_expires = db.Column(db.DateTime, nullable=True)
+    profile_completion_step = db.Column(db.Integer, nullable=True)  # 1, 2, or 3 if incomplete, None if complete
 
     referred_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     linked_account_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
@@ -59,8 +69,10 @@ class User(db.Model):
     matches_as_user2 = db.relationship('Match', foreign_keys='Match.user_id_2', back_populates='user2')
     push_tokens = db.relationship('PushToken', backref='user', lazy=True, cascade='all, delete-orphan')
 
-    def __init__(self, email, first_name, last_name, role='user', referred_by_id=None):
+    def __init__(self, email=None, phone_number=None, role='user', first_name=None, last_name=None, referred_by_id=None):
         self.email = email
+        self.phone_number = phone_number
+        self.phone_number = phone_number
         self.first_name = first_name
         self.last_name = last_name
         self.role = role
@@ -70,7 +82,22 @@ class User(db.Model):
 
     def generate_referral_code(self):
         return str(uuid.uuid4())[:10]
+    
+    def generate_verification_token(self):
+        """Generate an 8-digit email verification code"""
+        # Generate a random 8-digit code (00000000 to 99999999)
+        return f"{secrets.randbelow(100000000):08d}"
 
+    @staticmethod
+    def generate_verification_token_static():
+        """Generate an 8-digit verification code (static method)"""
+        # Generate a random 8-digit code (00000000 to 99999999)
+        return f"{secrets.randbelow(100000000):08d}"
+    
+    def generate_password_reset_token(self):
+        """Generate a secure password reset token"""
+        return secrets.token_urlsafe(32)
+    
     def set_password(self, password):
         self.password_hash = bcrypt.generate_password_hash(password).decode('utf-8')
 
@@ -98,6 +125,7 @@ class User(db.Model):
         return {
             "id": self.id,
             "email": self.email,
+            "phone_number": self.phone_number,
             "first_name": self.first_name,
             "last_name": self.last_name,
             "role": self.role,
@@ -124,6 +152,9 @@ class User(db.Model):
             "match_radius": self.match_radius,
             "unit": self.unit,
             "notifications_enabled": self.notifications_enabled,
+            "email_verified": self.email_verified,
+            "phone_verified": self.phone_verified,
+            "profile_completion_step": self.profile_completion_step,
         }
 
 class ReferredUsers(db.Model):

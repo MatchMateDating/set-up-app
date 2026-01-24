@@ -11,6 +11,7 @@ import {
   Alert,
   Platform,
   Dimensions,
+  Keyboard,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
@@ -46,6 +47,8 @@ const CompleteProfile = () => {
   const { setUser: setContextUser } = useContext(UserContext);
   const { enableNotifications } = useNotifications();
   const scrollRef = React.useRef(null);
+  const firstNameRef = React.useRef(null);
+  const lastNameRef = React.useRef(null);
   const today = new Date();
   const defaultBirthdate = new Date(today.setFullYear(today.getFullYear() - 18))
     .toISOString()
@@ -83,21 +86,129 @@ const CompleteProfile = () => {
     fontFamily: 'Arial',
   });
 
+  const saveStepToBackend = async (stepNumber) => {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) return;
+
+      await fetch(`${API_BASE_URL}/profile/update`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ profile_completion_step: stepNumber }),
+      });
+    } catch (err) {
+      console.error('Error saving step:', err);
+      // Don't show error to user - this is a background operation
+    }
+  };
+
   const getSignUpData = async () => {
     setLoading(true);
     try {
-      const userRaw = await AsyncStorage.getItem('user');
-      if (userRaw) {
-        const user = JSON.parse(userRaw);
+      const token = await AsyncStorage.getItem('token');
+      if (!token) {
+        setLoading(false);
+        return;
+      }
+
+      // Fetch fresh user data from backend
+      const res = await fetch(`${API_BASE_URL}/profile/`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const user = data.user;
         setUser(user);
-        setFormData({
-          ...formData,
+        
+        // Restore step if user was in the middle of completing profile
+        if (user.profile_completion_step) {
+          setStep(user.profile_completion_step);
+        }
+
+        // Determine height unit from user's unit preference
+        const userUnit = user.unit === 'metric' ? 'm' : 'ft';
+        setHeightUnit(userUnit);
+
+        // Parse height from backend format
+        const parsedHeight = parseHeight(user.height, userUnit);
+
+        // Load existing user data into form
+        setFormData(prev => ({
+          ...prev,
           first_name: user.first_name ?? '',
-          last_name: user.last_name ?? ''
-        });
+          last_name: user.last_name ?? '',
+          birthdate: user.birthdate ?? defaultBirthdate,
+          gender: user.gender ?? '',
+          heightFeet: parsedHeight.heightFeet,
+          heightInches: parsedHeight.heightInches,
+          heightMeters: parsedHeight.heightMeters,
+          heightCentimeters: parsedHeight.heightCentimeters,
+          preferredAgeMin: user.preferredAgeMin?.toString() ?? '18',
+          preferredAgeMax: user.preferredAgeMax?.toString() ?? '50',
+          preferredGenders: user.preferredGenders ?? [],
+          matchRadius: user.match_radius ?? 50,
+          imageLayout: user.imageLayout ?? 'grid',
+          profileStyle: user.profileStyle ?? 'classic',
+          fontFamily: user.fontFamily ?? 'Arial',
+        }));
+
+        // Load images if available
+        if (user.images && user.images.length > 0) {
+          setImages(user.images);
+        }
+      } else {
+        // Fallback to AsyncStorage
+        const userRaw = await AsyncStorage.getItem('user');
+        if (userRaw) {
+          const user = JSON.parse(userRaw);
+          setUser(user);
+          if (user.profile_completion_step) {
+            setStep(user.profile_completion_step);
+          }
+          
+          const userUnit = user.unit === 'metric' ? 'm' : 'ft';
+          setHeightUnit(userUnit);
+          const parsedHeight = parseHeight(user.height, userUnit);
+          
+          setFormData(prev => ({
+            ...prev,
+            first_name: user.first_name ?? '',
+            last_name: user.last_name ?? '',
+            birthdate: user.birthdate ?? defaultBirthdate,
+            gender: user.gender ?? '',
+            heightFeet: parsedHeight.heightFeet,
+            heightInches: parsedHeight.heightInches,
+            heightMeters: parsedHeight.heightMeters,
+            heightCentimeters: parsedHeight.heightCentimeters,
+            preferredAgeMin: user.preferredAgeMin?.toString() ?? '18',
+            preferredAgeMax: user.preferredAgeMax?.toString() ?? '50',
+            preferredGenders: user.preferredGenders ?? [],
+            matchRadius: user.match_radius ?? 50,
+            imageLayout: user.imageLayout ?? 'grid',
+            profileStyle: user.profileStyle ?? 'classic',
+            fontFamily: user.fontFamily ?? 'Arial',
+          }));
+        }
       }
     } catch (err) {
       console.error(err);
+      // Fallback to AsyncStorage on error
+      try {
+        const userRaw = await AsyncStorage.getItem('user');
+        if (userRaw) {
+          const user = JSON.parse(userRaw);
+          setUser(user);
+          if (user.profile_completion_step) {
+            setStep(user.profile_completion_step);
+          }
+        }
+      } catch (e) {
+        console.error('Error reading from AsyncStorage:', e);
+      }
     } finally {
       setLoading(false);
     }
@@ -116,10 +227,128 @@ const CompleteProfile = () => {
         return { ...prev, matchRadius: kmToMiles(current) };
       }
     });
+    
+    // Cleanup timeout on unmount
+    return () => {
+      if (autoSaveFormData.current) {
+        clearTimeout(autoSaveFormData.current);
+      }
+    };
   }, [heightUnit]);
 
+  // Parse height from backend format (e.g., "5'10\"" or "1m 78cm") to formData format
+  const parseHeight = React.useCallback((heightString, unit) => {
+    if (!heightString) return { heightFeet: '0', heightInches: '0', heightMeters: '0', heightCentimeters: '0' };
+    
+    if (unit === 'ft' || heightString.includes("'")) {
+      // Parse format like "5'10\""
+      const match = heightString.match(/(\d+)'(\d+)"/);
+      if (match) {
+        return {
+          heightFeet: match[1],
+          heightInches: match[2],
+          heightMeters: '0',
+          heightCentimeters: '0',
+        };
+      }
+    } else if (unit === 'm' || heightString.includes('m')) {
+      // Parse format like "1m 78cm"
+      const match = heightString.match(/(\d+)m\s*(\d+)cm/);
+      if (match) {
+        return {
+          heightFeet: '0',
+          heightInches: '0',
+          heightMeters: match[1],
+          heightCentimeters: match[2],
+        };
+      }
+    }
+    return { heightFeet: '0', heightInches: '0', heightMeters: '0', heightCentimeters: '0' };
+  }, []);
+
+  // Auto-save form data to backend (debounced)
+  const autoSaveFormData = React.useRef(null);
+  const saveFormDataToBackend = async (dataToSave, stepNumber = null) => {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) return;
+
+      const payload = { ...dataToSave };
+      if (stepNumber !== null) {
+        payload.profile_completion_step = stepNumber;
+      }
+
+      await fetch(`${API_BASE_URL}/profile/update`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+    } catch (err) {
+      console.error('Error auto-saving form data:', err);
+      // Don't show error to user - this is a background operation
+    }
+  };
+
   const update = (name, value) => {
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData(prev => {
+      const newData = { ...prev, [name]: value };
+      
+      // Auto-save certain fields immediately
+      if (['first_name', 'last_name', 'birthdate', 'gender'].includes(name)) {
+        // Clear any pending auto-save
+        if (autoSaveFormData.current) {
+          clearTimeout(autoSaveFormData.current);
+        }
+        
+        // Debounce auto-save by 500ms
+        autoSaveFormData.current = setTimeout(() => {
+          const saveData = {};
+          if (name === 'first_name') saveData.first_name = value.trim();
+          if (name === 'last_name') saveData.last_name = value.trim();
+          if (name === 'birthdate') saveData.birthdate = value;
+          if (name === 'gender') saveData.gender = value;
+          
+          saveFormDataToBackend(saveData);
+        }, 500);
+      }
+      
+      // Auto-save height when changed (for step 1)
+      if (['heightFeet', 'heightInches', 'heightMeters', 'heightCentimeters'].includes(name) && step === 1) {
+        if (autoSaveFormData.current) {
+          clearTimeout(autoSaveFormData.current);
+        }
+        
+        autoSaveFormData.current = setTimeout(() => {
+          const height = formatHeight(newData, heightUnit);
+          saveFormDataToBackend({
+            height: height,
+            unit: heightUnit === 'ft' ? 'imperial' : 'metric',
+          });
+        }, 1000);
+      }
+      
+      // Auto-save preferences when changed (for step 3)
+      if (['preferredAgeMin', 'preferredAgeMax', 'preferredGenders', 'matchRadius'].includes(name) && step === 3) {
+        if (autoSaveFormData.current) {
+          clearTimeout(autoSaveFormData.current);
+        }
+        
+        autoSaveFormData.current = setTimeout(() => {
+          const saveData = {};
+          if (name === 'preferredAgeMin') saveData.preferredAgeMin = parseInt(value, 10);
+          if (name === 'preferredAgeMax') saveData.preferredAgeMax = parseInt(value, 10);
+          if (name === 'preferredGenders') saveData.preferredGenders = value;
+          if (name === 'matchRadius') saveData.match_radius = Number(value);
+          
+          saveFormDataToBackend(saveData);
+        }, 1000);
+      }
+      
+      return newData;
+    });
   };
 
   const handleInputChange = (e) => {
@@ -197,7 +426,35 @@ const CompleteProfile = () => {
     if (!images || images.length === 0)
       return setError('Please upload at least one image.');
 
+    // Save all step 1 data to backend
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (token) {
+        const height = formatHeight(formData, heightUnit);
+        await fetch(`${API_BASE_URL}/profile/update`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            first_name: formData.first_name.trim(),
+            last_name: formData.last_name.trim(),
+            birthdate: formData.birthdate,
+            gender: formData.gender,
+            height: height,
+            unit: heightUnit === 'ft' ? 'imperial' : 'metric',
+            profile_completion_step: 2,
+          }),
+        });
+      }
+    } catch (err) {
+      console.error('Error saving step 1 data:', err);
+      // Don't block user from proceeding, but log the error
+    }
+
     setStep(2);
+    saveStepToBackend(2);
   };
 
   const handleFinish = async () => {
@@ -221,6 +478,8 @@ const CompleteProfile = () => {
       }
 
       const profilePayload = {
+        first_name: formData.first_name,
+        last_name: formData.last_name,
         birthdate: formData.birthdate,
         gender: formData.gender,
         height: formatHeight(formData, heightUnit),
@@ -236,6 +495,7 @@ const CompleteProfile = () => {
         fontFamily: formData.fontFamily,
         imageLayout: formData.imageLayout,
         unit: heightUnit === 'ft' ? 'imperial' : 'metric',
+        profile_completion_step: null, // Clear step when profile is completed
       };
 
       const updateRes = await fetch(`${API_BASE_URL}/profile/update`, {
@@ -516,22 +776,50 @@ const CompleteProfile = () => {
 
                   <Text style={styles.label}>First Name</Text>
                   <TextInput
+                    ref={firstNameRef}
                     style={styles.input}
                     value={formData.first_name}
                     onChangeText={(v) => update("first_name", v)}
+                    returnKeyType="next"
+                    onSubmitEditing={() => {
+                      lastNameRef.current?.focus();
+                    }}
+                    blurOnSubmit={false}
                   />
 
                   <Text style={styles.label}>Last Name</Text>
                   <TextInput
+                    ref={lastNameRef}
                     style={styles.input}
                     value={formData.last_name}
                     onChangeText={(v) => update("last_name", v)}
+                    returnKeyType="done"
+                    onSubmitEditing={() => {
+                      lastNameRef.current?.blur();
+                      // Open date picker
+                      setTempBirthdate(
+                        formData.birthdate
+                          ? (() => {
+                              const [year, month, day] = formData.birthdate.split('-').map(Number);
+                              return new Date(year, month - 1, day);
+                            })()
+                          : null
+                      );
+                      setShowDatePicker(true);
+                      setTimeout(() => {
+                        scrollRef.current?.scrollTo({
+                          y: 300,
+                          animated: true,
+                        });
+                      }, 200);
+                    }}
                   />
 
                   <Text style={styles.label}>Birthdate</Text>
                   <TouchableOpacity
                     style={[styles.field, styles.dateField, showDatePicker && styles.fieldActive]}
                     onPress={() => {
+                      Keyboard.dismiss();
                       setTempBirthdate(
                         formData.birthdate
                           ? (() => {
@@ -714,7 +1002,10 @@ const CompleteProfile = () => {
               <TouchableOpacity style={styles.nextBtn} onPress={saveStep1}>
                 <Text style={styles.nextBtnText}>Next</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.skipBtn} onPress={() => setStep(3)}>
+              <TouchableOpacity style={styles.skipBtn} onPress={() => {
+                setStep(3);
+                saveStepToBackend(3);
+              }}>
                 <Text style={styles.skipBtnText}>Skip</Text>
               </TouchableOpacity>
             </View>
@@ -736,11 +1027,39 @@ const CompleteProfile = () => {
               />
 
               <View style={styles.rowBetween}>
-                <TouchableOpacity style={styles.secondaryBtn} onPress={() => setStep(1)}>
+                <TouchableOpacity style={styles.secondaryBtn} onPress={() => {
+                  setStep(1);
+                  saveStepToBackend(1);
+                }}>
                   <Text style={styles.secondaryBtnText}>Back</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={styles.nextBtn} onPress={() => setStep(3)}>
+                <TouchableOpacity style={styles.nextBtn} onPress={async () => {
+                  // Save preferences before moving to step 3
+                  try {
+                    const token = await AsyncStorage.getItem('token');
+                    if (token) {
+                      await fetch(`${API_BASE_URL}/profile/update`, {
+                        method: 'PUT',
+                        headers: {
+                          'Content-Type': 'application/json',
+                          Authorization: `Bearer ${token}`,
+                        },
+                        body: JSON.stringify({
+                          preferredAgeMin: formData.preferredAgeMin ? parseInt(formData.preferredAgeMin, 10) : 18,
+                          preferredAgeMax: formData.preferredAgeMax ? parseInt(formData.preferredAgeMax, 10) : 50,
+                          preferredGenders: formData.preferredGenders ?? [],
+                          match_radius: Number(formData.matchRadius) ?? 50,
+                          profile_completion_step: 3,
+                        }),
+                      });
+                    }
+                  } catch (err) {
+                    console.error('Error saving preferences:', err);
+                  }
+                  setStep(3);
+                  saveStepToBackend(3);
+                }}>
                   <Text style={styles.nextBtnText}>Next</Text>
                 </TouchableOpacity>
               </View>
@@ -825,7 +1144,10 @@ const CompleteProfile = () => {
                 <ActivityIndicator size="large" color="#6B46C1" />
               ) : (
                 <View style={styles.rowBetween}>
-                  <TouchableOpacity style={styles.secondaryBtn} onPress={() => setStep(2)}>
+                  <TouchableOpacity style={styles.secondaryBtn} onPress={() => {
+                    setStep(2);
+                    saveStepToBackend(2);
+                  }}>
                     <Text style={styles.secondaryBtnText}>Back</Text>
                   </TouchableOpacity>
 
