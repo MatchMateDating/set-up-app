@@ -48,7 +48,8 @@ const LoginScreen = () => {
         });
       }
     } catch (err) {
-      Alert.alert('Error', err.response?.data?.msg || 'Login failed');
+      const errorMessage = err.response?.data?.error || err.response?.data?.msg || 'Login failed';
+      Alert.alert('Error', errorMessage);
     }
   };
 

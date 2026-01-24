@@ -159,11 +159,11 @@ def register():
     if email:
         existing_user = User.query.filter_by(email=email).first()
         if existing_user:
-            return jsonify({'msg': 'Email already registered'}), 400
+            return jsonify({'msg': 'A user with this email already exists, please log in'}), 400
     else:
         existing_user = User.query.filter_by(phone_number=phone_number).first()
         if existing_user:
-            return jsonify({'msg': 'Phone number already registered'}), 400
+            return jsonify({'msg': 'A user with this phone number already exists, please log in'}), 400
 
     role = data.get('role', 'user')  # default is normal user
     print(f"Resolved role: {role}")
@@ -203,19 +203,30 @@ def login():
     if is_email(identifier):
         # Login with email
         users = User.query.filter_by(email=identifier).all()
+        identifier_type = 'email'
+        identifier_value = identifier
     else:
         # Login with phone number (normalize it)
         phone_number = normalize_phone_number(identifier)
         users = User.query.filter_by(phone_number=phone_number).all()
-    
+        identifier_type = 'phone number'
+        identifier_value = phone_number
+
+    # Check if any users exist with this identifier
+    if not users:
+        if identifier_type == 'email':
+            return jsonify({'error': 'No user with this email exists, please sign up'}), 401
+        else:
+            return jsonify({'error': 'No user with this phone number exists, please sign up'}), 401
+
     # Find all users with matching password
     matching_users = []
     for u in users:
         if u.check_password(password):
             matching_users.append(u)
-    
+
     if not matching_users:
-        return jsonify({'error': 'Invalid credentials'}), 401
+        return jsonify({'error': 'Invalid password'}), 401
     
     # If multiple accounts match, prefer the one that was last active
     # Sort by last_active_at (most recent first), with None values treated as oldest
@@ -310,6 +321,8 @@ def verify_email():
 
     if role == 'user':
         user.referral_code = user.generate_referral_code()
+        # Set profile completion step to 1 for new users so they start completeProfile
+        user.profile_completion_step = 1
 
     # Set verification status
     verification_method = 'email' if email else 'phone'

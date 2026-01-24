@@ -86,13 +86,23 @@ export const NotificationProvider = ({ children }) => {
             }
           } else if (res.status === 401) {
             const errorData = await res.json().catch(() => ({}));
+            console.warn('Auth error fetching notification preferences:', errorData);
             if (errorData.error_code === 'TOKEN_EXPIRED') {
               await AsyncStorage.removeItem('token');
+              await AsyncStorage.removeItem('user');
             }
             // Default to false on auth error
             setNotificationsEnabled(false);
             lastSavedValueRef.current = false;
+          } else if (res.status === 404) {
+            console.warn('User not found, clearing stored data');
+            // User not found - clear stored data
+            await AsyncStorage.removeItem('token');
+            await AsyncStorage.removeItem('user');
+            setNotificationsEnabled(false);
+            lastSavedValueRef.current = false;
           } else {
+            console.error('Error fetching notification preferences, status:', res.status);
             // Default to false on other errors
             setNotificationsEnabled(false);
             lastSavedValueRef.current = false;
@@ -177,11 +187,18 @@ export const NotificationProvider = ({ children }) => {
           // Handle token expiration
           if (res.status === 401 && errorData.error_code === 'TOKEN_EXPIRED') {
             await AsyncStorage.removeItem('token');
+            await AsyncStorage.removeItem('user');
             console.warn('Token expired while saving notification preference. User needs to log in again.');
             // Don't try to save again - user needs to re-authenticate
             return;
+          } else if (res.status === 404) {
+            console.warn('User not found while saving notification preference, clearing stored data');
+            // User not found - clear stored data
+            await AsyncStorage.removeItem('token');
+            await AsyncStorage.removeItem('user');
+            return;
           }
-          
+
           console.error('Failed to update notification preference:', res.status, errorData);
         }
       } catch (err) {

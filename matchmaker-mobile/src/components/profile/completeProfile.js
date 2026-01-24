@@ -11,6 +11,7 @@ import {
   Alert,
   Platform,
   Dimensions,
+  Keyboard,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
@@ -818,6 +819,7 @@ const CompleteProfile = () => {
                   <TouchableOpacity
                     style={[styles.field, styles.dateField, showDatePicker && styles.fieldActive]}
                     onPress={() => {
+                      Keyboard.dismiss();
                       setTempBirthdate(
                         formData.birthdate
                           ? (() => {

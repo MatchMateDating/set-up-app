@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Modal,
+  Keyboard,
 } from 'react-native';
 import axios from 'axios';
 import { useNavigation } from '@react-navigation/native';
@@ -291,7 +292,10 @@ const SignUpScreen = () => {
 
         <TouchableOpacity
           style={styles.checkboxContainer}
-          onPress={() => setAgreeToTexts(!agreeToTexts)}
+          onPress={() => {
+            Keyboard.dismiss();
+            setAgreeToTexts(!agreeToTexts);
+          }}
           activeOpacity={0.7}
         >
           <View style={[styles.checkbox, agreeToTexts && styles.checkboxChecked]}>
