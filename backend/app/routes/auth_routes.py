@@ -136,24 +136,25 @@ def normalize_phone_number(phone):
 
 @auth_bp.route('/register', methods=['POST'])
 def register():
+    """Send verification code without creating user account"""
     data = request.get_json()
     print(f"Received data: {data}")
-    
+
     # Require either email OR phone_number (not both, at least one)
     email = data.get('email')
     phone_number = data.get('phone_number')
     password = data.get('password')
-    
+
     if not email and not phone_number:
         return jsonify({'msg': 'Either email or phone_number is required'}), 400
 
     if not password:
         return jsonify({'msg':'Please enter a password'}), 400
-    
+
     # Normalize phone number if provided
     if phone_number:
         phone_number = normalize_phone_number(phone_number)
-    
+
     # Check for existing user with same email or phone
     if email:
         existing_user = User.query.filter_by(email=email).first()
@@ -163,64 +164,31 @@ def register():
         existing_user = User.query.filter_by(phone_number=phone_number).first()
         if existing_user:
             return jsonify({'msg': 'Phone number already registered'}), 400
-    
+
     role = data.get('role', 'user')  # default is normal user
     print(f"Resolved role: {role}")
-    referred_by = None
 
-    if role == 'matchmaker':
-        referral_code = data.get('referral_code')
-        if not referral_code:
-            return jsonify({'msg': 'Referral code required for matchmaker'}), 400
-
-        referrer = User.query.filter_by(referral_code=referral_code).first()
-        if not referrer:
-            return jsonify({'msg': 'Invalid referral code'}), 400
-
-        referred_by = referrer.id
-
-    user = User(
-        email=email,
-        phone_number=phone_number,
-        role=role,
-        first_name=None,
-        last_name=None,
-        referred_by_id=referred_by)
-    user.set_password(data['password'])
-
-    if role == 'user':
-        user.referral_code = user.generate_referral_code()
-
-    # Generate verification token
-    verification_token = user.generate_verification_token()
+    # Generate verification token (temporary - not stored in DB)
+    verification_token = User.generate_verification_token_static()
     verification_sent = False
-    
+
     if email:
-        user.email_verification_token = verification_token
-        user.email_verified = False
-        verification_sent = send_verification_email(email, verification_token, user.first_name)
+        verification_sent = send_verification_email(email, verification_token, None)
         if not verification_sent:
             print(f"Warning: Failed to send verification email to {email}")
     else:
-        user.phone_verification_token = verification_token
-        user.phone_verified = False
-        verification_sent = send_verification_sms(phone_number, verification_token, user.first_name)
+        verification_sent = send_verification_sms(phone_number, verification_token, None)
         if not verification_sent:
             print(f"Warning: Failed to send verification SMS to {phone_number}")
-    
-    # Set last_active_at for newly created account
-    user.last_active_at = datetime.utcnow()
 
-    db.session.add(user)
-    db.session.commit()
-
-    # Return user without token - user needs to verify first
+    # Return success without creating user
     method = 'email' if email else 'phone'
     return jsonify({
-        'message': f'User created successfully. Please verify your {method}.', 
-        'user': user.to_dict(),
+        'message': f'Verification code sent. Please verify your {method}.',
         'verification_sent': verification_sent,
-        'verification_method': method}), 200
+        'verification_method': method,
+        'verification_token': verification_token  # Return token for verification
+    }), 200
 
 @auth_bp.route('/login', methods=['POST'])
 def login():
@@ -275,45 +243,95 @@ def login():
 
 @auth_bp.route('/verify-email', methods=['POST'])
 def verify_email():
-    """Verify email or phone using verification token"""
+    """Verify email or phone using verification token and create user account"""
     data = request.get_json()
     token = data.get('token')
-    
+    provided_token = data.get('provided_token')  # The token returned from register
+    signup_data = data.get('signup_data')  # The signup data from frontend
+
     if not token:
         return jsonify({'msg': 'Verification token is required'}), 400
-    
-    # Try to find user by email verification token
-    user = User.query.filter_by(email_verification_token=token).first()
-    verification_method = 'email'
-    
-    # If not found, try phone verification token
-    if not user:
-        user = User.query.filter_by(phone_verification_token=token).first()
-        verification_method = 'phone'
-    
-    if not user:
-        return jsonify({'msg': 'Invalid or expired verification token'}), 400
-    
-    # Verify based on method
+
+    if not provided_token or not signup_data:
+        return jsonify({'msg': 'Signup data and provided token are required'}), 400
+
+    # Verify that the provided token matches (basic security check)
+    if token != provided_token:
+        return jsonify({'msg': 'Invalid verification token'}), 400
+
+    # Extract signup data
+    email = signup_data.get('email')
+    phone_number = signup_data.get('phone_number')
+    password = signup_data.get('password')
+    role = signup_data.get('role', 'user')
+    referral_code = signup_data.get('referral_code')
+
+    if not password:
+        return jsonify({'msg': 'Password is required'}), 400
+
+    if not email and not phone_number:
+        return jsonify({'msg': 'Either email or phone_number is required'}), 400
+
+    # Normalize phone number if provided
+    if phone_number:
+        phone_number = normalize_phone_number(phone_number)
+
+    # Check for existing user with same email or phone (one more time)
+    if email:
+        existing_user = User.query.filter_by(email=email).first()
+        if existing_user:
+            return jsonify({'msg': 'Email already registered'}), 400
+    else:
+        existing_user = User.query.filter_by(phone_number=phone_number).first()
+        if existing_user:
+            return jsonify({'msg': 'Phone number already registered'}), 400
+
+    # Handle referral code for matchmakers
+    referred_by = None
+    if role == 'matchmaker':
+        if not referral_code:
+            return jsonify({'msg': 'Referral code required for matchmaker'}), 400
+
+        referrer = User.query.filter_by(referral_code=referral_code).first()
+        if not referrer:
+            return jsonify({'msg': 'Invalid referral code'}), 400
+
+        referred_by = referrer.id
+
+    # Create the user now that verification is successful
+    user = User(
+        email=email,
+        phone_number=phone_number,
+        role=role,
+        first_name=None,
+        last_name=None,
+        referred_by_id=referred_by)
+    user.set_password(password)
+
+    if role == 'user':
+        user.referral_code = user.generate_referral_code()
+
+    # Set verification status
+    verification_method = 'email' if email else 'phone'
     if verification_method == 'email':
-        if user.email_verified:
-            return jsonify({'msg': 'Email already verified', 'user': user.to_dict()}), 200
         user.email_verified = True
         user.email_verification_token = None
     else:
-        if user.phone_verified:
-            return jsonify({'msg': 'Phone number already verified', 'user': user.to_dict()}), 200
         user.phone_verified = True
         user.phone_verification_token = None
-    
+
+    # Set last_active_at for newly created account
+    user.last_active_at = datetime.utcnow()
+
+    db.session.add(user)
     db.session.commit()
-    
+
     # Create access token for verified user
     access_token = create_access_token(identity=str(user.id))
-    
+
     method_text = 'Email' if verification_method == 'email' else 'Phone number'
     return jsonify({
-        'message': f'{method_text} verified successfully',
+        'message': f'{method_text} verified successfully. Account created.',
         'user': user.to_dict(),
         'token': access_token
     }), 200

@@ -13,8 +13,6 @@ class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(120), nullable=True)  # nullable to allow phone-only accounts
     phone_number = db.Column(db.String(20), nullable=True)  # E.164 format: +1234567890
-    email = db.Column(db.String(120), nullable=True)  # nullable to allow phone-only accounts
-    phone_number = db.Column(db.String(20), nullable=True)  # E.164 format: +1234567890
     password_hash = db.Column(db.String(128), nullable=False)
     first_name = db.Column(db.String(120), nullable=True)
     last_name = db.Column(db.String(120), nullable=True)
@@ -89,9 +87,10 @@ class User(db.Model):
         """Generate an 8-digit email verification code"""
         # Generate a random 8-digit code (00000000 to 99999999)
         return f"{secrets.randbelow(100000000):08d}"
-    
-    def generate_verification_token(self):
-        """Generate an 8-digit email verification code"""
+
+    @staticmethod
+    def generate_verification_token_static():
+        """Generate an 8-digit verification code (static method)"""
         # Generate a random 8-digit code (00000000 to 99999999)
         return f"{secrets.randbelow(100000000):08d}"
     
@@ -126,7 +125,6 @@ class User(db.Model):
         return {
             "id": self.id,
             "email": self.email,
-            "phone_number": self.phone_number,
             "phone_number": self.phone_number,
             "first_name": self.first_name,
             "last_name": self.last_name,

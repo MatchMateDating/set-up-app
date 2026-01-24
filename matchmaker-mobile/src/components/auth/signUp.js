@@ -77,7 +77,7 @@ const SignUpScreen = () => {
     try {
       const payload = { password, role };
       const isEmailInput = isEmail(identifier.trim());
-      
+
       if (isEmailInput) {
         payload.email = identifier.trim();
       } else {
@@ -87,17 +87,28 @@ const SignUpScreen = () => {
       if (role === 'matchmaker') {
         payload.referral_code = referralCode.trim();
       }
-      
+
       const res = await axios.post(`${API_BASE_URL}/auth/register`, payload);
 
-      if (res.data.user) {
-        // Store user data temporarily (will be saved after verification)
+      if (res.data.verification_sent) {
+        // Store signup data in AsyncStorage for verification
+        const signupData = {
+          email: isEmailInput ? identifier.trim() : null,
+          phone_number: !isEmailInput ? identifier.trim() : null,
+          password,
+          role,
+          referral_code: role === 'matchmaker' ? referralCode.trim() : null
+        };
+
+        await AsyncStorage.setItem('signupData', JSON.stringify(signupData));
+        await AsyncStorage.setItem('verificationToken', res.data.verification_token);
+
         // Navigate to verification screen
         const method = isEmailInput ? 'email' : 'phone';
-        const message = isEmailInput 
-          ? 'Registration successful! Please check your email for a verification code.'
-          : 'Registration successful! Please check your phone for a verification code.';
-        
+        const message = isEmailInput
+          ? 'Verification code sent! Please check your email for the verification code.'
+          : 'Verification code sent! Please check your phone for the verification code.';
+
         Alert.alert(
           'Success',
           message,
@@ -105,7 +116,7 @@ const SignUpScreen = () => {
             {
               text: 'OK',
               onPress: () => {
-                navigation.navigate('EmailVerification', { 
+                navigation.navigate('EmailVerification', {
                   identifier: identifier.trim(),
                   verificationMethod: method
                 });
@@ -114,7 +125,7 @@ const SignUpScreen = () => {
           ]
         );
       } else {
-        Alert.alert('Error', 'Registration failed. Please try again.');
+        Alert.alert('Error', 'Failed to send verification code. Please try again.');
       }
     } catch (err) {
         Alert.alert('Error', err.response?.data?.msg || 'Registration failed');

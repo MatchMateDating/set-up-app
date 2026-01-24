@@ -1,4 +1,4 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useEffect } from 'react';
 import {
   View,
   Text,
@@ -24,10 +24,33 @@ const EmailVerificationScreen = () => {
   const [verificationToken, setVerificationToken] = useState('');
   const [loading, setLoading] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
-  
+
   // Get identifier (email or phone) and verification method from route params
   const identifier = route.params?.identifier || route.params?.email || '';
   const verificationMethod = route.params?.verificationMethod || (identifier.includes('@') ? 'email' : 'phone');
+
+  // Check if signup data exists on component mount
+  useEffect(() => {
+    const checkSignupData = async () => {
+      const signupDataStr = await AsyncStorage.getItem('signupData');
+      const verificationToken = await AsyncStorage.getItem('verificationToken');
+
+      if (!signupDataStr || !verificationToken) {
+        Alert.alert(
+          'Session Expired',
+          'Your signup session has expired. Please sign up again.',
+          [
+            {
+              text: 'OK',
+              onPress: () => navigation.navigate('SignUp'),
+            },
+          ]
+        );
+      }
+    };
+
+    checkSignupData();
+  }, []);
 
   const handleVerify = async () => {
     if (!verificationToken.trim()) {
@@ -37,15 +60,34 @@ const EmailVerificationScreen = () => {
 
     setLoading(true);
     try {
+      // Retrieve stored signup data and verification token
+      const signupDataStr = await AsyncStorage.getItem('signupData');
+      const storedToken = await AsyncStorage.getItem('verificationToken');
+
+      if (!signupDataStr || !storedToken) {
+        Alert.alert('Error', 'Signup data not found. Please sign up again.');
+        navigation.navigate('SignUp');
+        return;
+      }
+
+      const signupData = JSON.parse(signupDataStr);
+
       const res = await axios.post(`${API_BASE_URL}/auth/verify-email`, {
         token: verificationToken.trim(),
+        provided_token: storedToken,
+        signup_data: signupData,
       });
 
       if (res.data.token && res.data.user) {
+        // Clear stored signup data
+        await AsyncStorage.removeItem('signupData');
+        await AsyncStorage.removeItem('verificationToken');
+
+        // Store user data and token
         await AsyncStorage.setItem('token', res.data.token);
         await AsyncStorage.setItem('user', JSON.stringify(res.data.user));
         setUser(res.data.user);
-        
+
         const verificationType = verificationMethod === 'phone' ? 'Phone number' : 'Email';
         Alert.alert('Success', `${verificationType} verified successfully!`, [
           {
@@ -82,13 +124,33 @@ const EmailVerificationScreen = () => {
 
     setResendLoading(true);
     try {
-      const payload = verificationMethod === 'phone' 
+      // Retrieve stored signup data for resend
+      const signupDataStr = await AsyncStorage.getItem('signupData');
+
+      if (!signupDataStr) {
+        Alert.alert('Error', 'Signup data not found. Please sign up again.');
+        navigation.navigate('SignUp');
+        return;
+      }
+
+      const signupData = JSON.parse(signupDataStr);
+      const payload = verificationMethod === 'phone'
         ? { phone_number: identifier }
         : { email: identifier };
-      
-      const res = await axios.post(`${API_BASE_URL}/auth/resend-verification`, payload);
+
+      // Add password and other data for re-registration
+      payload.password = signupData.password;
+      payload.role = signupData.role;
+      if (signupData.referral_code) {
+        payload.referral_code = signupData.referral_code;
+      }
+
+      const res = await axios.post(`${API_BASE_URL}/auth/register`, payload);
 
       if (res.data.verification_sent) {
+        // Update stored verification token
+        await AsyncStorage.setItem('verificationToken', res.data.verification_token);
+
         const method = res.data.verification_method || verificationMethod;
         const methodText = method === 'phone' ? 'text message' : 'email';
         Alert.alert('Success', `Verification code sent! Please check your ${methodText}.`);
