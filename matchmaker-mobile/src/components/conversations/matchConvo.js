@@ -606,7 +606,11 @@ const MatchConvo = () => {
                 {!mine && <Text style={styles.senderLabel}>{senderLabel}</Text>}
                 {msg.text && <Text style={[styles.messageText, mine && { color: '#fff' }]}>{msg.text}</Text>}
                 {msg.puzzle_type && (
-                  <TouchableOpacity style={styles.puzzleBubble} onPress={() => navigation.navigate(msg.puzzle_link)}>
+                  <TouchableOpacity style={styles.puzzleBubble} onPress={() => {
+                    // Store matchId in AsyncStorage and pass as param
+                    AsyncStorage.setItem('activeMatchId', matchId.toString());
+                    navigation.navigate(msg.puzzle_link, { matchId: matchId.toString() });
+                  }}>
                     <Ionicons name="game-controller-outline" size={20} color="#6B46C1" />
                     <Text style={styles.puzzleText}>Play {msg.puzzle_type}</Text>
                   </TouchableOpacity>

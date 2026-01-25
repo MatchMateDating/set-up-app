@@ -9,7 +9,7 @@ import {
     Alert,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { API_BASE_URL } from '../../env';
 
 const questions = [
@@ -113,6 +113,7 @@ const getResultBlurb = (score, total) => {
 
 const TriviaChallenge = () => {
     const navigation = useNavigation();
+    const route = useRoute();
 
     const [answers, setAnswers] = useState({});
     const [score, setScore] = useState(null);
@@ -163,9 +164,17 @@ const TriviaChallenge = () => {
 
     const sendResultToMatch = async () => {
         try {
-            const matchId = await AsyncStorage.getItem('activeMatchId');
+            // Try to get matchId from route params first, then AsyncStorage
+            const routeMatchId = route.params?.matchId;
+            const storedMatchId = await AsyncStorage.getItem('activeMatchId');
+            const matchId = routeMatchId || storedMatchId;
+            
             if (!matchId) {
-                Alert.alert('Error', 'No active match found');
+                Alert.alert(
+                    'No Active Match',
+                    'Please open a conversation with a match first, or navigate to puzzles from within a conversation.',
+                    [{ text: 'OK' }]
+                );
                 return;
             }
 

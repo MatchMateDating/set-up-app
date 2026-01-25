@@ -10,6 +10,26 @@ from twilio.rest import Client
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
 
+# Test mode configuration
+def is_test_mode_enabled():
+    """Check if test mode is enabled"""
+    return os.getenv('TEST_MODE_ENABLED', '').lower() in ('true', '1', 'yes')
+
+def get_test_email_domains():
+    """Get list of test email domains from environment variable"""
+    domains_str = os.getenv('TEST_EMAIL_DOMAINS', '')
+    if not domains_str:
+        # Default test domains if none specified
+        return ['@test.com', '@example.com']
+    return [d.strip() for d in domains_str.split(',') if d.strip()]
+
+def is_test_email(email):
+    """Check if an email is a test email"""
+    if not email or not is_test_mode_enabled():
+        return False
+    test_domains = get_test_email_domains()
+    return any(email.lower().endswith(domain.lower()) for domain in test_domains)
+
 # AWS SES client helper (reused from invite_routes pattern)
 def get_ses_client():
     """Get SES client, handling AWS_PROFILE if set"""
@@ -168,7 +188,61 @@ def register():
     role = data.get('role', 'user')  # default is normal user
     print(f"Resolved role: {role}")
 
-    # Generate verification token (temporary - not stored in DB)
+    # Check if this is a test email and test mode is enabled
+    test_mode_enabled = is_test_mode_enabled()
+    is_test = email and is_test_email(email)
+    
+    print(f"TEST MODE DEBUG: test_mode_enabled={test_mode_enabled}, email={email}, is_test={is_test}")
+    if email:
+        test_domains = get_test_email_domains()
+        print(f"TEST MODE DEBUG: test_domains={test_domains}")
+    
+    if is_test:
+        # For test emails, create user immediately without verification
+        print(f"TEST MODE: Auto-creating account for test email: {email}")
+        
+        # Handle referral code for matchmakers
+        referred_by = None
+        if role == 'matchmaker':
+            referral_code = data.get('referral_code')
+            if not referral_code:
+                return jsonify({'msg': 'Referral code required for matchmaker'}), 400
+            referrer = User.query.filter_by(referral_code=referral_code).first()
+            if not referrer:
+                return jsonify({'msg': 'Invalid referral code'}), 400
+            referred_by = referrer.id
+
+        # Create the user immediately
+        user = User(
+            email=email,
+            phone_number=phone_number,
+            role=role,
+            first_name=None,
+            last_name=None,
+            referred_by_id=referred_by)
+        user.set_password(password)
+        user.email_verified = True  # Auto-verify test emails
+        user.phone_verified = True if phone_number else False
+
+        if role == 'user':
+            user.referral_code = user.generate_referral_code()
+            user.profile_completion_step = 1
+
+        user.last_active_at = datetime.utcnow()
+        db.session.add(user)
+        db.session.commit()
+
+        # Create access token
+        token = create_access_token(identity=str(user.id))
+        
+        return jsonify({
+            'message': 'User created successfully (TEST MODE - auto-verified)',
+            'user': user.to_dict(),
+            'token': token,
+            'test_mode': True
+        }), 200
+
+    # Normal flow: Generate verification token (temporary - not stored in DB)
     verification_token = User.generate_verification_token_static()
     verification_sent = False
 
