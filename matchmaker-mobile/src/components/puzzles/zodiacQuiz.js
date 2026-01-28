@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { API_BASE_URL } from '../../env';
 import { calculateAge, getZodiacSign, zodiacInfo } from '../profile/utils/profileUtils';
 
 const ZodiacQuiz = () => {
   const navigation = useNavigation();
+  const route = useRoute();
 
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -66,9 +67,17 @@ const ZodiacQuiz = () => {
 
   const sendResultToMatch = async () => {
     try {
-      const matchId = await AsyncStorage.getItem('activeMatchId');
+      // Try to get matchId from route params first, then AsyncStorage
+      const routeMatchId = route.params?.matchId;
+      const storedMatchId = await AsyncStorage.getItem('activeMatchId');
+      const matchId = routeMatchId || storedMatchId;
+      
       if (!matchId) {
-        Alert.alert('Error', 'No active match found');
+        Alert.alert(
+          'No Active Match',
+          'Please open a conversation with a match first, or navigate to puzzles from within a conversation.',
+          [{ text: 'OK' }]
+        );
         return;
       }
 

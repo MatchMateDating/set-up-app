@@ -237,9 +237,15 @@ export const NotificationProvider = ({ children }) => {
         return true;
       }
 
-      const token = await Notifications.getExpoPushTokenAsync({ projectId });
-      setExpoPushToken(token.data);
-      await registerPushToken(token.data);
+      try {
+        const token = await Notifications.getExpoPushTokenAsync({ projectId });
+        setExpoPushToken(token.data);
+        await registerPushToken(token.data);
+      } catch (error) {
+        // On simulators, this often fails - but permissions were granted
+        // So we still return true to allow the toggle to work
+        return true; // Return true because permissions were granted, even if token failed
+      }
     }
 
     return true;

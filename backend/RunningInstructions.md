@@ -35,3 +35,52 @@ run:
 make sure you're in the backend folder
 flask analyze-conversation <user_id_1> <user_id_2>
 
+## Test Mode for Email Verification
+
+For development and testing, you can enable test mode to skip email verification for test email addresses.
+
+### Setup
+
+1. Create a `.env` file in the `backend` directory (if it doesn't exist)
+2. Add the following environment variables:
+
+```bash
+# Enable test mode
+TEST_MODE_ENABLED=true
+
+# Optional: Specify custom test email domains (comma-separated)
+# If not specified, defaults to: @test.com, @example.com
+TEST_EMAIL_DOMAINS=@test.com,@example.com
+```
+
+### How It Works
+
+- When `TEST_MODE_ENABLED=true` and a user signs up with a test email (e.g., `user@test.com`):
+  - The account is created immediately
+  - Email is auto-verified (no verification code needed)
+  - A login token is returned immediately
+  - No verification email is sent
+
+- Regular emails (non-test domains) still require normal email verification
+
+### Default Test Domains
+
+If `TEST_EMAIL_DOMAINS` is not set, the following domains are used by default:
+- `@test.com`
+- `@example.com`
+- `@test.local`
+
+### Example Usage
+
+```bash
+# In backend/.env:
+TEST_MODE_ENABLED=true
+TEST_EMAIL_DOMAINS=@test.com,@mytest.com
+
+# Then sign up with:
+# - test@test.com ✅ (auto-verified, no email sent)
+# - user@mytest.com ✅ (auto-verified, no email sent)
+# - real@email.com ❌ (normal verification required)
+```
+
+**Note:** Test mode should only be enabled in development/testing environments, not in production.

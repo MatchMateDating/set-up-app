@@ -91,6 +91,49 @@ const SignUpScreen = () => {
 
       const res = await axios.post(`${API_BASE_URL}/auth/register`, payload);
 
+      // Close modal first since registration is starting
+      setShowTermsModal(false);
+
+      // Check if this is a test mode response (auto-verified account)
+      if (res.data.token && res.data.test_mode) {
+        // Test mode: account created and auto-verified, log in directly
+        // Make sure to await all AsyncStorage operations before navigating
+        await AsyncStorage.setItem('token', res.data.token);
+        await AsyncStorage.setItem('user', JSON.stringify(res.data.user));
+        setUser(res.data.user);
+
+        // Enable notifications if user agrees (don't block navigation if this fails)
+        // Run this in the background - don't await it
+        if (agreeToTexts) {
+          enableNotifications()
+            .catch((err) => {
+              // This is okay - user can enable notifications later in settings
+            });
+        }
+
+        // Small delay to ensure state is updated before navigation
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        // Navigate based on user role and profile completion status
+        // Use reset to clear the navigation stack and prevent going back
+        if (role === 'user' && res.data.user.profile_completion_step) {
+          // User needs to complete profile - reset stack to CompleteProfile
+          navigation.reset({
+            index: 0,
+            routes: [{ name: 'CompleteProfile' }],
+          });
+        } else {
+          // Navigate to main app - reset stack to Main
+          navigation.reset({
+            index: 0,
+            routes: [{ name: 'Main', params: { screen: 'Matches' } }],
+          });
+        }
+        
+        Alert.alert('Success', 'Account created successfully! (Test Mode - Auto-verified)');
+        return;
+      }
+
       if (res.data.verification_sent) {
         // Store signup data in AsyncStorage for verification
         const signupData = {
@@ -129,9 +172,9 @@ const SignUpScreen = () => {
         Alert.alert('Error', 'Failed to send verification code. Please try again.');
       }
     } catch (err) {
-        Alert.alert('Error', err.response?.data?.msg || 'Registration failed');
-    } finally {
-      setShowTermsModal(false);
+      // Don't close modal on error so user can try again
+      const errorMsg = err.response?.data?.msg || 'Registration failed';
+      Alert.alert('Error', errorMsg);
     }
   };
 
