@@ -30,5 +30,5 @@ EXPOSE 5000
 
 # Run migrations and start server
 # Note: Railway will run migrations automatically or you can run them manually
-# Using shell form for environment variable expansion
-CMD gunicorn -w 4 -b 0.0.0.0:${PORT:-5000} --timeout 120 --access-logfile - --error-logfile - run:app
+# Use exec form with sh -c to properly expand PORT variable
+CMD ["sh", "-c", "gunicorn -w 4 -b 0.0.0.0:${PORT:-5000} --timeout 120 --access-logfile - --error-logfile - run:app"]
