@@ -29,6 +29,5 @@ RUN mkdir -p instance
 EXPOSE 5000
 
 # Run migrations and start server
-# Note: Railway will run migrations automatically or you can run them manually
-# Use exec form with sh -c to properly expand PORT variable
-CMD ["sh", "-c", "gunicorn -w 4 -b 0.0.0.0:${PORT:-5000} --timeout 120 --access-logfile - --error-logfile - run:app"]
+# Note: Railway sets PORT automatically, use it directly
+CMD ["sh", "-c", "gunicorn -w 4 -b 0.0.0.0:$PORT --timeout 120 --access-logfile - --error-logfile - run:app"]
