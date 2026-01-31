@@ -8,8 +8,5 @@
     "startCommand": "gunicorn -w 4 -b 0.0.0.0:$PORT --timeout 120 --access-logfile - --error-logfile - run:app",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10
-  },
-  "source": {
-    "rootDirectory": "backend"
   }
 }
