@@ -15,6 +15,11 @@ from uuid import uuid4
 from app.routes.shared import token_required, calculate_age
 from sqlalchemy.exc import SQLAlchemyError
 from datetime import datetime
+from app.services.storage_service import (
+    upload_image_to_cloud,
+    delete_image_from_cloud,
+    extract_key_from_url
+)
 
 
 profile_bp = Blueprint('profile', __name__)
@@ -137,21 +142,38 @@ def upload_image(current_user):
     if image_file.filename == '':
         return jsonify({'message': 'No selected file'}), 400
 
-    # Generate a unique filename
-    ext = os.path.splitext(secure_filename(image_file.filename))[1]
-    unique_filename = f"{uuid4().hex}{ext}"
+    # Try cloud storage first, fall back to local if not configured
+    use_cloud_storage = current_app.config.get('USE_CLOUD_STORAGE', False)
+    
+    if use_cloud_storage:
+        # Upload to cloud storage (S3 or R2)
+        image_url, storage_key = upload_image_to_cloud(image_file, current_user.id)
+        
+        if not image_url:
+            return jsonify({'message': 'Failed to upload image to cloud storage'}), 500
+        
+        # Store the full URL in database
+        new_image = Image(user_id=current_user.id, image_url=image_url)
+        db.session.add(new_image)
+        db.session.commit()
+        
+        return jsonify(new_image.to_dict()), 201
+    else:
+        # Fall back to local filesystem storage
+        ext = os.path.splitext(secure_filename(image_file.filename))[1]
+        unique_filename = f"{uuid4().hex}{ext}"
 
-    upload_folder = os.path.join(current_app.root_path, 'static', 'uploads')
-    os.makedirs(upload_folder, exist_ok=True)
-    file_path = os.path.join(upload_folder, unique_filename)
-    image_file.save(file_path)
+        upload_folder = os.path.join(current_app.root_path, 'static', 'uploads')
+        os.makedirs(upload_folder, exist_ok=True)
+        file_path = os.path.join(upload_folder, unique_filename)
+        image_file.save(file_path)
 
-    image_url = f'/static/uploads/{unique_filename}'
-    new_image = Image(user_id=current_user.id, image_url=image_url)
-    db.session.add(new_image)
-    db.session.commit()
+        image_url = f'/static/uploads/{unique_filename}'
+        new_image = Image(user_id=current_user.id, image_url=image_url)
+        db.session.add(new_image)
+        db.session.commit()
 
-    return jsonify(new_image.to_dict()), 201
+        return jsonify(new_image.to_dict()), 201
 
 @profile_bp.route('/delete_image/<int:image_id>', methods=['DELETE'])
 @token_required
@@ -160,13 +182,22 @@ def delete_image(current_user, image_id):
     if not image:
         return jsonify({'message': 'Image not found or unauthorized'}), 404
 
-    # Optional: Delete file from filesystem (if desired)
-    try:
-        file_path = os.path.join(current_app.root_path, image.image_url.lstrip('/'))
-        if os.path.exists(file_path):
-            os.remove(file_path)
-    except Exception as e:
-        print(f"Error deleting file from filesystem: {e}")
+    # Delete from cloud storage if configured
+    use_cloud_storage = current_app.config.get('USE_CLOUD_STORAGE', False)
+    
+    if use_cloud_storage:
+        # Extract storage key from URL and delete from cloud
+        storage_key = extract_key_from_url(image.image_url)
+        if storage_key:
+            delete_image_from_cloud(storage_key)
+    else:
+        # Delete from local filesystem
+        try:
+            file_path = os.path.join(current_app.root_path, image.image_url.lstrip('/'))
+            if os.path.exists(file_path):
+                os.remove(file_path)
+        except Exception as e:
+            current_app.logger.error(f"Error deleting file from filesystem: {e}")
 
     db.session.delete(image)
     db.session.commit()
