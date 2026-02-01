@@ -22,12 +22,16 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code from backend directory
 COPY backend/ .
 
+# Copy entrypoint script
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
 # Create instance directory for SQLite (if used in development)
 RUN mkdir -p instance
 
 # Expose port (default 5000, but can be overridden by PORT env var)
 EXPOSE 5000
 
-# Run migrations and start server
-# Note: Railway sets PORT automatically, use it directly
-CMD ["sh", "-c", "gunicorn -w 4 -b 0.0.0.0:$PORT --timeout 120 --access-logfile - --error-logfile - run:app"]
+# Run migrations and start server using entrypoint script
+# Entrypoint script handles PORT variable expansion properly
+ENTRYPOINT ["/entrypoint.sh"]
