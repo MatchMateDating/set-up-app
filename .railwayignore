@@ -1,0 +1,18 @@
+# Exclude large directories that shouldn't be uploaded
+node_modules/
+venv/
+__pycache__/
+*.pyc
+.git/
+.expo/
+instance/
+migrations/
+backend/venv/
+backend/__pycache__/
+backend/instance/
+matchmaker-mobile/node_modules/
+frontend-app/node_modules/
+frontend-app/build/
+*.db
+*.sqlite
+*.log
