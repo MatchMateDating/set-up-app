@@ -32,10 +32,12 @@ def create_app():
     app.config.from_object(Config)
 
     # Allow Authorization and Content-Type headers, and all common methods
+    # Use CORS_ORIGINS from config if set, otherwise allow all origins
+    cors_origins = app.config.get('CORS_ORIGINS', ['*'])
     CORS(
         app,
         supports_credentials=True,
-        resources={r"/*": {"origins": "*"}},
+        resources={r"/*": {"origins": cors_origins}},
         expose_headers=["Authorization"],
         allow_headers=["Authorization", "Content-Type"],
         methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"]

@@ -6,4 +6,4 @@
 /backend/migrations
 /backend/.env
 /.idea/
-/.cursor/
+.expo/
