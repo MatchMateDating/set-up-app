@@ -379,57 +379,83 @@ const SignUpScreen = () => {
 
 1. ACCEPTANCE OF TERMS
 
-By accessing and using this application, you accept and agree to be bound by the terms and provision of this agreement.
+By accessing or using this application, you agree to be bound by these Terms of Service and our Privacy Policy. If you do not agree, you may not use the application.
 
-2. USE LICENSE
+2. ELIGIBILITY
 
-Permission is granted to temporarily use this application for personal, non-commercial transitory viewing only. This is the grant of a license, not a transfer of title, and under this license you may not:
+You must be at least 18 years old to use this application. By using the application, you represent and warrant that you meet this requirement.
 
-- Modify or copy the materials;
-- Use the materials for any commercial purpose or for any public display;
-- Attempt to decompile or reverse engineer any software contained in the application;
-- Remove any copyright or other proprietary notations from the materials; or
-- Transfer the materials to another person or "mirror" the materials on any other server.
+3. USE LICENSE
 
-3. USER ACCOUNTS
+Permission is granted to use this application for personal, non-commercial purposes only. This is the grant of a license, not a transfer of title. Under this license, you may not:
 
-You are responsible for maintaining the confidentiality of your account and password. You agree to accept responsibility for all activities that occur under your account or password.
+Modify or copy the application’s materials
 
-4. USER CONDUCT
+Use the materials for any commercial purpose
 
-You agree to use the application only for lawful purposes and in a way that does not infringe the rights of, restrict or inhibit anyone else's use and enjoyment of the application.
+Attempt to reverse engineer or decompile any software contained in the application
 
-5. PRIVACY POLICY
+Remove copyright or proprietary notices
 
-Your use of the application is also governed by our Privacy Policy. Please review our Privacy Policy to understand our practices.
+Mirror the application on any other server
 
-6. INTELLECTUAL PROPERTY
+4. USER ACCOUNTS
 
-The application and its original content, features, and functionality are and will remain the exclusive property of the application and its licensors.
+You are responsible for maintaining the confidentiality of your account credentials and for all activity that occurs under your account.
 
-7. TERMINATION
+5. USER CONTENT
 
-We may terminate or suspend your account and bar access to the application immediately, without prior notice or liability, under our sole discretion, for any reason whatsoever and without limitation.
+You retain ownership of the content you post on the application, including profile information, photos, and messages. By posting content, you grant matchmate a non-exclusive, worldwide, royalty-free license to use, display, and distribute your content for the purpose of operating the application.
 
-8. DISCLAIMER
+6. USER CONDUCT
 
-The information on this application is provided on an "as is" basis. To the fullest extent permitted by law, this application excludes all representations, warranties, and conditions.
+You agree not to use the application to:
 
-9. LIMITATION OF LIABILITY
+Harass, abuse, or harm other users
 
-In no event shall the application, nor its directors, employees, partners, agents, suppliers, or affiliates, be liable for any indirect, incidental, special, consequential, or punitive damages.
+Impersonate any person or entity
 
-10. GOVERNING LAW
+Post illegal, misleading, or inappropriate content
 
-These terms shall be governed and construed in accordance with the laws, without regard to its conflict of law provisions.
+Use the application for any unlawful purpose
 
-11. CHANGES TO TERMS
+Attempt to access accounts or data without authorization
 
-We reserve the right, at our sole discretion, to modify or replace these Terms at any time. If a revision is material, we will provide at least 30 days notice prior to any new terms taking effect.
+7. SAFETY AND MODERATION
 
-12. CONTACT INFORMATION
+We reserve the right to review, remove, or restrict content and accounts that violate these Terms or that we believe may pose a risk to other users. We do not guarantee that all users are who they claim to be and encourage you to use caution when interacting with others.
 
-If you have any questions about these Terms of Service, please contact us.`}
+8. PRIVACY POLICY
+
+Your use of the application is governed by our Privacy Policy. Please review it to understand how we collect, use, and protect your information.
+
+9. INTELLECTUAL PROPERTY
+
+The application and its original content, features, and functionality are the exclusive property of matchmate and its licensors.
+
+10. TERMINATION
+
+We may suspend or terminate your account at any time, without notice, if you violate these Terms or misuse the application.
+
+11. DISCLAIMER
+
+The application is provided on an “as is” and “as available” basis. We make no warranties, expressed or implied, regarding the operation or availability of the application.
+
+12. LIMITATION OF LIABILITY
+
+In no event shall matchmate or its affiliates be liable for any indirect, incidental, special, consequential, or punitive damages arising from your use of the application.
+
+13. GOVERNING LAW
+
+These Terms shall be governed and construed in accordance with applicable laws, without regard to conflict of law principles.
+
+14. CHANGES TO TERMS
+
+We reserve the right to modify these Terms at any time. If changes are material, we will provide notice before the updated Terms take effect.
+
+15. CONTACT INFORMATION
+
+If you have any questions about these Terms of Service, please contact us at: contact@matchmatedating.com`}
               </Text>
             </ScrollView>
 
