@@ -1,5 +1,6 @@
 import React from 'react';
 import './images.css'; // Make sure you have styles for both grid and full-width
+import { getImageUrl } from './utils/profileUtils';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
 
@@ -10,7 +11,7 @@ const ImageGallery = ({ images = [], editing, onDeleteImage, onPlaceholderClick,
       {images.map((img, index) => (
         <div key={index} className="image-wrapper">
           <img
-            src={`${API_BASE_URL}${img.image_url}`}
+            src={getImageUrl(img.image_url, API_BASE_URL)}
             alt={`Profile ${index}`}
             className={layout === "grid" ? "grid-image" : "full-image"}
           />

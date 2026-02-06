@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { FaChevronDown, FaChevronUp } from 'react-icons/fa';
 import './customDropdown.css';
+import { getImageUrl } from '../../utils/imageUtils';
 
 function DaterDropdown({ linkedDaters, selectedDater, onChange }) {
   const [open, setOpen] = useState(false);
@@ -13,7 +14,7 @@ function DaterDropdown({ linkedDaters, selectedDater, onChange }) {
           {selected?.first_image ? (
             <>
               <img
-                src={`${process.env.REACT_APP_API_BASE_URL}${selected.first_image}`}
+                src={getImageUrl(selected.first_image, process.env.REACT_APP_API_BASE_URL)}
                 alt={selected.name}
                 className="dropdown-img"
               />
@@ -32,7 +33,7 @@ function DaterDropdown({ linkedDaters, selectedDater, onChange }) {
             {selected?.first_image ? (
               <>
                 <img
-                  src={`${process.env.REACT_APP_API_BASE_URL}${selected.first_image}`}
+                  src={getImageUrl(selected.first_image, process.env.REACT_APP_API_BASE_URL)}
                   alt={selected.name}
                   className="dropdown-img"
                 />
@@ -55,7 +56,7 @@ function DaterDropdown({ linkedDaters, selectedDater, onChange }) {
                 }}
               >
                 <img
-                  src={`${process.env.REACT_APP_API_BASE_URL}${d.first_image}`}
+                  src={getImageUrl(d.first_image, process.env.REACT_APP_API_BASE_URL)}
                   alt={d.name}
                   className="dropdown-img"
                 />

@@ -19,7 +19,7 @@ A dating app with mobile (React Native/Expo) and web frontends, and a Flask back
 
 2. **Create `.env` file in `matchmaker-mobile/` directory:**
    ```bash
-   EXPO_PUBLIC_API_BASE_URL=https://matchmatedating-app-production.up.railway.app
+   EXPO_PUBLIC_API_BASE_URL=https://set-up-app-production.up.railway.app
    ```
    **Note:** The `.env` file must be in the `matchmaker-mobile/` directory (not root) for Expo to read it.
 
