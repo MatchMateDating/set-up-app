@@ -497,8 +497,26 @@ def delete_account(current_user):
         for referred_user in referred_users:
             referred_user.referred_by_id = None
         
-        # 9. Images and PushTokens will be automatically deleted via cascade='all, delete-orphan'
-        # But we can explicitly delete them for clarity
+        # 9. Delete images (both database records and cloud storage files)
+        use_cloud_storage = current_app.config.get('USE_CLOUD_STORAGE', False)
+        user_images = Image.query.filter_by(user_id=user_id).all()
+        
+        for image in user_images:
+            if use_cloud_storage:
+                # Delete from cloud storage
+                storage_key = extract_key_from_url(image.image_url)
+                if storage_key:
+                    delete_image_from_cloud(storage_key)
+            else:
+                # Delete from local filesystem
+                try:
+                    file_path = os.path.join(current_app.root_path, image.image_url.lstrip('/'))
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
+                except Exception as e:
+                    current_app.logger.error(f"Error deleting file from filesystem: {e}")
+        
+        # Delete image database records
         Image.query.filter_by(user_id=user_id).delete()
         PushToken.query.filter_by(user_id=user_id).delete()
         
