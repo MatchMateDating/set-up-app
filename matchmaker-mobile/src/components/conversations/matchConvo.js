@@ -23,6 +23,7 @@ import { useUserInfo } from './hooks/useUserInfo';
 import { games } from '../puzzles/puzzlesPage';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
+import { getImageUrl } from '../profile/utils/profileUtils';
 
 const MatchConvo = () => {
   const route = useRoute();
@@ -539,7 +540,7 @@ const MatchConvo = () => {
           >
             {matchUser.first_image ? (
               <Image
-                source={{ uri: matchUser.first_image.startsWith('http') ? matchUser.first_image : `${API_BASE_URL}${matchUser.first_image}` }}
+                source={{ uri: getImageUrl(matchUser.first_image, API_BASE_URL) }}
                 style={styles.matchAvatarImg}
                 blurRadius={isBlind && userInfo?.role !== 'matchmaker' ? 40 : 0}
               />

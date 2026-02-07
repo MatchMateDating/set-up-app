@@ -63,9 +63,15 @@ def upload_image_to_cloud(image_file, user_id):
         return None, None
     
     try:
-        # Generate unique filename
+        # Generate unique filename with environment prefix
         ext = os.path.splitext(secure_filename(image_file.filename))[1]
-        unique_filename = f"users/{user_id}/{uuid4().hex}{ext}"
+        
+        # Add environment prefix to separate dev/prod images
+        env_prefix = current_app.config.get('STORAGE_ENV_PREFIX', '')
+        if env_prefix:
+            unique_filename = f"{env_prefix}/users/{user_id}/{uuid4().hex}{ext}"
+        else:
+            unique_filename = f"users/{user_id}/{uuid4().hex}{ext}"
         
         # Get storage client and bucket
         s3_client = get_storage_client()

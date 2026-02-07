@@ -5,6 +5,7 @@ import { useUserInfo } from "./hooks/useUserInfo";
 import SendPuzzle from "./conversationPuzzle";
 import "./matchConvo.css";
 import { games } from "../puzzles/puzzlesPage";
+import { getImageUrl } from '../../utils/imageUtils';
 
 const MatchConvo = () => {
   const { matchId } = useParams();
@@ -229,9 +230,7 @@ const MatchConvo = () => {
             >
               {matchUser?.first_image ? (
                 <img
-                  src={matchUser.first_image.startsWith("http")
-                    ? matchUser.first_image
-                    : `${API_BASE_URL}${matchUser.first_image}`}
+                  src={getImageUrl(matchUser.first_image, API_BASE_URL)}
                   alt={matchUser.first_name}
                   className="match-avatar-img"
                 />

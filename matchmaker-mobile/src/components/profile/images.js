@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Image, StyleSheet, TouchableOpacity, Text } from 'react-native';
 import { API_BASE_URL } from '../../env';
 import { Ionicons } from '@expo/vector-icons';
+import { getImageUrl } from './utils/profileUtils';
 
 const ImageGallery = ({ images = [], editing, onDeleteImage, onPlaceholderClick, layout = 'grid' }) => {
   const maxImages = 9;
@@ -12,7 +13,7 @@ const ImageGallery = ({ images = [], editing, onDeleteImage, onPlaceholderClick,
       {images.map((img, index) => (
         <View key={img.id || index} style={layout === 'grid' ? styles.imageWrapper : styles.listWrapper}>
           <Image
-            source={{ uri: `${API_BASE_URL}${img.image_url}` }}
+            source={{ uri: getImageUrl(img.image_url, API_BASE_URL) }}
             style={layout === 'grid' ? styles.gridImage : styles.fullImage}
             resizeMode="cover"
           />

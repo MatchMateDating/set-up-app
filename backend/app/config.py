@@ -47,5 +47,12 @@ class Config:
     CDN_BASE_URL = os.getenv('CDN_BASE_URL')  # e.g., https://your-cdn-domain.com
     # If CDN_BASE_URL is not set, will use presigned URLs or direct bucket URLs
     
+    # Storage Environment Prefix (to separate dev/prod images in same bucket)
+    # Set to 'dev' for development, 'prod' for production, or leave empty for no prefix
+    # Example: 'dev' -> images stored in 'dev/users/{user_id}/...'
+    #          'prod' -> images stored in 'prod/users/{user_id}/...'
+    #          '' -> images stored in 'users/{user_id}/...' (backward compatible)
+    STORAGE_ENV_PREFIX = os.getenv('STORAGE_ENV_PREFIX', '')
+    
     # CORS Configuration
     CORS_ORIGINS = os.getenv('CORS_ORIGINS', '*').split(',') if os.getenv('CORS_ORIGINS') else ['*']

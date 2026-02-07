@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Image, Modal, ScrollView, Ale
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {API_BASE_URL } from '../../env';
+import { getImageUrl } from '../profile/utils/profileUtils';
 
 const DaterDropdown = ({ userInfo, onDaterChange }) => {
   const [open, setOpen] = useState(false);
@@ -165,7 +166,7 @@ const DaterDropdown = ({ userInfo, onDaterChange }) => {
           {selected?.first_image ? (
             <>
               <Image
-                source={{ uri: `${API_BASE_URL}${selected.first_image}` }}
+                source={{ uri: getImageUrl(selected.first_image, API_BASE_URL) }}
                 style={styles.image}
               />
               <Text style={styles.name}>{selected.name}</Text>
@@ -183,7 +184,7 @@ const DaterDropdown = ({ userInfo, onDaterChange }) => {
             {selected?.first_image ? (
               <>
                 <Image
-                  source={{ uri: `${API_BASE_URL}${selected.first_image}` }}
+                  source={{ uri: getImageUrl(selected.first_image, API_BASE_URL) }}
                   style={styles.image}
                 />
                 <Text style={styles.name}>{selected.name}</Text>
@@ -223,7 +224,7 @@ const DaterDropdown = ({ userInfo, onDaterChange }) => {
                     >
                       {dater.first_image ? (
                         <Image
-                          source={{ uri: `${API_BASE_URL}${dater.first_image}` }}
+                          source={{ uri: getImageUrl(dater.first_image, API_BASE_URL) }}
                           style={styles.image}
                         />
                       ) : (

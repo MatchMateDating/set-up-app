@@ -1,6 +1,7 @@
 import React from "react";
 import './matchCard.css';
 import { FaUser, FaUserFriends, FaRegEye, FaRegEyeSlash, FaTimes, FaClock } from "react-icons/fa";
+import { getImageUrl } from '../../utils/imageUtils';
 
 const MatchCard = ({ matchObj, API_BASE_URL, userInfo, navigate, unmatch, reveal, hide }) => {
   const bothMm = !!matchObj.both_matchmakers_involved;
@@ -23,7 +24,7 @@ const MatchCard = ({ matchObj, API_BASE_URL, userInfo, navigate, unmatch, reveal
       <div className="profile-section">
         {matchObj.match_user.first_image ? (
           <img
-            src={`${API_BASE_URL}${matchObj.match_user.first_image}`}
+            src={getImageUrl(matchObj.match_user.first_image, API_BASE_URL)}
             alt={`${matchObj.match_user.name}'s profile`}
             className={`match-image ${isBlind ? "blurred" : ""}`}
           />
@@ -83,7 +84,7 @@ const MatchCard = ({ matchObj, API_BASE_URL, userInfo, navigate, unmatch, reveal
         <div className="linked-section">
           {matchObj.linked_dater.first_image ? (
             <img
-              src={`${API_BASE_URL}${matchObj.linked_dater.first_image}`}
+              src={getImageUrl(matchObj.linked_dater.first_image, API_BASE_URL)}
               alt={`${matchObj.linked_dater.first_name}'s profile`}
               className="linked-image"
             />

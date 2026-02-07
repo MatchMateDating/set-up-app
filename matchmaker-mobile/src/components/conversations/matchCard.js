@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { API_BASE_URL } from '../../env';
 import { useNavigation } from '@react-navigation/native';
+import { getImageUrl } from '../profile/utils/profileUtils';
 
 const MatchCard = ({ matchObj, userInfo, unmatch, reveal, hide }) => {
   const navigation = useNavigation();
@@ -29,7 +30,7 @@ const MatchCard = ({ matchObj, userInfo, unmatch, reveal, hide }) => {
         {/* Linked dater (right, behind) */}
         {matchObj.linked_dater.first_image ? (
           <Image
-            source={{ uri: `${API_BASE_URL}${matchObj.linked_dater.first_image}` }}
+            source={{ uri: getImageUrl(matchObj.linked_dater.first_image, API_BASE_URL) }}
             style={[styles.vennImage, styles.vennRight]}
           />
         ) : (
@@ -39,7 +40,7 @@ const MatchCard = ({ matchObj, userInfo, unmatch, reveal, hide }) => {
         {/* Match user (left, on top) */}
         {matchObj.match_user.first_image ? (
           <Image
-            source={{ uri: `${API_BASE_URL}${matchObj.match_user.first_image}` }}
+            source={{ uri: getImageUrl(matchObj.match_user.first_image, API_BASE_URL) }}
             style={[styles.vennImage, styles.vennLeft]}
           />
         ) : (
@@ -64,14 +65,14 @@ const MatchCard = ({ matchObj, userInfo, unmatch, reveal, hide }) => {
                 <View style={styles.imageContainer}>
                   {isBlind ? (
                     <Image
-                      source={{ uri: `${API_BASE_URL}${matchObj.match_user.first_image}` }}
+                      source={{ uri: getImageUrl(matchObj.match_user.first_image, API_BASE_URL) }}
                       style={styles.matchImage}
                       resizeMode="cover"
                       blurRadius={isBlind ? 40 : 0}
                     />
                   ):(
                     <Image
-                      source={{ uri: `${API_BASE_URL}${matchObj.match_user.first_image}` }}
+                      source={{ uri: getImageUrl(matchObj.match_user.first_image, API_BASE_URL) }}
                       style={styles.matchImage}
                       resizeMode="cover"
                     />)}
