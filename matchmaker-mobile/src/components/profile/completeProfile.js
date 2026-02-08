@@ -41,6 +41,7 @@ import { UserContext } from '../../context/UserContext';
 import { useNotifications } from '../../context/NotificationContext';
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
+import ImageCropModal from './components/ImageCropModal';
 
 const CompleteProfile = () => {
   const navigation = useNavigation();
@@ -62,6 +63,8 @@ const CompleteProfile = () => {
   const [images, setImages] = useState([]);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [tempBirthdate, setTempBirthdate] = useState(null);
+  const [cropModalVisible, setCropModalVisible] = useState(false);
+  const [selectedImageUri, setSelectedImageUri] = useState(null);
   const radiusUnit = heightUnit === 'ft' ? 'mi' : 'km';
   const milesToKm = (mi) => Math.round(mi * 1.60934);
   const kmToMiles = (km) => Math.round(km / 1.60934);
@@ -681,14 +684,13 @@ const CompleteProfile = () => {
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
+      allowsEditing: false,
+      quality: 1,
     });
 
     if (!result.canceled && result.assets[0]) {
-
-      await handleCropComplete(result.assets[0]);
+      setSelectedImageUri(result.assets[0].uri);
+      setCropModalVisible(true);
     }
   };
 
@@ -1159,6 +1161,20 @@ const CompleteProfile = () => {
             </View>
           )}
         </ScrollView>
+
+      <ImageCropModal
+        visible={cropModalVisible}
+        imageUri={selectedImageUri}
+        onCropComplete={(croppedImage) => {
+          setCropModalVisible(false);
+          setSelectedImageUri(null);
+          handleCropComplete(croppedImage);
+        }}
+        onCancel={() => {
+          setCropModalVisible(false);
+          setSelectedImageUri(null);
+        }}
+      />
     </KeyboardAvoidingView>
   );
 };

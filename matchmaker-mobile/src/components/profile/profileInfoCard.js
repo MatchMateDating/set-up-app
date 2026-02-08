@@ -5,6 +5,7 @@ import {
   TextInput,
   StyleSheet,
   TouchableOpacity,
+  Pressable,
   Platform,
   Dimensions, // 1. Added Dimensions
 } from 'react-native';
@@ -30,6 +31,7 @@ const ProfileInfoCard = ({
   onPlaceholderClick,
   onSubmit,
   onCancel,
+  scrollToBottom,
 }) => {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [tempBirthdate, setTempBirthdate] = useState(null);
@@ -141,6 +143,9 @@ const ProfileInfoCard = ({
                       : null
                   );
                   setShowDatePicker(true);
+                  setTimeout(() => {
+                      scrollToBottom?.();
+                  }, 200);
                 }}
               >
                 <Text style={[styles.dateText, { fontFamily: formData.profileStyle === 'constitution' ? 'Pinyon Script' : formData.fontFamily }]}>
@@ -149,50 +154,59 @@ const ProfileInfoCard = ({
               </TouchableOpacity>
 
               {showDatePicker && (
-                <View style={styles.modalCard}>
-                  <Text style={styles.modalTitle}>Select Birthdate</Text>
-                  <View style={styles.calendarWrapper}>
-                    <CalendarPicker
-                      onDateChange={(date) => setTempBirthdate(date)}
-                      selectedStartDate={tempBirthdate}
-                      initialDate={tempBirthdate}
-                      maxDate={new Date(defaultBirthdate)}
-                      width={SCREEN_WIDTH - 80} // 2. Ensures calendar fits inside the padding of the card
-                      restrictMonthNavigation={true}
-                      selectedDayColor="#6B46C1"
-                      selectedDayTextColor="#fff"
-                      textStyle={{
-                        color: '#111',
-                        fontSize: 14, // 3. Slightly smaller to prevent overflow
-                      }}
-                      dayLabelsWrapper={styles.dayLabelsWrapper}
-                    />
-                  </View>
+                <View style={styles.calendarContainer}>
+                  <Pressable
+                    style={styles.calendarBackdrop}
+                    onPress={() => {
+                      setTempBirthdate(null);
+                      setShowDatePicker(false);
+                    }}
+                  />
+                  <View style={styles.modalCard}>
+                    <Text style={styles.modalTitle}>Select Birthdate</Text>
+                    <View style={styles.calendarWrapper}>
+                      <CalendarPicker
+                        onDateChange={(date) => setTempBirthdate(date)}
+                        selectedStartDate={tempBirthdate}
+                        initialDate={tempBirthdate}
+                        maxDate={new Date(defaultBirthdate)}
+                        width={SCREEN_WIDTH - 80} // 2. Ensures calendar fits inside the padding of the card
+                        restrictMonthNavigation={true}
+                        selectedDayColor="#6B46C1"
+                        selectedDayTextColor="#fff"
+                        textStyle={{
+                          color: '#111',
+                          fontSize: 14, // 3. Slightly smaller to prevent overflow
+                        }}
+                        dayLabelsWrapper={styles.dayLabelsWrapper}
+                      />
+                    </View>
 
-                  <View style={styles.modalActions}>
-                    <TouchableOpacity
-                      style={styles.cancelButton}
-                      onPress={() => {
-                        setTempBirthdate(null);
-                        setShowDatePicker(false);
-                      }}
-                    >
-                      <Text style={styles.cancelText}>Cancel</Text>
-                    </TouchableOpacity>
+                    <View style={styles.modalActions}>
+                      <TouchableOpacity
+                        style={styles.cancelButton}
+                        onPress={() => {
+                          setTempBirthdate(null);
+                          setShowDatePicker(false);
+                        }}
+                      >
+                        <Text style={styles.cancelText}>Cancel</Text>
+                      </TouchableOpacity>
 
-                    <TouchableOpacity
-                      style={styles.confirmButton}
-                      onPress={() => {
-                        if (tempBirthdate) {
-                          // Ensure tempBirthdate is handled correctly as a moment object or Date
-                          const dateObj = tempBirthdate.toDate ? tempBirthdate.toDate() : tempBirthdate;
-                          update('birthdate', dateObj.toISOString().split('T')[0]);
-                        }
-                        setShowDatePicker(false);
-                      }}
-                    >
-                      <Text style={styles.confirmText}>Confirm</Text>
-                    </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.confirmButton}
+                        onPress={() => {
+                          if (tempBirthdate) {
+                            // Ensure tempBirthdate is handled correctly as a moment object or Date
+                            const dateObj = tempBirthdate.toDate ? tempBirthdate.toDate() : tempBirthdate;
+                            update('birthdate', dateObj.toISOString().split('T')[0]);
+                          }
+                          setShowDatePicker(false);
+                        }}
+                      >
+                        <Text style={styles.confirmText}>Confirm</Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
                 </View>
               )}
@@ -361,6 +375,20 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#111',
   },
+  calendarContainer: {
+    position: 'relative',
+    zIndex: 10,
+    overflow: 'visible',
+  },
+  calendarBackdrop: {
+    position: 'absolute',
+    top: -2000,
+    left: -2000,
+    right: -2000,
+    bottom: -2000,
+    backgroundColor: 'transparent',
+    zIndex: 0,
+  },
   modalCard: {
     backgroundColor: '#fff',
     borderRadius: 16,
@@ -371,6 +399,8 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
+    position: 'relative',
+    zIndex: 1,
   },
   modalTitle: {
     fontSize: 18,

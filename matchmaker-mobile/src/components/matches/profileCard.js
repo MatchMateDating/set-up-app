@@ -25,10 +25,6 @@ const ProfileCard = ({
         </View>
       )}
 
-      <TouchableOpacity style={styles.skipButton} onPress={onSkip}>
-        <Ionicons name="close-circle" size={32} color="#e53e3e" />
-      </TouchableOpacity>
-
       <Profile
         user={profile}
         framed={true}
@@ -73,12 +69,6 @@ const styles = StyleSheet.create({
   noteText: {
     color: '#666',
     fontSize: 14,
-  },
-  skipButton: {
-    position: 'absolute',
-    top: 16,
-    right: 16,
-    zIndex: 10,
   },
   aiScoreBox: {
     marginTop: 16,

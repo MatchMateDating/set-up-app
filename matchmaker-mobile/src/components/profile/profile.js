@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useContext, useCallback } from 'react';
+import React, { useEffect, useState, useContext, useCallback, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
@@ -11,8 +11,9 @@ import PixelFlowers from './components/PixelFlowers';
 import PixelCactus from './components/PixelCactus';
 import { Ionicons } from '@expo/vector-icons';
 import { UserContext } from '../../context/UserContext';
+import ImageCropModal from './components/ImageCropModal';
 
-const Profile = ({ user, framed, viewerUnit, editing, setEditing, onSave, onEditingFormData }) => {
+const Profile = ({ user, framed, viewerUnit, editing, setEditing, onSave, onEditingFormData, parentScrollRef }) => {
   const { setUser } = useContext(UserContext);
   const [formData, setFormData] = useState({
     first_name: '',
@@ -33,7 +34,10 @@ const Profile = ({ user, framed, viewerUnit, editing, setEditing, onSave, onEdit
 
   const [images, setImages] = useState([]);
   const [heightUnit, setHeightUnit] = useState('ft');
+  const [cropModalVisible, setCropModalVisible] = useState(false);
+  const [selectedImageUri, setSelectedImageUri] = useState(null);
   const navigation = useNavigation();
+  const scrollViewRef = useRef(null);
 
   useEffect(() => {
     if (user) {
@@ -107,13 +111,13 @@ const Profile = ({ user, framed, viewerUnit, editing, setEditing, onSave, onEdit
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
+      allowsEditing: false,
+      quality: 1,
     });
 
     if (!result.canceled && result.assets[0]) {
-      await handleCropComplete(result.assets[0]);
+      setSelectedImageUri(result.assets[0].uri);
+      setCropModalVisible(true);
     }
   };
 
@@ -309,11 +313,13 @@ const Profile = ({ user, framed, viewerUnit, editing, setEditing, onSave, onEdit
   if (!user) return null;
 
   return (
-    <ScrollView style={[styles.container, framed && styles.framed, formData.profileStyle === 'pixelCloud' && styles.pixelCloud, formData.profileStyle === 'pixelFlower' && styles.pixelFlower, formData.profileStyle === 'minimal' && styles.minimal, formData.profileStyle === 'bold' && styles.bold, formData.profileStyle === 'classic' && styles.classic]}>
-      {formData.profileStyle === 'pixelCloud' && <PixelClouds />}
-      {formData.profileStyle === 'pixelFlower' && <PixelFlowers />}
-      {formData.profileStyle === 'pixelCactus' && <PixelCactus />}
-      {user.role === 'user' && (
+    <ScrollView
+        ref={scrollViewRef}
+        style={[styles.container, framed && styles.framed, formData.profileStyle === 'pixelCloud' && styles.pixelCloud, formData.profileStyle === 'pixelFlower' && styles.pixelFlower, formData.profileStyle === 'minimal' && styles.minimal, formData.profileStyle === 'bold' && styles.bold, formData.profileStyle === 'classic' && styles.classic]}>
+          {formData.profileStyle === 'pixelCloud' && <PixelClouds />}
+          {formData.profileStyle === 'pixelFlower' && <PixelFlowers />}
+          {formData.profileStyle === 'pixelCactus' && <PixelCactus />}
+          {user.role === 'user' && (
         <View style={styles.profileHeader}>
           <View style={styles.nameSection}>
             {!editing && (
@@ -346,8 +352,26 @@ const Profile = ({ user, framed, viewerUnit, editing, setEditing, onSave, onEdit
             onDeleteImage={handleDeleteImage}
             onPlaceholderClick={handlePlaceholderClick}
             profileStyle={formData.profileStyle}
+            scrollToBottom={() => {
+                const ref = parentScrollRef || scrollViewRef;
+                ref.current?.scrollTo({ y: 300, animated: true });
+            }}
           />
       )}
+
+      <ImageCropModal
+        visible={cropModalVisible}
+        imageUri={selectedImageUri}
+        onCropComplete={(croppedImage) => {
+          setCropModalVisible(false);
+          setSelectedImageUri(null);
+          handleCropComplete(croppedImage);
+        }}
+        onCancel={() => {
+          setCropModalVisible(false);
+          setSelectedImageUri(null);
+        }}
+      />
     </ScrollView>
   );
 };

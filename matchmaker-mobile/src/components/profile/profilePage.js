@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, Alert, ScrollView, Image, TouchableOpacity } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
@@ -25,6 +25,7 @@ const ProfilePage = () => {
   const [profileHandleInputChange, setProfileHandleInputChange] = useState(null);
   const [hasInitializedDater, setHasInitializedDater] = useState(false);
   const navigation = useNavigation();
+  const scrollViewRef = useRef(null);
 
   const fetchProfile = async () => {
     try {
@@ -242,7 +243,7 @@ const ProfilePage = () => {
         </MatcherHeader>
       )}
       
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView ref={scrollViewRef} contentContainerStyle={styles.content}>
         {user.role === 'user' && (
           <Profile
             user={user}
@@ -251,6 +252,7 @@ const ProfilePage = () => {
             setEditing={setEditing}
             onSave={handleSave}
             onEditingFormData={handleEditingFormData}
+            parentScrollRef={scrollViewRef}
           />
         )}
 
