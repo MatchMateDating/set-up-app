@@ -150,7 +150,7 @@ const styles = StyleSheet.create({
     opacity: 0.95,
   },
   containerExtendTop: {
-    paddingTop: Platform.OS === 'ios' ? 50 : (StatusBar.currentHeight || 24) + 12,
+    paddingTop: 8,
   },
   sectionLabel: {
     fontSize: 12,

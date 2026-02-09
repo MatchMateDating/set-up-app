@@ -9,7 +9,7 @@ import { avatarMap } from './avatarSelectorModal';
 import { Ionicons } from '@expo/vector-icons';
 import { EditToolbar } from './components/editToolbar';
 import DaterDropdown from '../layout/daterDropdown';
-import MatcherHeader from '../layout/components/matcherHeader';
+
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const ProfilePage = () => {
@@ -234,13 +234,13 @@ const ProfilePage = () => {
       )}
 
       {user?.role === 'matchmaker' && !matchProfile && (
-        <MatcherHeader>
+        <View style={styles.daterDropdownWrapper}>
           <DaterDropdown
             API_BASE_URL={API_BASE_URL}
             userInfo={user}
             onDaterChange={handleDaterChange}
           />
-        </MatcherHeader>
+        </View>
       )}
       
       <ScrollView ref={scrollViewRef} contentContainerStyle={styles.content}>
@@ -368,6 +368,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#6B46C1',
     marginBottom: 16,
+  },
+  daterDropdownWrapper: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 8,
+    zIndex: 10,
   },
   backButton: {
     flexDirection: 'row',
