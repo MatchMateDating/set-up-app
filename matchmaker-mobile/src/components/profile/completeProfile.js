@@ -65,6 +65,7 @@ const CompleteProfile = () => {
   const [tempBirthdate, setTempBirthdate] = useState(null);
   const [cropModalVisible, setCropModalVisible] = useState(false);
   const [selectedImageUri, setSelectedImageUri] = useState(null);
+  const [cropKey, setCropKey] = useState(0);
   const radiusUnit = heightUnit === 'ft' ? 'mi' : 'km';
   const milesToKm = (mi) => Math.round(mi * 1.60934);
   const kmToMiles = (km) => Math.round(km / 1.60934);
@@ -691,6 +692,7 @@ const CompleteProfile = () => {
     if (!result.canceled && result.assets[0]) {
       setSelectedImageUri(result.assets[0].uri);
       setCropModalVisible(true);
+      setCropKey(prev => prev + 1);
     }
   };
 
@@ -1163,6 +1165,7 @@ const CompleteProfile = () => {
         </ScrollView>
 
       <ImageCropModal
+        key={cropKey}
         visible={cropModalVisible}
         imageUri={selectedImageUri}
         onCropComplete={(croppedImage) => {

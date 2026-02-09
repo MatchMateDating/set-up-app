@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, Alert, ScrollView, Image, TouchableOpacity } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
@@ -9,6 +9,7 @@ import { avatarMap } from './avatarSelectorModal';
 import { Ionicons } from '@expo/vector-icons';
 import { EditToolbar } from './components/editToolbar';
 import DaterDropdown from '../layout/daterDropdown';
+import ImageCropModal from './components/ImageCropModal';
 
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -26,6 +27,17 @@ const ProfilePage = () => {
   const [hasInitializedDater, setHasInitializedDater] = useState(false);
   const navigation = useNavigation();
   const scrollViewRef = useRef(null);
+  const [cropModalVisible, setCropModalVisible] = useState(false);
+  const [selectedImageUri, setSelectedImageUri] = useState(null);
+  const cropCompleteRef = useRef(null);
+  const [cropKey, setCropKey] = useState(0);
+
+  const handleRequestCrop = useCallback((uri, onComplete) => {
+    setSelectedImageUri(uri);
+    setCropModalVisible(true);
+    setCropKey(prev => prev + 1);
+    cropCompleteRef.current = onComplete;
+  }, []);
 
   const fetchProfile = async () => {
     try {
@@ -253,6 +265,7 @@ const ProfilePage = () => {
             onSave={handleSave}
             onEditingFormData={handleEditingFormData}
             parentScrollRef={scrollViewRef}
+            onRequestCrop={handleRequestCrop}
           />
         )}
 
@@ -289,6 +302,25 @@ const ProfilePage = () => {
           />
         )}
       </ScrollView>
+
+      <ImageCropModal
+        key={cropKey}
+        visible={cropModalVisible}
+        imageUri={selectedImageUri}
+        onCropComplete={(croppedImage) => {
+          setCropModalVisible(false);
+          setSelectedImageUri(null);
+          if (cropCompleteRef.current) {
+            cropCompleteRef.current(croppedImage);
+            cropCompleteRef.current = null;
+          }
+        }}
+        onCancel={() => {
+          setCropModalVisible(false);
+          setSelectedImageUri(null);
+          cropCompleteRef.current = null;
+        }}
+      />
     </SafeAreaView>
   );
 };

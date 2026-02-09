@@ -90,7 +90,6 @@ const SignUpScreen = () => {
       }
 
       const res = await axios.post(`${API_BASE_URL}/auth/register`, payload);
-      console.log('results', res);
 
       // Close modal first since registration is starting
       setShowTermsModal(false);

@@ -11,9 +11,7 @@ import PixelFlowers from './components/PixelFlowers';
 import PixelCactus from './components/PixelCactus';
 import { Ionicons } from '@expo/vector-icons';
 import { UserContext } from '../../context/UserContext';
-import ImageCropModal from './components/ImageCropModal';
-
-const Profile = ({ user, framed, viewerUnit, editing, setEditing, onSave, onEditingFormData, parentScrollRef }) => {
+const Profile = ({ user, framed, viewerUnit, editing, setEditing, onSave, onEditingFormData, parentScrollRef, onRequestCrop }) => {
   const { setUser } = useContext(UserContext);
   const [formData, setFormData] = useState({
     first_name: '',
@@ -34,8 +32,6 @@ const Profile = ({ user, framed, viewerUnit, editing, setEditing, onSave, onEdit
 
   const [images, setImages] = useState([]);
   const [heightUnit, setHeightUnit] = useState('ft');
-  const [cropModalVisible, setCropModalVisible] = useState(false);
-  const [selectedImageUri, setSelectedImageUri] = useState(null);
   const navigation = useNavigation();
   const scrollViewRef = useRef(null);
 
@@ -116,8 +112,9 @@ const Profile = ({ user, framed, viewerUnit, editing, setEditing, onSave, onEdit
     });
 
     if (!result.canceled && result.assets[0]) {
-      setSelectedImageUri(result.assets[0].uri);
-      setCropModalVisible(true);
+      if (onRequestCrop) {
+        onRequestCrop(result.assets[0].uri, handleCropComplete);
+      }
     }
   };
 
@@ -359,19 +356,6 @@ const Profile = ({ user, framed, viewerUnit, editing, setEditing, onSave, onEdit
           />
       )}
 
-      <ImageCropModal
-        visible={cropModalVisible}
-        imageUri={selectedImageUri}
-        onCropComplete={(croppedImage) => {
-          setCropModalVisible(false);
-          setSelectedImageUri(null);
-          handleCropComplete(croppedImage);
-        }}
-        onCancel={() => {
-          setCropModalVisible(false);
-          setSelectedImageUri(null);
-        }}
-      />
     </ScrollView>
   );
 };

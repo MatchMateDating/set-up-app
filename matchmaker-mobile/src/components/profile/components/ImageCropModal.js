@@ -18,7 +18,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CROP_SIZE = SCREEN_WIDTH * 0.88;
 const OVERLAY_COLOR = 'rgba(0,0,0,0.55)';
-const MIN_SCALE = 0.5;
 const MAX_SCALE = 5;
 const SNAP_THRESHOLD = 5; // degrees — how close to a 90° position before it "sticks"
 
@@ -91,11 +90,16 @@ const ImageCropModal = ({ visible, imageUri, onCropComplete, onCancel }) => {
 
   // Fetch image dimensions when URI changes
   useEffect(() => {
+    // Always clear stale dimensions immediately so the cropper doesn't
+    // render a new image using the previous image's fitted size.
+    setImageSize(null);
+
     if (imageUri) {
+      let cancelled = false;
       RNImage.getSize(
         imageUri,
-        (width, height) => setImageSize({ width, height }),
-        () => setImageSize(null)
+        (width, height) => { if (!cancelled) setImageSize({ width, height }); },
+        () => { if (!cancelled) setImageSize(null); }
       );
       pan.setValue({ x: 0, y: 0 });
       scaleAnim.setValue(1);
@@ -104,8 +108,23 @@ const ImageCropModal = ({ visible, imageUri, onCropComplete, onCancel }) => {
       scaleRef.current = 1;
       rotationRef.current = 0;
       setFlipH(false);
+      return () => { cancelled = true; };
     }
   }, [imageUri]);
+
+  // Once dimensions are known, set the initial scale so the image
+  // fully covers the crop window (important for landscape images).
+  useEffect(() => {
+    if (imageSize) {
+      const fittedH = imageSize.height * (SCREEN_WIDTH / imageSize.width);
+      const cover = Math.max(CROP_SIZE / SCREEN_WIDTH, CROP_SIZE / fittedH);
+      const initScale = Math.max(1, cover);
+      scaleAnim.setValue(initScale);
+      scaleRef.current = initScale;
+      pan.setValue({ x: 0, y: 0 });
+      panRef.current = { x: 0, y: 0 };
+    }
+  }, [imageSize]);
 
   // Fit image so its width = SCREEN_WIDTH at scale 1 (based on original dimensions)
   const fitted = useMemo(() => {
@@ -117,19 +136,34 @@ const ImageCropModal = ({ visible, imageUri, onCropComplete, onCancel }) => {
   const fittedRef = useRef(fitted);
   fittedRef.current = fitted;
 
+  // Minimum scale that ensures the image covers the crop window in both
+  // dimensions.  For portrait images this is ≤ 1; for landscape it can be > 1.
+  const minCoverScale = useMemo(() => {
+    if (!imageSize) return 1;
+    const fittedH = imageSize.height * (SCREEN_WIDTH / imageSize.width);
+    return Math.max(CROP_SIZE / SCREEN_WIDTH, CROP_SIZE / fittedH);
+  }, [imageSize]);
+
+  const minCoverScaleRef = useRef(1);
+  minCoverScaleRef.current = minCoverScale;
+
   // Interpolate rotation for the transform (supports arbitrary angles)
   const rotateStr = rotationAnim.interpolate({
     inputRange: [-3600, 3600],
     outputRange: ['-3600deg', '3600deg'],
   });
 
-  // Clamp helper
-  const doClamp = useCallback((tx, ty, s) => {
+  // Clamp pan so the crop window never shows empty space.
+  // Takes rotation into account (the bounding box changes when rotated).
+  const clampPan = useCallback((tx, ty, s, rotDeg) => {
     const f = fittedRef.current;
-    const imgW = f.width * s;
-    const imgH = f.height * s;
-    const maxTx = imgW > CROP_SIZE ? (imgW - CROP_SIZE) / 2 : 0;
-    const maxTy = imgH > CROP_SIZE ? (imgH - CROP_SIZE) / 2 : 0;
+    const rotRad = (rotDeg * Math.PI) / 180;
+    const cosR = Math.abs(Math.cos(rotRad));
+    const sinR = Math.abs(Math.sin(rotRad));
+    const effectiveW = (f.width * cosR + f.height * sinR) * s;
+    const effectiveH = (f.width * sinR + f.height * cosR) * s;
+    const maxTx = Math.max(0, (effectiveW - CROP_SIZE) / 2);
+    const maxTy = Math.max(0, (effectiveH - CROP_SIZE) / 2);
     return {
       x: Math.min(maxTx, Math.max(-maxTx, tx)),
       y: Math.min(maxTy, Math.max(-maxTy, ty)),
@@ -171,7 +205,7 @@ const ImageCropModal = ({ visible, imageUri, onCropComplete, onCancel }) => {
 
       // Scale from pinch
       const scaleRatio = dist / pinchStartDist.current;
-      const newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, pinchStartScale.current * scaleRatio));
+      const newScale = Math.max(minCoverScaleRef.current, Math.min(MAX_SCALE, pinchStartScale.current * scaleRatio));
       scaleAnim.setValue(newScale);
 
       // Rotation from angle change — snap near 90° positions
@@ -180,27 +214,30 @@ const ImageCropModal = ({ visible, imageUri, onCropComplete, onCancel }) => {
       const newRotation = snapRotation(rawRotation, SNAP_THRESHOLD);
       rotationAnim.setValue(newRotation);
 
-      // Pan via midpoint delta (frame-to-frame)
+      // Pan via midpoint delta (frame-to-frame), clamped to image edges
       if (lastMid.current) {
         const dx = mid.x - lastMid.current.x;
         const dy = mid.y - lastMid.current.y;
-        const newX = panRef.current.x + dx;
-        const newY = panRef.current.y + dy;
-        const c = doClamp(newX, newY, newScale);
-        pan.setValue({ x: c.x, y: c.y });
+        const rawX = panRef.current.x + dx;
+        const rawY = panRef.current.y + dy;
+        const clamped = clampPan(rawX, rawY, newScale, newRotation);
+        pan.setValue({ x: clamped.x, y: clamped.y });
       }
       lastMid.current = mid;
 
     } else if (touches.length === 1) {
-      // Single finger pan
-      const dx = touches[0].pageX - touchStart.current.x;
-      const dy = touches[0].pageY - touchStart.current.y;
-      const newX = panAtStart.current.x + dx;
-      const newY = panAtStart.current.y + dy;
-      const c = doClamp(newX, newY, scaleRef.current);
-      pan.setValue({ x: c.x, y: c.y });
+      // Single finger pan — frame-by-frame deltas, clamped to image edges
+      if (touchStart.current) {
+        const dx = touches[0].pageX - touchStart.current.x;
+        const dy = touches[0].pageY - touchStart.current.y;
+        const rawX = panRef.current.x + dx;
+        const rawY = panRef.current.y + dy;
+        const clamped = clampPan(rawX, rawY, scaleRef.current, rotationRef.current);
+        pan.setValue({ x: clamped.x, y: clamped.y });
+      }
+      touchStart.current = { x: touches[0].pageX, y: touches[0].pageY };
     }
-  }, [doClamp]);
+  }, []);
 
   const handleRelease = useCallback((evt) => {
     const remaining = evt.nativeEvent.touches;
@@ -220,20 +257,34 @@ const ImageCropModal = ({ visible, imageUri, onCropComplete, onCancel }) => {
     pinchStartAngle.current = null;
     lastMid.current = null;
 
-    // Snap rotation to nearest 90° if within 15° on release
+    // Determine the final scale and rotation values after corrections
+    const coverScale = Math.max(1, minCoverScaleRef.current);
+    const finalScale = Math.max(scaleRef.current, coverScale);
+
     const nearest90 = Math.round(rotationRef.current / 90) * 90;
-    if (Math.abs(rotationRef.current - nearest90) <= 15) {
-      Animated.spring(rotationAnim, { toValue: nearest90, useNativeDriver: true }).start();
+    const shouldSnapRot = Math.abs(rotationRef.current - nearest90) <= 15;
+    const finalRotation = shouldSnapRot ? nearest90 : rotationRef.current;
+
+    // Clamp pan to image edges based on the final (post-correction) scale & rotation
+    const clamped = clampPan(panRef.current.x, panRef.current.y, finalScale, finalRotation);
+
+    // Build parallel animations for any corrections needed
+    const animations = [];
+
+    if (shouldSnapRot) {
+      animations.push(Animated.spring(rotationAnim, { toValue: nearest90, useNativeDriver: true }));
+    }
+    if (scaleRef.current < coverScale) {
+      animations.push(Animated.spring(scaleAnim, { toValue: coverScale, useNativeDriver: true }));
+    }
+    if (clamped.x !== panRef.current.x || clamped.y !== panRef.current.y) {
+      animations.push(Animated.spring(pan, { toValue: { x: clamped.x, y: clamped.y }, useNativeDriver: true }));
     }
 
-    if (scaleRef.current < 1) {
-      Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true }).start();
-      Animated.spring(pan, { toValue: { x: 0, y: 0 }, useNativeDriver: true }).start();
-    } else {
-      const c = doClamp(panRef.current.x, panRef.current.y, scaleRef.current);
-      pan.setValue({ x: c.x, y: c.y });
+    if (animations.length > 0) {
+      Animated.parallel(animations).start();
     }
-  }, [doClamp]);
+  }, []);
 
   // ── Button handlers ──
 
@@ -242,13 +293,14 @@ const ImageCropModal = ({ visible, imageUri, onCropComplete, onCancel }) => {
   };
 
   const handleReset = () => {
+    const resetScale = Math.max(1, minCoverScaleRef.current);
     Animated.parallel([
-      Animated.timing(scaleAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
+      Animated.timing(scaleAnim, { toValue: resetScale, duration: 200, useNativeDriver: true }),
       Animated.timing(pan, { toValue: { x: 0, y: 0 }, duration: 200, useNativeDriver: true }),
       Animated.timing(rotationAnim, { toValue: 0, duration: 200, useNativeDriver: true }),
     ]).start();
     panRef.current = { x: 0, y: 0 };
-    scaleRef.current = 1;
+    scaleRef.current = resetScale;
     rotationRef.current = 0;
     setFlipH(false);
   };
@@ -258,11 +310,56 @@ const ImageCropModal = ({ visible, imageUri, onCropComplete, onCancel }) => {
     setProcessing(true);
 
     try {
-      // Read current values directly from animated objects (avoids stale refs)
-      const currentScale = scaleAnim.__getValue();
-      const currentPanX = pan.x.__getValue();
-      const currentPanY = pan.y.__getValue();
-      const currentRotation = rotationAnim.__getValue();
+      // Stop every running animation and grab the value at this instant.
+      // Spring / timing animations that run on the native driver make
+      // __getValue() unreliable on the JS side, so stopAnimation() is
+      // the only way to get the true current value.
+      const settled = await new Promise((resolve) => {
+        const v = {};
+        let n = 0;
+        const tick = () => { if (++n === 4) resolve(v); };
+        scaleAnim.stopAnimation((val) => { v.scale = val; tick(); });
+        pan.x.stopAnimation((val) => { v.panX = val; tick(); });
+        pan.y.stopAnimation((val) => { v.panY = val; tick(); });
+        rotationAnim.stopAnimation((val) => { v.rotation = val; tick(); });
+      });
+
+      let currentScale = settled.scale;
+      let currentPanX = settled.panX;
+      let currentPanY = settled.panY;
+      let currentRotation = settled.rotation;
+
+      // ── Apply the same settle logic handleRelease would complete ──
+
+      // Snap rotation to nearest 90° if within 15°
+      const nearest90 = Math.round(currentRotation / 90) * 90;
+      if (Math.abs(currentRotation - nearest90) <= 15) {
+        currentRotation = nearest90;
+      }
+
+      // Clamp scale ≥ minCoverScale (ensures crop window is fully covered)
+      const coverScale = Math.max(1, minCoverScaleRef.current);
+      if (currentScale < coverScale) {
+        currentScale = coverScale;
+        currentPanX = 0;
+        currentPanY = 0;
+      }
+
+      // Clamp pan within bounds
+      const f = fittedRef.current;
+      const imgW = f.width * currentScale;
+      const imgH = f.height * currentScale;
+      const maxTx = imgW > CROP_SIZE ? (imgW - CROP_SIZE) / 2 : 0;
+      const maxTy = imgH > CROP_SIZE ? (imgH - CROP_SIZE) / 2 : 0;
+      currentPanX = Math.min(maxTx, Math.max(-maxTx, currentPanX));
+      currentPanY = Math.min(maxTy, Math.max(-maxTy, currentPanY));
+
+      // Sync the display to match the values we'll actually crop with
+      scaleAnim.setValue(currentScale);
+      pan.setValue({ x: currentPanX, y: currentPanY });
+      rotationAnim.setValue(currentRotation);
+
+      // ── Compute crop in original-pixel space ──
 
       // Ignore tiny accidental rotations (< 3°)
       const rotDeg = Math.abs(currentRotation % 360) < 3 ? 0 : Math.round(currentRotation % 360);
@@ -357,7 +454,7 @@ const ImageCropModal = ({ visible, imageUri, onCropComplete, onCancel }) => {
             <>
               {/* Image layer — handles all touch gestures */}
               <View
-                style={StyleSheet.absoluteFill}
+                style={[StyleSheet.absoluteFill, { overflow: 'visible' }]}
                 onStartShouldSetResponder={() => true}
                 onMoveShouldSetResponder={() => true}
                 onResponderTerminationRequest={() => false}
@@ -427,6 +524,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#1a1a1a',
+    overflow: 'visible',
   },
   header: {
     flexDirection: 'row',
@@ -467,11 +565,13 @@ const styles = StyleSheet.create({
   cropContainer: {
     flex: 1,
     backgroundColor: '#000',
+    overflow: 'visible',
   },
   imageCentered: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'visible',
   },
   footer: {
     flexDirection: 'row',
