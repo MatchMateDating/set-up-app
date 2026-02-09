@@ -213,7 +213,7 @@ const ProfilePage = () => {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#6B46C1" />
+        <ActivityIndicator size="large" color="#6c5ce7" />
         <Text style={styles.loadingText}>Loading user profile...</Text>
       </View>
     );
@@ -231,7 +231,7 @@ const ProfilePage = () => {
     <SafeAreaView style={[styles.container, editing && styles.containerWithToolbar]}>
       {matchProfile && !editing && (
         <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color="#6B46C1" />
+          <Ionicons name="arrow-back" size={24} color="#6c5ce7" />
           <Text style={styles.backButtonText}>Back</Text>
         </TouchableOpacity>
       )}
@@ -328,7 +328,7 @@ const ProfilePage = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f6f4fc',
+    backgroundColor: '#fafafa',
   },
   containerWithToolbar: {
     paddingTop: 0,
@@ -350,7 +350,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f6f4fc',
+    backgroundColor: '#fafafa',
   },
   loadingText: {
     marginTop: 12,
@@ -398,7 +398,7 @@ const styles = StyleSheet.create({
   subHeader: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#6B46C1',
+    color: '#6c5ce7',
     marginBottom: 16,
   },
   daterDropdownWrapper: {
@@ -414,7 +414,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   backButtonText: {
-    color: '#6B46C1',
+    color: '#6c5ce7',
     fontSize: 16,
     fontWeight: '600',
   },

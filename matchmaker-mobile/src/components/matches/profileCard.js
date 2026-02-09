@@ -54,12 +54,12 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   noteBox: {
-    backgroundColor: '#f6f4fc',
+    backgroundColor: '#fafafa',
     padding: 12,
     borderRadius: 8,
     marginBottom: 16,
     borderLeftWidth: 4,
-    borderLeftColor: '#6B46C1',
+    borderLeftColor: '#6c5ce7',
   },
   noteLabel: {
     fontWeight: '700',

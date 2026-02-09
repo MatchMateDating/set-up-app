@@ -172,7 +172,7 @@ const ProfileInfoCard = ({
                         maxDate={new Date(defaultBirthdate)}
                         width={SCREEN_WIDTH - 80} // 2. Ensures calendar fits inside the padding of the card
                         restrictMonthNavigation={true}
-                        selectedDayColor="#6B46C1"
+                        selectedDayColor="#6c5ce7"
                         selectedDayTextColor="#fff"
                         textStyle={{
                           color: '#111',
@@ -430,7 +430,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   confirmButton: {
-    backgroundColor: '#6B46C1',
+    backgroundColor: '#6c5ce7',
     paddingVertical: 10,
     paddingHorizontal: 24,
     borderRadius: 8,
@@ -474,7 +474,7 @@ const styles = StyleSheet.create({
   },
   toggle: {
     marginTop: 8,
-    color: '#6B46C1',
+    color: '#6c5ce7',
     fontWeight: '600',
     textAlign: 'right',
   },
@@ -488,7 +488,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 10,
     borderRadius: 10,
-    backgroundColor: '#6B46C1',
+    backgroundColor: '#6c5ce7',
   },
   saveText: {
     color: '#fff',
@@ -500,11 +500,11 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#6B46C1',
+    borderColor: '#6c5ce7',
     backgroundColor: 'transparent',
   },
   cancelBtnText: {
-    color: '#6B46C1',
+    color: '#6c5ce7',
     fontSize: 16,
     fontWeight: '600',
   },

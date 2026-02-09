@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -173,7 +174,7 @@ const EmailVerificationScreen = () => {
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1 }}
+      style={{ flex: 1, backgroundColor: '#ffffff' }}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView
@@ -181,6 +182,14 @@ const EmailVerificationScreen = () => {
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
       >
+        <View style={styles.logoContainer}>
+          <Image
+            source={require('../../../assets/matchmate_logo.png')}
+            style={styles.logo}
+            resizeMode="contain"
+          />
+        </View>
+
         <Text style={styles.title}>
           Verify Your {verificationMethod === 'phone' ? 'Phone Number' : 'Email'}
         </Text>
@@ -197,6 +206,7 @@ const EmailVerificationScreen = () => {
         <TextInput
           style={styles.input}
           placeholder="Enter verification code"
+          placeholderTextColor="#6b7280"
           value={verificationToken}
           onChangeText={setVerificationToken}
           autoCapitalize="none"
@@ -225,12 +235,14 @@ const EmailVerificationScreen = () => {
             style={styles.resendButton}
           >
             {resendLoading ? (
-              <ActivityIndicator color="#6B46C1" size="small" />
+              <ActivityIndicator color="#6c5ce7" size="small" />
             ) : (
               <Text style={styles.resendButtonText}>Resend Code</Text>
             )}
           </TouchableOpacity>
         </View>
+
+        <View style={styles.divider} />
 
         <View style={styles.loginContainer}>
           <Text style={styles.loginText}>Already have an account?</Text>
@@ -250,55 +262,71 @@ const EmailVerificationScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
-    padding: 20,
-    justifyContent: 'center',
-    backgroundColor: '#fff',
+    padding: 24,
+    paddingTop: 80,
+    justifyContent: 'flex-start',
+    backgroundColor: '#ffffff',
+  },
+  logoContainer: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  logo: {
+    width: 72,
+    height: 72,
   },
   title: {
     fontSize: 26,
     fontWeight: '700',
     textAlign: 'center',
-    marginBottom: 20,
+    marginBottom: 16,
+    color: '#1a1a2e',
+    letterSpacing: -0.5,
   },
   description: {
     fontSize: 16,
     textAlign: 'center',
     marginBottom: 12,
-    color: '#666',
+    color: '#6b7280',
+    lineHeight: 24,
   },
   emailText: {
     fontWeight: '600',
-    color: '#6B46C1',
+    color: '#6c5ce7',
   },
   instruction: {
     fontSize: 14,
     textAlign: 'center',
-    marginBottom: 24,
-    color: '#888',
+    marginBottom: 28,
+    color: '#6b7280',
+    lineHeight: 21,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#ddd',
-    padding: 12,
+    borderColor: '#e0e0e0',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
     marginBottom: 16,
-    borderRadius: 8,
+    borderRadius: 10,
     fontSize: 16,
     textAlign: 'center',
     letterSpacing: 2,
+    color: '#1a1a2e',
+    backgroundColor: '#fafafa',
   },
   verifyBtn: {
-    backgroundColor: '#6B46C1',
-    padding: 14,
-    borderRadius: 8,
+    backgroundColor: '#6c5ce7',
+    padding: 15,
+    borderRadius: 10,
     alignItems: 'center',
-    marginTop: 10,
+    marginTop: 8,
   },
   verifyBtnDisabled: {
     opacity: 0.6,
   },
   verifyBtnText: {
     color: '#fff',
-    fontWeight: '700',
+    fontWeight: '600',
     fontSize: 16,
   },
   resendContainer: {
@@ -307,7 +335,7 @@ const styles = StyleSheet.create({
   },
   resendText: {
     fontSize: 14,
-    color: '#666',
+    color: '#6b7280',
     marginBottom: 8,
   },
   resendButton: {
@@ -315,23 +343,29 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   resendButtonText: {
-    color: '#6B46C1',
+    color: '#6c5ce7',
     fontWeight: '600',
     fontSize: 14,
   },
+  divider: {
+    height: 1,
+    backgroundColor: '#e0e0e0',
+    marginVertical: 24,
+  },
   loginContainer: {
     alignItems: 'center',
-    marginTop: 32,
   },
   loginText: {
     textAlign: 'center',
     marginBottom: 8,
-    color: '#666',
+    color: '#6b7280',
+    fontSize: 14,
   },
   loginButton: {
     textAlign: 'center',
-    color: '#6B46C1',
-    fontWeight: 'bold',
+    color: '#6c5ce7',
+    fontWeight: '600',
+    fontSize: 15,
   },
 });
 

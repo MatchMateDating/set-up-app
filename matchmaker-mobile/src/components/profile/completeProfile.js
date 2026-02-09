@@ -861,7 +861,7 @@ const CompleteProfile = () => {
                             new Date().setFullYear(new Date().getFullYear() - 100)
                           )}
                           todayBackgroundColor="#E9D8FD"
-                          selectedDayColor="#6B46C1"
+                          selectedDayColor="#6c5ce7"
                           selectedDayTextColor="#fff"
                           textStyle={{
                             color: '#111',
@@ -1092,10 +1092,10 @@ const CompleteProfile = () => {
                     update('preferredAgeMin', values[0].toString());
                     update('preferredAgeMax', values[1].toString());
                   }}
-                  selectedStyle={{ backgroundColor: '#6B46C1' }}
+                  selectedStyle={{ backgroundColor: '#6c5ce7' }}
                   unselectedStyle={{ backgroundColor: '#E5E7EB' }}
                   markerStyle={{
-                    backgroundColor: '#6B46C1',
+                    backgroundColor: '#6c5ce7',
                     height: 22,
                     width: 22,
                     borderRadius: 11,
@@ -1126,10 +1126,10 @@ const CompleteProfile = () => {
                   onValuesChange={(values) => {
                     update('matchRadius', values[0]);
                   }}
-                  selectedStyle={{ backgroundColor: '#6B46C1' }}
+                  selectedStyle={{ backgroundColor: '#6c5ce7' }}
                   unselectedStyle={{ backgroundColor: '#E5E7EB' }}
                   markerStyle={{
-                    backgroundColor: '#6B46C1',
+                    backgroundColor: '#6c5ce7',
                     height: 22,
                     width: 22,
                     borderRadius: 11,
@@ -1145,7 +1145,7 @@ const CompleteProfile = () => {
               {error ? <Text style={styles.error}>{error}</Text> : null}
 
               {loading ? (
-                <ActivityIndicator size="large" color="#6B46C1" />
+                <ActivityIndicator size="large" color="#6c5ce7" />
               ) : (
                 <View style={styles.rowBetween}>
                   <TouchableOpacity style={styles.secondaryBtn} onPress={() => {
@@ -1263,7 +1263,7 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
   },
   fieldActive: {
-    borderColor: '#6B46C1',
+    borderColor: '#6c5ce7',
   },
   modalCard: {
     backgroundColor: '#fff',
@@ -1314,7 +1314,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   confirmButton: {
-    backgroundColor: '#6B46C1',
+    backgroundColor: '#6c5ce7',
     paddingVertical: 10,
     paddingHorizontal: 20,
     borderRadius: 8,
@@ -1430,7 +1430,7 @@ const styles = StyleSheet.create({
   },
   toggle: {
     marginTop: 8,
-    color: '#6B46C1',
+    color: '#6c5ce7',
     fontWeight: '600',
     textAlign: 'right',
   },
@@ -1445,7 +1445,7 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   nextBtn: {
-    backgroundColor: '#6B46C1',
+    backgroundColor: '#6c5ce7',
     padding: 14,
     borderRadius: 10,
     marginTop: 20,
@@ -1459,11 +1459,11 @@ const styles = StyleSheet.create({
     padding: 14,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#6B46C1',
+    borderColor: '#6c5ce7',
     marginTop: 20,
   },
   skipBtnText: {
-    color: '#6B46C1',
+    color: '#6c5ce7',
     fontWeight: '700',
     textAlign: 'center',
   },
@@ -1471,11 +1471,11 @@ const styles = StyleSheet.create({
     padding: 14,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#6B46C1',
+    borderColor: '#6c5ce7',
     marginTop: 20,
   },
   secondaryBtnText: {
-    color: '#6B46C1',
+    color: '#6c5ce7',
     fontWeight: '700',
   },
   error: {

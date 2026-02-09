@@ -55,7 +55,7 @@ const ZodiacQuiz = () => {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#6B46C1" />
+        <ActivityIndicator size="large" color="#6c5ce7" />
         <Text style={styles.loadingText}>Loading your zodiac info...</Text>
       </View>
     );
@@ -154,17 +154,17 @@ Compatible signs: ${zodiacDetails.compatible.join(', ')}`;
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f6f4fc', paddingTop: 30 },
+  container: { flex: 1, backgroundColor: '#fafafa', paddingTop: 30 },
   content: { padding: 20 },
   title: { fontSize: 28, fontWeight: '700', textAlign: 'center', marginBottom: 24 },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   loadingText: { marginTop: 12, fontSize: 16, color: '#6b7280' },
   resultContainer: { backgroundColor: '#fff', borderRadius: 12, padding: 24 },
-  resultSign: { fontSize: 28, fontWeight: '700', marginBottom: 8, textAlign: 'center', color: '#6B46C1' },
+  resultSign: { fontSize: 28, fontWeight: '700', marginBottom: 8, textAlign: 'center', color: '#6c5ce7' },
   resultAge: { fontSize: 18, marginBottom: 16, textAlign: 'center' },
   resultHeader: { fontSize: 18, fontWeight: '600', marginTop: 12 },
   resultText: { fontSize: 16, marginTop: 4 },
-  actionButton: { backgroundColor: '#6B46C1', padding: 14, borderRadius: 8, width: '100%', alignItems: 'center', marginTop: 16 },
+  actionButton: { backgroundColor: '#6c5ce7', padding: 14, borderRadius: 8, width: '100%', alignItems: 'center', marginTop: 16 },
   sendButton: { backgroundColor: '#10b981' },
   actionButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
 });

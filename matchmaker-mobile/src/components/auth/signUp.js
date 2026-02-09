@@ -11,6 +11,7 @@ import {
   Platform,
   Modal,
   Keyboard,
+  Image,
 } from 'react-native';
 import axios from 'axios';
 import { useNavigation } from '@react-navigation/native';
@@ -268,7 +269,16 @@ const SignUpScreen = () => {
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
       >
-        <Text style={styles.title}>Sign Up</Text>
+        <View style={styles.logoContainer}>
+          <Image
+            source={require('../../../assets/matchmate_logo.png')}
+            style={styles.logo}
+            resizeMode="contain"
+          />
+        </View>
+
+        <Text style={styles.title}>Create Account</Text>
+        <Text style={styles.subtitle}>Join the community</Text>
 
         {/* Role toggle */}
         <View style={styles.roleToggleWrapper}>
@@ -501,65 +511,87 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     justifyContent: 'flex-start',
     padding: 24,
-    paddingTop: 300,
-    backgroundColor: '#fff',
+    paddingTop: 80,
+    backgroundColor: '#ffffff',
+  },
+  logoContainer: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  logo: {
+    width: 80,
+    height: 80,
   },
   title: {
-    fontSize: 26,
+    fontSize: 28,
     fontWeight: '700',
     textAlign: 'center',
-    marginBottom: 20,
+    marginBottom: 6,
+    color: '#1a1a2e',
+    letterSpacing: -0.5,
+  },
+  subtitle: {
+    fontSize: 15,
+    color: '#6b7280',
+    textAlign: 'center',
+    marginBottom: 28,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#ddd',
-    padding: 12,
+    borderColor: '#e0e0e0',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
     marginBottom: 12,
-    borderRadius: 8,
+    borderRadius: 10,
     fontSize: 16,
+    color: '#1a1a2e',
+    backgroundColor: '#fafafa',
   },
   submitBtn: {
-    backgroundColor: '#6B46C1',
-    padding: 14,
-    borderRadius: 8,
+    backgroundColor: '#6c5ce7',
+    padding: 15,
+    borderRadius: 10,
     alignItems: 'center',
     marginTop: 10,
   },
   submitBtnText: {
     color: '#fff',
-    fontWeight: '700',
+    fontWeight: '600',
     fontSize: 16,
   },
   loginText: {
     textAlign: 'center',
     marginTop: 20,
+    color: '#6b7280',
+    fontSize: 14,
   },
   loginButton: {
     textAlign: 'center',
-    color: '#6B46C1',
-    fontWeight: 'bold',
+    color: '#6c5ce7',
+    fontWeight: '600',
     marginTop: 5,
+    fontSize: 15,
   },
   roleToggleWrapper: {
     flexDirection: 'row',
-    marginBottom: 14,
+    marginBottom: 16,
     borderRadius: 10,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: '#e0e0e0',
   },
   roleBtn: {
     flex: 1,
     paddingVertical: 12,
-    backgroundColor: '#fff',
+    backgroundColor: '#ffffff',
     alignItems: 'center',
   },
   roleBtnText: {
-    color: '#6B46C1',
+    color: '#6c5ce7',
     fontWeight: '600',
   },
   activeRoleBtn: {
-    backgroundColor: '#6B46C1',
+    backgroundColor: '#6c5ce7',
   },
   activeRoleBtnText: {
     color: '#fff',
@@ -575,15 +607,15 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderWidth: 2,
-    borderColor: '#6B46C1',
-    borderRadius: 4,
+    borderColor: '#6c5ce7',
+    borderRadius: 6,
     marginRight: 10,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#fff',
   },
   checkboxChecked: {
-    backgroundColor: '#6B46C1',
+    backgroundColor: '#6c5ce7',
   },
   checkmark: {
     color: '#fff',
@@ -593,7 +625,7 @@ const styles = StyleSheet.create({
   checkboxLabel: {
     flex: 1,
     fontSize: 14,
-    color: '#333',
+    color: '#4a4a68',
   },
   modalOverlay: {
     flex: 1,
@@ -613,7 +645,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginBottom: 16,
     textAlign: 'center',
-    color: '#333',
+    color: '#1a1a2e',
   },
   termsScrollView: {
     maxHeight: 400,
@@ -624,12 +656,12 @@ const styles = StyleSheet.create({
   },
   termsText: {
     fontSize: 14,
-    lineHeight: 20,
-    color: '#333',
+    lineHeight: 22,
+    color: '#4a4a68',
   },
   modalFooter: {
     borderTopWidth: 1,
-    borderTopColor: '#eee',
+    borderTopColor: '#e0e0e0',
     paddingTop: 16,
   },
   termsCheckboxContainer: {
@@ -640,7 +672,7 @@ const styles = StyleSheet.create({
   termsCheckboxLabel: {
     flex: 1,
     fontSize: 14,
-    color: '#333',
+    color: '#4a4a68',
     marginLeft: 10,
   },
   modalButtons: {
@@ -651,20 +683,22 @@ const styles = StyleSheet.create({
   modalButton: {
     flex: 1,
     paddingVertical: 12,
-    borderRadius: 8,
+    borderRadius: 10,
     alignItems: 'center',
   },
   modalButtonCancel: {
-    backgroundColor: '#f0f0f0',
+    backgroundColor: '#fafafa',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
   },
   modalButtonAccept: {
-    backgroundColor: '#6B46C1',
+    backgroundColor: '#6c5ce7',
   },
   modalButtonDisabled: {
-    backgroundColor: '#ccc',
+    backgroundColor: '#e0e0e0',
   },
   modalButtonCancelText: {
-    color: '#333',
+    color: '#1a1a2e',
     fontWeight: '600',
     fontSize: 16,
   },
@@ -674,7 +708,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   modalButtonTextDisabled: {
-    color: '#999',
+    color: '#6b7280',
   },
 });
 

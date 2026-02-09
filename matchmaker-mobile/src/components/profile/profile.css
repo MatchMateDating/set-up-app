@@ -1,8 +1,8 @@
 :root {
   /* Purple palette (replaces magenta) */
-  --primary: #6B46C1;        /* medium purple */
+  --primary: #6c5ce7;        /* medium purple */
   --primary-dark: #5A35A8;   /* darker purple for hover */
-  --muted-bg: #f6f4fc;       /* very light purple-tinted background */
+  --muted-bg: #fafafa;       /* very light purple-tinted background */
   --card-border: #ebe7fb;    /* subtle purple-tinged card border */
   --text-muted: #6b7280;
   --surface: #ffffff;

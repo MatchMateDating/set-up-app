@@ -20,7 +20,7 @@ const Dropdown = ({ icon, value, options, onSelect }) => {
         style={styles.dropdownTrigger}
         onPress={() => setVisible(true)}
       >
-        <Ionicons name={icon} size={16} color="#6B46C1" />
+        <Ionicons name={icon} size={16} color="#6c5ce7" />
         <Text style={styles.dropdownText} numberOfLines={1}>
           {value}
         </Text>
@@ -114,7 +114,7 @@ export const EditToolbar = ({ formData, handleInputChange, editing, extendToTop 
               <Ionicons
                 name="grid"
                 size={18}
-                color={formData.imageLayout === 'grid' ? '#FFF' : '#6B46C1'}
+                color={formData.imageLayout === 'grid' ? '#FFF' : '#6c5ce7'}
               />
             </TouchableOpacity>
 
@@ -128,7 +128,7 @@ export const EditToolbar = ({ formData, handleInputChange, editing, extendToTop 
               <Ionicons
                 name="reorder-four"
                 size={18}
-                color={formData.imageLayout === 'vertical' ? '#FFF' : '#6B46C1'}
+                color={formData.imageLayout === 'vertical' ? '#FFF' : '#6c5ce7'}
               />
             </TouchableOpacity>
           </View>
@@ -245,6 +245,6 @@ const styles = StyleSheet.create({
   },
 
   layoutBtnActive: {
-    backgroundColor: '#6B46C1',
+    backgroundColor: '#6c5ce7',
   },
 });

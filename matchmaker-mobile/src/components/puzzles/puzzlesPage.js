@@ -15,7 +15,7 @@ const PuzzlesHub = () => {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <TouchableOpacity style={styles.backBtn} onPress={() => navigation.navigate('Main')}>
-        <Ionicons name="arrow-back" size={20} color="#6B46C1" />
+        <Ionicons name="arrow-back" size={20} color="#6c5ce7" />
         <Text style={styles.backBtnText}>Back</Text>
       </TouchableOpacity>
 
@@ -38,7 +38,7 @@ const PuzzlesHub = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f6f4fc',
+    backgroundColor: '#fafafa',
   },
   content: {
     padding: 20,
@@ -50,7 +50,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   backBtnText: {
-    color: '#6B46C1',
+    color: '#6c5ce7',
     fontSize: 16,
     fontWeight: '600',
   },
@@ -78,7 +78,7 @@ const styles = StyleSheet.create({
   puzzleButtonText: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#6B46C1',
+    color: '#6c5ce7',
   },
 });
 

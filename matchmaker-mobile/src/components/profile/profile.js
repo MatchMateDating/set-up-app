@@ -326,7 +326,7 @@ const Profile = ({ user, framed, viewerUnit, editing, setEditing, onSave, onEdit
           {!framed && !editing && (
             <View style={styles.profileActions}>
               <TouchableOpacity onPress={() => setEditing(true)}>
-                <Ionicons name="create-outline" size={24} color="#6B46C1" />
+                <Ionicons name="create-outline" size={24} color="#6c5ce7" />
               </TouchableOpacity>
             </View>
           )}

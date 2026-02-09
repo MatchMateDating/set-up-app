@@ -98,7 +98,7 @@ const MatchCard = ({ matchObj, userInfo, unmatch, reveal, hide }) => {
             <Text style={styles.matchName}>{matchObj.match_user.first_name}</Text>
             {isPendingApproval && (
               matchObj.waiting_for_other_approval ? (
-                <Ionicons name="hourglass-outline" size={18} color="#6B46C1" style={styles.clockIcon} />
+                <Ionicons name="hourglass-outline" size={18} color="#6c5ce7" style={styles.clockIcon} />
               ) : (
                 <Ionicons name="time-outline" size={18} color="#f59e0b" style={styles.clockIcon} />
               )
@@ -267,7 +267,7 @@ const styles = StyleSheet.create({
     borderColor: '#eee',
   },
   matchmakerBanner: {
-    backgroundColor: '#6B46C1',
+    backgroundColor: '#6c5ce7',
     paddingVertical: 4,
     paddingHorizontal: 8,
     borderRadius: 8,

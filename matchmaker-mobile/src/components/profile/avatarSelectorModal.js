@@ -126,7 +126,7 @@ const styles = StyleSheet.create({
     borderRadius: 50,
     overflow: 'hidden',
     borderWidth: 2,
-    borderColor: '#6B46C1',
+    borderColor: '#6c5ce7',
   },
   avatarImage: {
     width: '100%',
@@ -134,7 +134,7 @@ const styles = StyleSheet.create({
   },
   closeBtn: {
     padding: 12,
-    backgroundColor: '#6B46C1',
+    backgroundColor: '#6c5ce7',
     borderRadius: 8,
     alignItems: 'center',
   },
