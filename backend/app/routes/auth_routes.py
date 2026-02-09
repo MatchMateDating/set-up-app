@@ -157,6 +157,7 @@ def normalize_phone_number(phone):
 @auth_bp.route('/register', methods=['POST'])
 def register():
     """Send verification code without creating user account"""
+    print('registering')
     data = request.get_json()
     print(f"Received data: {data}")
 
