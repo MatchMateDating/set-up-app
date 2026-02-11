@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, Alert, ScrollView, Image, TouchableOpacity } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
@@ -9,7 +9,8 @@ import { avatarMap } from './avatarSelectorModal';
 import { Ionicons } from '@expo/vector-icons';
 import { EditToolbar } from './components/editToolbar';
 import DaterDropdown from '../layout/daterDropdown';
-import MatcherHeader from '../layout/components/matcherHeader';
+import ImageCropModal from './components/ImageCropModal';
+
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const ProfilePage = () => {
@@ -25,6 +26,18 @@ const ProfilePage = () => {
   const [profileHandleInputChange, setProfileHandleInputChange] = useState(null);
   const [hasInitializedDater, setHasInitializedDater] = useState(false);
   const navigation = useNavigation();
+  const scrollViewRef = useRef(null);
+  const [cropModalVisible, setCropModalVisible] = useState(false);
+  const [selectedImageUri, setSelectedImageUri] = useState(null);
+  const cropCompleteRef = useRef(null);
+  const [cropKey, setCropKey] = useState(0);
+
+  const handleRequestCrop = useCallback((uri, onComplete) => {
+    setSelectedImageUri(uri);
+    setCropModalVisible(true);
+    setCropKey(prev => prev + 1);
+    cropCompleteRef.current = onComplete;
+  }, []);
 
   const fetchProfile = async () => {
     try {
@@ -200,7 +213,7 @@ const ProfilePage = () => {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#6B46C1" />
+        <ActivityIndicator size="large" color="#6c5ce7" />
         <Text style={styles.loadingText}>Loading user profile...</Text>
       </View>
     );
@@ -218,7 +231,7 @@ const ProfilePage = () => {
     <SafeAreaView style={[styles.container, editing && styles.containerWithToolbar]}>
       {matchProfile && !editing && (
         <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color="#6B46C1" />
+          <Ionicons name="arrow-back" size={24} color="#6c5ce7" />
           <Text style={styles.backButtonText}>Back</Text>
         </TouchableOpacity>
       )}
@@ -233,16 +246,16 @@ const ProfilePage = () => {
       )}
 
       {user?.role === 'matchmaker' && !matchProfile && (
-        <MatcherHeader>
+        <View style={styles.daterDropdownWrapper}>
           <DaterDropdown
             API_BASE_URL={API_BASE_URL}
             userInfo={user}
             onDaterChange={handleDaterChange}
           />
-        </MatcherHeader>
+        </View>
       )}
       
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView ref={scrollViewRef} contentContainerStyle={styles.content}>
         {user.role === 'user' && (
           <Profile
             user={user}
@@ -251,6 +264,8 @@ const ProfilePage = () => {
             setEditing={setEditing}
             onSave={handleSave}
             onEditingFormData={handleEditingFormData}
+            parentScrollRef={scrollViewRef}
+            onRequestCrop={handleRequestCrop}
           />
         )}
 
@@ -287,6 +302,25 @@ const ProfilePage = () => {
           />
         )}
       </ScrollView>
+
+      <ImageCropModal
+        key={cropKey}
+        visible={cropModalVisible}
+        imageUri={selectedImageUri}
+        onCropComplete={(croppedImage) => {
+          setCropModalVisible(false);
+          setSelectedImageUri(null);
+          if (cropCompleteRef.current) {
+            cropCompleteRef.current(croppedImage);
+            cropCompleteRef.current = null;
+          }
+        }}
+        onCancel={() => {
+          setCropModalVisible(false);
+          setSelectedImageUri(null);
+          cropCompleteRef.current = null;
+        }}
+      />
     </SafeAreaView>
   );
 };
@@ -294,7 +328,7 @@ const ProfilePage = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f6f4fc',
+    backgroundColor: '#fafafa',
   },
   containerWithToolbar: {
     paddingTop: 0,
@@ -316,7 +350,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f6f4fc',
+    backgroundColor: '#fafafa',
   },
   loadingText: {
     marginTop: 12,
@@ -364,8 +398,14 @@ const styles = StyleSheet.create({
   subHeader: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#6B46C1',
+    color: '#6c5ce7',
     marginBottom: 16,
+  },
+  daterDropdownWrapper: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 8,
+    zIndex: 10,
   },
   backButton: {
     flexDirection: 'row',
@@ -374,7 +414,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   backButtonText: {
-    color: '#6B46C1',
+    color: '#6c5ce7',
     fontSize: 16,
     fontWeight: '600',
   },

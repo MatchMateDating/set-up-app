@@ -457,7 +457,7 @@ const Match = () => {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#6B46C1" />
+        <ActivityIndicator size="large" color="#6c5ce7" />
         <Text style={styles.loadingText}>Loading profiles...</Text>
       </View>
     );
@@ -497,6 +497,11 @@ const Match = () => {
         )}
       </ScrollView>
       {currentProfile && (
+        <TouchableOpacity style={styles.skipButton} onPress={nextProfile}>
+          <Ionicons name="close-circle" size={44} color="#e53e3e" />
+        </TouchableOpacity>
+      )}
+      {currentProfile && (
         <View style={styles.buttonContainer}>
           <View style={styles.leftButtonContainer}>
             {userInfo?.role === 'user' && (
@@ -506,7 +511,7 @@ const Match = () => {
             )}
             {userInfo?.role === 'matchmaker' && !currentProfile.liked_linked_dater && (
               <TouchableOpacity style={styles.smallButton} onPress={handleBlindMatch}>
-                <Ionicons name="person" size={24} color="#6B46C1" />
+                <Ionicons name="person" size={24} color="#6c5ce7" />
               </TouchableOpacity>
             )}
           </View>
@@ -523,7 +528,7 @@ const Match = () => {
           </View>
           <View style={styles.rightButtonContainer}>
             <TouchableOpacity style={styles.smallButton} onPress={() => setShowNoteModal(true)}>
-              <Ionicons name="create-outline" size={24} color="#6B46C1" />
+              <Ionicons name="create-outline" size={24} color="#6c5ce7" />
             </TouchableOpacity>
           </View>
         </View>
@@ -535,7 +540,7 @@ const Match = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f6f4fc',
+    backgroundColor: '#fafafa',
   },
   dropdownContainer: {
     position: 'absolute',
@@ -559,7 +564,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f6f4fc',
+    backgroundColor: '#fafafa',
   },
   loadingText: {
     marginTop: 12,
@@ -575,9 +580,22 @@ const styles = StyleSheet.create({
     color: '#6b7280',
     textAlign: 'center',
   },
+  skipButton: {
+    position: 'absolute',
+    top: 70,
+    right: 30,
+    zIndex: 10,
+    backgroundColor: '#fff',
+    borderRadius: 22,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 4,
+  },
   buttonContainer: {
     position: 'absolute',
-    bottom: 80, // Position above bottom tabs (typical tab height ~60-80px)
+    bottom: 30,
     left: 0,
     right: 0,
     flexDirection: 'row',
@@ -604,19 +622,30 @@ const styles = StyleSheet.create({
   smallButton: {
     padding: 12,
     borderRadius: 8,
-    backgroundColor: '#f6f4fc',
+    backgroundColor: '#fafafa',
     alignItems: 'center',
     justifyContent: 'center',
     width: 56,
     height: 56,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 4,
   },
   likeButton: {
     padding: 12,
     borderRadius: 8,
+    backgroundColor: '#fafafa',
     alignItems: 'center',
     justifyContent: 'center',
     width: 72,
     height: 72,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 4,
   },
 });
 

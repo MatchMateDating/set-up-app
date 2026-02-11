@@ -132,7 +132,7 @@ const Preferences = () => {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#6B46C1" />
+        <ActivityIndicator size="large" color="#6c5ce7" />
       </View>
     );
   }
@@ -142,13 +142,13 @@ const Preferences = () => {
       <View style={styles.card}>
         <View style={styles.nav}>
           <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-            <Ionicons name="arrow-back" size={20} color="#6B46C1" />
+            <Ionicons name="arrow-back" size={20} color="#6c5ce7" />
             <Text style={styles.backBtnText}>Back</Text>
           </TouchableOpacity>
 
           {!editing && (
             <TouchableOpacity onPress={() => setEditing(true)}>
-              <Ionicons name="create-outline" size={24} color="#6B46C1" />
+              <Ionicons name="create-outline" size={24} color="#6c5ce7" />
             </TouchableOpacity>
           )}
         </View>
@@ -171,10 +171,10 @@ const Preferences = () => {
               update('preferredAgeMin', values[0].toString());
               update('preferredAgeMax', values[1].toString());
             }}
-            selectedStyle={{ backgroundColor: '#6B46C1' }}
+            selectedStyle={{ backgroundColor: '#6c5ce7' }}
             unselectedStyle={{ backgroundColor: '#E5E7EB' }}
             markerStyle={{
-              backgroundColor: '#6B46C1',
+              backgroundColor: '#6c5ce7',
               height: 22,
               width: 22,
               borderRadius: 11,
@@ -247,7 +247,7 @@ const Preferences = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f6f4fc',
+    backgroundColor: '#fafafa',
   },
   content: {
     padding: 20,
@@ -256,7 +256,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f6f4fc',
+    backgroundColor: '#fafafa',
   },
   card: {
     backgroundColor: '#fff',
@@ -280,7 +280,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   backBtnText: {
-    color: '#6B46C1',
+    color: '#6c5ce7',
     fontSize: 16,
     fontWeight: '600',
   },
@@ -313,7 +313,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 10,
     borderRadius: 8,
-    backgroundColor: '#6B46C1',
+    backgroundColor: '#6c5ce7',
   },
   primaryBtnText: {
     color: '#fff',

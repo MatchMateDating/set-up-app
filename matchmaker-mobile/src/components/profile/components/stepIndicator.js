@@ -73,7 +73,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   stepNumberActive: {
-    borderColor: '#6B46C1',
+    borderColor: '#6c5ce7',
   },
   stepNumberText: {
     fontSize: 14,
@@ -81,7 +81,7 @@ const styles = StyleSheet.create({
   },
   stepNumberTextActive: {
     fontWeight: '700',
-    color: '#6B46C1',
+    color: '#6c5ce7',
   },
   stepLabel: {
     marginTop: 4,
@@ -91,6 +91,6 @@ const styles = StyleSheet.create({
   stepLabelActive: {
     opacity: 1,
     fontWeight: '600',
-    color: '#6B46C1',
+    color: '#6c5ce7',
   },
 });

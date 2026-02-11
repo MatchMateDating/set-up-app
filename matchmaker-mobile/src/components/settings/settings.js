@@ -662,13 +662,13 @@ const Settings = () => {
                 </View>
                 <View style={styles.buttonGroup}>
                   <TouchableOpacity style={styles.iconBtn} onPress={handleCopy}>
-                    <Ionicons name="copy-outline" size={24} color="#6B46C1" />
+                    <Ionicons name="copy-outline" size={24} color="#6c5ce7" />
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.iconBtn} onPress={handleShare}>
-                    <Ionicons name="share-outline" size={24} color="#6B46C1" />
+                    <Ionicons name="share-outline" size={24} color="#6c5ce7" />
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.iconBtn} onPress={handleInvite}>
-                    <Ionicons name="mail-outline" size={24} color="#6B46C1" />
+                    <Ionicons name="mail-outline" size={24} color="#6c5ce7" />
                   </TouchableOpacity>
                 </View>
               </View>
@@ -726,7 +726,7 @@ const Settings = () => {
                                             setEditing(true);
                                             }}
                   >
-                    <Ionicons name="create-outline" size={24} color="#6B46C1" />
+                    <Ionicons name="create-outline" size={24} color="#6c5ce7" />
                   </TouchableOpacity>
                 </View>
               )}
@@ -757,10 +757,10 @@ const Settings = () => {
                           handleInputChangeWrapper('preferredAgeMin', values[0].toString());
                           handleInputChangeWrapper('preferredAgeMax', values[1].toString());
                         }}
-                        selectedStyle={{ backgroundColor: '#6B46C1' }}
+                        selectedStyle={{ backgroundColor: '#6c5ce7' }}
                         unselectedStyle={{ backgroundColor: '#E5E7EB' }}
                         markerStyle={{
-                          backgroundColor: '#6B46C1',
+                          backgroundColor: '#6c5ce7',
                           height: 22,
                           width: 22,
                           borderRadius: 11,
@@ -815,10 +815,10 @@ const Settings = () => {
                                     : displayValue;
                             handleInputChangeWrapper('matchRadius', values[0]);
                         }}
-                        selectedStyle={{ backgroundColor: '#6B46C1' }}
+                        selectedStyle={{ backgroundColor: '#6c5ce7' }}
                         unselectedStyle={{ backgroundColor: '#E5E7EB' }}
                         markerStyle={{
-                          backgroundColor: '#6B46C1',
+                          backgroundColor: '#6c5ce7',
                           height: 22,
                           width: 22,
                           borderRadius: 11,
@@ -858,7 +858,7 @@ const Settings = () => {
             <Switch
               value={notificationsEnabled}
               onValueChange={handleNotificationToggle}
-              trackColor={{ false: '#E5E7EB', true: '#6B46C1' }}
+              trackColor={{ false: '#E5E7EB', true: '#6c5ce7' }}
               thumbColor={notificationsEnabled ? '#fff' : '#f4f3f4'}
             />
           </View>
@@ -1019,7 +1019,7 @@ const Settings = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f6f4fc',
+    backgroundColor: '#fafafa',
     paddingTop: 40,
   },
   contentContainer: {
@@ -1074,7 +1074,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   switchBtn: {
-    backgroundColor: '#6B46C1',
+    backgroundColor: '#6c5ce7',
     paddingVertical: 12,
     paddingHorizontal: 24,
     borderRadius: 8,
@@ -1092,7 +1092,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   primaryBtn: {
-    backgroundColor: '#6B46C1',
+    backgroundColor: '#6c5ce7',
     paddingVertical: 12,
     paddingHorizontal: 24,
     borderRadius: 8,
@@ -1108,17 +1108,17 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   referralCodeBox: {
-    backgroundColor: '#f6f4fc',
+    backgroundColor: '#fafafa',
     padding: 16,
     borderRadius: 8,
     marginBottom: 16,
     borderWidth: 2,
-    borderColor: '#6B46C1',
+    borderColor: '#6c5ce7',
   },
   referralCodeText: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#6B46C1',
+    color: '#6c5ce7',
     textAlign: 'center',
     letterSpacing: 2,
   },
@@ -1131,7 +1131,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#f6f4fc',
+    backgroundColor: '#fafafa',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -1152,7 +1152,7 @@ const styles = StyleSheet.create({
   saveBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#6B46C1',
+    backgroundColor: '#6c5ce7',
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 8,
@@ -1180,7 +1180,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 12,
-    backgroundColor: '#f6f4fc',
+    backgroundColor: '#fafafa',
     borderRadius: 8,
   },
   referralName: {
@@ -1189,7 +1189,7 @@ const styles = StyleSheet.create({
     color: '#222',
   },
   referralTag: {
-    backgroundColor: '#6B46C1',
+    backgroundColor: '#6c5ce7',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 12,
@@ -1248,7 +1248,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   modalButtonSend: {
-    backgroundColor: '#6B46C1',
+    backgroundColor: '#6c5ce7',
   },
   modalButtonTextCancel: {
     color: '#6b7280',
@@ -1333,7 +1333,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 10,
     borderRadius: 8,
-    backgroundColor: '#6B46C1',
+    backgroundColor: '#6c5ce7',
   },
   saveBtnText: {
     color: '#fff',

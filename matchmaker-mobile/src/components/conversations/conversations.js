@@ -256,7 +256,7 @@ const Conversations = () => {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#6B46C1" />
+        <ActivityIndicator size="large" color="#6c5ce7" />
         <Text style={styles.loadingText}>Loading conversations...</Text>
       </View>
     );
@@ -398,7 +398,7 @@ const Conversations = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f6f4fc',
+    backgroundColor: '#fafafa',
   },
   content: {
     paddingTop: 20,
@@ -409,7 +409,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f6f4fc',
+    backgroundColor: '#fafafa',
   },
   loadingText: {
     marginTop: 12,

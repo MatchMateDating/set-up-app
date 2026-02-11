@@ -93,7 +93,7 @@ const styles = StyleSheet.create({
     padding: 6,
   },
   switchBtnText: {
-    color: '#6B46C1',
+    color: '#6c5ce7',
     fontSize: 14,
   },
 });

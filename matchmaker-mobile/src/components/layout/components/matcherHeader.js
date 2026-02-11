@@ -14,7 +14,7 @@ const MatcherHeader = ({ children }) => {
 
 const styles = StyleSheet.create({
   safe: {
-    backgroundColor: '#f6f4fc',
+    backgroundColor: '#fafafa',
   },
   container: {
     paddingHorizontal: 16,

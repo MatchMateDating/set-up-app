@@ -302,7 +302,7 @@ const MatchConvo = () => {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#6B46C1" />
+        <ActivityIndicator size="large" color="#6c5ce7" />
         <Text style={styles.loadingText}>Loading conversation...</Text>
       </View>
     );
@@ -497,7 +497,7 @@ const MatchConvo = () => {
       <View style={styles.header}>
         <View style={styles.headerTopRow}>
           <TouchableOpacity style={styles.backButton} onPress={() => navigation.navigate('Main', { screen: 'Conversations' })}>
-            <Ionicons name="arrow-back" size={24} color="#6B46C1" />
+            <Ionicons name="arrow-back" size={24} color="#6c5ce7" />
             <Text style={styles.backButtonText}>Back</Text>
           </TouchableOpacity>
 
@@ -525,7 +525,7 @@ const MatchConvo = () => {
                 style={styles.menuButton}
                 onPress={() => setMenuVisible(true)}
               >
-                <Ionicons name="ellipsis-vertical" size={24} color="#6B46C1" />
+                <Ionicons name="ellipsis-vertical" size={24} color="#6c5ce7" />
               </TouchableOpacity>
             </View>
           )}
@@ -612,7 +612,7 @@ const MatchConvo = () => {
                     AsyncStorage.setItem('activeMatchId', matchId.toString());
                     navigation.navigate(msg.puzzle_link, { matchId: matchId.toString() });
                   }}>
-                    <Ionicons name="game-controller-outline" size={20} color="#6B46C1" />
+                    <Ionicons name="game-controller-outline" size={20} color="#6c5ce7" />
                     <Text style={styles.puzzleText}>Play {msg.puzzle_type}</Text>
                   </TouchableOpacity>
                 )}
@@ -627,7 +627,7 @@ const MatchConvo = () => {
 
       {selectedPuzzleLink ? (
         <View style={styles.selectedPuzzlePreview}>
-          <Ionicons name="game-controller-outline" size={20} color="#6B46C1" />
+          <Ionicons name="game-controller-outline" size={20} color="#6c5ce7" />
           <Text style={styles.selectedPuzzleText}>{selectedPuzzleType}</Text>
           <TouchableOpacity onPress={() => { setSelectedPuzzleLink(''); setSelectedPuzzleType(games[0].name); }}>
             <Ionicons name="close" size={20} color="#666" />
@@ -673,7 +673,7 @@ const MatchConvo = () => {
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.sendPuzzleButton} onPress={() => setPuzzleSheetOpen(true)}>
-          <Ionicons name="game-controller-outline" size={20} color="#6B46C1" />
+          <Ionicons name="game-controller-outline" size={20} color="#6c5ce7" />
           <Text style={styles.sendPuzzleButtonText}>Puzzle</Text>
         </TouchableOpacity>
       </View>
@@ -698,7 +698,7 @@ const MatchConvo = () => {
                   }}
                 >
                   <Text style={[styles.sheetItemText, isSelected && styles.sheetItemTextSelected]}>{item.name}</Text>
-                  {isSelected && <Ionicons name="checkmark" size={20} color="#6B46C1" />}
+                  {isSelected && <Ionicons name="checkmark" size={20} color="#6c5ce7" />}
                 </TouchableOpacity>
               );
             }}
@@ -734,21 +734,21 @@ const MatchConvo = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f6f4fc' },
+  container: { flex: 1, backgroundColor: '#fafafa' },
   header: { backgroundColor: '#fff', paddingTop: 50, paddingBottom: 16, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: '#e0e6ef' },
   headerTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   backButton: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  backButtonText: { color: '#6B46C1', fontSize: 16, fontWeight: '600' },
+  backButtonText: { color: '#6c5ce7', fontSize: 16, fontWeight: '600' },
   headerActions: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   headerUnmatchButton: {
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#6B46C1',
+    borderColor: '#6c5ce7',
   },
   headerUnmatchButtonText: {
-    color: '#6B46C1',
+    color: '#6c5ce7',
     fontSize: 14,
     fontWeight: '600',
   },
@@ -756,7 +756,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
-    backgroundColor: '#6B46C1',
+    backgroundColor: '#6c5ce7',
   },
   headerApproveButtonText: {
     color: '#fff',
@@ -805,12 +805,12 @@ const styles = StyleSheet.create({
     color: '#e53e3e',
   },
   matchAvatarSection: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  matchAvatarImg: { width: 50, height: 50, borderRadius: 25, borderWidth: 2, borderColor: '#6B46C1' },
-  matchPlaceholder: { width: 50, height: 50, borderRadius: 25, backgroundColor: '#6B46C1', justifyContent: 'center', alignItems: 'center' },
+  matchAvatarImg: { width: 50, height: 50, borderRadius: 25, borderWidth: 2, borderColor: '#6c5ce7' },
+  matchPlaceholder: { width: 50, height: 50, borderRadius: 25, backgroundColor: '#6c5ce7', justifyContent: 'center', alignItems: 'center' },
   placeholderText: { color: '#fff', fontSize: 20, fontWeight: '700' },
   titleContainer: { flexDirection: 'column', alignItems: 'flex-start', gap: 2 },
   convoTitle: { fontSize: 20, fontWeight: '700', color: '#222' },
-  speakingWithMatchmakerText: { fontSize: 12, color: '#6B46C1', fontStyle: 'italic' },
+  speakingWithMatchmakerText: { fontSize: 12, color: '#6c5ce7', fontStyle: 'italic' },
   messageCountBannerContainer: {
     paddingHorizontal: 16,
     paddingTop: 12,
@@ -833,12 +833,12 @@ const styles = StyleSheet.create({
   messagesContent: { padding: 16, gap: 12 },
   emptyText: { textAlign: 'center', color: '#6b7280', fontSize: 16, marginTop: 40 },
   messageBubble: { maxWidth: '75%', padding: 12, borderRadius: 16, marginBottom: 8 },
-  mine: { alignSelf: 'flex-end', backgroundColor: '#6B46C1' },
+  mine: { alignSelf: 'flex-end', backgroundColor: '#6c5ce7' },
   theirs: { alignSelf: 'flex-start', backgroundColor: '#fff' },
-  senderLabel: { fontSize: 12, fontWeight: '600', color: '#6B46C1', marginBottom: 4 },
+  senderLabel: { fontSize: 12, fontWeight: '600', color: '#6c5ce7', marginBottom: 4 },
   messageText: { fontSize: 16, color: '#222' },
-  puzzleBubble: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8, padding: 8, backgroundColor: '#f6f4fc', borderRadius: 8 },
-  puzzleText: { fontSize: 14, color: '#6B46C1', fontWeight: '600' },
+  puzzleBubble: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8, padding: 8, backgroundColor: '#fafafa', borderRadius: 8 },
+  puzzleText: { fontSize: 14, color: '#6c5ce7', fontWeight: '600' },
   timestamp: { fontSize: 11, color: '#999', marginTop: 4 },
   selectedPuzzlePreview: {
     flexDirection: 'row',
@@ -850,22 +850,22 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     gap: 8,
   },
-  selectedPuzzleText: { fontSize: 16, color: '#6B46C1', fontWeight: '600', flex: 1 },
+  selectedPuzzleText: { fontSize: 16, color: '#6c5ce7', fontWeight: '600', flex: 1 },
   messageInput: { borderWidth: 1, borderColor: '#e0e6ef', borderRadius: 20, padding: 12, marginHorizontal: 16, marginBottom: 8, maxHeight: 100, fontSize: 16, backgroundColor: '#fff' },
   sendActions: { flexDirection: 'row', gap: 12, paddingHorizontal: 16, paddingBottom: 16 },
-  sendButton: { flex: 1, backgroundColor: '#6B46C1', padding: 12, borderRadius: 20, alignItems: 'center' },
+  sendButton: { flex: 1, backgroundColor: '#6c5ce7', padding: 12, borderRadius: 20, alignItems: 'center' },
   sendButtonDisabled: { backgroundColor: '#ccc', opacity: 0.6 },
   sendButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  sendPuzzleButton: { flexDirection: 'row', alignItems: 'center', gap: 6, padding: 12, borderRadius: 20, backgroundColor: '#f6f4fc', borderWidth: 1, borderColor: '#6B46C1' },
-  sendPuzzleButtonText: { color: '#6B46C1', fontSize: 14, fontWeight: '600' },
+  sendPuzzleButton: { flexDirection: 'row', alignItems: 'center', gap: 6, padding: 12, borderRadius: 20, backgroundColor: '#fafafa', borderWidth: 1, borderColor: '#6c5ce7' },
+  sendPuzzleButtonText: { color: '#6c5ce7', fontSize: 14, fontWeight: '600' },
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
   sheet: { backgroundColor: '#fff', padding: 16, borderTopLeftRadius: 16, borderTopRightRadius: 16, maxHeight: '50%' },
   sheetTitle: { fontSize: 18, fontWeight: '700', marginBottom: 12, textAlign: 'center' },
   sheetItem: { padding: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  sheetItemSelected: { backgroundColor: '#f6f4fc', borderRadius: 8 },
+  sheetItemSelected: { backgroundColor: '#fafafa', borderRadius: 8 },
   sheetItemText: { fontSize: 16, color: '#222' },
-  sheetItemTextSelected: { fontWeight: '700', color: '#6B46C1' },
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f6f4fc' },
+  sheetItemTextSelected: { fontWeight: '700', color: '#6c5ce7' },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fafafa' },
   loadingText: { marginTop: 12, fontSize: 16, color: '#6b7280' },
 });
 

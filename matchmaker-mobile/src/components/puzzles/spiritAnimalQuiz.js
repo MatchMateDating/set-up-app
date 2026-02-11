@@ -309,7 +309,7 @@ const SpiritAnimalQuiz = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f6f4fc', paddingTop: 30 },
+  container: { flex: 1, backgroundColor: '#fafafa', paddingTop: 30 },
   content: { padding: 20 },
   title: {
     fontSize: 28,
@@ -334,13 +334,13 @@ const styles = StyleSheet.create({
     borderColor: '#e0e6ef',
   },
   optionSelected: {
-    borderColor: '#6B46C1',
-    backgroundColor: '#f6f4fc',
+    borderColor: '#6c5ce7',
+    backgroundColor: '#fafafa',
   },
   optionText: { fontSize: 16, textAlign: 'center', color: '#666' },
-  optionTextSelected: { color: '#6B46C1', fontWeight: '600' },
+  optionTextSelected: { color: '#6c5ce7', fontWeight: '600' },
   submitButton: {
-    backgroundColor: '#6B46C1',
+    backgroundColor: '#6c5ce7',
     padding: 16,
     borderRadius: 8,
     alignItems: 'center',
@@ -356,7 +356,7 @@ const styles = StyleSheet.create({
   resultTitle: { fontSize: 24, fontWeight: '700', marginBottom: 16 },
   resultText: { fontSize: 18, textAlign: 'center', marginBottom: 24 },
   actionButton: {
-    backgroundColor: '#6B46C1',
+    backgroundColor: '#6c5ce7',
     padding: 14,
     borderRadius: 8,
     width: '100%',

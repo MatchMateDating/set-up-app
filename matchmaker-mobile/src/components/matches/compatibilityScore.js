@@ -9,7 +9,7 @@ export default function CompatibilityScore({ score }) {
     <View style={styles.container}>
       <Text style={styles.compatibilityText}>Compatibility: {score}%</Text>
       <TouchableOpacity onPress={() => setShowTooltip(true)}>
-        <Ionicons name="help-circle-outline" size={20} color="#6B46C1" />
+        <Ionicons name="help-circle-outline" size={20} color="#6c5ce7" />
       </TouchableOpacity>
 
       <Modal
@@ -76,7 +76,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   closeButton: {
-    backgroundColor: '#6B46C1',
+    backgroundColor: '#6c5ce7',
     paddingVertical: 10,
     paddingHorizontal: 20,
     borderRadius: 8,

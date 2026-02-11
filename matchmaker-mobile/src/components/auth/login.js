@@ -1,5 +1,6 @@
 import React, { useState, useRef, useContext } from 'react';
 import {
+    View,
     Text,
     TextInput,
     TouchableOpacity,
@@ -7,7 +8,8 @@ import {
     Alert,
     ScrollView,
     KeyboardAvoidingView,
-    Platform
+    Platform,
+    Image,
   } from 'react-native';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -59,7 +61,7 @@ const LoginScreen = () => {
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1 }}
+      style={{ flex: 1, backgroundColor: '#ffffff' }}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView
@@ -67,12 +69,22 @@ const LoginScreen = () => {
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
       >
-        <Text style={styles.title}>Login</Text>
+        <View style={styles.logoContainer}>
+          <Image
+            source={require('../../../assets/matchmate_logo.png')}
+            style={styles.logo}
+            resizeMode="contain"
+          />
+        </View>
+
+        <Text style={styles.title}>Welcome Back</Text>
+        <Text style={styles.subtitle}>Sign in to continue</Text>
 
           <TextInput
             ref={identifierRef}
             style={styles.input}
             placeholder="Email or Phone Number"
+            placeholderTextColor="#6b7280"
             value={identifier}
             onChangeText={setIdentifier}
             blurOnSubmit={false}
@@ -85,6 +97,7 @@ const LoginScreen = () => {
             ref={passwordRef}
             style={styles.input}
             placeholder="Password"
+            placeholderTextColor="#6b7280"
             value={password}
             onChangeText={setPassword}
             blurOnSubmit={false}
@@ -101,6 +114,8 @@ const LoginScreen = () => {
           <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
         </TouchableOpacity>
 
+        <View style={styles.divider} />
+
         <Text style={styles.signupText}>Don't have an account?</Text>
         <TouchableOpacity onPress={goToSignUp}>
           <Text style={styles.signupButton}>Sign Up</Text>
@@ -112,34 +127,52 @@ const LoginScreen = () => {
 
 const styles = StyleSheet.create({
   container: {
-    flexGrow: 1,           // fill the screen like SignUp
+    flexGrow: 1,
     justifyContent: 'flex-start',
     padding: 24,
-    paddingTop: 300,
-    backgroundColor: '#fff',
+    paddingTop: 80,
+    backgroundColor: '#ffffff',
+  },
+  logoContainer: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  logo: {
+    width: 80,
+    height: 80,
   },
   title: {
-    fontSize: 26,
+    fontSize: 28,
     fontWeight: '700',
-    marginBottom: 20,
+    marginBottom: 6,
     textAlign: 'center',
+    color: '#1a1a2e',
+    letterSpacing: -0.5,
+  },
+  subtitle: {
+    fontSize: 15,
+    color: '#6b7280',
+    textAlign: 'center',
+    marginBottom: 32,
   },
   input: {
     width: '100%',
-    marginVertical: 10,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
+    marginBottom: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
     borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
+    borderColor: '#e0e0e0',
+    borderRadius: 10,
     fontSize: 16,
+    color: '#1a1a2e',
+    backgroundColor: '#fafafa',
   },
   button: {
     width: '100%',
-    marginTop: 16,
-    paddingVertical: 14,
-    backgroundColor: '#6B46C1',
-    borderRadius: 8,
+    marginTop: 8,
+    paddingVertical: 15,
+    backgroundColor: '#6c5ce7',
+    borderRadius: 10,
     alignItems: 'center',
   },
   buttonText: {
@@ -147,27 +180,31 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  signupText: {
-    textAlign: 'center',
-    marginTop: 24,
-    fontSize: 14,
-    color: '#555',
-  },
-  signupButton: {
-    textAlign: 'center',
-    color: '#6B46C1',
-    fontWeight: '600',
-    marginTop: 6,
-    fontSize: 15,
-  },
   forgotPasswordButton: {
     marginTop: 16,
     alignItems: 'center',
   },
   forgotPasswordText: {
-    color: '#6B46C1',
+    color: '#6c5ce7',
     fontSize: 14,
     fontWeight: '500',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#e0e0e0',
+    marginVertical: 24,
+  },
+  signupText: {
+    textAlign: 'center',
+    fontSize: 14,
+    color: '#6b7280',
+  },
+  signupButton: {
+    textAlign: 'center',
+    color: '#6c5ce7',
+    fontWeight: '600',
+    marginTop: 6,
+    fontSize: 15,
   },
 });
 
