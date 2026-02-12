@@ -1,0 +1,60 @@
+{
+  "expo": {
+    "name": "matchmaker-mobile",
+    "slug": "matchmaker-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "jsEngine": "hermes",
+    "newArchEnabled": true,
+    "extra": {
+      "eas": {
+        "projectId": "1b2bd6ca-592d-48d6-8e37-9498d29fb228"
+      }
+    },
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.allyaoyao.matchmaker-mobile",
+      "infoPlist": {
+        "UIBackgroundModes": [
+          "remote-notification",
+          "remote-notification"
+        ]
+      }
+    },
+    "plugins": [
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#6B46C1",
+          "sounds": []
+        }
+      ]
+    ],
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "edgeToEdgeEnabled": true,
+      "package": "com.allyaoyao.matchmakermobile"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "owner": "matchmatedating",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/1b2bd6ca-592d-48d6-8e37-9498d29fb228"
+    }
+  }
+}

@@ -1,0 +1,31 @@
+.login-container {
+    max-width: 300px;
+    margin: 100px auto;
+    padding: 20px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    text-align: center;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.login-container input {
+    width: 100%;
+    margin: 8px 0;
+    padding: 10px;
+    box-sizing: border-box;
+}
+
+.login-container button {
+    width: 100%;
+    margin: 8px 0;
+    padding: 10px;
+    background-color: var(--primary, #6B46C1); /* use app primary with purple fallback */
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.login-container button:hover {
+    background-color: var(--primary-dark, #5A35A8); /* hover uses primary-dark fallback */
+}

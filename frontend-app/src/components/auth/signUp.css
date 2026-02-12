@@ -1,0 +1,109 @@
+.sign-up-container {
+    max-width: 300px;
+    margin: 100px auto;
+    padding: 20px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    text-align: center;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.sign-up-container input {
+    width: 100%;
+    margin: 8px 0;
+    padding: 10px;
+    box-sizing: border-box;
+}
+
+.sign-up-container button {
+    width: 100%;
+    margin: 8px 0;
+    padding: 10px;
+    background-color: var(--primary, #6B46C1); /* use app primary with purple fallback */
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.sign-up-container button:hover {
+    background-color: var(--primary-dark, #5A35A8); /* hover uses primary-dark fallback */
+}
+
+/* Role toggle wrapper: remove the outline so no border appears around both buttons */
+.role-toggle-wrapper {
+  width: 100%;
+  box-sizing: border-box;
+  border-radius: 10px;
+  /* removed border to eliminate outline around both buttons */
+  border: none;
+  /* reduced padding so active button sizing is more pronounced */
+  padding: 6px 6px 8px;
+  margin: 8px 0 14px;
+  background: transparent;
+  position: relative;
+  overflow: visible; /* allow active button to overlap if needed */
+}
+
+/* internal toggle layout (buttons sit side-by-side) */
+.role-toggle {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
+/* base button — non-selected state is compact and uses primary color for text */
+.role-btn {
+  appearance: none;
+  -webkit-appearance: none;
+  border: none;
+  background: #fff;
+  padding: 8px 10px;
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--primary, #6B46C1); /* purple text for inactive */
+  flex: 1 1 50%;
+  border-radius: 8px;
+  transition: transform 0.14s ease, box-shadow 0.14s ease, background-color 0.14s ease, color 0.14s ease;
+  position: relative;
+  box-shadow: none;
+}
+
+/* selected button: larger, purple background, white text and soft shadow */
+.role-btn.active {
+  background: var(--primary, #6B46C1);
+  color: #fff;
+  transform: scale(1.06);
+  padding: 12px 14px; /* larger padding makes the button visually bigger */
+  box-shadow: 0 12px 30px rgba(107, 70, 193, 0.18); /* soft purple shadow behind selected button */
+  z-index: 2;
+}
+
+/* ensure non-active button stays visually lower (no lift) */
+.role-btn:not(.active) {
+  transform: none;
+  z-index: 1;
+}
+
+/* subtle hover for both (keeps behavior consistent) */
+.role-btn:hover {
+  background: rgba(0,0,0,0.03);
+}
+
+/* on very small screens reduce scale so layout remains stable */
+@media (max-width: 360px) {
+  .role-btn.active {
+    transform: scale(1.03);
+    padding: 10px 12px;
+    box-shadow: 0 8px 20px rgba(107,70,193,0.14);
+  }
+}
+
+/* Ensure labels remain readable and aligned */
+.sign-up-container .role-select label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  color: inherit;
+}

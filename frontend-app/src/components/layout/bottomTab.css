@@ -1,0 +1,61 @@
+.bottom-tab {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 64px;
+  background: #ffffff;
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  border-top: 1px solid #eaeaea;
+  box-shadow: 0 -3px 10px rgba(0, 0, 0, 0.08);
+  z-index: 1000;
+}
+
+.tab-button {
+  flex: 1;
+  background: none;
+  border: none;
+  outline: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #6b7280; /* Gray */
+  font-size: 13px;
+  transition: all 0.25s ease;
+}
+
+.tab-button .tab-icon {
+  font-size: 20px;
+  margin-bottom: 4px;
+  transition: transform 0.2s ease;
+}
+
+.tab-button:hover .tab-icon {
+  transform: scale(1.15);
+}
+
+.tab-button.active {
+  color: #5A35A8;
+  font-weight: 600;
+}
+
+.tab-button.active .tab-icon {
+  color: #5A35A8;
+  transform: scale(1.2);
+}
+
+/* Optional: subtle indicator for active tab */
+.tab-button.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  height: 3px;
+  width: 28px;
+  background: #5A35A8;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}

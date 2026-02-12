@@ -1,0 +1,33 @@
+.height-inputs {
+  display: flex;
+  align-items: center;
+  gap: 8px; /* space between selects */
+}
+
+.height-inputs select {
+  border: none;
+  border-bottom: 2px solid #ccc;
+  background: transparent;
+  padding: 6px 4px;
+  font-size: 1rem;
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+
+.height-inputs select:focus {
+  border-bottom: 2px solid #2a9d8f;
+}
+
+.height-inputs .switch-btn {
+  margin-left: auto; /* pushes the button all the way to the right */
+  background: none;
+  border: none;
+  color: #2a9d8f;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.height-inputs .switch-btn:hover {
+  color: #23897b;
+}

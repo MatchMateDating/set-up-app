@@ -1,0 +1,59 @@
+.profile-page-wrapper {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  padding: 1.25rem;
+  box-sizing: border-box;
+}
+
+.profile-page-wrapper form.edit-card {
+  width: 100%;
+  max-width: 600px;
+}
+
+.preferences-card {
+  width: 100%;
+  max-width: 640px;
+  background: var(--surface, #fff);
+  border-radius: 16px;
+  padding: 28px 32px;
+  margin: 0 auto 40px auto;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+.preferences-form {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dash {
+  font-weight: bold;
+  margin: 0 4px;
+}
+
+.radius-slider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.preferences-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 12px;
+}
+

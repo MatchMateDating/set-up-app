@@ -1,0 +1,327 @@
+:root {
+  /* Purple palette (replaces magenta) */
+  --primary: #6B46C1;        /* medium purple */
+  --primary-dark: #5A35A8;   /* darker purple for hover */
+  --muted-bg: #f6f4fc;       /* very light purple-tinted background */
+  --card-border: #ebe7fb;    /* subtle purple-tinged card border */
+  --text-muted: #6b7280;
+  --surface: #ffffff;
+}
+
+.profile-container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 24px;
+  background: var(--muted-bg); /* subtle page background */
+  color: #222;
+  font-family: 'Segoe UI', Roboto, system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
+}
+
+.profile-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
+  padding: 16px;
+}
+
+.avatar {
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid #f0f0f0;
+  transition: transform 0.2s ease;
+  cursor: pointer;
+}
+
+.avatar:hover {
+  transform: scale(1.05);
+}
+
+.profile-info {
+  flex: 1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.name-section h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.subtext {
+  color: #666;
+  font-size: 0.9em;
+}
+
+.profile-actions .edit-icon {
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: background 0.2s ease;
+  color: var(--primary); /* sage color */
+}
+
+.profile-actions .edit-icon:hover {
+  color: var(--primary-dark);
+}
+
+.switch-btn {
+  color: var(--primary);
+  background: transparent; /* keep existing background behavior */
+  border: none;
+  padding: 6px;
+  cursor: pointer;
+}
+
+.switch-btn:hover {
+  color: var(--primary-dark);
+  background: rgba(0,0,0,0.03); /* subtle hover feedback */
+}
+
+.form-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 1.5rem;
+  justify-content: flex-end;
+}
+
+.save-btn,
+.cancel-btn {
+  padding: 10px 18px;
+  border-radius: 8px; /* slightly smaller radius */
+  border: none;
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 600;
+  transition: transform 0.12s ease, background 0.12s ease;
+}
+
+.save-btn {
+  background: var(--primary);
+  color: #fff;
+}
+
+.save-btn:hover {
+  background: var(--primary-dark);
+  transform: translateY(-1px);
+}
+
+.cancel-btn {
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--card-border);
+}
+
+.cancel-btn:hover {
+  background: rgba(0,0,0,0.03);
+  transform: translateY(-1px);
+}
+
+.section {
+  margin-top: 24px;
+}
+
+.image-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.image-wrapper {
+  position: relative;
+}
+
+.profile-img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 12px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+  transition: transform 0.2s ease;
+}
+
+.profile-img:hover {
+  transform: scale(1.03);
+}
+
+.image-placeholder {
+  background-color: #fafafa;
+  border: 2px dashed #bbb;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  aspect-ratio: 1;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.image-placeholder:hover {
+  background-color: #f0f0f0;
+}
+
+.delete-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: rgba(255, 0, 0, 0.75);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.delete-btn:hover {
+  background: red;
+}
+
+.format-classic .profile-card {
+  border: 1px solid var(--card-border);
+  padding: 1rem;
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: none;
+}
+
+.format-minimal .profile-card {
+  border: none;
+  background: transparent;
+  padding: 0.5rem;
+}
+
+.format-bold .profile-header {
+  background: var(--primary);
+  color: #fff;
+  padding: 1rem;
+  border-radius: 8px;
+}
+
+.format-framed .profile-card {
+  border: 2px solid var(--card-border);
+  padding: 1.25rem;
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+/* Vertical layout */
+.image-gallery.vertical {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.image-gallery.vertical .image-wrapper img {
+  width: 100%;
+  max-width: 250px;
+  border-radius: 8px;
+}
+
+/* Grid layout */
+.image-gallery.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 0.75rem;
+}
+
+.image-gallery.grid .image-wrapper img {
+  width: 100%;
+  border-radius: 8px;
+}
+
+input[type="text"],
+input[type="number"],
+input[type="date"],
+input[type="email"],
+input[type="password"],
+select,
+textarea {
+  border: none;
+  border-bottom: 2px solid #e0e6ef; /* thicker baseline underline */
+  background: transparent;
+  padding: 8px 4px;
+  font-size: 1rem;
+  outline: none;
+  transition: border-color 0.12s ease;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-bottom: 2px solid var(--primary); /* thick focused underline */
+  box-shadow: none;
+}
+
+/* Remove heavy default select arrow styling, keep clean */
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: none;
+  border-radius: 0;
+}
+
+/* React-select (Preferred Genders) styling using classNamePrefix="pg" */
+/* wrapper */
+.preferred-genders-select {
+  width: 100%;
+}
+
+/* control (the visible select box) - give it a single thick underline */
+.preferred-genders-select .pg__control {
+  border: none !important;
+  border-bottom: 2px solid #e0e6ef !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  min-height: 32px;
+}
+
+/* focused state: change underline to primary */
+.preferred-genders-select .pg__control--is-focused {
+  border-bottom-color: var(--primary) !important;
+  box-shadow: none !important;
+}
+
+/* remove any duplicated bottom border on inner elements */
+.preferred-genders-select .pg__control > * {
+  border-bottom: none !important;
+}
+
+/* multi-value pills */
+.preferred-genders-select .pg__multi-value {
+  background: var(--primary);
+  color: #fff;
+  border-radius: 12px;
+  padding: 0 4px;
+}
+
+.preferred-genders-select .pg__multi-value__label {
+  color: #fff;
+  font-size: 0.9rem;
+}
+
+.preferred-genders-select .pg__multi-value__remove {
+  color: #fff;
+}
+
+/* ensure height-unit switch text uses sage (override older turquoise) */
+button.switch-btn,
+.switch-btn,
+.height-selector .switch-btn {
+  color: var(--primary) !important;
+}
+button.switch-btn:hover,
+.switch-btn:hover,
+.height-selector .switch-btn:hover {
+  color: var(--primary-dark) !important;
+}

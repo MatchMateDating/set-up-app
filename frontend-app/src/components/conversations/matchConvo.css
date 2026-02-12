@@ -1,0 +1,207 @@
+:root {
+    --primary: #6b46c1;
+    --primary-dark: #553c9a;
+    --neutral: #f9fafb;
+    --neutral-border: #e5e7eb;
+    --neutral-dark: #d1d5db;
+    --text-muted: #6b7280;
+}
+
+.match-convo-container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    padding: 0;
+    box-sizing: border-box;
+    overflow: hidden;
+    padding-top: 40px;
+}
+
+.back-button {
+    background: none;
+    border: none;
+    font-size: 1rem;
+    cursor: pointer;
+    color: var(--primary);
+    align-self: flex-start;
+    margin: 10px 16px 0 16px;
+}
+
+.match-avatar-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-top: 10px;
+    margin-bottom: 10px;
+}
+
+.match-avatar-img {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid var(--primary);
+    margin-bottom: 5px;
+}
+
+.match-placeholder {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: var(--neutral-dark);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: bold;
+    font-size: 1.2rem;
+    margin-bottom: 5px;
+}
+
+.convo-title {
+    font-size: 1.4rem;
+    color: var(--primary);
+    font-weight: 600;
+    margin: 0;
+}
+
+.messages-box {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    border-top: 1px solid var(--neutral-border);
+    border-bottom: 1px solid var(--neutral-border);
+    background: var(--neutral);
+    display: flex;
+    flex-direction: column;
+}
+
+.sender-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin-bottom: 2px;
+}
+
+.message-bubble {
+    max-width: 70%;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    border-radius: 16px;
+    position: relative;
+    word-wrap: break-word;
+    white-space: pre-wrap;
+}
+
+.message-bubble.mine {
+    align-self: flex-end;
+    background-color: var(--primary);
+    color: white;
+    border-bottom-right-radius: 4px;
+}
+
+.message-bubble.theirs {
+    align-self: flex-start;
+    background-color: white;
+    color: black;
+    border-bottom-left-radius: 4px;
+    border: 1px solid var(--neutral-border);
+}
+
+.message-text {
+    margin: 0;
+}
+
+.puzzle-bubble {
+    background: var(--primary-dark);
+    color: white;
+    border: none;
+    border-radius: 12px;
+    padding: 6px 10px;
+    cursor: pointer;
+    margin-top: 4px;
+    font-size: 0.85rem;
+}
+
+.timestamp {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    margin-top: 4px;
+    display: block;
+    text-align: right;
+}
+
+.message-input {
+    width: 100%;
+    border: 1px solid var(--neutral-dark);
+    border-radius: 8px;
+    padding: 8px;
+    margin: 8px 16px;
+    resize: none;
+    font-size: 0.9rem;
+    box-sizing: border-box;
+}
+
+.send-actions {
+    display: flex;
+    gap: 0.5rem;
+    padding: 0 16px 16px;
+}
+
+.send-convo-button,
+.send-puzzle-button {
+    flex: 1;
+    padding: 10px;
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+
+.send-convo-button:disabled {
+    background: var(--neutral-dark);
+    cursor: not-allowed;
+}
+
+.send-puzzle-button {
+    background: var(--primary-dark);
+}
+
+.pending-approval-info {
+    background: #fff3cd;
+    padding: 12px;
+    margin: 8px 16px;
+    border-radius: 8px;
+    border: 1px solid #ffc107;
+}
+
+.message-count-text {
+    font-size: 14px;
+    color: #856404;
+    margin: 0 0 4px 0;
+}
+
+.limit-reached-text {
+    font-size: 12px;
+    color: #d32f2f;
+    margin: 0 0 8px 0;
+    font-weight: 600;
+}
+
+.approve-button {
+    width: 100%;
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 10px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.approve-button:hover {
+    background: var(--primary-dark);
+}
