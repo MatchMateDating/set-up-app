@@ -1,39 +1,12 @@
 from flask import Blueprint, request, jsonify
-import boto3
+import resend
 import os
-# from twilio.rest import Client
+
 invite_bp = Blueprint('invite', __name__)
 
-# AWS clients - lazy initialization to avoid errors if AWS_PROFILE is empty
-def get_ses_client():
-    """Get SES client, handling AWS_PROFILE if set"""
-    aws_profile = os.getenv("AWS_PROFILE")
-    client_kwargs = {}
-    
-    # Add region if provided
-    if os.getenv("AWS_REGION"):
-        client_kwargs["region_name"] = os.getenv("AWS_REGION")
-    
-    # Add explicit credentials if provided
-    if os.getenv("SES_SNS_KEY") and os.getenv("SES_SNS_SECRET"):
-        client_kwargs["aws_access_key_id"] = os.getenv("SES_SNS_KEY")
-        client_kwargs["aws_secret_access_key"] = os.getenv("SES_SNS_SECRET")
-    
-    # Use AWS_PROFILE if set and not empty, otherwise use default credentials
-    if aws_profile:
-        session = boto3.Session(profile_name=aws_profile)
-        return session.client("ses", **client_kwargs)
-    else:
-        return boto3.client("ses", **client_kwargs)
-# sns = boto3.client(
-#     "sns", 
-#     region_name="us-west-2",
-#     aws_access_key_id=os.getenv("SES_SNS_KEY"),
-#     aws_secret_access_key=os.getenv("SES_SNS_SECRET")
-# )
-
-# Twilio client
-# client = Client(os.getenv("TWILIO_ACCOUNT_SID"), os.getenv("TWILIO_AUTH_TOKEN"))    
+# Initialize Resend
+resend.api_key = os.getenv("RESEND_API_KEY")
+SENDER_EMAIL = "donotreply@matchmatedating.com"
 
 
 @invite_bp.route("/email", methods=["POST"])
@@ -43,26 +16,18 @@ def invite_email():
     referral_code = data.get("referralCode")
     signup_url = f"{os.getenv('SIGNUP_URL')}?ref={referral_code}"
     print("Signup URL:", signup_url)
-    print("SES Sender Email:", os.getenv("SES_SENDER_EMAIL"))
 
     try:
-        ses = get_ses_client()
-        response = ses.send_email(
-            Source=os.getenv("SES_SENDER_EMAIL"),
-            Destination={"ToAddresses": [email]},
-            Message={
-                "Subject": {"Data": "Join this app with my referral code!"},
-                "Body": {
-                    "Text": {
-                        "Data": f"Hey! Sign up here: {signup_url}"
-                    }
-                },
-            },
-        )
-        print("SES Response:", response)
+        response = resend.Emails.send({
+            "from": SENDER_EMAIL,
+            "to": [email],
+            "subject": "Join MatchMate with my referral code!",
+            "html": f"<p>Hey! Sign up here: <a href='{signup_url}'>{signup_url}</a></p>",
+        })
+        print("Resend Response:", response)
         return jsonify({"success": True, "message": "Email sent"})
     except Exception as e:
-        print("SES Error:", str(e))   # 👈 log full error
+        print("Resend Error:", str(e))
         return jsonify({"success": False, "error": str(e)}), 500
 
 
