@@ -85,6 +85,11 @@ cd backend
 python3 -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
+
+# Create .env file from template
+cp env.template .env
+# Edit .env with your actual values (see Environment Variables section below)
+
 export FLASK_APP=app:create_app
 export FLASK_ENV=development
 flask db init
@@ -99,6 +104,7 @@ flask run
 matchmatedating-app/
 ├── backend/              # Flask backend API
 │   ├── app/             # Application code
+│   ├── env.template     # Environment variables template
 │   ├── requirements.txt # Python dependencies
 │   └── run.py           # Entry point
 ├── matchmaker-mobile/    # React Native mobile app (Expo)
@@ -106,16 +112,36 @@ matchmatedating-app/
 │   └── package.json     # Node dependencies
 ├── frontend-app/         # React web frontend
 │   └── package.json     # Node dependencies
-├── .env                  # Environment variables (gitignored)
 └── entrypoint.sh         # Production deployment script
 ```
 
 ## Environment Variables
 
+### Backend (`.env` in `backend/` directory)
+
+**Setup:**
+1. Copy the template: `cp backend/env.template backend/.env`
+2. Edit `.env` with your actual values
+3. The `.env` file is gitignored and won't be committed
+
+**Required for Production:**
+- `RESEND_API_KEY` - Resend API key for email sending
+- `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME` - Cloudflare R2 storage
+- `CDN_BASE_URL` - Your CDN domain for serving images (e.g., `https://cdn.yourdomain.com/images`)
+- `SECRET_KEY`, `JWT_SECRET_KEY` - Strong random keys (generate with: `python -c "import secrets; print(secrets.token_urlsafe(32))"`)
+- Database credentials (if using PostgreSQL)
+
+**Optional for Local Development:**
+- `SECRET_KEY`, `JWT_SECRET_KEY` - Defaults will be used if not set (not secure for production!)
+- Database variables - Leave empty to use SQLite
+- `TEST_MODE_ENABLED=true` - Skip email verification for test emails
+
+**See `backend/env.template` for all available variables with descriptions.**
+
 ### Mobile App (`.env` in `matchmaker-mobile/` directory)
 - `EXPO_PUBLIC_API_BASE_URL` - Backend API URL
   - Production: `https://matchmatedating-app-production.up.railway.app`
-  - Local: `http://localhost:5000` or `http://YOUR_LOCAL_IP:5000`
+  - Local: `http://127.0.0.1:5000` (iOS Simulator) or `http://10.0.2.2:5000` (Android Emulator) or `http://YOUR_LOCAL_IP:5000` (Physical device)
 
 ### Web Frontend (`.env.local` in `frontend-app/` directory)
 - `REACT_APP_API_BASE_URL` - Backend API URL
@@ -123,16 +149,7 @@ matchmatedating-app/
   - Local: `http://localhost:5000`
 
 ### Backend (Railway Production)
-All backend environment variables are configured in Railway dashboard:
-- `DB_USERNAME`, `DB_PASSWORD`, `DB_HOST`, `DB_NAME`, `DB_PORT` - PostgreSQL connection
-- `AWS_REGION` - AWS region (e.g., `us-east-2`)
-- `SES_SENDER_EMAIL` - Verified sender email
-- `SES_SNS_KEY`, `SES_SNS_SECRET` - AWS SES credentials
-- `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME` - Cloudflare R2
-- `SECRET_KEY`, `JWT_SECRET_KEY` - Application secrets
-- `TEST_MODE_ENABLED` - Enable test mode (skips email verification for test emails)
-- `FLASK_APP` - Set to `app:create_app`
-- `PORT` - Server port (Railway sets this automatically)
+All backend environment variables are configured in Railway dashboard. See `backend/env.template` for the complete list of variables needed.
 
 See `.cursor/RAILWAY_DEPLOYMENT.md` for full deployment details.
 
@@ -174,10 +191,13 @@ Main endpoints:
 
 ## Development Notes
 
-- Environment files (`.env`, `.env.local`) are gitignored - each developer creates their own
-- Backend migrations are handled automatically in production via `entrypoint.sh`
-- Test mode can be enabled in Railway: `TEST_MODE_ENABLED=true` (skips email verification for test emails)
-- The mobile app `.env` file must be in `matchmaker-mobile/` directory for Expo to read it
+- **Environment files** (`.env`, `.env.local`) are gitignored - each developer creates their own
+- **Backend setup**: Copy `backend/env.template` to `backend/.env` and fill in your values
+- **Backend migrations** are handled automatically in production via `entrypoint.sh`
+- **Test mode** can be enabled: `TEST_MODE_ENABLED=true` (skips email verification for test emails)
+- **Mobile app `.env`** file must be in `matchmaker-mobile/` directory for Expo to read it
+- **Email service**: Currently using Resend (not AWS SES)
+- **Image storage**: Images are stored in Cloudflare R2 and served via CDN
 
 ## Contributing
 

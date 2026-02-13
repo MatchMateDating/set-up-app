@@ -35,13 +35,37 @@ run:
 make sure you're in the backend folder
 flask analyze-conversation <user_id_1> <user_id_2>
 
+## Environment Variables Setup
+
+### Creating .env File
+
+1. Copy the template file to create your `.env` file:
+   ```bash
+   cp env.template .env
+   ```
+
+2. Edit the `.env` file with your actual values. The template includes all available environment variables with descriptions.
+
+**Important:** The `.env` file is gitignored and won't be committed to the repository.
+
+### Required for Production
+
+For production deployment (e.g., Railway), you'll need to set these in your deployment platform's environment variables:
+- `SES_SNS_KEY` and `SES_SNS_SECRET` - AWS SES credentials (from grainygains IAM user)
+- `SES_SENDER_EMAIL` - Verified sender email in AWS SES
+- `AWS_REGION` - AWS region where SES is configured
+- Database credentials (if using PostgreSQL)
+- Storage credentials (R2 or S3)
+
+See `AWS_SES_SETUP.md` in the root directory for detailed SES setup instructions.
+
 ## Test Mode for Email Verification
 
 For development and testing, you can enable test mode to skip email verification for test email addresses.
 
 ### Setup
 
-1. Create a `.env` file in the `backend` directory (if it doesn't exist)
+1. Create a `.env` file in the `backend` directory (if it doesn't exist) or use the template
 2. Add the following environment variables:
 
 ```bash
