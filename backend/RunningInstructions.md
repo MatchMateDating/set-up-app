@@ -1,47 +1,126 @@
 Go to backend
 cd backend
 
-For macOS: follow the instructions here https://realpython.com/python-virtual-environments-a-primer/ to create a venv virtual environment
+## Create Virtual Environment
 
-Activate:
-macOs: source {name of virtual environemnt}/bin/activate
-Windows: .\{name of virtual environemnt}\Scripts\activate
+**macOS/Linux:**
+Follow the instructions here https://realpython.com/python-virtual-environments-a-primer/ to create a venv virtual environment
 
-Download requirements:
+**Windows:**
+```bash
+python -m venv venv
+```
+
+## Activate Virtual Environment
+
+**macOS/Linux:**
+```bash
+source venv/bin/activate
+```
+
+**Windows:**
+```bash
+venv\Scripts\activate
+```
+
+## Install Dependencies
+
+```bash
 pip install -r requirements.txt
+```
 
-in the backend folder run:
-macOs:
+## Set Environment Variables
+
+**macOS/Linux:**
+```bash
 export FLASK_APP=app:create_app
 export FLASK_ENV=development
+```
 
-Windows:
+**Windows (Command Prompt):**
+```bash
 set FLASK_APP=app:create_app
 set FLASK_ENV=development
+```
 
+**Windows (PowerShell):**
+```powershell
+$env:FLASK_APP="app:create_app"
+$env:FLASK_ENV="development"
+```
 
-Create database: (add python -m in front of each command in macOS)
-delete the instance and migrations folders
+## Setup Environment File
+
+**All platforms:**
+```bash
+cp env.template .env
+# Then edit .env with your actual values
+```
+
+## Create Database
+
+**macOS/Linux:**
+```bash
+# Delete the instance and migrations folders if they exist
+rm -rf instance migrations
+
+# Initialize and migrate database
+python -m flask db init
+python -m flask db migrate
+python -m flask db upgrade
+```
+
+**Windows:**
+```bash
+# Delete the instance and migrations folders if they exist
+rmdir /s /q instance
+rmdir /s /q migrations
+
+# Initialize and migrate database
 flask db init
 flask db migrate
 flask db upgrade
+```
 
-run:
+## Run the Application
+
+**macOS/Linux:**
+```bash
+python -m flask run
+```
+
+**Windows:**
+```bash
 flask run
-macOS: python -m flask run 
+``` 
 
-To run the ai_embeddings model before we integrate it within the app:
-run:
-make sure you're in the backend folder
+## Run AI Embeddings Analysis
+
+**All platforms:**
+```bash
+# Make sure you're in the backend folder and virtual environment is activated
 flask analyze-conversation <user_id_1> <user_id_2>
+```
 
 ## Environment Variables Setup
 
 ### Creating .env File
 
 1. Copy the template file to create your `.env` file:
+
+   **macOS/Linux:**
    ```bash
    cp env.template .env
+   ```
+
+   **Windows (Command Prompt):**
+   ```bash
+   copy env.template .env
+   ```
+
+   **Windows (PowerShell):**
+   ```powershell
+   Copy-Item env.template .env
    ```
 
 2. Edit the `.env` file with your actual values. The template includes all available environment variables with descriptions.
@@ -51,13 +130,13 @@ flask analyze-conversation <user_id_1> <user_id_2>
 ### Required for Production
 
 For production deployment (e.g., Railway), you'll need to set these in your deployment platform's environment variables:
-- `SES_SNS_KEY` and `SES_SNS_SECRET` - AWS SES credentials (from grainygains IAM user)
-- `SES_SENDER_EMAIL` - Verified sender email in AWS SES
-- `AWS_REGION` - AWS region where SES is configured
+- `RESEND_API_KEY` - Resend API key for email sending
+- `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME` - Cloudflare R2 storage credentials
+- `CDN_BASE_URL` - Your CDN domain for serving images
+- `SECRET_KEY`, `JWT_SECRET_KEY` - Strong random keys (generate with: `python -c "import secrets; print(secrets.token_urlsafe(32))"`)
 - Database credentials (if using PostgreSQL)
-- Storage credentials (R2 or S3)
 
-See `AWS_SES_SETUP.md` in the root directory for detailed SES setup instructions.
+See `backend/env.template` for the complete list of all available environment variables.
 
 ## Test Mode for Email Verification
 

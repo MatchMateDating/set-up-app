@@ -114,11 +114,6 @@ def upload_image_to_cloud(image_file, user_id):
             region = current_app.config.get('S3_REGION', 'us-east-1')
             bucket_name = current_app.config.get('S3_BUCKET_NAME')
             image_url = f"https://{bucket_name}.s3.{region}.amazonaws.com/{unique_filename}"
-            else:
-                # S3 public URL format
-                region = current_app.config.get('S3_REGION', 'us-east-1')
-                bucket_name = current_app.config.get('S3_BUCKET_NAME')
-                image_url = f"https://{bucket_name}.s3.{region}.amazonaws.com/{unique_filename}"
         
         return image_url, unique_filename
         
