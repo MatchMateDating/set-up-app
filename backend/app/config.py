@@ -3,17 +3,18 @@ import os
 class Config:
     # Database Configuration
     # Supports both SQLite (local dev) and PostgreSQL (production)
-    DB_USERNAME = os.getenv('DB_USERNAME')
-    DB_PASSWORD = os.getenv('DB_PASSWORD')
-    DB_HOST = os.getenv('DB_HOST')
+    DB_USERNAME = os.getenv('DB_USERNAME') or None
+    DB_PASSWORD = os.getenv('DB_PASSWORD') or None
+    DB_HOST = os.getenv('DB_HOST') or None
     DB_PORT = os.getenv('DB_PORT', '5432')
     DB_NAME = os.getenv('DB_NAME', 'postgres')
     
     # Use PostgreSQL if credentials are provided, otherwise fall back to SQLite
-    if DB_USERNAME and DB_PASSWORD and DB_HOST:
+    # Check for None or empty strings
+    if DB_USERNAME and DB_PASSWORD and DB_HOST and DB_HOST.strip():
         SQLALCHEMY_DATABASE_URI = f'postgresql://{DB_USERNAME}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}'
     else:
-        # For running the DB locally
+        # For running the DB locally with SQLite
         SQLALCHEMY_DATABASE_URI = 'sqlite:///../instance/users.db'
 
     # Application Secrets

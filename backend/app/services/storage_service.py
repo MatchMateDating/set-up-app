@@ -81,33 +81,39 @@ def upload_image_to_cloud(image_file, user_id):
             return None, None
         
         # Upload file
+        # Note: R2 doesn't support ACL, so we skip it for R2
+        upload_args = {
+            'ContentType': image_file.content_type or 'image/jpeg'
+        }
+        if not current_app.config.get('USE_CLOUDFLARE_R2'):
+            # Only set ACL for S3 (R2 doesn't support it)
+            upload_args['ACL'] = 'public-read'
+        
         s3_client.upload_fileobj(
             image_file,
             bucket_name,
             unique_filename,
-            ExtraArgs={
-                'ContentType': image_file.content_type or 'image/jpeg',
-                'ACL': 'public-read'  # Make images publicly accessible
-            }
+            ExtraArgs=upload_args
         )
         
         # Generate URL
         cdn_base_url = current_app.config.get('CDN_BASE_URL')
+        
         if cdn_base_url:
-            # Use CDN URL if configured
+            # Use CDN URL if configured (custom domain: cdn.matchmatedating.com/images)
             image_url = f"{cdn_base_url.rstrip('/')}/{unique_filename}"
+        elif current_app.config.get('USE_CLOUDFLARE_R2'):
+            # R2: Generate presigned URL as fallback (if CDN not configured)
+            image_url = s3_client.generate_presigned_url(
+                'get_object',
+                Params={'Bucket': bucket_name, 'Key': unique_filename},
+                ExpiresIn=31536000  # 1 year expiration
+            )
         else:
-            # Use direct bucket URL or presigned URL
-            if current_app.config.get('USE_CLOUDFLARE_R2'):
-                # R2 public URL format
-                account_id = current_app.config.get('R2_ACCOUNT_ID')
-                bucket_name = current_app.config.get('R2_BUCKET_NAME')
-                image_url = f"https://{account_id}.r2.cloudflarestorage.com/{bucket_name}/{unique_filename}"
-            else:
-                # S3 public URL format
-                region = current_app.config.get('S3_REGION', 'us-east-1')
-                bucket_name = current_app.config.get('S3_BUCKET_NAME')
-                image_url = f"https://{bucket_name}.s3.{region}.amazonaws.com/{unique_filename}"
+            # S3 public URL format
+            region = current_app.config.get('S3_REGION', 'us-east-1')
+            bucket_name = current_app.config.get('S3_BUCKET_NAME')
+            image_url = f"https://{bucket_name}.s3.{region}.amazonaws.com/{unique_filename}"
         
         return image_url, unique_filename
         
