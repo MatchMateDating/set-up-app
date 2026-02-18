@@ -11,11 +11,23 @@ export const UserProvider = ({ children }) => {
   // Load user once on app start
   useEffect(() => {
     const loadUser = async () => {
-      const stored = await AsyncStorage.getItem('user');
-      if (stored) {
-        setUser(JSON.parse(stored));
+      try {
+        const stored = await AsyncStorage.getItem('user');
+        if (stored) {
+          try {
+            const parsedUser = JSON.parse(stored);
+            setUser(parsedUser);
+          } catch (parseError) {
+            console.error('Error parsing stored user data:', parseError);
+            // Clear corrupted data
+            await AsyncStorage.removeItem('user');
+          }
+        }
+      } catch (error) {
+        console.error('Error loading user from storage:', error);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
     loadUser();
@@ -24,7 +36,11 @@ export const UserProvider = ({ children }) => {
   // Keep AsyncStorage in sync
   useEffect(() => {
     if (user) {
-      AsyncStorage.setItem('user', JSON.stringify(user));
+      try {
+        AsyncStorage.setItem('user', JSON.stringify(user));
+      } catch (error) {
+        console.error('Error saving user to storage:', error);
+      }
     }
   }, [user]);
 
