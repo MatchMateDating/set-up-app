@@ -7,7 +7,7 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "jsEngine": "hermes",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "extra": {
       "eas": {
         "projectId": "1b2bd6ca-592d-48d6-8e37-9498d29fb228"
@@ -20,31 +20,24 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.allyaoyao.matchmaker-mobile",
+      "bundleIdentifier": "com.matchmate.matchmatedating",
       "infoPlist": {
         "UIBackgroundModes": [
-          "remote-notification",
           "remote-notification"
-        ]
+        ],
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSLocationWhenInUseUsageDescription": "This app uses your location to find matches nearby.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "This app uses your location to find matches nearby."
       }
     },
-    "plugins": [
-      [
-        "expo-notifications",
-        {
-          "icon": "./assets/icon.png",
-          "color": "#6B46C1",
-          "sounds": []
-        }
-      ]
-    ],
+    "plugins": [],
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.allyaoyao.matchmakermobile"
+      "package": "com.matchmate.matchmatedating"
     },
     "web": {
       "favicon": "./assets/favicon.png"
