@@ -62,8 +62,20 @@ export const NotificationProvider = ({ children }) => {
         try {
           const token = await AsyncStorage.getItem('token');
           if (!token) {
+            // No token means user is not logged in - don't make API calls
             setNotificationsEnabled(false);
             lastSavedValueRef.current = false;
+            setLoading(false);
+            // Clear user from context if no token exists
+            if (user?.id) {
+              // User object exists but no token - clear it
+              await AsyncStorage.removeItem('user');
+            }
+            return;
+          }
+
+          // Double-check user still exists (might have been cleared by another process)
+          if (currentUserIdRef.current !== user.id) {
             setLoading(false);
             return;
           }
@@ -86,10 +98,14 @@ export const NotificationProvider = ({ children }) => {
             }
           } else if (res.status === 401) {
             const errorData = await res.json().catch(() => ({}));
-            console.warn('Auth error fetching notification preferences:', errorData);
-            if (errorData.error_code === 'TOKEN_EXPIRED') {
+            // Clear token and user for any 401 error (TOKEN_EXPIRED, INVALID_TOKEN, etc.)
+            if (errorData.error_code === 'TOKEN_EXPIRED' || errorData.error_code === 'INVALID_TOKEN') {
               await AsyncStorage.removeItem('token');
               await AsyncStorage.removeItem('user');
+              // Don't log as warning - this is expected when token is invalid
+              // Just silently clear and reset state
+            } else {
+              console.warn('Auth error fetching notification preferences:', errorData);
             }
             // Default to false on auth error
             setNotificationsEnabled(false);
@@ -135,12 +151,16 @@ export const NotificationProvider = ({ children }) => {
       return;
     }
 
-    const savePreference = async () => {
+    // Check for token before making API call
+    const checkTokenAndSave = async () => {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) {
+        // No token - don't make API call
+        return;
+      }
+
       isSavingRef.current = true;
       try {
-        const token = await AsyncStorage.getItem('token');
-        if (!token) return;
-
         // Store user ID at the start of the save operation to prevent cross-user contamination
         const userIdAtSaveStart = user.id;
         const refUserIdAtSaveStart = currentUserIdRef.current;
@@ -151,6 +171,7 @@ export const NotificationProvider = ({ children }) => {
             userId: userIdAtSaveStart,
             refUserId: refUserIdAtSaveStart
           });
+          isSavingRef.current = false;
           return;
         }
 
@@ -184,12 +205,10 @@ export const NotificationProvider = ({ children }) => {
         } else {
           const errorData = await res.json().catch(() => ({}));
           
-          // Handle token expiration
-          if (res.status === 401 && errorData.error_code === 'TOKEN_EXPIRED') {
+          // Handle token errors (expired or invalid)
+          if (res.status === 401 && (errorData.error_code === 'TOKEN_EXPIRED' || errorData.error_code === 'INVALID_TOKEN')) {
             await AsyncStorage.removeItem('token');
             await AsyncStorage.removeItem('user');
-            console.warn('Token expired while saving notification preference. User needs to log in again.');
-            // Don't try to save again - user needs to re-authenticate
             return;
           } else if (res.status === 404) {
             console.warn('User not found while saving notification preference, clearing stored data');
@@ -208,7 +227,7 @@ export const NotificationProvider = ({ children }) => {
       }
     };
 
-    savePreference();
+    checkTokenAndSave();
   }, [notificationsEnabled, user?.id, loading]);
 
   /* -------------------------------------------

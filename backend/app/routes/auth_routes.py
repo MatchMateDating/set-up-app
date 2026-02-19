@@ -3,7 +3,7 @@ from app.models import db, User
 from flask_jwt_extended import create_access_token
 from flask import current_app
 from datetime import datetime, timedelta
-import boto3
+import resend
 import os
 import re
 from twilio.rest import Client
@@ -30,27 +30,9 @@ def is_test_email(email):
     test_domains = get_test_email_domains()
     return any(email.lower().endswith(domain.lower()) for domain in test_domains)
 
-# AWS SES client helper (reused from invite_routes pattern)
-def get_ses_client():
-    """Get SES client, handling AWS_PROFILE if set"""
-    aws_profile = os.getenv("AWS_PROFILE")
-    client_kwargs = {}
-    
-    # Add region if provided
-    if os.getenv("AWS_REGION"):
-        client_kwargs["region_name"] = os.getenv("AWS_REGION")
-    
-    # Add explicit credentials if provided
-    if os.getenv("SES_SNS_KEY") and os.getenv("SES_SNS_SECRET"):
-        client_kwargs["aws_access_key_id"] = os.getenv("SES_SNS_KEY")
-        client_kwargs["aws_secret_access_key"] = os.getenv("SES_SNS_SECRET")
-    
-    # Use AWS_PROFILE if set and not empty, otherwise use default credentials
-    if aws_profile:
-        session = boto3.Session(profile_name=aws_profile)
-        return session.client("ses", **client_kwargs)
-    else:
-        return boto3.client("ses", **client_kwargs)
+# Initialize Resend API key
+resend.api_key = os.getenv("RESEND_API_KEY")
+SENDER_EMAIL = "donotreply@matchmatedating.com"
 
 def get_twilio_client():
     """Get Twilio client"""
@@ -89,50 +71,27 @@ def send_verification_sms(phone_number, verification_token, first_name):
         return False
 
 def send_verification_email(email, verification_token, first_name):
-    """Send verification email using AWS SES"""
+    """Send verification email using Resend"""
     try:
-        ses = get_ses_client()
-        sender_email = os.getenv("SES_SENDER_EMAIL")
-        
-        # Build verification URL (for mobile app, this could be a deep link or API endpoint)
-        # For now, we'll use a code-based verification
-        verification_url = f"{os.getenv('API_BASE_URL', 'http://localhost:5000')}/auth/verify-email?token={verification_token}"
-        
-        # Email content
         subject = "Verify Your Email Address"
-        body_text = f"""Hello {first_name or 'there'},
-            Please verify your email address by clicking the link below or entering the verification code in the app:
-
-            Verification Code: {verification_token}
-
-            If you didn't create an account, please ignore this email.
-
-            Best regards,
-            The Team"""
-        
         body_html = f"""<html>
             <head></head>
             <body>
               <h2>Hello {first_name or 'there'},</h2>
-              <p>Please verify your email address by clicking the link below or entering the verification code in the app:</p>
+              <p>Please verify your email address by entering the verification code in the app:</p>
               <p><strong>Verification Code: {verification_token}</strong></p>
               <p>If you didn't create an account, please ignore this email.</p>
-              <p>Best regards,<br>The Team</p>
+              <p>Best regards,<br>The MatchMate Team</p>
             </body>
             </html>"""
         
-        response = ses.send_email(
-            Source=sender_email,
-            Destination={"ToAddresses": [email]},
-            Message={
-                "Subject": {"Data": subject},
-                "Body": {
-                    "Text": {"Data": body_text},
-                    "Html": {"Data": body_html}
-                },
-            },
-        )
-        print(f"Verification email sent to {email}: {response.get('MessageId')}")
+        response = resend.Emails.send({
+            "from": SENDER_EMAIL,
+            "to": [email],
+            "subject": subject,
+            "html": body_html,
+        })
+        print(f"Verification email sent to {email}: {response.get('id')}")
         return True
     except Exception as e:
         print(f"Error sending verification email: {str(e)}")
@@ -488,28 +447,12 @@ def resend_verification():
     }), 200
 
 def send_password_reset_email(email, reset_token, first_name):
-    """Send password reset email using AWS SES"""
+    """Send password reset email using Resend"""
     try:
-        ses = get_ses_client()
-        sender_email = os.getenv("SES_SENDER_EMAIL")
         frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
-        
         reset_url = f"{frontend_url}/reset-password?token={reset_token}"
         
         subject = "Reset Your Password"
-        body_text = f"""Hello {first_name or 'there'},
-        
-You requested to reset your password. Click the link below to reset it:
-
-{reset_url}
-
-This link will expire in 1 hour.
-
-If you didn't request a password reset, please ignore this email.
-
-Best regards,
-The Team"""
-        
         body_html = f"""<html>
             <head></head>
             <body>
@@ -520,22 +463,17 @@ The Team"""
               <p>{reset_url}</p>
               <p>This link will expire in 1 hour.</p>
               <p>If you didn't request a password reset, please ignore this email.</p>
-              <p>Best regards,<br>The Team</p>
+              <p>Best regards,<br>The MatchMate Team</p>
             </body>
             </html>"""
         
-        response = ses.send_email(
-            Source=sender_email,
-            Destination={"ToAddresses": [email]},
-            Message={
-                "Subject": {"Data": subject},
-                "Body": {
-                    "Text": {"Data": body_text},
-                    "Html": {"Data": body_html}
-                },
-            },
-        )
-        print(f"Password reset email sent to {email}: {response.get('MessageId')}")
+        response = resend.Emails.send({
+            "from": SENDER_EMAIL,
+            "to": [email],
+            "subject": subject,
+            "html": body_html,
+        })
+        print(f"Password reset email sent to {email}: {response.get('id')}")
         return True
     except Exception as e:
         print(f"Error sending password reset email: {str(e)}")

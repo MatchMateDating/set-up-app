@@ -6,10 +6,20 @@ from sqlalchemy import or_
 import os
 import dotenv
 from dotenv import load_dotenv
-from openai import OpenAI
 load_dotenv()
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+# Lazy initialization - only create client when needed
+_client = None
+
+def get_openai_client():
+    """Get or create OpenAI client (lazy initialization)"""
+    global _client
+    if _client is None:
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            raise ValueError("OPENAI_API_KEY environment variable is not set")
+        _client = OpenAI(api_key=api_key)
+    return _client
 
 
 def get_user_conversation_text(user_id: int, limit: int = 100) -> str:
@@ -30,6 +40,7 @@ def get_embedding(text: str) -> list:
     if not text.strip():
         return [0] * 1536  # empty vector
 
+    client = get_openai_client()
     response = client.embeddings.create(
         input=text,
         model="text-embedding-3-small"
@@ -85,6 +96,7 @@ def explain_conversation_similarity(user_a_id: int, user_b_id: int) -> str:
     - Any notable differences
     """
 
+    client = get_openai_client()
     response = client.chat.completions.create(
         model="gpt-4o-mini",  # or "gpt-4o" for higher quality 
         messages=[
