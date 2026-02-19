@@ -4,7 +4,7 @@
     "slug": "matchmaker-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/matchmate_logo.png",
     "userInterfaceStyle": "light",
     "jsEngine": "hermes",
     "newArchEnabled": true,
