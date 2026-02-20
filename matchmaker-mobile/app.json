@@ -19,6 +19,7 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
+      "icon": "./assets/matchmate_logo_1024.png",
       "supportsTablet": true,
       "bundleIdentifier": "com.matchmate.matchmatedating",
       "infoPlist": {
