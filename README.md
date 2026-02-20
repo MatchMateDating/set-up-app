@@ -51,7 +51,7 @@ npx expo prebuild --clean
 
 **Uninstall Android App:**
 ```bash
-adb uninstall com.allyaoyao.matchmakermobile
+adb uninstall com.matchmate.matchmatedating
 ```
 
 ### iOS Build and TestFlight Deployment

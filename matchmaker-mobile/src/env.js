@@ -3,9 +3,11 @@
 // For production: https://your-app.railway.app
 export const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'https://set-up-app-production.up.railway.app';
 
-// Log for debugging (will show in console/logs)
-console.log('🔧 API_BASE_URL:', API_BASE_URL);
-console.log('🔧 EXPO_PUBLIC_API_BASE_URL env var:', process.env.EXPO_PUBLIC_API_BASE_URL);
+// Log for debugging in development only
+if (__DEV__) {
+  console.log('🔧 API_BASE_URL:', API_BASE_URL);
+  console.log('🔧 EXPO_PUBLIC_API_BASE_URL env var:', process.env.EXPO_PUBLIC_API_BASE_URL);
+}
 
 // Log a warning if API_BASE_URL is not set (helpful for debugging)
 if (!process.env.EXPO_PUBLIC_API_BASE_URL) {
