@@ -43,6 +43,12 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "owner": "matchmatedating"
+    "owner": "matchmatedating",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/1b2bd6ca-592d-48d6-8e37-9498d29fb228"
+    }
   }
 }
