@@ -61,8 +61,54 @@ npx expo prebuild --clean
 
 **Uninstall Android App:**
 ```bash
-adb uninstall com.allyaoyao.matchmakermobile
+adb uninstall com.matchmate.matchmatedating
 ```
+
+### iOS Build and TestFlight Deployment
+
+**Prerequisites:**
+- EAS CLI installed: `npm install -g eas-cli`
+- Logged into Expo account: `eas login`
+- Apple Developer account configured in `eas.json`
+
+**Build for Production:**
+```bash
+cd matchmaker-mobile
+eas build --platform ios --profile production
+```
+
+**Build for Development (with dev client):**
+```bash
+cd matchmaker-mobile
+eas build --platform ios --profile development
+```
+
+**Submit to TestFlight (after build completes):**
+```bash
+cd matchmaker-mobile
+eas submit --platform ios --profile production
+```
+
+**Build and Submit in One Command:**
+```bash
+cd matchmaker-mobile
+eas build --platform ios --profile production --auto-submit
+```
+
+**Check Build Status:**
+```bash
+eas build:list
+```
+
+**View Build Logs:**
+- Visit: https://expo.dev/accounts/matchmatedating/projects/matchmaker-mobile/builds
+- Or use: `eas build:view [BUILD_ID]`
+
+**Notes:**
+- Production builds automatically increment the build number (`autoIncrement: true` in `eas.json`)
+- Environment variables (like `EXPO_PUBLIC_API_BASE_URL`) are set in `eas.json` per build profile
+- The app icon is configured in `app.json` and will be included automatically
+- After submission, builds appear in App Store Connect → TestFlight within a few minutes
 
 ### Web Frontend Setup
 
