@@ -44,6 +44,16 @@ npm install expo-status-bar@~3.0.9
 npm install react-native@0.81.5
 ```
 
+**Production Build(Android):**
+```bash
+npx eas build -p android --profile production
+```
+
+**Preview Build(Android):**
+```bash
+npx eas build -p android --profile preview
+```
+
 **Clean Build:**
 ```bash
 npx expo prebuild --clean
