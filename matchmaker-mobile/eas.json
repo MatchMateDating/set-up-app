@@ -21,6 +21,9 @@
       },
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_BASE_URL": "https://set-up-app-production.up.railway.app"
       }
     },
     "production": {
