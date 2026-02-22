@@ -154,7 +154,7 @@ const CompleteProfile = () => {
           preferredAgeMin: user.preferredAgeMin?.toString() ?? '18',
           preferredAgeMax: user.preferredAgeMax?.toString() ?? '50',
           preferredGenders: user.preferredGenders ?? [],
-          matchRadius: user.match_radius ?? 50,
+          matchRadius: userUnit === 'm' ? milesToKm(user.match_radius ?? 50) : (user.match_radius ?? 50),
           imageLayout: user.imageLayout ?? 'grid',
           profileStyle: user.profileStyle ?? 'classic',
           fontFamily: user.fontFamily ?? 'Arial',
@@ -177,7 +177,8 @@ const CompleteProfile = () => {
           const userUnit = user.unit === 'metric' ? 'm' : 'ft';
           setHeightUnit(userUnit);
           const parsedHeight = parseHeight(user.height, userUnit);
-          
+          const radiusMiles = user.match_radius ?? 50;
+          const radiusInUserUnit = userUnit === 'm' ? milesToKm(radiusMiles) : radiusMiles;
           setFormData(prev => ({
             ...prev,
             first_name: user.first_name ?? '',
@@ -191,7 +192,7 @@ const CompleteProfile = () => {
             preferredAgeMin: user.preferredAgeMin?.toString() ?? '18',
             preferredAgeMax: user.preferredAgeMax?.toString() ?? '50',
             preferredGenders: user.preferredGenders ?? [],
-            matchRadius: user.match_radius ?? 50,
+            matchRadius: radiusInUserUnit,
             imageLayout: user.imageLayout ?? 'grid',
             profileStyle: user.profileStyle ?? 'classic',
             fontFamily: user.fontFamily ?? 'Arial',
@@ -345,7 +346,7 @@ const CompleteProfile = () => {
           if (name === 'preferredAgeMin') saveData.preferredAgeMin = parseInt(value, 10);
           if (name === 'preferredAgeMax') saveData.preferredAgeMax = parseInt(value, 10);
           if (name === 'preferredGenders') saveData.preferredGenders = value;
-          if (name === 'matchRadius') saveData.match_radius = Number(value);
+          if (name === 'matchRadius') saveData.match_radius = heightUnit === 'ft' ? Number(value) : kmToMiles(Number(value));
           
           saveFormDataToBackend(saveData);
         }, 1000);
@@ -494,7 +495,7 @@ const CompleteProfile = () => {
           ? parseInt(formData.preferredAgeMax, 10)
           : 50,
         preferredGenders: formData.preferredGenders ?? [],
-        match_radius: Number(formData.matchRadius) ?? 50,
+        match_radius: heightUnit === 'ft' ? (Number(formData.matchRadius) ?? 50) : (kmToMiles(Number(formData.matchRadius)) ?? 31),
         profileStyle: formData.profileStyle,
         fontFamily: formData.fontFamily,
         imageLayout: formData.imageLayout,
@@ -1053,7 +1054,7 @@ const CompleteProfile = () => {
                           preferredAgeMin: formData.preferredAgeMin ? parseInt(formData.preferredAgeMin, 10) : 18,
                           preferredAgeMax: formData.preferredAgeMax ? parseInt(formData.preferredAgeMax, 10) : 50,
                           preferredGenders: formData.preferredGenders ?? [],
-                          match_radius: Number(formData.matchRadius) ?? 50,
+                          match_radius: heightUnit === 'ft' ? (Number(formData.matchRadius) ?? 50) : (kmToMiles(Number(formData.matchRadius)) ?? 31),
                           profile_completion_step: 3,
                         }),
                       });

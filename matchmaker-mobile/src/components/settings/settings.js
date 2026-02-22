@@ -55,9 +55,7 @@ const Settings = () => {
     profileStyle: 'classic',
     imageLayout: 'grid'
   });
-  const displayRadius = user?.unit === 'imperial'
-      ? Math.round(formData.matchRadius * 0.621371)
-      : formData.matchRadius;
+  const displayRadius = formData.matchRadius;
   const [originalFormData, setOriginalFormData] = useState(null);
 
   const fetchUserProfile = async () => {
@@ -124,11 +122,15 @@ const Settings = () => {
 
   useEffect(() => {
     if (user) {
+      const radiusMiles = user.match_radius ?? 50;
+      const radiusInUserUnit = user?.unit === 'metric'
+        ? Math.round(radiusMiles * 1.60934)
+        : radiusMiles;
       const baseFormData = {
         preferredAgeMin: user.preferredAgeMin || '',
         preferredAgeMax: user.preferredAgeMax || '',
         preferredGenders: user.preferredGenders || [],
-        matchRadius: user.match_radius ?? 50,
+        matchRadius: radiusInUserUnit,
         fontFamily: user.fontFamily || 'Arial',
         profileStyle: user.profileStyle || 'classic',
         imageLayout: user.imageLayout || 'grid'
@@ -386,11 +388,14 @@ const Settings = () => {
         return;
       }
 
+      const radiusMiles = user?.unit === 'metric'
+        ? Math.round(Number(formData.matchRadius) / 1.60934)
+        : Number(formData.matchRadius);
       const payload = {
         preferredAgeMin: Number(formData.preferredAgeMin),
         preferredAgeMax: Number(formData.preferredAgeMax),
         preferredGenders: formData.preferredGenders,
-        matchRadius: Number(formData.matchRadius),
+        matchRadius: radiusMiles,
         fontFamily: formData.fontFamily,
         profileStyle: formData.profileStyle
       };
@@ -816,12 +821,6 @@ const Settings = () => {
                         step={1}
                         sliderLength={280}
                         onValuesChange={(values) => {
-                            const displayValue = values[0];
-
-                                const canonicalKm =
-                                  user?.unit === 'imperial'
-                                    ? Math.round(displayValue / 0.621371)
-                                    : displayValue;
                             handleInputChangeWrapper('matchRadius', values[0]);
                         }}
                         selectedStyle={{ backgroundColor: '#6c5ce7' }}
