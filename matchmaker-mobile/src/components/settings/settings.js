@@ -15,7 +15,12 @@ import {
   TouchableWithoutFeedback,
   Switch,
 } from 'react-native';
-import * as Clipboard from 'expo-clipboard';
+let Clipboard = null;
+try {
+  Clipboard = require('expo-clipboard');
+} catch (e) {
+  console.warn('expo-clipboard not available, using fallback');
+}
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
@@ -205,8 +210,12 @@ const Settings = () => {
 
   const handleCopy = async () => {
     try {
-      await Clipboard.setStringAsync(referralCode);
-      Alert.alert('Success', 'Referral code copied to clipboard!');
+      if (Clipboard?.setStringAsync) {
+        await Clipboard.setStringAsync(referralCode);
+        Alert.alert('Success', 'Referral code copied to clipboard!');
+      } else {
+        await Share.share({ message: referralCode });
+      }
     } catch (err) {
       console.error('Error copying:', err);
       Alert.alert('Error', 'Failed to copy');
