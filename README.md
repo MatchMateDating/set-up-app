@@ -43,15 +43,15 @@ npm install expo-clipboard@~8.0.8
 npm install expo-status-bar@~3.0.9
 npm install react-native@0.81.5
 ```
-
-**Production Build(Android):**
-```bash
-npx eas build -p android --profile production
-```
-
 **Preview Build(Android):**
 ```bash
+rmdir /s /q android
 npx eas build -p android --profile preview
+```
+**Production Build(Android):**
+```bash
+rmdir /s /q android
+npx eas build -p android --profile production
 ```
 
 **Clean Build:**
