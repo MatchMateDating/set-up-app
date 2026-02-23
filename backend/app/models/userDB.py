@@ -29,7 +29,7 @@ class User(db.Model):
     avatar = db.Column(db.String(255), nullable=True)
     latitude = db.Column(db.Float, nullable=True)
     longitude = db.Column(db.Float, nullable=True)
-    match_radius = db.Column(db.Integer, nullable=True, default=50)
+    match_radius = db.Column(db.Integer, nullable=True, default=0)
     unit = db.Column(db.String(20), nullable=False, default='Imperial')
     last_active_at = db.Column(db.DateTime, nullable=True)
     push_token = db.Column(db.String(255), nullable=True)  # Expo push notification token

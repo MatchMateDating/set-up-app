@@ -154,7 +154,7 @@ const CompleteProfile = () => {
           preferredAgeMin: user.preferredAgeMin?.toString() ?? '18',
           preferredAgeMax: user.preferredAgeMax?.toString() ?? '50',
           preferredGenders: user.preferredGenders ?? [],
-          matchRadius: userUnit === 'm' ? milesToKm(user.match_radius ?? 50) : (user.match_radius ?? 50),
+          matchRadius: userUnit === 'm' ? milesToKm(user.match_radius || 50) : (user.match_radius || 50),
           imageLayout: user.imageLayout ?? 'grid',
           profileStyle: user.profileStyle ?? 'classic',
           fontFamily: user.fontFamily ?? 'Arial',
@@ -177,7 +177,7 @@ const CompleteProfile = () => {
           const userUnit = user.unit === 'metric' ? 'm' : 'ft';
           setHeightUnit(userUnit);
           const parsedHeight = parseHeight(user.height, userUnit);
-          const radiusMiles = user.match_radius ?? 50;
+          const radiusMiles = user.match_radius || 50;
           const radiusInUserUnit = userUnit === 'm' ? milesToKm(radiusMiles) : radiusMiles;
           setFormData(prev => ({
             ...prev,
@@ -1376,6 +1376,7 @@ const styles = StyleSheet.create({
   pickerSmall: {
     width: '100%',
     paddingTop: 6,
+    color: '#111',
     ...Platform.select({
       ios: {
         height: 215,
