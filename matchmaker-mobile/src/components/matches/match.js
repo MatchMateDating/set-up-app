@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Alert, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Alert, TouchableOpacity, Modal, Image } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -10,12 +10,15 @@ import { useProfiles } from './hooks/useProfiles';
 import { useUserInfo } from './hooks/useUserInfo';
 import DaterDropdown from '../layout/daterDropdown';
 import MatcherHeader from '../layout/components/matcherHeader';
+import { getImageUrl } from '../profile/utils/profileUtils';
 
 const Match = () => {
   const { profiles, setProfiles, loading } = useProfiles(API_BASE_URL);
   const { userInfo, setUserInfo } = useUserInfo(API_BASE_URL);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showNoteModal, setShowNoteModal] = useState(false);
+  const [showMatchModal, setShowMatchModal] = useState(false);
+  const [matchModalData, setMatchModalData] = useState(null);
   const [referrer, setReferrer] = useState(null);
   const navigation = useNavigation();
 
@@ -238,26 +241,35 @@ const Match = () => {
       }
 
       if (res.ok) {
+        const data = await res.json();
+        const likedProfile = profiles.find(p => p.id === likedUserId);
+
         // Remove the liked user from local state immediately
         setProfiles(prevProfiles => {
           const filtered = prevProfiles.filter(profile => profile.id !== likedUserId);
           
-          // Adjust index: if we removed the current item, stay at current index (which is now the next item)
           setCurrentIndex(prevIndex => {
             const removedIndex = prevProfiles.findIndex(p => p.id === likedUserId);
             if (removedIndex < prevIndex) {
-              // Removed item was before current, decrement index
               return Math.max(0, prevIndex - 1);
             } else if (removedIndex === prevIndex) {
-              // Removed current item, stay at same index (next item moves into current position)
               return Math.min(prevIndex, filtered.length - 1);
             }
-            // Removed item was after current, no change needed
             return prevIndex;
           });
           
           return filtered;
         });
+
+        if (data.match?.status === 'matched') {
+          const firstImage = likedProfile?.images?.[0]?.image_url || null;
+          setMatchModalData({
+            matchId: data.match.id,
+            firstName: likedProfile?.first_name || 'someone',
+            imageUrl: firstImage ? getImageUrl(firstImage, API_BASE_URL) : null,
+          });
+          setShowMatchModal(true);
+        }
       }
     } catch (err) {
       console.error('Error liking user:', err);
@@ -533,6 +545,50 @@ const Match = () => {
           </View>
         </View>
       )}
+
+      <Modal
+        visible={showMatchModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowMatchModal(false)}
+      >
+        <View style={styles.matchModalOverlay}>
+          <View style={styles.matchModalContent}>
+            {matchModalData?.imageUrl ? (
+              <Image
+                source={{ uri: matchModalData.imageUrl }}
+                style={styles.matchModalImage}
+              />
+            ) : (
+              <View style={styles.matchModalImagePlaceholder}>
+                <Ionicons name="person" size={48} color="#ccc" />
+              </View>
+            )}
+            <Text style={styles.matchModalTitle}>It's a Match!</Text>
+            <Text style={styles.matchModalSubtitle}>
+              You and {matchModalData?.firstName} liked each other
+            </Text>
+            <TouchableOpacity
+              style={styles.matchModalButton}
+              onPress={() => {
+                setShowMatchModal(false);
+                navigation.navigate('MatchConvo', {
+                  matchId: matchModalData?.matchId,
+                  isBlind: false,
+                });
+              }}
+            >
+              <Text style={styles.matchModalButtonText}>Send a Message</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.matchModalDismiss}
+              onPress={() => setShowMatchModal(false)}
+            >
+              <Text style={styles.matchModalDismissText}>Keep Swiping</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -646,6 +702,77 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 6,
     elevation: 4,
+  },
+  matchModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  matchModalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 24,
+    padding: 32,
+    alignItems: 'center',
+    width: '85%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  matchModalImage: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    marginBottom: 16,
+    borderWidth: 3,
+    borderColor: '#6c5ce7',
+  },
+  matchModalImagePlaceholder: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    marginBottom: 16,
+    backgroundColor: '#f2f2f2',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 3,
+    borderColor: '#6c5ce7',
+  },
+  matchModalTitle: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#1a1a2e',
+    marginBottom: 8,
+  },
+  matchModalSubtitle: {
+    fontSize: 16,
+    color: '#6b7280',
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  matchModalButton: {
+    backgroundColor: '#6c5ce7',
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    borderRadius: 12,
+    width: '100%',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  matchModalButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  matchModalDismiss: {
+    paddingVertical: 10,
+  },
+  matchModalDismissText: {
+    color: '#6b7280',
+    fontSize: 15,
+    fontWeight: '600',
   },
 });
 
