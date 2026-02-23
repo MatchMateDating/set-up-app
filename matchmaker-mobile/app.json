@@ -7,7 +7,7 @@
     "icon": "./assets/matchmate_logo_1024.png",
     "userInterfaceStyle": "light",
     "jsEngine": "hermes",
-    "newArchEnabled": false,
+    "newArchEnabled": true,
     "extra": {
       "eas": {
         "projectId": "1b2bd6ca-592d-48d6-8e37-9498d29fb228"
