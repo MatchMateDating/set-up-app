@@ -25,6 +25,25 @@ import { Ionicons } from '@expo/vector-icons';
 import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 import { getImageUrl } from '../profile/utils/profileUtils';
 
+function formatMessageTimestamp(isoString) {
+  if (!isoString) return '';
+  const d = new Date(isoString);
+  if (Number.isNaN(d.getTime())) return '';
+  const now = new Date();
+  const today = now.toDateString();
+  const msgDate = d.toDateString();
+  const timeOpt = { hour: '2-digit', minute: '2-digit' };
+  if (msgDate === today) {
+    return d.toLocaleTimeString([], timeOpt);
+  }
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (msgDate === yesterday.toDateString()) {
+    return `Yesterday, ${d.toLocaleTimeString([], timeOpt)}`;
+  }
+  return d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ', ' + d.toLocaleTimeString([], timeOpt);
+}
+
 const MatchConvo = () => {
   const route = useRoute();
   const navigation = useNavigation();
@@ -617,7 +636,7 @@ const MatchConvo = () => {
                   </TouchableOpacity>
                 )}
                 <Text style={styles.timestamp}>
-                  {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  {formatMessageTimestamp(msg.timestamp)}
                 </Text>
               </View>
             );

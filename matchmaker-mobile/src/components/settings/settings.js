@@ -15,7 +15,12 @@ import {
   TouchableWithoutFeedback,
   Switch,
 } from 'react-native';
-import * as Clipboard from 'expo-clipboard';
+let Clipboard = null;
+try {
+  Clipboard = require('expo-clipboard');
+} catch (e) {
+  console.warn('expo-clipboard not available, using fallback');
+}
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
@@ -50,9 +55,7 @@ const Settings = () => {
     profileStyle: 'classic',
     imageLayout: 'grid'
   });
-  const displayRadius = user?.unit === 'imperial'
-      ? Math.round(formData.matchRadius * 0.621371)
-      : formData.matchRadius;
+  const displayRadius = formData.matchRadius;
   const [originalFormData, setOriginalFormData] = useState(null);
 
   const fetchUserProfile = async () => {
@@ -119,11 +122,15 @@ const Settings = () => {
 
   useEffect(() => {
     if (user) {
+      const radiusMiles = user.match_radius ?? 50;
+      const radiusInUserUnit = user?.unit === 'metric'
+        ? Math.round(radiusMiles * 1.60934)
+        : radiusMiles;
       const baseFormData = {
         preferredAgeMin: user.preferredAgeMin || '',
         preferredAgeMax: user.preferredAgeMax || '',
         preferredGenders: user.preferredGenders || [],
-        matchRadius: user.match_radius ?? 50,
+        matchRadius: radiusInUserUnit,
         fontFamily: user.fontFamily || 'Arial',
         profileStyle: user.profileStyle || 'classic',
         imageLayout: user.imageLayout || 'grid'
@@ -205,8 +212,12 @@ const Settings = () => {
 
   const handleCopy = async () => {
     try {
-      await Clipboard.setStringAsync(referralCode);
-      Alert.alert('Success', 'Referral code copied to clipboard!');
+      if (Clipboard?.setStringAsync) {
+        await Clipboard.setStringAsync(referralCode);
+        Alert.alert('Success', 'Referral code copied to clipboard!');
+      } else {
+        await Share.share({ message: referralCode });
+      }
     } catch (err) {
       console.error('Error copying:', err);
       Alert.alert('Error', 'Failed to copy');
@@ -377,11 +388,14 @@ const Settings = () => {
         return;
       }
 
+      const radiusMiles = user?.unit === 'metric'
+        ? Math.round(Number(formData.matchRadius) / 1.60934)
+        : Number(formData.matchRadius);
       const payload = {
         preferredAgeMin: Number(formData.preferredAgeMin),
         preferredAgeMax: Number(formData.preferredAgeMax),
         preferredGenders: formData.preferredGenders,
-        matchRadius: Number(formData.matchRadius),
+        matchRadius: radiusMiles,
         fontFamily: formData.fontFamily,
         profileStyle: formData.profileStyle
       };
@@ -807,12 +821,6 @@ const Settings = () => {
                         step={1}
                         sliderLength={280}
                         onValuesChange={(values) => {
-                            const displayValue = values[0];
-
-                                const canonicalKm =
-                                  user?.unit === 'imperial'
-                                    ? Math.round(displayValue / 0.621371)
-                                    : displayValue;
                             handleInputChangeWrapper('matchRadius', values[0]);
                         }}
                         selectedStyle={{ backgroundColor: '#6c5ce7' }}

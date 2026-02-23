@@ -1,15 +1,18 @@
 // src/components/conversations/hooks/useNotificationPolling.js
 // This polling hook serves as a fallback for when push notifications fail
 // or when the app is in the foreground. Backend push notifications are the primary method.
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useContext } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNotifications } from '../../../context/NotificationContext';
+import { UserContext } from '../../../context/UserContext';
 import { API_BASE_URL } from '../../../env';
 
 const POLLING_INTERVAL = 30000; // 30 seconds
 
 export const useNotificationPolling = () => {
   const { notificationsEnabled, sendNotification } = useNotifications();
+  const { user } = useContext(UserContext);
+  const currentUserId = user?.referred_by_id ?? user?.id ?? null;
   const lastMessageCountsRef = useRef({}); // { matchId: messageCount }
   const lastMatchIdsRef = useRef(new Set());
   const pollingIntervalRef = useRef(null);
@@ -58,6 +61,12 @@ export const useNotificationPolling = () => {
           if (currentMessageCount > lastCount && isInitializedRef.current && lastCount > 0) {
             const newMessages = messages.slice(lastCount);
             const latestMessage = newMessages[newMessages.length - 1];
+
+            // Only notify when the current user is the receiver (don't notify for messages we sent)
+            if (currentUserId == null || latestMessage.receiver_id !== currentUserId) {
+              lastMessageCountsRef.current[matchId] = currentMessageCount;
+              continue;
+            }
 
             // Get sender name
             let senderName = 'Someone';
