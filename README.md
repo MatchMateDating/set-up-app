@@ -46,11 +46,13 @@ npm install react-native@0.81.5
 
 **Production Build(Android):**
 ```bash
+rmdir /s /q android
 npx eas build -p android --profile production
 ```
 
 **Preview Build(Android):**
 ```bash
+rmdir /s /q android
 npx eas build -p android --profile preview
 ```
 
