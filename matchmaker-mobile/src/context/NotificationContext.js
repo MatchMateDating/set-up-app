@@ -13,18 +13,40 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_BASE_URL } from '../env';
 import { UserContext } from './UserContext';
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-  }),
-});
+// Safety check for API_BASE_URL
+if (!API_BASE_URL) {
+  console.error('CRITICAL: API_BASE_URL is not set! App may crash.');
+}
+
+// Set up notification handler with error handling
+// Wrap in a function that's called lazily to avoid startup crashes
+let notificationHandlerSet = false;
+const setupNotificationHandler = () => {
+  if (notificationHandlerSet) return;
+  try {
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: true,
+      }),
+    });
+    notificationHandlerSet = true;
+  } catch (error) {
+    console.error('Error setting up notification handler:', error);
+  }
+};
 
 export const NotificationContext = createContext(null);
 
 export const NotificationProvider = ({ children }) => {
-  const { user } = useContext(UserContext);
+  // Set up notification handler on mount (lazy initialization)
+  useEffect(() => {
+    setupNotificationHandler();
+  }, []);
+
+  const userContext = useContext(UserContext);
+  const user = userContext?.user || null;
 
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [permissionStatus, setPermissionStatus] = useState(null);
@@ -76,6 +98,15 @@ export const NotificationProvider = ({ children }) => {
 
           // Double-check user still exists (might have been cleared by another process)
           if (currentUserIdRef.current !== user.id) {
+            setLoading(false);
+            return;
+          }
+
+          // Safety check: Don't make API calls if API_BASE_URL is not set
+          if (!API_BASE_URL) {
+            console.error('API_BASE_URL is not set, skipping API call');
+            setNotificationsEnabled(false);
+            lastSavedValueRef.current = false;
             setLoading(false);
             return;
           }
@@ -171,6 +202,13 @@ export const NotificationProvider = ({ children }) => {
             userId: userIdAtSaveStart,
             refUserId: refUserIdAtSaveStart
           });
+          isSavingRef.current = false;
+          return;
+        }
+
+        // Safety check: Don't make API calls if API_BASE_URL is not set
+        if (!API_BASE_URL) {
+          console.error('API_BASE_URL is not set, skipping notification preference save');
           isSavingRef.current = false;
           return;
         }
@@ -279,6 +317,12 @@ export const NotificationProvider = ({ children }) => {
     try {
       const authToken = await AsyncStorage.getItem('token');
       if (!authToken) return;
+
+      // Safety check: Don't make API calls if API_BASE_URL is not set
+      if (!API_BASE_URL) {
+        console.error('API_BASE_URL is not set, skipping token registration');
+        return;
+      }
 
       const res = await fetch(
         `${API_BASE_URL}/notifications/register_token`,
