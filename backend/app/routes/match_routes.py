@@ -309,7 +309,8 @@ def blind_match(current_user):
         # Log error but don't fail the request
         print(f"Error sending match notifications: {e}")
     
-    return jsonify({'message': 'Blind match created successfully'}), 201
+    match_obj = existing_match if existing_match else new_match
+    return jsonify({'message': 'Blind match created successfully', 'match': match_obj.to_dict()}), 201
 
 
 @match_bp.route('/like', methods=['POST'])

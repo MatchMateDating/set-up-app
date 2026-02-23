@@ -261,12 +261,13 @@ const Match = () => {
           return filtered;
         });
 
-        if (data.match?.status === 'matched') {
+        if (data.match?.status === 'matched' || data.match?.status === 'pending_approval') {
           const firstImage = likedProfile?.images?.[0]?.image_url || null;
           setMatchModalData({
             matchId: data.match.id,
             firstName: likedProfile?.first_name || 'someone',
             imageUrl: firstImage ? getImageUrl(firstImage, API_BASE_URL) : null,
+            isPendingApproval: data.match.status === 'pending_approval',
           });
           setShowMatchModal(true);
         }
@@ -305,26 +306,36 @@ const Match = () => {
       }
 
       if (res.ok) {
+        const data = await res.json();
+        const likedProfile = profiles.find(p => p.id === likedUserId);
+
         // Remove the matched user from local state immediately
         setProfiles(prevProfiles => {
           const filtered = prevProfiles.filter(profile => profile.id !== likedUserId);
           
-          // Adjust index: if we removed the current item, stay at current index (which is now the next item)
           setCurrentIndex(prevIndex => {
             const removedIndex = prevProfiles.findIndex(p => p.id === likedUserId);
             if (removedIndex < prevIndex) {
-              // Removed item was before current, decrement index
               return Math.max(0, prevIndex - 1);
             } else if (removedIndex === prevIndex) {
-              // Removed current item, stay at same index (next item moves into current position)
               return Math.min(prevIndex, filtered.length - 1);
             }
-            // Removed item was after current, no change needed
             return prevIndex;
           });
           
           return filtered;
         });
+
+        if (data.match?.status === 'pending_approval') {
+          const firstImage = likedProfile?.images?.[0]?.image_url || null;
+          setMatchModalData({
+            matchId: data.match.id,
+            firstName: likedProfile?.first_name || 'someone',
+            imageUrl: firstImage ? getImageUrl(firstImage, API_BASE_URL) : null,
+            isPendingApproval: true,
+          });
+          setShowMatchModal(true);
+        }
       }
     } catch (err) {
       console.error('Error blind matching:', err);
@@ -564,9 +575,13 @@ const Match = () => {
                 <Ionicons name="person" size={48} color="#ccc" />
               </View>
             )}
-            <Text style={styles.matchModalTitle}>It's a Match!</Text>
+            <Text style={styles.matchModalTitle}>
+              {matchModalData?.isPendingApproval ? 'Match Found!' : "It's a Match!"}
+            </Text>
             <Text style={styles.matchModalSubtitle}>
-              You and {matchModalData?.firstName} liked each other
+              {matchModalData?.isPendingApproval
+                ? `Start the conversation with ${matchModalData?.firstName}`
+                : `You and ${matchModalData?.firstName} liked each other`}
             </Text>
             <TouchableOpacity
               style={styles.matchModalButton}
@@ -574,11 +589,13 @@ const Match = () => {
                 setShowMatchModal(false);
                 navigation.navigate('MatchConvo', {
                   matchId: matchModalData?.matchId,
-                  isBlind: false,
+                  isBlind: matchModalData?.isPendingApproval ? true : false,
                 });
               }}
             >
-              <Text style={styles.matchModalButtonText}>Send a Message</Text>
+              <Text style={styles.matchModalButtonText}>
+                {matchModalData?.isPendingApproval ? 'Start Conversation' : 'Send a Message'}
+              </Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.matchModalDismiss}
