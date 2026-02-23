@@ -305,6 +305,7 @@ const SignUpScreen = () => {
           ref={identifierRef}
           style={styles.input}
           placeholder="Email or Phone Number"
+          placeholderTextColor="#6b7280"
           value={identifier}
           keyboardType="default"
           autoCapitalize="none"
@@ -317,6 +318,7 @@ const SignUpScreen = () => {
           ref={passwordRef}
           style={styles.input}
           placeholder="Password"
+          placeholderTextColor="#6b7280"
           value={password}
           secureTextEntry
           onChangeText={setPassword}
@@ -336,6 +338,7 @@ const SignUpScreen = () => {
             ref={referralRef}
             style={styles.input}
             placeholder="Enter Dater's Referral Code"
+            placeholderTextColor="#6b7280"
             value={referralCode}
             onChangeText={setReferralCode}
             returnKeyType="done"
