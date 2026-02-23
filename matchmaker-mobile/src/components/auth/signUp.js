@@ -26,10 +26,11 @@ const SignUpScreen = () => {
   const navigation = useNavigation();
   const { setUser } = useContext(UserContext);
   const { enableNotifications } = useNotifications();
-  const [role, setRole] = useState('user'); // 'user' = dater, 'matchmaker' = matchmaker
-  const [identifier, setIdentifier] = useState(''); // Email or phone number
+  const [role, setRole] = useState('user');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [referralCode, setReferralCode] = useState('');
+  const [emailError, setEmailError] = useState('');
   const [agreeToTexts, setAgreeToTexts] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [agreeToTerms, setAgreeToTerms] = useState(false);
@@ -37,16 +38,25 @@ const SignUpScreen = () => {
   const passwordRef = useRef(null);
   const referralRef = useRef(null);
 
-  // Helper function to detect if identifier is email or phone
-  const isEmail = (value) => {
-    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailPattern.test(value);
+  const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+
+  const handleEmailChange = (value) => {
+    setIdentifier(value);
+    if (value.trim() && !isValidEmail(value.trim())) {
+      setEmailError('Not a valid email');
+    } else {
+      setEmailError('');
+    }
   };
 
   const handleSignUpClick = () => {
-    // Validate basic fields first
     if (!identifier.trim()) {
-      Alert.alert('Error', 'Please enter your email or phone number.');
+      Alert.alert('Error', 'Please enter your email.');
+      return;
+    }
+
+    if (!isValidEmail(identifier.trim())) {
+      setEmailError('Not a valid email');
       return;
     }
 
@@ -61,7 +71,7 @@ const SignUpScreen = () => {
     }
 
     if (!agreeToTexts) {
-      Alert.alert('Error', 'Please agree to receive non promotional texts or emails to continue.');
+      Alert.alert('Error', 'Please agree to receive non promotional emails to continue.');
       return;
     }
 
@@ -77,14 +87,7 @@ const SignUpScreen = () => {
     }
 
     try {
-      const payload = { password, role };
-      const isEmailInput = isEmail(identifier.trim());
-
-      if (isEmailInput) {
-        payload.email = identifier.trim();
-      } else {
-        payload.phone_number = identifier.trim();
-      }
+      const payload = { password, role, email: identifier.trim() };
 
       if (role === 'matchmaker') {
         payload.referral_code = referralCode.trim();
@@ -136,10 +139,8 @@ const SignUpScreen = () => {
       }
 
       if (res.data.verification_sent) {
-        // Store signup data in AsyncStorage for verification
         const signupData = {
-          email: isEmailInput ? identifier.trim() : null,
-          phone_number: !isEmailInput ? identifier.trim() : null,
+          email: identifier.trim(),
           password,
           role,
           referral_code: role === 'matchmaker' ? referralCode.trim() : null
@@ -148,22 +149,16 @@ const SignUpScreen = () => {
         await AsyncStorage.setItem('signupData', JSON.stringify(signupData));
         await AsyncStorage.setItem('verificationToken', res.data.verification_token);
 
-        // Navigate to verification screen
-        const method = isEmailInput ? 'email' : 'phone';
-        const message = isEmailInput
-          ? 'Verification code sent! Please check your email for the verification code.'
-          : 'Verification code sent! Please check your phone for the verification code.';
-
         Alert.alert(
           'Success',
-          message,
+          'Verification code sent! Please check your email for the verification code.',
           [
             {
               text: 'OK',
               onPress: () => {
                 navigation.navigate('EmailVerification', {
                   identifier: identifier.trim(),
-                  verificationMethod: method
+                  verificationMethod: 'email'
                 });
               },
             },
@@ -304,16 +299,17 @@ const SignUpScreen = () => {
         <TextInput
           ref={identifierRef}
           style={styles.input}
-          placeholder="Email or Phone Number"
+          placeholder="Email"
           placeholderTextColor="#6b7280"
           value={identifier}
-          keyboardType="default"
+          keyboardType="email-address"
           autoCapitalize="none"
-          onChangeText={setIdentifier}
+          onChangeText={handleEmailChange}
           blurOnSubmit={false}
           returnKeyType="next"
           onSubmitEditing={() => passwordRef.current?.focus()}
         />
+        {emailError ? <Text style={styles.emailError}>{emailError}</Text> : null}
         <TextInput
           ref={passwordRef}
           style={styles.input}
@@ -357,7 +353,7 @@ const SignUpScreen = () => {
           <View style={[styles.checkbox, agreeToTexts && styles.checkboxChecked]}>
             {agreeToTexts && <Text style={styles.checkmark}>✓</Text>}
           </View>
-          <Text style={styles.checkboxLabel}>By checking this box, you agree to receive non promotional texts or emails.</Text>
+          <Text style={styles.checkboxLabel}>By checking this box, you agree to receive non promotional emails.</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.submitBtn} onPress={handleSignUpClick}>
@@ -549,6 +545,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#1a1a2e',
     backgroundColor: '#fafafa',
+  },
+  emailError: {
+    color: '#e53e3e',
+    fontSize: 13,
+    marginTop: -8,
+    marginBottom: 8,
+    marginLeft: 4,
   },
   submitBtn: {
     backgroundColor: '#6c5ce7',
