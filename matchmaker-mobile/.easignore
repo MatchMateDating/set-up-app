@@ -10,9 +10,8 @@ web-build/
 *.p12
 *.mobileprovision
 .env*
-ios/build/
-android/build/
-android/app/build/
+ios/
+android/
 *.orig.*
 
 # Exclude parent directory files
