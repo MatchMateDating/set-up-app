@@ -16,6 +16,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import { API_BASE_URL } from '../../env';
 import { UserContext } from '../../context/UserContext';
+import { startLocationWatcher } from './utils/startLocationWatcher';
 
 const LoginScreen = () => {
   const [identifier, setIdentifier] = useState('');
@@ -59,7 +60,10 @@ const LoginScreen = () => {
         setUser(res.data.user);
       }
       Alert.alert('Success', 'Login successful!');
-      
+
+      // Start location watcher for nearby matching (runs in background)
+      startLocationWatcher(API_BASE_URL, res.data.token);
+
       // Check if user needs to complete profile
       if (res.data.user && res.data.user.role === 'user' && res.data.user.profile_completion_step) {
         navigation.navigate('CompleteProfile');

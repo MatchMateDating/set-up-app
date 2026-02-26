@@ -74,7 +74,8 @@ def update_profile(current_user):
                 'first_name', 'last_name', 'bio', 'birthdate', 'gender',
                 'height', 'preferredAgeMin', 'preferredAgeMax',
                 'preferredGenders', 'fontFamily', 'profileStyle',
-                'imageLayout', 'match_radius', 'unit', 'profile_completion_step'
+                'imageLayout', 'match_radius', 'unit', 'profile_completion_step',
+                'show_location'
             ]
         else:
             return jsonify({'error': 'You are not allowed to update this profile'}), 403
@@ -109,6 +110,9 @@ def update_profile(current_user):
                     }), 400
                 else:
                     setattr(current_user, field, value)
+
+            elif field == 'show_location':
+                current_user.show_location = bool(value)
 
             else:
                 setattr(current_user, field, value)

@@ -18,6 +18,7 @@ import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_BASE_URL } from '../../env';
 import { UserContext } from '../../context/UserContext';
+import { startLocationWatcher } from './utils/startLocationWatcher';
 import { useNotifications } from '../../context/NotificationContext';
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
@@ -114,6 +115,9 @@ const SignUpScreen = () => {
               // This is okay - user can enable notifications later in settings
             });
         }
+
+        // Start location watcher for nearby matching (runs in background)
+        startLocationWatcher(API_BASE_URL, res.data.token);
 
         // Small delay to ensure state is updated before navigation
         await new Promise(resolve => setTimeout(resolve, 100));
