@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ActivityIndicator, Alert, ScrollView, Image, To
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import { API_BASE_URL } from '../../env';
+import { subscribeToLocationUpdated } from '../auth/utils/startLocationWatcher';
 import Profile from './profile';
 import AvatarSelectorModal from './avatarSelectorModal';
 import { avatarMap } from './avatarSelectorModal';
@@ -104,6 +105,13 @@ const ProfilePage = () => {
   useEffect(() => {
     fetchProfile();
   }, []);
+
+  useEffect(() => {
+    const unsub = subscribeToLocationUpdated(() => {
+      if (!matchProfile) fetchProfile();
+    });
+    return unsub;
+  }, [matchProfile]);
 
   useEffect(() => {
     if (user?.role === 'matchmaker') {

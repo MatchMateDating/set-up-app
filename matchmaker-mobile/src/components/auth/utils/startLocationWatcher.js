@@ -4,6 +4,15 @@ import * as Location from 'expo-location';
 let watchSubscription = null;
 let currentToken = null;
 
+const locationUpdatedListeners = new Set();
+export function subscribeToLocationUpdated(callback) {
+  locationUpdatedListeners.add(callback);
+  return () => locationUpdatedListeners.delete(callback);
+}
+function notifyLocationUpdated() {
+  locationUpdatedListeners.forEach((cb) => cb());
+}
+
 function extractCityState(place) {
   if (!place) return { city: null, state: null };
   // Expo LocationGeocodedAddress: city, region (state), subregion, district, name, formattedAddress
@@ -26,10 +35,6 @@ function extractCityState(place) {
       }
     }
   }
-
-  if (__DEV__ && (city || state)) {
-    console.log('[Location] reverseGeocode:', { city, state, raw: place });
-  }
   return { city, state };
 }
 
@@ -46,7 +51,7 @@ async function sendLocationUpdate(apiBaseUrl, token, latitude, longitude) {
     if (__DEV__) console.warn('Reverse geocode failed:', e.message);
   }
 
-  await fetch(`${apiBaseUrl}/location/update`, {
+  const res = await fetch(`${apiBaseUrl}/location/update`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -54,6 +59,12 @@ async function sendLocationUpdate(apiBaseUrl, token, latitude, longitude) {
     },
     body: JSON.stringify({ latitude, longitude, city, state }),
   });
+  if (res.ok && (city || state)) {
+    notifyLocationUpdated();
+  }
+  if (!res.ok && __DEV__) {
+    console.warn('[Location] update failed:', res.status, await res.text());
+  }
 }
 
 /**
