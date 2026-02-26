@@ -128,6 +128,31 @@ const ProfileInfoCard = ({
             </>
           )}
 
+{editing ? (
+            <>
+              <TouchableOpacity
+                style={styles.checkboxRow}
+                onPress={() => update('show_location', !formData.show_location)}
+              >
+                <View style={[styles.checkbox, formData.show_location && styles.checkboxChecked]}>
+                  {formData.show_location && <Text style={styles.checkmark}>✓</Text>}
+                </View>
+                <Text style={styles.checkboxLabel}>Show location</Text>
+              </TouchableOpacity>
+              {(user.city || user.state) && (
+                <Text style={styles.locationHint}>
+                  {[user.city, user.state].filter(Boolean).join(', ')}
+                </Text>
+              )}
+            </>
+          ) : user.show_location && (user.city || user.state) ? (
+            <>
+              <Text style={[styles.previewText, { fontFamily: formData.profileStyle === 'constitution' ? 'Pinyon Script' : formData.fontFamily }]}>
+                {[user.city, user.state].filter(Boolean).join(', ')}
+              </Text>
+            </>
+          ) : null}
+
           {editing ? (
             <>
               <Text style={styles.label}>Birthdate</Text>
@@ -323,24 +348,6 @@ const ProfileInfoCard = ({
             layout={formData.imageLayout}
           />
 
-          {editing ? (
-            <TouchableOpacity
-              style={styles.checkboxRow}
-              onPress={() => update('show_location', !formData.show_location)}
-            >
-              <View style={[styles.checkbox, formData.show_location && styles.checkboxChecked]}>
-                {formData.show_location && <Text style={styles.checkmark}>✓</Text>}
-              </View>
-              <Text style={styles.checkboxLabel}>Show location</Text>
-            </TouchableOpacity>
-          ) : user.show_location && (user.city || user.state) ? (
-            <>
-              <Text style={styles.label}>Location</Text>
-              <Text style={[styles.previewText, { fontFamily: formData.profileStyle === 'constitution' ? 'Pinyon Script' : formData.fontFamily }]}>
-                {[user.city, user.state].filter(Boolean).join(', ')}
-              </Text>
-            </>
-          ) : null}
 
 
           {editing && (
@@ -394,6 +401,11 @@ const styles = StyleSheet.create({
   dateText: {
     fontSize: 16,
     color: '#111',
+  },
+  previewText: {
+    fontSize: 16,
+    color: '#111',
+    marginTop: 10,
   },
   calendarContainer: {
     position: 'relative',
@@ -555,5 +567,11 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14,
     color: '#333',
+  },
+  locationHint: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 4,
+    marginLeft: 34,
   },
 });
