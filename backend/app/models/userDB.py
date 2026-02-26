@@ -29,7 +29,10 @@ class User(db.Model):
     avatar = db.Column(db.String(255), nullable=True)
     latitude = db.Column(db.Float, nullable=True)
     longitude = db.Column(db.Float, nullable=True)
-    match_radius = db.Column(db.Integer, nullable=True, default=0)
+    city = db.Column(db.String(120), nullable=True)
+    state = db.Column(db.String(60), nullable=True)
+    show_location = db.Column(db.Boolean, nullable=False, default=False)
+    match_radius = db.Column(db.Integer, nullable=True, default=0)  # in miles; used with haversine_distance
     unit = db.Column(db.String(20), nullable=False, default='Imperial')
     last_active_at = db.Column(db.DateTime, nullable=True)
     push_token = db.Column(db.String(255), nullable=True)  # Expo push notification token
@@ -147,6 +150,9 @@ class User(db.Model):
             "avatar": self.avatar,
             "latitude": self.latitude,
             "longitude": self.longitude,
+            "city": self.city,
+            "state": self.state,
+            "show_location": self.show_location,
             "match_radius": self.match_radius,
             "unit": self.unit,
             "notifications_enabled": self.notifications_enabled,

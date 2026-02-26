@@ -7,12 +7,16 @@ location_bp = Blueprint('location', __name__)
 @location_bp.route('/update', methods=['POST'])
 @jwt_required()
 def update_location():
-    print("Received location update request")
     try:
         user_id = get_jwt_identity()
-        data = request.get_json()
+        data = request.get_json() or {}
         latitude = data.get('latitude')
         longitude = data.get('longitude')
+        city = data.get('city')
+        state = data.get('state')
+        # Debug: log received city/state (remove in prod if verbose)
+        if city or state:
+            print(f"[Location] user={user_id} city={city!r} state={state!r}")
         match_radius = data.get('match_radius')
 
         user = User.query.get(user_id)
@@ -22,6 +26,11 @@ def update_location():
         if latitude is not None and longitude is not None:
             user.latitude = latitude
             user.longitude = longitude
+
+        if city is not None:
+            user.city = city
+        if state is not None:
+            user.state = state
 
         if match_radius is not None:
             user.match_radius = match_radius

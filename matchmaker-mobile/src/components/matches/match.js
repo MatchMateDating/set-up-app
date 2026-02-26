@@ -8,6 +8,7 @@ import SendNoteModal from './sendNoteModal';
 import ProfileCard from './profileCard';
 import { useProfiles } from './hooks/useProfiles';
 import { useUserInfo } from './hooks/useUserInfo';
+import { startLocationWatcher, stopLocationWatcher } from '../auth/utils/startLocationWatcher';
 import DaterDropdown from '../layout/daterDropdown';
 import MatcherHeader from '../layout/components/matcherHeader';
 import { getImageUrl } from '../profile/utils/profileUtils';
@@ -121,6 +122,22 @@ const Match = () => {
   useEffect(() => {
     fetchProfile();
   }, []);
+
+  // Start location watcher when Match screen is shown (for nearby matching)
+  useEffect(() => {
+    let mounted = true;
+    const initLocation = async () => {
+      const token = await AsyncStorage.getItem('token');
+      if (token && mounted) {
+        startLocationWatcher(API_BASE_URL, token);
+      }
+    };
+    initLocation();
+    return () => {
+      mounted = false;
+      stopLocationWatcher();
+    };
+  }, [API_BASE_URL]);
 
   // Refresh profiles when userInfo.referrer_id changes (selected dater changed)
   useEffect(() => {
