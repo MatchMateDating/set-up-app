@@ -131,6 +131,20 @@ export const EditToolbar = ({ formData, handleInputChange, editing, extendToTop 
                 color={formData.imageLayout === 'vertical' ? '#FFF' : '#6c5ce7'}
               />
             </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.layoutBtn,
+                formData.imageLayout === 'topRow' && styles.layoutBtnActive,
+              ]}
+              onPress={() => update('imageLayout', 'topRow')}
+            >
+              <Ionicons
+                name="images"
+                size={18}
+                color={formData.imageLayout === 'topRow' ? '#FFF' : '#6c5ce7'}
+              />
+            </TouchableOpacity>
           </View>
         </View>
       </View>

@@ -84,6 +84,7 @@ const CompleteProfile = () => {
     preferredAgeMin: '18',
     preferredAgeMax: '50',
     preferredGenders: [],
+    bio: '',
     matchRadius: 50,
     imageLayout: 'grid',
     profileStyle: 'classic',
@@ -148,6 +149,7 @@ const CompleteProfile = () => {
           last_name: user.last_name ?? '',
           birthdate: user.birthdate ?? defaultBirthdate,
           gender: user.gender ?? '',
+          bio: user.bio ?? '',
           heightFeet: parsedHeight.heightFeet,
           heightInches: parsedHeight.heightInches,
           heightMeters: parsedHeight.heightMeters,
@@ -187,6 +189,7 @@ const CompleteProfile = () => {
             last_name: user.last_name ?? '',
             birthdate: user.birthdate ?? defaultBirthdate,
             gender: user.gender ?? '',
+            bio: user.bio ?? '',
             heightFeet: parsedHeight.heightFeet,
             heightInches: parsedHeight.heightInches,
             heightMeters: parsedHeight.heightMeters,
@@ -322,6 +325,18 @@ const CompleteProfile = () => {
           saveFormDataToBackend(saveData);
         }, 500);
       }
+
+      if (name === 'bio' && step === 1) {
+        if (autoSaveFormData.current) {
+          clearTimeout(autoSaveFormData.current);
+        }
+
+        autoSaveFormData.current = setTimeout(() => {
+          saveFormDataToBackend({
+            bio: String(value || '').trim().slice(0, 100),
+          });
+        }, 500);
+      }
       
       // Auto-save height when changed (for step 1)
       if (['heightFeet', 'heightInches', 'heightMeters', 'heightCentimeters'].includes(name) && step === 1) {
@@ -451,6 +466,7 @@ const CompleteProfile = () => {
             last_name: formData.last_name.trim(),
             birthdate: formData.birthdate,
             gender: formData.gender,
+            bio: (formData.bio || '').trim().slice(0, 100),
             height: height,
             unit: heightUnit === 'ft' ? 'imperial' : 'metric',
             profile_completion_step: 2,
@@ -491,6 +507,7 @@ const CompleteProfile = () => {
         last_name: formData.last_name,
         birthdate: formData.birthdate,
         gender: formData.gender,
+        bio: (formData.bio || '').trim().slice(0, 100),
         height: formatHeight(formData, heightUnit),
         preferredAgeMin: formData.preferredAgeMin
           ? parseInt(formData.preferredAgeMin, 10)
@@ -998,6 +1015,19 @@ const CompleteProfile = () => {
                 <Text style={styles.toggle}>Switch to {heightUnit === 'ft' ? 'meters' : 'feet'}</Text>
               </TouchableOpacity>
 
+              <Text style={styles.label}>About Me</Text>
+              <TextInput
+                style={[styles.input, styles.aboutInput]}
+                value={formData.bio}
+                onChangeText={(v) => update('bio', (v || '').slice(0, 100))}
+                placeholder="Tell people a little about yourself"
+                placeholderTextColor="#9CA3AF"
+                multiline
+                maxLength={100}
+                textAlignVertical="top"
+              />
+              <Text style={styles.charCount}>{(formData.bio || '').length}/100</Text>
+
               <Text style={styles.label}>Add Images:</Text>
               <ImageGallery
                 images={images}
@@ -1351,6 +1381,18 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     marginBottom: 4,
     fontSize: 16,
+  },
+  aboutInput: {
+    minHeight: 92,
+    paddingTop: 10,
+    marginBottom: 0,
+  },
+  charCount: {
+    marginTop: 4,
+    marginBottom: 4,
+    textAlign: 'right',
+    color: '#6B7280',
+    fontSize: 12,
   },
   smallInput: {
     flex: 1,

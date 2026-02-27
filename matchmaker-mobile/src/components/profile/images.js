@@ -1,46 +1,109 @@
-import React from 'react';
-import { View, Image, StyleSheet, TouchableOpacity, Text } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Image, StyleSheet, TouchableOpacity, ScrollView, Text } from 'react-native';
 import { API_BASE_URL } from '../../env';
 import { Ionicons } from '@expo/vector-icons';
 import { getImageUrl } from './utils/profileUtils';
 
 const ImageGallery = ({ images = [], editing, onDeleteImage, onPlaceholderClick, layout = 'grid' }) => {
   const maxImages = 9;
-//  const placeholdersNeeded = Math.max(0, maxImages - images.length);
+  const isGrid = layout === 'grid';
+  const isTopRow = layout === 'topRow';
+  const topRowScrollRef = useRef(null);
+  const [topRowViewportWidth, setTopRowViewportWidth] = useState(0);
+  const topRowSize = topRowViewportWidth > 0 ? topRowViewportWidth : 280;
+  const containerStyle = [
+    styles.imageGallery,
+    isGrid ? styles.gridLayout : isTopRow ? styles.topRowLayout : styles.verticalLayout,
+  ];
+  const topRowItemSizeStyle = isTopRow ? { width: topRowSize, height: topRowSize } : null;
 
-  return (
-    <View style={[styles.imageGallery, layout === 'grid' ? styles.gridLayout : styles.verticalLayout]}>
-      {images.map((img, index) => (
-        <View key={img.id || index} style={layout === 'grid' ? styles.imageWrapper : styles.listWrapper}>
-          <Image
-            source={{ uri: getImageUrl(img.image_url, API_BASE_URL) }}
-            style={layout === 'grid' ? styles.gridImage : styles.fullImage}
-            resizeMode="cover"
-          />
-          {editing && (
-            <TouchableOpacity
-              style={styles.deleteButton}
-              onPress={() => onDeleteImage(img.id)}
-            >
-              <Ionicons name="close-circle" size={24} color="#fff" />
-            </TouchableOpacity>
-          )}
-        </View>
-      ))}
-
-      {editing && images.length < maxImages && (
+  const renderImage = (img, index) => (
+    <View
+      key={img.id || index}
+      style={[
+        isGrid ? styles.imageWrapper : isTopRow ? styles.topRowImageWrapper : styles.listWrapper,
+        topRowItemSizeStyle,
+      ]}
+    >
+      <Image
+        source={{ uri: getImageUrl(img.image_url, API_BASE_URL) }}
+        style={isGrid ? styles.gridImage : isTopRow ? styles.topRowImage : styles.fullImage}
+        resizeMode="cover"
+      />
+      {editing && (
         <TouchableOpacity
-          style={
-            layout === 'grid'
-              ? styles.imagePlaceholder
-              : styles.listPlaceholder
-          }
-          onPress={onPlaceholderClick}
+          style={styles.deleteButton}
+          onPress={() => onDeleteImage(img.id)}
         >
-          <Ionicons name="add" size={32} color="#bbb" />
+          <Ionicons name="close-circle" size={24} color="#fff" />
         </TouchableOpacity>
       )}
     </View>
+  );
+
+  const renderPlaceholder = () => {
+    if (!editing || images.length >= maxImages) return null;
+    return (
+      <TouchableOpacity
+        style={
+          isGrid
+            ? styles.imagePlaceholder
+            : isTopRow
+              ? [styles.topRowPlaceholder, topRowItemSizeStyle]
+              : styles.listPlaceholder
+        }
+        onPress={onPlaceholderClick}
+      >
+        <Ionicons name="add" size={32} color="#bbb" />
+      </TouchableOpacity>
+    );
+  };
+
+  useEffect(() => {
+    if (isTopRow && !editing && topRowScrollRef.current) {
+      topRowScrollRef.current.scrollTo({ x: 0, y: 0, animated: false });
+    }
+  }, [isTopRow, editing, images.length]);
+
+  return (
+    isTopRow ? (
+      <View style={styles.topRowWrapper}>
+        <View
+          style={styles.topRowViewport}
+          onLayout={(event) => {
+            const nextWidth = Math.floor(event.nativeEvent.layout.width);
+            if (nextWidth > 0 && nextWidth !== topRowViewportWidth) {
+              setTopRowViewportWidth(nextWidth);
+            }
+          }}
+        >
+          <ScrollView
+            ref={topRowScrollRef}
+            horizontal
+            pagingEnabled
+            snapToInterval={topRowSize}
+            snapToAlignment="start"
+            decelerationRate="fast"
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={containerStyle}
+          >
+            {images.map(renderImage)}
+            {renderPlaceholder()}
+          </ScrollView>
+        </View>
+        {editing && (
+          <View pointerEvents="none" style={styles.scrollHint}>
+            <Text style={styles.scrollHintText}>scroll to add</Text>
+            <Ionicons name="arrow-forward" size={24} color="#6c5ce7" />
+          </View>
+        )}
+      </View>
+    ) : (
+      <View style={containerStyle}>
+        {images.map(renderImage)}
+        {renderPlaceholder()}
+      </View>
+    )
   );
 };
 
@@ -70,10 +133,41 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
     gap: 8,
   },
+  topRowLayout: {
+    flexDirection: 'row',
+    gap: 0,
+  },
+  topRowViewport: {
+    width: '100%',
+  },
+  scrollHint: {
+    alignSelf: 'center',
+    marginTop: 8,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    borderRadius: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  scrollHintText: {
+    color: '#6c5ce7',
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'lowercase',
+  },
+  topRowWrapper: {
+    width: '100%',
+  },
   imageWrapper: {
     position: 'relative',
     width: '31%',
     aspectRatio: 1,
+  },
+  topRowImageWrapper: {
+    position: 'relative',
+    flexShrink: 0,
   },
   listWrapper: {
     width: '100%',
@@ -92,6 +186,11 @@ const styles = StyleSheet.create({
     height: 200,
     borderRadius: 8,
     alignSelf: 'center',
+  },
+  topRowImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 12,
   },
   deleteButton: {
     position: 'absolute',
@@ -115,6 +214,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     height: '100%',
+  },
+  topRowPlaceholder: {
+    backgroundColor: '#fafafa',
+    borderWidth: 2,
+    borderColor: '#bbb',
+    borderStyle: 'dashed',
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexShrink: 0,
   },
 });
 

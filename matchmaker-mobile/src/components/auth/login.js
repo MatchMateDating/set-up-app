@@ -59,7 +59,6 @@ const LoginScreen = () => {
         // Update UserContext immediately so viewerUnit is correct
         setUser(res.data.user);
       }
-      Alert.alert('Success', 'Login successful!');
 
       // Start location watcher for nearby matching (runs in background)
       startLocationWatcher(API_BASE_URL, res.data.token);

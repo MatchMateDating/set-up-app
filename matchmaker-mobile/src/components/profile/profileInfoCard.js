@@ -106,6 +106,19 @@ const ProfileInfoCard = ({
     <View style={styles.card}>
       {user.role === 'user' && (
         <>
+          {formData.imageLayout === 'topRow' && (
+            <>
+              {editing && (<Text style={styles.label}>Add Images</Text>)}
+              <ImageGallery
+                images={images}
+                editing={editing}
+                onDeleteImage={onDeleteImage}
+                onPlaceholderClick={onPlaceholderClick}
+                layout={formData.imageLayout}
+              />
+            </>
+          )}
+
           {editing && (
             <>
               <Text style={styles.label}>First Name</Text>
@@ -339,14 +352,50 @@ const ProfileInfoCard = ({
             </>
           )}
 
-          {editing && (<Text style={styles.label}>Add Images</Text>)}
-          <ImageGallery
-            images={images}
-            editing={editing}
-            onDeleteImage={onDeleteImage}
-            onPlaceholderClick={onPlaceholderClick}
-            layout={formData.imageLayout}
-          />
+          {editing ? (
+            <>
+              <Text style={styles.label}>About Me</Text>
+              <TextInput
+                style={[
+                  styles.input,
+                  styles.aboutInput,
+                  { fontFamily: formData.profileStyle === 'constitution' ? 'Pinyon Script' : formData.fontFamily },
+                ]}
+                value={formData.bio || ''}
+                onChangeText={(v) => update('bio', (v || '').slice(0, 100))}
+                placeholder="Tell people a little about yourself"
+                placeholderTextColor="#9CA3AF"
+                multiline
+                maxLength={100}
+                textAlignVertical="top"
+              />
+              <Text style={styles.charCount}>{(formData.bio || '').length}/100</Text>
+            </>
+          ) : (
+            <>
+              {Boolean((formData.bio || '').trim()) && (
+                <>
+                  <Text style={styles.label}>About Me</Text>
+                  <Text style={[styles.previewText, { fontFamily: formData.profileStyle === 'constitution' ? 'Pinyon Script' : formData.fontFamily }]}>
+                    {formData.bio.trim()}
+                  </Text>
+                </>
+              )}
+            </>
+          )}
+
+          {formData.imageLayout !== 'topRow' && (
+            <>
+              {editing && (<Text style={styles.label}>Add Images</Text>)}
+              <ImageGallery
+                images={images}
+                editing={editing}
+                onDeleteImage={onDeleteImage}
+                onPlaceholderClick={onPlaceholderClick}
+                layout={formData.imageLayout}
+              />
+            </>
+          )}
 
 
 
@@ -386,6 +435,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     backgroundColor: '#fff',
     fontSize: 16,
+  },
+  aboutInput: {
+    minHeight: 92,
+    paddingTop: 10,
+  },
+  charCount: {
+    marginTop: 4,
+    marginBottom: 4,
+    textAlign: 'right',
+    color: '#6B7280',
+    fontSize: 12,
+    fontWeight: '600',
   },
   field: {
     borderWidth: 1,
@@ -493,6 +554,7 @@ const styles = StyleSheet.create({
   },
   pickerSmall: {
     width: '100%',
+    color: '#111',
     ...Platform.select({
       ios: { height: 215 },
       android: { height: 50 },
