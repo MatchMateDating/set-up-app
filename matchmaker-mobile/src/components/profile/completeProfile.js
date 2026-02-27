@@ -1067,6 +1067,16 @@ const CompleteProfile = () => {
               />
               <Text style={styles.charCount}>{(formData.bio || '').length}/100</Text>
 
+              <Text style={styles.label}>Add Images:</Text>
+              <ImageGallery
+                images={images}
+                editing={true}
+                onDeleteImage={handleDeleteImage}
+                onPlaceholderClick={handlePlaceholderClick}
+                layout={formData.imageLayout}
+              />
+              <Text style={styles.charCount}>{(formData.bio || '').length}/100</Text>
+
               {!['topRow', 'heroStack'].includes(formData.imageLayout) && (
                 <View style={styles.step1ImagesSection}>
                   <Text style={styles.label}>Add Images:</Text>

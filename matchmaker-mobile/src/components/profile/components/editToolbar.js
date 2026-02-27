@@ -145,20 +145,6 @@ export const EditToolbar = ({ formData, handleInputChange, editing, extendToTop 
                 color={formData.imageLayout === 'topRow' ? '#FFF' : '#6c5ce7'}
               />
             </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.layoutBtn,
-                formData.imageLayout === 'heroStack' && styles.layoutBtnActive,
-              ]}
-              onPress={() => update('imageLayout', 'heroStack')}
-            >
-              <Ionicons
-                name="image-outline"
-                size={18}
-                color={formData.imageLayout === 'heroStack' ? '#FFF' : '#6c5ce7'}
-              />
-            </TouchableOpacity>
           </View>
         </View>
       </View>

@@ -116,13 +116,12 @@ const ProfileInfoCard = ({
 
 
   return (
-    <>
-      <View style={[styles.card, editing && styles.cardEditing]}>
-        {user.role === 'user' && (
-          <>
-          {['topRow', 'heroStack'].includes(formData.imageLayout) && (
+    <View style={styles.card}>
+      {user.role === 'user' && (
+        <>
+          {formData.imageLayout === 'topRow' && (
             <>
-              {editing && (<Text style={[styles.label, styles.firstFieldLabel]}>Add Images</Text>)}
+              {editing && (<Text style={styles.label}>Add Images</Text>)}
               <ImageGallery
                 images={images}
                 editing={editing}
@@ -391,6 +390,32 @@ const ProfileInfoCard = ({
                 </>
               )}
             </>
+          )}
+
+          {formData.imageLayout !== 'topRow' && (
+            <>
+              {editing && (<Text style={styles.label}>Add Images</Text>)}
+              <ImageGallery
+                images={images}
+                editing={editing}
+                onDeleteImage={onDeleteImage}
+                onPlaceholderClick={onPlaceholderClick}
+                layout={formData.imageLayout}
+              />
+            </>
+          )}
+
+
+
+          {editing && (
+            <View style={styles.actions}>
+              <TouchableOpacity style={styles.saveBtn} onPress={onSubmit}>
+                <Text style={styles.saveText}>Save</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.cancelBtn} onPress={onCancel}>
+                <Text style={styles.cancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
           )}
 
           {!['topRow', 'heroStack'].includes(formData.imageLayout) && (

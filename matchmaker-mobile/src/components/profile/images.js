@@ -6,41 +6,14 @@ import { getImageUrl } from './utils/profileUtils';
 
 const ImageGallery = ({ images = [], editing, onDeleteImage, onPlaceholderClick, layout = 'grid' }) => {
   const maxImages = 9;
-  const gridColumns = 3;
-  const gridGap = 10;
-  const heroStackColumns = 3;
-  const heroStackGap = 10;
   const isGrid = layout === 'grid';
   const isTopRow = layout === 'topRow';
-  const isHeroStack = layout === 'heroStack';
   const topRowScrollRef = useRef(null);
   const [topRowViewportWidth, setTopRowViewportWidth] = useState(0);
-  const [gridViewportWidth, setGridViewportWidth] = useState(0);
-  const [heroStackViewportWidth, setHeroStackViewportWidth] = useState(0);
   const topRowSize = topRowViewportWidth > 0 ? topRowViewportWidth : 280;
-  const gridThumbSize =
-    gridViewportWidth > 0
-      ? Math.floor((gridViewportWidth - gridGap * (gridColumns - 1)) / gridColumns)
-      : null;
-  const gridThumbSizeStyle = isGrid && gridThumbSize ? { width: gridThumbSize, height: gridThumbSize } : null;
-  const heroThumbSize =
-    heroStackViewportWidth > 0
-      ? Math.floor((heroStackViewportWidth - heroStackGap * (heroStackColumns - 1)) / heroStackColumns)
-      : null;
-  const heroThumbSizeStyle = isHeroStack && heroThumbSize ? { width: heroThumbSize, height: heroThumbSize } : null;
-  const heroMainSizeStyle =
-    isHeroStack && heroStackViewportWidth > 0
-      ? { width: heroStackViewportWidth, height: heroStackViewportWidth }
-      : null;
   const containerStyle = [
     styles.imageGallery,
-    isGrid
-      ? [styles.gridLayout, styles.gridGallery]
-      : isTopRow
-        ? styles.topRowLayout
-        : isHeroStack
-          ? styles.heroStackLayout
-          : styles.verticalLayout,
+    isGrid ? styles.gridLayout : isTopRow ? styles.topRowLayout : styles.verticalLayout,
   ];
   const topRowItemSizeStyle = isTopRow ? { width: topRowSize, height: topRowSize } : null;
 
@@ -48,32 +21,13 @@ const ImageGallery = ({ images = [], editing, onDeleteImage, onPlaceholderClick,
     <View
       key={img.id || index}
       style={[
-        isGrid
-          ? [styles.imageWrapper, gridThumbSizeStyle]
-          : isTopRow
-            ? styles.topRowImageWrapper
-            : isHeroStack
-              ? [
-                styles.heroImageWrapper,
-                index === 0
-                  ? [styles.heroMainWrapper, heroMainSizeStyle]
-                  : heroThumbSizeStyle,
-              ]
-              : styles.listWrapper,
+        isGrid ? styles.imageWrapper : isTopRow ? styles.topRowImageWrapper : styles.listWrapper,
         topRowItemSizeStyle,
       ]}
     >
       <Image
         source={{ uri: getImageUrl(img.image_url, API_BASE_URL) }}
-        style={
-          isGrid
-            ? styles.gridImage
-            : isTopRow
-              ? styles.topRowImage
-              : isHeroStack
-                ? [styles.heroImage, index === 0 && styles.heroMainImage]
-                : styles.fullImage
-        }
+        style={isGrid ? styles.gridImage : isTopRow ? styles.topRowImage : styles.fullImage}
         resizeMode="cover"
       />
       {editing && (
@@ -93,11 +47,9 @@ const ImageGallery = ({ images = [], editing, onDeleteImage, onPlaceholderClick,
       <TouchableOpacity
         style={
           isGrid
-            ? [styles.imagePlaceholder, gridThumbSizeStyle]
+            ? styles.imagePlaceholder
             : isTopRow
               ? [styles.topRowPlaceholder, topRowItemSizeStyle]
-              : isHeroStack
-                ? [styles.heroThumbPlaceholder, heroThumbSizeStyle]
               : styles.listPlaceholder
         }
         onPress={onPlaceholderClick}
@@ -147,22 +99,7 @@ const ImageGallery = ({ images = [], editing, onDeleteImage, onPlaceholderClick,
         )}
       </View>
     ) : (
-      <View
-        style={containerStyle}
-        onLayout={
-          isHeroStack || isGrid
-            ? (event) => {
-              const nextWidth = Math.floor(event.nativeEvent.layout.width);
-              if (isGrid && nextWidth > 0 && nextWidth !== gridViewportWidth) {
-                setGridViewportWidth(nextWidth);
-              }
-              if (isHeroStack && nextWidth > 0 && nextWidth !== heroStackViewportWidth) {
-                setHeroStackViewportWidth(nextWidth);
-              }
-            }
-            : undefined
-        }
-      >
+      <View style={containerStyle}>
         {images.map(renderImage)}
         {renderPlaceholder()}
       </View>
@@ -199,11 +136,6 @@ const styles = StyleSheet.create({
   verticalLayout: {
     flexDirection: 'column',
     gap: 8,
-  },
-  heroStackLayout: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
   },
   topRowLayout: {
     flexDirection: 'row',
@@ -252,6 +184,10 @@ const styles = StyleSheet.create({
     width: '100%',
     aspectRatio: 1,
   },
+  topRowImageWrapper: {
+    position: 'relative',
+    flexShrink: 0,
+  },
   listWrapper: {
     width: '100%',
     maxWidth: 250,
@@ -274,14 +210,6 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     borderRadius: 12,
-  },
-  heroImage: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 12,
-  },
-  heroMainImage: {
-    borderRadius: 14,
   },
   deleteButton: {
     position: 'absolute',
@@ -338,6 +266,16 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  topRowPlaceholder: {
+    backgroundColor: '#fafafa',
+    borderWidth: 2,
+    borderColor: '#bbb',
+    borderStyle: 'dashed',
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexShrink: 0,
   },
 });
 
