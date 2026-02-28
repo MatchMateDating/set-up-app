@@ -74,24 +74,25 @@ const CompleteProfile = () => {
   const radiusMax = radiusUnit === 'km' ? 800 : 500;
   const SCREEN_WIDTH = Dimensions.get('window').width;
 
-  const centerCalendarInView = React.useCallback(() => {
+  const scrollToCalendarWrapperEnd = React.useCallback(() => {
     setTimeout(() => {
       if (!scrollRef.current || !calendarWrapperRef.current) return;
 
       calendarWrapperRef.current.measureInWindow((_, calendarY, __, calendarH) => {
         scrollRef.current?.measureInWindow((_, scrollY, __2, scrollH) => {
-          const calendarCenterY = calendarY + (calendarH / 2);
-          const viewportCenterY = scrollY + (scrollH / 2);
-          const centerDelta = calendarCenterY - viewportCenterY;
-          const targetOffset = Math.max(0, scrollOffsetYRef.current + centerDelta);
+          const calendarBottom = calendarY + calendarH;
+          const viewportBottom = scrollY + scrollH;
+          const overflow = calendarBottom - viewportBottom;
 
-          scrollRef.current?.scrollTo({
-            y: targetOffset,
-            animated: true,
-          });
+          if (overflow > 0) {
+            scrollRef.current?.scrollTo({
+              y: scrollOffsetYRef.current + overflow + 24,
+              animated: true,
+            });
+          }
         });
       });
-    }, 100);
+    }, 80);
   }, []);
 
   const [formData, setFormData] = useState({
@@ -846,6 +847,19 @@ const CompleteProfile = () => {
                 </>
               )}
 
+              {['topRow', 'heroStack'].includes(formData.imageLayout) && (
+                <>
+                  <Text style={styles.label}>Add Images:</Text>
+                  <ImageGallery
+                    images={images}
+                    editing={true}
+                    onDeleteImage={handleDeleteImage}
+                    onPlaceholderClick={handlePlaceholderClick}
+                    layout={formData.imageLayout}
+                  />
+                </>
+              )}
+
                   <Text style={styles.label}>First Name</Text>
                   <TextInput
                     ref={firstNameRef}
@@ -878,7 +892,7 @@ const CompleteProfile = () => {
                           : null
                       );
                       setShowDatePicker(true);
-                      centerCalendarInView();
+                      scrollToCalendarWrapperEnd();
                     }}
                   />
 
@@ -896,7 +910,7 @@ const CompleteProfile = () => {
                           : null
                       );
                       setShowDatePicker(true);
-                      centerCalendarInView();
+                      scrollToCalendarWrapperEnd();
                       }}
                     activeOpacity={0.8}
                   >
@@ -909,7 +923,7 @@ const CompleteProfile = () => {
                     <View
                       ref={calendarWrapperRef}
                       style={styles.modalCard}
-                      onLayout={centerCalendarInView}
+                      onLayout={scrollToCalendarWrapperEnd}
                     >
                       <Text style={styles.modalTitle}>Select Birthdate</Text>
                       <View style={styles.calendarWrapper}>
@@ -1067,15 +1081,18 @@ const CompleteProfile = () => {
               />
               <Text style={styles.charCount}>{(formData.bio || '').length}/100</Text>
 
-              <Text style={styles.label}>Add Images:</Text>
-              <ImageGallery
-                images={images}
-                editing={true}
-                onDeleteImage={handleDeleteImage}
-                onPlaceholderClick={handlePlaceholderClick}
-                layout={formData.imageLayout}
-              />
-              <Text style={styles.charCount}>{(formData.bio || '').length}/100</Text>
+              {!['topRow', 'heroStack'].includes(formData.imageLayout) && (
+                <>
+                  <Text style={styles.label}>Add Images:</Text>
+                  <ImageGallery
+                    images={images}
+                    editing={true}
+                    onDeleteImage={handleDeleteImage}
+                    onPlaceholderClick={handlePlaceholderClick}
+                    layout={formData.imageLayout}
+                  />
+                </>
+              )}
 
               {!['topRow', 'heroStack'].includes(formData.imageLayout) && (
                 <View style={styles.step1ImagesSection}>

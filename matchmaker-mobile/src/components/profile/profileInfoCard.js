@@ -119,7 +119,7 @@ const ProfileInfoCard = ({
     <View style={styles.card}>
       {user.role === 'user' && (
         <>
-          {formData.imageLayout === 'topRow' && (
+          {['topRow', 'heroStack'].includes(formData.imageLayout) && (
             <>
               {editing && (<Text style={styles.label}>Add Images</Text>)}
               <ImageGallery
@@ -392,7 +392,7 @@ const ProfileInfoCard = ({
             </>
           )}
 
-          {formData.imageLayout !== 'topRow' && (
+          {!['topRow', 'heroStack'].includes(formData.imageLayout) && (
             <>
               {editing && (<Text style={styles.label}>Add Images</Text>)}
               <ImageGallery

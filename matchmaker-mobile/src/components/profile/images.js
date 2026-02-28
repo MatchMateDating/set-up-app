@@ -8,12 +8,19 @@ const ImageGallery = ({ images = [], editing, onDeleteImage, onPlaceholderClick,
   const maxImages = 9;
   const isGrid = layout === 'grid';
   const isTopRow = layout === 'topRow';
+  const isHeroStack = layout === 'heroStack';
   const topRowScrollRef = useRef(null);
   const [topRowViewportWidth, setTopRowViewportWidth] = useState(0);
   const topRowSize = topRowViewportWidth > 0 ? topRowViewportWidth : 280;
   const containerStyle = [
     styles.imageGallery,
-    isGrid ? styles.gridLayout : isTopRow ? styles.topRowLayout : styles.verticalLayout,
+    isGrid
+      ? styles.gridLayout
+      : isTopRow
+        ? styles.topRowLayout
+        : isHeroStack
+          ? styles.heroStackLayout
+          : styles.verticalLayout,
   ];
   const topRowItemSizeStyle = isTopRow ? { width: topRowSize, height: topRowSize } : null;
 
@@ -21,13 +28,27 @@ const ImageGallery = ({ images = [], editing, onDeleteImage, onPlaceholderClick,
     <View
       key={img.id || index}
       style={[
-        isGrid ? styles.imageWrapper : isTopRow ? styles.topRowImageWrapper : styles.listWrapper,
+        isGrid
+          ? styles.imageWrapper
+          : isTopRow
+            ? styles.topRowImageWrapper
+            : isHeroStack
+              ? [styles.heroImageWrapper, index === 0 && styles.heroMainWrapper]
+              : styles.listWrapper,
         topRowItemSizeStyle,
       ]}
     >
       <Image
         source={{ uri: getImageUrl(img.image_url, API_BASE_URL) }}
-        style={isGrid ? styles.gridImage : isTopRow ? styles.topRowImage : styles.fullImage}
+        style={
+          isGrid
+            ? styles.gridImage
+            : isTopRow
+              ? styles.topRowImage
+              : isHeroStack
+                ? [styles.heroImage, index === 0 && styles.heroMainImage]
+                : styles.fullImage
+        }
         resizeMode="cover"
       />
       {editing && (
@@ -50,6 +71,10 @@ const ImageGallery = ({ images = [], editing, onDeleteImage, onPlaceholderClick,
             ? styles.imagePlaceholder
             : isTopRow
               ? [styles.topRowPlaceholder, topRowItemSizeStyle]
+              : isHeroStack
+                ? images.length === 0
+                  ? styles.heroMainPlaceholder
+                  : styles.heroThumbPlaceholder
               : styles.listPlaceholder
         }
         onPress={onPlaceholderClick}
@@ -137,6 +162,11 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
     gap: 8,
   },
+  heroStackLayout: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
   topRowLayout: {
     flexDirection: 'row',
     gap: 0,
@@ -188,6 +218,15 @@ const styles = StyleSheet.create({
     position: 'relative',
     flexShrink: 0,
   },
+  heroImageWrapper: {
+    position: 'relative',
+    width: '31%',
+    aspectRatio: 1,
+  },
+  heroMainWrapper: {
+    width: '100%',
+    aspectRatio: 1,
+  },
   listWrapper: {
     width: '100%',
     maxWidth: 250,
@@ -210,6 +249,14 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     borderRadius: 12,
+  },
+  heroImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 12,
+  },
+  heroMainImage: {
+    borderRadius: 14,
   },
   deleteButton: {
     position: 'absolute',
@@ -276,6 +323,28 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     flexShrink: 0,
+  },
+  heroMainPlaceholder: {
+    width: '100%',
+    aspectRatio: 1,
+    backgroundColor: '#fafafa',
+    borderWidth: 2,
+    borderColor: '#bbb',
+    borderStyle: 'dashed',
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  heroThumbPlaceholder: {
+    width: '31%',
+    aspectRatio: 1,
+    backgroundColor: '#fafafa',
+    borderWidth: 2,
+    borderColor: '#bbb',
+    borderStyle: 'dashed',
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
 
