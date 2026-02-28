@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -35,6 +35,7 @@ const ProfileInfoCard = ({
 }) => {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [tempBirthdate, setTempBirthdate] = useState(null);
+  const calendarWrapperRef = useRef(null);
   const heightSource = editing ? formData : user;
   const today = new Date();
   const effectiveUnit = editing
@@ -46,6 +47,18 @@ const ProfileInfoCard = ({
 
   const update = (name, value) =>
     onInputChange({ target: { name, value } });
+
+  const scrollCalendarWrapperIntoView = () => {
+    setTimeout(() => {
+      if (!calendarWrapperRef.current) {
+        scrollToBottom?.('birthdate-calendar');
+        return;
+      }
+      calendarWrapperRef.current.measureInWindow((_, calendarY, __, calendarH) => {
+        scrollToBottom?.('calendar-wrapper-end', calendarY + calendarH);
+      });
+    }, 80);
+  };
 
   const formatHeight = (unit, source) => {
     let totalCm = null;
@@ -106,7 +119,7 @@ const ProfileInfoCard = ({
     <View style={styles.card}>
       {user.role === 'user' && (
         <>
-          {formData.imageLayout === 'topRow' && (
+          {['topRow', 'heroStack'].includes(formData.imageLayout) && (
             <>
               {editing && (<Text style={styles.label}>Add Images</Text>)}
               <ImageGallery
@@ -181,9 +194,7 @@ const ProfileInfoCard = ({
                       : null
                   );
                   setShowDatePicker(true);
-                  setTimeout(() => {
-                      scrollToBottom?.();
-                  }, 200);
+                  scrollCalendarWrapperIntoView();
                 }}
               >
                 <Text style={[styles.dateText, { fontFamily: formData.profileStyle === 'constitution' ? 'Pinyon Script' : formData.fontFamily }]}>
@@ -200,7 +211,11 @@ const ProfileInfoCard = ({
                       setShowDatePicker(false);
                     }}
                   />
-                  <View style={styles.modalCard}>
+                  <View
+                    ref={calendarWrapperRef}
+                    style={styles.modalCard}
+                    onLayout={scrollCalendarWrapperIntoView}
+                  >
                     <Text style={styles.modalTitle}>Select Birthdate</Text>
                     <View style={styles.calendarWrapper}>
                       <CalendarPicker
@@ -384,7 +399,7 @@ const ProfileInfoCard = ({
             </>
           )}
 
-          {formData.imageLayout !== 'topRow' && (
+          {!['topRow', 'heroStack'].includes(formData.imageLayout) && (
             <>
               {editing && (<Text style={styles.label}>Add Images</Text>)}
               <ImageGallery

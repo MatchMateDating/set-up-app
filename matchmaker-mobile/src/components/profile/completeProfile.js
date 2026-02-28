@@ -48,6 +48,8 @@ const CompleteProfile = () => {
   const { setUser: setContextUser } = useContext(UserContext);
   const { enableNotifications } = useNotifications();
   const scrollRef = React.useRef(null);
+  const calendarWrapperRef = React.useRef(null);
+  const scrollOffsetYRef = React.useRef(0);
   const firstNameRef = React.useRef(null);
   const lastNameRef = React.useRef(null);
   const today = new Date();
@@ -71,6 +73,27 @@ const CompleteProfile = () => {
   const kmToMiles = (km) => Math.round(km / 1.60934);
   const radiusMax = radiusUnit === 'km' ? 800 : 500;
   const SCREEN_WIDTH = Dimensions.get('window').width;
+
+  const scrollToCalendarWrapperEnd = React.useCallback(() => {
+    setTimeout(() => {
+      if (!scrollRef.current || !calendarWrapperRef.current) return;
+
+      calendarWrapperRef.current.measureInWindow((_, calendarY, __, calendarH) => {
+        scrollRef.current?.measureInWindow((_, scrollY, __2, scrollH) => {
+          const calendarBottom = calendarY + calendarH;
+          const viewportBottom = scrollY + scrollH;
+          const overflow = calendarBottom - viewportBottom;
+
+          if (overflow > 0) {
+            scrollRef.current?.scrollTo({
+              y: scrollOffsetYRef.current + overflow + 24,
+              animated: true,
+            });
+          }
+        });
+      });
+    }, 80);
+  }, []);
 
   const [formData, setFormData] = useState({
     first_name: '',
@@ -787,6 +810,10 @@ const CompleteProfile = () => {
           ref={scrollRef}
           contentContainerStyle={styles.container}
           keyboardShouldPersistTaps="handled"
+          scrollEventThrottle={16}
+          onScroll={(event) => {
+            scrollOffsetYRef.current = event.nativeEvent.contentOffset.y;
+          }}
         >
 
           {step === 1 && (
@@ -800,6 +827,19 @@ const CompleteProfile = () => {
                 {formData.profileStyle === 'pixelCactus' && <PixelCactus />}
               </View>
               <Text style={styles.title}>Complete Your Profile</Text>
+
+              {['topRow', 'heroStack'].includes(formData.imageLayout) && (
+                <>
+                  <Text style={styles.label}>Add Images:</Text>
+                  <ImageGallery
+                    images={images}
+                    editing={true}
+                    onDeleteImage={handleDeleteImage}
+                    onPlaceholderClick={handlePlaceholderClick}
+                    layout={formData.imageLayout}
+                  />
+                </>
+              )}
 
                   <Text style={styles.label}>First Name</Text>
                   <TextInput
@@ -833,12 +873,7 @@ const CompleteProfile = () => {
                           : null
                       );
                       setShowDatePicker(true);
-                      setTimeout(() => {
-                        scrollRef.current?.scrollTo({
-                          y: 300,
-                          animated: true,
-                        });
-                      }, 200);
+                      scrollToCalendarWrapperEnd();
                     }}
                   />
 
@@ -856,12 +891,7 @@ const CompleteProfile = () => {
                           : null
                       );
                       setShowDatePicker(true);
-                      setTimeout(() => {
-                            scrollRef.current?.scrollTo({
-                              y: 300, // adjust if needed
-                              animated: true,
-                            });
-                          }, 200);
+                      scrollToCalendarWrapperEnd();
                       }}
                     activeOpacity={0.8}
                   >
@@ -871,7 +901,11 @@ const CompleteProfile = () => {
                   </TouchableOpacity>
 
                   {showDatePicker && (
-                    <View style={styles.modalCard}>
+                    <View
+                      ref={calendarWrapperRef}
+                      style={styles.modalCard}
+                      onLayout={scrollToCalendarWrapperEnd}
+                    >
                       <Text style={styles.modalTitle}>Select Birthdate</Text>
                       <View style={styles.calendarWrapper}>
                         <CalendarPicker
@@ -1028,14 +1062,18 @@ const CompleteProfile = () => {
               />
               <Text style={styles.charCount}>{(formData.bio || '').length}/100</Text>
 
-              <Text style={styles.label}>Add Images:</Text>
-              <ImageGallery
-                images={images}
-                editing={true}
-                onDeleteImage={handleDeleteImage}
-                onPlaceholderClick={handlePlaceholderClick}
-                layout={formData.imageLayout}
-              />
+              {!['topRow', 'heroStack'].includes(formData.imageLayout) && (
+                <>
+                  <Text style={styles.label}>Add Images:</Text>
+                  <ImageGallery
+                    images={images}
+                    editing={true}
+                    onDeleteImage={handleDeleteImage}
+                    onPlaceholderClick={handlePlaceholderClick}
+                    layout={formData.imageLayout}
+                  />
+                </>
+              )}
 
               {error ? <Text style={styles.error}>{error}</Text> : null}
 

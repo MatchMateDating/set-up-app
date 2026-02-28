@@ -36,6 +36,7 @@ const Profile = ({ user, framed, viewerUnit, editing, setEditing, onSave, onEdit
   const [heightUnit, setHeightUnit] = useState('ft');
   const navigation = useNavigation();
   const scrollViewRef = useRef(null);
+  const scrollOffsetYRef = useRef(0);
 
   useEffect(() => {
     if (user) {
@@ -318,6 +319,10 @@ const Profile = ({ user, framed, viewerUnit, editing, setEditing, onSave, onEdit
   return (
     <ScrollView
         ref={scrollViewRef}
+        scrollEventThrottle={16}
+        onScroll={(event) => {
+          scrollOffsetYRef.current = event.nativeEvent.contentOffset.y;
+        }}
         style={[styles.container, framed && styles.framed, formData.profileStyle === 'pixelCloud' && styles.pixelCloud, formData.profileStyle === 'pixelFlower' && styles.pixelFlower, formData.profileStyle === 'minimal' && styles.minimal, formData.profileStyle === 'bold' && styles.bold, formData.profileStyle === 'classic' && styles.classic]}>
           {formData.profileStyle === 'pixelCloud' && <PixelClouds />}
           {formData.profileStyle === 'pixelFlower' && <PixelFlowers />}
@@ -355,8 +360,21 @@ const Profile = ({ user, framed, viewerUnit, editing, setEditing, onSave, onEdit
             onDeleteImage={handleDeleteImage}
             onPlaceholderClick={handlePlaceholderClick}
             profileStyle={formData.profileStyle}
-            scrollToBottom={() => {
+            scrollToBottom={(target, calendarBottomYInWindow) => {
                 const ref = parentScrollRef || scrollViewRef;
+                if (target === 'calendar-wrapper-end' && calendarBottomYInWindow) {
+                  ref.current?.measureInWindow((_, scrollY, __, scrollH) => {
+                    const viewportBottom = scrollY + scrollH;
+                    const overflow = calendarBottomYInWindow - viewportBottom;
+                    if (overflow > 0) {
+                      ref.current?.scrollTo({
+                        y: scrollOffsetYRef.current + overflow + 24,
+                        animated: true,
+                      });
+                    }
+                  });
+                  return;
+                }
                 ref.current?.scrollTo({ y: 300, animated: true });
             }}
           />
