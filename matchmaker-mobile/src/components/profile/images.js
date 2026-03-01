@@ -49,7 +49,7 @@ const ImageGallery = ({ images = [], editing, onDeleteImage, onPlaceholderClick,
       key={img.id || index}
       style={[
         isGrid
-          ? [styles.imageWrapper, gridThumbSizeStyle]
+          ? [styles.gridImageWrapper, gridThumbSizeStyle]
           : isTopRow
             ? styles.topRowImageWrapper
             : isHeroStack
@@ -93,7 +93,7 @@ const ImageGallery = ({ images = [], editing, onDeleteImage, onPlaceholderClick,
       <TouchableOpacity
         style={
           isGrid
-            ? [styles.imagePlaceholder, gridThumbSizeStyle]
+            ? [styles.gridPlaceholder, gridThumbSizeStyle]
             : isTopRow
               ? [styles.topRowPlaceholder, topRowItemSizeStyle]
               : isHeroStack
@@ -190,7 +190,8 @@ const styles = StyleSheet.create({
   gridLayout: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10,
+    justifyContent: 'flex-start',
+    rowGap: 10,
   },
   gridGallery: {
     width: '100%',
@@ -232,12 +233,13 @@ const styles = StyleSheet.create({
   topRowWrapper: {
     width: '100%',
   },
-  imageWrapper: {
+  gridImageWrapper: {
     position: 'relative',
-    width: '31%',
+    width: '32%',
     aspectRatio: 1,
     flexShrink: 0,
     flexGrow: 0,
+    paddingHorizontal: 4,
   },
   topRowImageWrapper: {
     position: 'relative',
@@ -294,8 +296,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  imagePlaceholder: {
-    width: '31%',
+  gridPlaceholder: {
+    width: '32%',
     aspectRatio: 1,
     flexShrink: 0,
     flexGrow: 0,

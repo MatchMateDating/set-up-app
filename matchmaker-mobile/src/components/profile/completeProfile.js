@@ -380,8 +380,21 @@ const CompleteProfile = () => {
         }, 1000);
       }
       
+      // Auto-save location visibility when changed on step 1 or step 3
+      if (name === 'show_location' && (step === 1 || step === 3)) {
+        if (autoSaveFormData.current) {
+          clearTimeout(autoSaveFormData.current);
+        }
+
+        autoSaveFormData.current = setTimeout(() => {
+          saveFormDataToBackend({
+            show_location: Boolean(value),
+          });
+        }, 500);
+      }
+
       // Auto-save preferences when changed (for step 3)
-      if (['preferredAgeMin', 'preferredAgeMax', 'preferredGenders', 'matchRadius', 'show_location'].includes(name) && step === 3) {
+      if (['preferredAgeMin', 'preferredAgeMax', 'preferredGenders', 'matchRadius'].includes(name) && step === 3) {
         if (autoSaveFormData.current) {
           clearTimeout(autoSaveFormData.current);
         }
@@ -392,8 +405,6 @@ const CompleteProfile = () => {
           if (name === 'preferredAgeMax') saveData.preferredAgeMax = parseInt(value, 10);
           if (name === 'preferredGenders') saveData.preferredGenders = value;
           if (name === 'matchRadius') saveData.match_radius = heightUnit === 'ft' ? Number(value) : kmToMiles(Number(value));
-          if (name === 'show_location') saveData.show_location = Boolean(value);
-          
           saveFormDataToBackend(saveData);
         }, 1000);
       }
@@ -496,6 +507,7 @@ const CompleteProfile = () => {
             bio: (formData.bio || '').trim().slice(0, 100),
             height: height,
             unit: heightUnit === 'ft' ? 'imperial' : 'metric',
+            show_location: formData.show_location ?? false,
             profile_completion_step: 2,
           }),
         });
@@ -1067,6 +1079,16 @@ const CompleteProfile = () => {
               />
               <Text style={styles.charCount}>{(formData.bio || '').length}/100</Text>
 
+              <TouchableOpacity
+                style={styles.checkboxRow}
+                onPress={() => update('show_location', !formData.show_location)}
+              >
+                <View style={[styles.checkbox, formData.show_location && styles.checkboxChecked]}>
+                  {formData.show_location && <Text style={styles.checkmark}>✓</Text>}
+                </View>
+                <Text style={styles.checkboxLabel}>Show location (e.g. Brooklyn, NY)</Text>
+              </TouchableOpacity>
+
               {!['topRow', 'heroStack'].includes(formData.imageLayout) && (
                 <View style={styles.step1ImagesSection}>
                   <Text style={styles.label}>Add Images:</Text>
@@ -1224,16 +1246,6 @@ const CompleteProfile = () => {
                   snapped
                 />
               </View>
-
-              <TouchableOpacity
-                style={styles.checkboxRow}
-                onPress={() => update('show_location', !formData.show_location)}
-              >
-                <View style={[styles.checkbox, formData.show_location && styles.checkboxChecked]}>
-                  {formData.show_location && <Text style={styles.checkmark}>✓</Text>}
-                </View>
-                <Text style={styles.checkboxLabel}>Show location (e.g. Brooklyn, NY)</Text>
-              </TouchableOpacity>
 
               {error ? <Text style={styles.error}>{error}</Text> : null}
 
