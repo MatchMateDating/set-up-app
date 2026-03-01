@@ -116,12 +116,13 @@ const ProfileInfoCard = ({
 
 
   return (
-    <View style={styles.card}>
-      {user.role === 'user' && (
-        <>
+    <>
+      <View style={[styles.card, editing && styles.cardEditing]}>
+        {user.role === 'user' && (
+          <>
           {['topRow', 'heroStack'].includes(formData.imageLayout) && (
             <>
-              {editing && (<Text style={styles.label}>Add Images</Text>)}
+              {editing && (<Text style={[styles.label, styles.firstFieldLabel]}>Add Images</Text>)}
               <ImageGallery
                 images={images}
                 editing={editing}
@@ -134,7 +135,14 @@ const ProfileInfoCard = ({
 
           {editing && (
             <>
-              <Text style={styles.label}>First Name</Text>
+              <Text
+                style={[
+                  styles.label,
+                  !['topRow', 'heroStack'].includes(formData.imageLayout) && styles.firstFieldLabel,
+                ]}
+              >
+                First Name
+              </Text>
               <TextInput
                 style={[styles.input, { fontFamily: formData.profileStyle === 'constitution' ? 'Pinyon Script' : formData.fontFamily }]}
                 value={formData.first_name}
@@ -414,19 +422,10 @@ const ProfileInfoCard = ({
 
 
 
-          {editing && (
-            <View style={styles.actions}>
-              <TouchableOpacity style={styles.saveBtn} onPress={onSubmit}>
-                <Text style={styles.saveText}>Save</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.cancelBtn} onPress={onCancel}>
-                <Text style={styles.cancelBtnText}>Cancel</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </>
-      )}
-    </View>
+          </>
+        )}
+      </View>
+    </>
   );
 };
 
@@ -436,11 +435,18 @@ const styles = StyleSheet.create({
   card: {
     padding: 16,
   },
+  cardEditing: {
+    paddingTop: 8,
+    paddingBottom: 44,
+  },
   label: {
     fontSize: 14,
     marginBottom: 4,
     marginTop: 12,
     color: '#111',
+  },
+  firstFieldLabel: {
+    marginTop: 0,
   },
   input: {
     height: 48,
@@ -586,36 +592,6 @@ const styles = StyleSheet.create({
     color: '#6c5ce7',
     fontWeight: '600',
     textAlign: 'right',
-  },
-  actions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 12,
-    marginTop: 24,
-  },
-  saveBtn: {
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 10,
-    backgroundColor: '#6c5ce7',
-  },
-  saveText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  cancelBtn: {
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#6c5ce7',
-    backgroundColor: 'transparent',
-  },
-  cancelBtnText: {
-    color: '#6c5ce7',
-    fontSize: 16,
-    fontWeight: '600',
   },
   checkboxRow: {
     flexDirection: 'row',

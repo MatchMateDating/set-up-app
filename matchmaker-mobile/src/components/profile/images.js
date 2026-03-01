@@ -6,12 +6,24 @@ import { getImageUrl } from './utils/profileUtils';
 
 const ImageGallery = ({ images = [], editing, onDeleteImage, onPlaceholderClick, layout = 'grid' }) => {
   const maxImages = 9;
+  const heroStackColumns = 3;
+  const heroStackGap = 10;
   const isGrid = layout === 'grid';
   const isTopRow = layout === 'topRow';
   const isHeroStack = layout === 'heroStack';
   const topRowScrollRef = useRef(null);
   const [topRowViewportWidth, setTopRowViewportWidth] = useState(0);
+  const [heroStackViewportWidth, setHeroStackViewportWidth] = useState(0);
   const topRowSize = topRowViewportWidth > 0 ? topRowViewportWidth : 280;
+  const heroThumbSize =
+    heroStackViewportWidth > 0
+      ? Math.floor((heroStackViewportWidth - heroStackGap * (heroStackColumns - 1)) / heroStackColumns)
+      : null;
+  const heroThumbSizeStyle = isHeroStack && heroThumbSize ? { width: heroThumbSize, height: heroThumbSize } : null;
+  const heroMainSizeStyle =
+    isHeroStack && heroStackViewportWidth > 0
+      ? { width: heroStackViewportWidth, height: heroStackViewportWidth }
+      : null;
   const containerStyle = [
     styles.imageGallery,
     isGrid
@@ -33,7 +45,12 @@ const ImageGallery = ({ images = [], editing, onDeleteImage, onPlaceholderClick,
           : isTopRow
             ? styles.topRowImageWrapper
             : isHeroStack
-              ? [styles.heroImageWrapper, index === 0 && styles.heroMainWrapper]
+              ? [
+                styles.heroImageWrapper,
+                index === 0
+                  ? [styles.heroMainWrapper, heroMainSizeStyle]
+                  : heroThumbSizeStyle,
+              ]
               : styles.listWrapper,
         topRowItemSizeStyle,
       ]}
@@ -72,9 +89,7 @@ const ImageGallery = ({ images = [], editing, onDeleteImage, onPlaceholderClick,
             : isTopRow
               ? [styles.topRowPlaceholder, topRowItemSizeStyle]
               : isHeroStack
-                ? images.length === 0
-                  ? styles.heroMainPlaceholder
-                  : styles.heroThumbPlaceholder
+                ? [styles.heroThumbPlaceholder, heroThumbSizeStyle]
               : styles.listPlaceholder
         }
         onPress={onPlaceholderClick}
@@ -124,7 +139,19 @@ const ImageGallery = ({ images = [], editing, onDeleteImage, onPlaceholderClick,
         )}
       </View>
     ) : (
-      <View style={containerStyle}>
+      <View
+        style={containerStyle}
+        onLayout={
+          isHeroStack
+            ? (event) => {
+              const nextWidth = Math.floor(event.nativeEvent.layout.width);
+              if (nextWidth > 0 && nextWidth !== heroStackViewportWidth) {
+                setHeroStackViewportWidth(nextWidth);
+              }
+            }
+            : undefined
+        }
+      >
         {images.map(renderImage)}
         {renderPlaceholder()}
       </View>

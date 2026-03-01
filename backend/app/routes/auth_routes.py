@@ -450,7 +450,7 @@ def send_password_reset_email(email, reset_token, first_name):
     """Send password reset email using Resend"""
     try:
         frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
-        reset_url = f"{frontend_url}/reset-password?token={reset_token}"
+        reset_url = f"{frontend_url}/reset-password.html?token={reset_token}"
         
         subject = "Reset Your Password"
         body_html = f"""<html>
@@ -493,7 +493,7 @@ def send_password_reset_sms(phone_number, reset_token, first_name):
             return False
         
         frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
-        reset_url = f"{frontend_url}/reset-password?token={reset_token}"
+        reset_url = f"{frontend_url}/reset-password.html?token={reset_token}"
         
         message_body = f"Hello {first_name or 'there'}, you requested to reset your password. Click this link: {reset_url} This link expires in 1 hour. If you didn't request this, please ignore."
         

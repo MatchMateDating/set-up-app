@@ -317,7 +317,8 @@ const Profile = ({ user, framed, viewerUnit, editing, setEditing, onSave, onEdit
   if (!user) return null;
 
   return (
-    <ScrollView
+    <>
+      <ScrollView
         ref={scrollViewRef}
         scrollEventThrottle={16}
         onScroll={(event) => {
@@ -380,7 +381,20 @@ const Profile = ({ user, framed, viewerUnit, editing, setEditing, onSave, onEdit
           />
       )}
 
-    </ScrollView>
+      </ScrollView>
+      {editing && user.role === 'user' && (
+        <View style={styles.actionsOutsideCard}>
+          <View style={styles.actions}>
+            <TouchableOpacity style={styles.saveBtn} onPress={handleFormSubmit}>
+              <Text style={styles.saveText}>Save</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.cancelBtn} onPress={handleCancel}>
+              <Text style={styles.cancelBtnText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+    </>
   );
 };
 
@@ -420,6 +434,38 @@ const styles = StyleSheet.create({
   profileActions: {
     flexDirection: 'row',
     gap: 12,
+  },
+  actionsOutsideCard: {
+    marginTop: 20,
+  },
+  actions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 12,
+  },
+  saveBtn: {
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: '#6c5ce7',
+  },
+  saveText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  cancelBtn: {
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#6c5ce7',
+    backgroundColor: 'transparent',
+  },
+  cancelBtnText: {
+    color: '#6c5ce7',
+    fontSize: 16,
+    fontWeight: '600',
   },
   /* Theme styles */
   pixelCloud: {

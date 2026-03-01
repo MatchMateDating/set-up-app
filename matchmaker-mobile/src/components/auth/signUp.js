@@ -1,4 +1,4 @@
-import React, { useState, useRef, useContext } from 'react';
+import React, { useState, useRef, useContext, useEffect } from 'react';
 import {
   View,
   Text,
@@ -22,6 +22,15 @@ import { startLocationWatcher } from './utils/startLocationWatcher';
 import { useNotifications } from '../../context/NotificationContext';
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
+import { Ionicons } from '@expo/vector-icons';
+
+const DEFAULT_TEST_EMAIL_DOMAINS = '@test.com,@example.com,@test.local';
+const TEST_EMAIL_DOMAINS = (
+  process.env.EXPO_PUBLIC_TEST_EMAIL_DOMAINS || DEFAULT_TEST_EMAIL_DOMAINS
+)
+  .split(',')
+  .map((domain) => domain.trim().toLowerCase())
+  .filter(Boolean);
 
 const SignUpScreen = () => {
   const navigation = useNavigation();
@@ -30,16 +39,35 @@ const SignUpScreen = () => {
   const [role, setRole] = useState('user');
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [referralCode, setReferralCode] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [emailError, setEmailError] = useState('');
   const [agreeToTexts, setAgreeToTexts] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [agreeToTerms, setAgreeToTerms] = useState(false);
   const identifierRef = useRef(null);
   const passwordRef = useRef(null);
+  const confirmPasswordRef = useRef(null);
   const referralRef = useRef(null);
+  const passwordRevealTimeoutRef = useRef(null);
+  const confirmPasswordRevealTimeoutRef = useRef(null);
 
   const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+  const isTestEmail = (value) => {
+    const normalized = (value || '').trim().toLowerCase();
+    return TEST_EMAIL_DOMAINS.some((domain) => normalized.endsWith(domain));
+  };
+  const getPasswordChecks = (value) => ({
+    minLength: (value || '').length >= 8,
+    hasUppercase: /[A-Z]/.test(value || ''),
+    hasLowercase: /[a-z]/.test(value || ''),
+    hasSpecial: /[^A-Za-z0-9]/.test(value || ''),
+  });
+  const passwordChecks = getPasswordChecks(password);
+  const isPasswordStrong = Object.values(passwordChecks).every(Boolean);
+  const shouldSkipPasswordRules = isTestEmail(identifier);
 
   const handleEmailChange = (value) => {
     setIdentifier(value);
@@ -48,6 +76,61 @@ const SignUpScreen = () => {
     } else {
       setEmailError('');
     }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (passwordRevealTimeoutRef.current) {
+        clearTimeout(passwordRevealTimeoutRef.current);
+      }
+      if (confirmPasswordRevealTimeoutRef.current) {
+        clearTimeout(confirmPasswordRevealTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const clearPasswordRevealTimer = () => {
+    if (passwordRevealTimeoutRef.current) {
+      clearTimeout(passwordRevealTimeoutRef.current);
+      passwordRevealTimeoutRef.current = null;
+    }
+  };
+
+  const handlePasswordVisibilityToggle = () => {
+    if (showPassword) {
+      setShowPassword(false);
+      clearPasswordRevealTimer();
+      return;
+    }
+
+    setShowPassword(true);
+    clearPasswordRevealTimer();
+    passwordRevealTimeoutRef.current = setTimeout(() => {
+      setShowPassword(false);
+      passwordRevealTimeoutRef.current = null;
+    }, 10000);
+  };
+
+  const clearConfirmPasswordRevealTimer = () => {
+    if (confirmPasswordRevealTimeoutRef.current) {
+      clearTimeout(confirmPasswordRevealTimeoutRef.current);
+      confirmPasswordRevealTimeoutRef.current = null;
+    }
+  };
+
+  const handleConfirmPasswordVisibilityToggle = () => {
+    if (showConfirmPassword) {
+      setShowConfirmPassword(false);
+      clearConfirmPasswordRevealTimer();
+      return;
+    }
+
+    setShowConfirmPassword(true);
+    clearConfirmPasswordRevealTimer();
+    confirmPasswordRevealTimeoutRef.current = setTimeout(() => {
+      setShowConfirmPassword(false);
+      confirmPasswordRevealTimeoutRef.current = null;
+    }, 10000);
   };
 
   const handleSignUpClick = () => {
@@ -63,6 +146,24 @@ const SignUpScreen = () => {
 
     if (!password) {
       Alert.alert('Error', 'Please enter a password.');
+      return;
+    }
+
+    if (!confirmPassword) {
+      Alert.alert('Error', 'Please confirm your password.');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      Alert.alert('Error', 'Passwords do not match.');
+      return;
+    }
+
+    if (!shouldSkipPasswordRules && !isPasswordStrong) {
+      Alert.alert(
+        'Error',
+        'Password must be at least 8 characters and include 1 uppercase letter, 1 lowercase letter, and 1 special character.'
+      );
       return;
     }
 
@@ -314,24 +415,111 @@ const SignUpScreen = () => {
           onSubmitEditing={() => passwordRef.current?.focus()}
         />
         {emailError ? <Text style={styles.emailError}>{emailError}</Text> : null}
-        <TextInput
-          ref={passwordRef}
-          style={styles.input}
-          placeholder="Password"
-          placeholderTextColor="#6b7280"
-          value={password}
-          secureTextEntry
-          onChangeText={setPassword}
-          blurOnSubmit={false}
-          returnKeyType={role === 'matchmaker' ? 'next' : 'done'}
-          onSubmitEditing={() => {
-            if (role === 'matchmaker') {
-              referralRef.current?.focus();
-            } else {
-              handleSignUpClick();
-            }
-          }}
-        />
+        <View style={styles.passwordInputWrapper}>
+          <TextInput
+            ref={passwordRef}
+            style={[styles.input, styles.passwordInput]}
+            placeholder="Password"
+            placeholderTextColor="#6b7280"
+            value={password}
+            secureTextEntry={!showPassword}
+            onChangeText={setPassword}
+            blurOnSubmit={false}
+            returnKeyType="next"
+            onSubmitEditing={() => confirmPasswordRef.current?.focus()}
+          />
+          <TouchableOpacity
+            style={styles.passwordToggleBtn}
+            onPress={handlePasswordVisibilityToggle}
+            activeOpacity={0.7}
+          >
+            <Ionicons
+              name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+              size={18}
+              color="#6c5ce7"
+            />
+            <Text style={styles.passwordToggleText}>
+              {showPassword ? 'Hide' : 'Show'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+        <View style={styles.passwordRulesContainer}>
+          <Text style={styles.passwordRulesTitle}>Password requirements:</Text>
+          <Text
+            style={[
+              styles.passwordRuleText,
+              passwordChecks.minLength ? styles.passwordRulePassed : styles.passwordRulePending,
+            ]}
+          >
+            • At least 8 characters
+          </Text>
+          <Text
+            style={[
+              styles.passwordRuleText,
+              passwordChecks.hasUppercase ? styles.passwordRulePassed : styles.passwordRulePending,
+            ]}
+          >
+            • 1 uppercase letter
+          </Text>
+          <Text
+            style={[
+              styles.passwordRuleText,
+              passwordChecks.hasLowercase ? styles.passwordRulePassed : styles.passwordRulePending,
+            ]}
+          >
+            • 1 lowercase letter
+          </Text>
+          <Text
+            style={[
+              styles.passwordRuleText,
+              passwordChecks.hasSpecial ? styles.passwordRulePassed : styles.passwordRulePending,
+            ]}
+          >
+            • 1 special character
+          </Text>
+          {shouldSkipPasswordRules && (
+            <Text style={styles.passwordRuleTestBypass}>
+              Test email detected: password rules are optional for test mode.
+            </Text>
+          )}
+        </View>
+        <View style={styles.passwordInputWrapper}>
+          <TextInput
+            ref={confirmPasswordRef}
+            style={[styles.input, styles.passwordInput]}
+            placeholder="Confirm Password"
+            placeholderTextColor="#6b7280"
+            value={confirmPassword}
+            secureTextEntry={!showConfirmPassword}
+            onChangeText={setConfirmPassword}
+            blurOnSubmit={false}
+            returnKeyType={role === 'matchmaker' ? 'next' : 'done'}
+            onSubmitEditing={() => {
+              if (role === 'matchmaker') {
+                referralRef.current?.focus();
+              } else {
+                handleSignUpClick();
+              }
+            }}
+          />
+          <TouchableOpacity
+            style={styles.passwordToggleBtn}
+            onPress={handleConfirmPasswordVisibilityToggle}
+            activeOpacity={0.7}
+          >
+            <Ionicons
+              name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'}
+              size={18}
+              color="#6c5ce7"
+            />
+            <Text style={styles.passwordToggleText}>
+              {showConfirmPassword ? 'Hide' : 'Show'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+        {confirmPassword.length > 0 && password !== confirmPassword && (
+          <Text style={styles.emailError}>Passwords do not match</Text>
+        )}
 
         {role === 'matchmaker' && (
           <TextInput
@@ -550,12 +738,59 @@ const styles = StyleSheet.create({
     color: '#1a1a2e',
     backgroundColor: '#fafafa',
   },
+  passwordInputWrapper: {
+    position: 'relative',
+  },
+  passwordInput: {
+    paddingRight: 88,
+  },
+  passwordToggleBtn: {
+    position: 'absolute',
+    right: 12,
+    top: 0,
+    bottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  passwordToggleText: {
+    color: '#6c5ce7',
+    fontSize: 12,
+    fontWeight: '700',
+  },
   emailError: {
     color: '#e53e3e',
     fontSize: 13,
     marginTop: -8,
     marginBottom: 8,
     marginLeft: 4,
+  },
+  passwordRulesContainer: {
+    marginTop: -6,
+    marginBottom: 12,
+    paddingHorizontal: 4,
+  },
+  passwordRulesTitle: {
+    fontSize: 13,
+    color: '#4a4a68',
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  passwordRuleText: {
+    fontSize: 12,
+    marginBottom: 2,
+  },
+  passwordRulePending: {
+    color: '#6b7280',
+  },
+  passwordRulePassed: {
+    color: '#16a34a',
+  },
+  passwordRuleTestBypass: {
+    marginTop: 6,
+    fontSize: 12,
+    color: '#6c5ce7',
+    fontWeight: '600',
   },
   submitBtn: {
     backgroundColor: '#6c5ce7',

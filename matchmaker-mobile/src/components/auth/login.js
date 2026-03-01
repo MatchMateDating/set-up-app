@@ -1,4 +1,4 @@
-import React, { useState, useRef, useContext } from 'react';
+import React, { useState, useRef, useContext, useEffect } from 'react';
 import {
     View,
     Text,
@@ -17,14 +17,17 @@ import { useNavigation } from '@react-navigation/native';
 import { API_BASE_URL } from '../../env';
 import { UserContext } from '../../context/UserContext';
 import { startLocationWatcher } from './utils/startLocationWatcher';
+import { Ionicons } from '@expo/vector-icons';
 
 const LoginScreen = () => {
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [emailError, setEmailError] = useState('');
   const navigation = useNavigation();
   const identifierRef = useRef(null);
   const passwordRef = useRef(null);
+  const passwordRevealTimeoutRef = useRef(null);
   const { setUser } = useContext(UserContext);
 
   const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
@@ -36,6 +39,36 @@ const LoginScreen = () => {
     } else {
       setEmailError('');
     }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (passwordRevealTimeoutRef.current) {
+        clearTimeout(passwordRevealTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const clearPasswordRevealTimer = () => {
+    if (passwordRevealTimeoutRef.current) {
+      clearTimeout(passwordRevealTimeoutRef.current);
+      passwordRevealTimeoutRef.current = null;
+    }
+  };
+
+  const handlePasswordVisibilityToggle = () => {
+    if (showPassword) {
+      setShowPassword(false);
+      clearPasswordRevealTimer();
+      return;
+    }
+
+    setShowPassword(true);
+    clearPasswordRevealTimer();
+    passwordRevealTimeoutRef.current = setTimeout(() => {
+      setShowPassword(false);
+      passwordRevealTimeoutRef.current = null;
+    }, 10000);
   };
 
   const handleLogin = async () => {
@@ -116,18 +149,34 @@ const LoginScreen = () => {
             onSubmitEditing={() => passwordRef.current?.focus()}
           />
           {emailError ? <Text style={styles.emailError}>{emailError}</Text> : null}
-          <TextInput
-            ref={passwordRef}
-            style={styles.input}
-            placeholder="Password"
-            placeholderTextColor="#6b7280"
-            value={password}
-            onChangeText={setPassword}
-            blurOnSubmit={false}
-            returnKeyType="done"
-            onSubmitEditing={handleLogin}
-            secureTextEntry
-          />
+          <View style={styles.passwordInputWrapper}>
+            <TextInput
+              ref={passwordRef}
+              style={[styles.input, styles.passwordInput]}
+              placeholder="Password"
+              placeholderTextColor="#6b7280"
+              value={password}
+              onChangeText={setPassword}
+              blurOnSubmit={false}
+              returnKeyType="done"
+              onSubmitEditing={handleLogin}
+              secureTextEntry={!showPassword}
+            />
+            <TouchableOpacity
+              style={styles.passwordToggleBtn}
+              onPress={handlePasswordVisibilityToggle}
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                size={18}
+                color="#6c5ce7"
+              />
+              <Text style={styles.passwordToggleText}>
+                {showPassword ? 'Hide' : 'Show'}
+              </Text>
+            </TouchableOpacity>
+          </View>
 
         <TouchableOpacity style={styles.button} onPress={handleLogin}>
           <Text style={styles.buttonText}>Login</Text>
@@ -189,6 +238,26 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#1a1a2e',
     backgroundColor: '#fafafa',
+  },
+  passwordInputWrapper: {
+    position: 'relative',
+  },
+  passwordInput: {
+    paddingRight: 88,
+  },
+  passwordToggleBtn: {
+    position: 'absolute',
+    right: 12,
+    top: 0,
+    bottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  passwordToggleText: {
+    color: '#6c5ce7',
+    fontSize: 12,
+    fontWeight: '700',
   },
   emailError: {
     color: '#e53e3e',

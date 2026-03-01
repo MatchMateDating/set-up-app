@@ -817,16 +817,18 @@ const CompleteProfile = () => {
         >
 
           {step === 1 && (
-            <View style={[
-                styles.stepContainer,
-                themeStyles[formData.profileStyle],
-            ]}>
-              <View style={styles.themeLayer}>
-                {formData.profileStyle === 'pixelCloud' && <PixelClouds />}
-                {formData.profileStyle === 'pixelFlower' && <PixelFlowers />}
-                {formData.profileStyle === 'pixelCactus' && <PixelCactus />}
-              </View>
-              <Text style={styles.title}>Complete Your Profile</Text>
+            <View>
+              <View style={[
+                  styles.stepContainer,
+                  themeStyles[formData.profileStyle],
+              ]}>
+                <View style={styles.themeLayer}>
+                  {formData.profileStyle === 'pixelCloud' && <PixelClouds />}
+                  {formData.profileStyle === 'pixelFlower' && <PixelFlowers />}
+                  {formData.profileStyle === 'pixelCactus' && <PixelCactus />}
+                </View>
+              <View style={styles.contentLayer}>
+                <Text style={styles.title}>Complete Your Profile</Text>
 
               {['topRow', 'heroStack'].includes(formData.imageLayout) && (
                 <>
@@ -1063,7 +1065,7 @@ const CompleteProfile = () => {
               <Text style={styles.charCount}>{(formData.bio || '').length}/100</Text>
 
               {!['topRow', 'heroStack'].includes(formData.imageLayout) && (
-                <>
+                <View style={styles.step1ImagesSection}>
                   <Text style={styles.label}>Add Images:</Text>
                   <ImageGallery
                     images={images}
@@ -1072,11 +1074,13 @@ const CompleteProfile = () => {
                     onPlaceholderClick={handlePlaceholderClick}
                     layout={formData.imageLayout}
                   />
-                </>
+                </View>
               )}
 
-              {error ? <Text style={styles.error}>{error}</Text> : null}
-
+                {error ? <Text style={styles.error}>{error}</Text> : null}
+              </View>
+            </View>
+            <View style={styles.step1Actions}>
               <TouchableOpacity style={styles.nextBtn} onPress={saveStep1}>
                 <Text style={styles.nextBtnText}>Next</Text>
               </TouchableOpacity>
@@ -1086,6 +1090,7 @@ const CompleteProfile = () => {
               }}>
                 <Text style={styles.skipBtnText}>Skip</Text>
               </TouchableOpacity>
+            </View>
             </View>
           )}
 
@@ -1317,8 +1322,10 @@ const styles = StyleSheet.create({
   stepContainer: {
     position: 'relative',
     borderRadius: 16,
-    overflow: 'hidden', // VERY important
-    padding: 16,
+    overflow: 'visible',
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 44,
   },
   themeLayer: {
     ...StyleSheet.absoluteFillObject,
@@ -1541,6 +1548,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginTop: 20,
+  },
+  step1Actions: {
+    marginTop: 32,
+  },
+  step1ImagesSection: {
+    paddingBottom: 12,
   },
   nextBtn: {
     backgroundColor: '#6c5ce7',
