@@ -45,6 +45,7 @@ const SignUpScreen = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [emailError, setEmailError] = useState('');
   const [agreeToTexts, setAgreeToTexts] = useState(false);
+  const [staySignedIn, setStaySignedIn] = useState(true);
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [agreeToTerms, setAgreeToTerms] = useState(false);
   const identifierRef = useRef(null);
@@ -79,6 +80,19 @@ const SignUpScreen = () => {
   };
 
   useEffect(() => {
+    const loadStaySignedInPreference = async () => {
+      try {
+        const stored = await AsyncStorage.getItem('staySignedIn');
+        if (stored !== null) {
+          setStaySignedIn(stored === 'true');
+        }
+      } catch (err) {
+        console.error('Error loading stay signed in preference:', err);
+      }
+    };
+
+    loadStaySignedInPreference();
+
     return () => {
       if (passwordRevealTimeoutRef.current) {
         clearTimeout(passwordRevealTimeoutRef.current);
@@ -204,6 +218,7 @@ const SignUpScreen = () => {
       if (res.data.token && res.data.test_mode) {
         // Test mode: account created and auto-verified, log in directly
         // Make sure to await all AsyncStorage operations before navigating
+        await AsyncStorage.setItem('staySignedIn', staySignedIn ? 'true' : 'false');
         await AsyncStorage.setItem('token', res.data.token);
         await AsyncStorage.setItem('user', JSON.stringify(res.data.user));
         setUser(res.data.user);
@@ -248,7 +263,8 @@ const SignUpScreen = () => {
           email: identifier.trim(),
           password,
           role,
-          referral_code: role === 'matchmaker' ? referralCode.trim() : null
+          referral_code: role === 'matchmaker' ? referralCode.trim() : null,
+          staySignedIn,
         };
 
         await AsyncStorage.setItem('signupData', JSON.stringify(signupData));
@@ -546,6 +562,20 @@ const SignUpScreen = () => {
             {agreeToTexts && <Text style={styles.checkmark}>✓</Text>}
           </View>
           <Text style={styles.checkboxLabel}>By checking this box, you agree to receive non promotional emails.</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.checkboxContainer}
+          onPress={() => {
+            Keyboard.dismiss();
+            setStaySignedIn((prev) => !prev);
+          }}
+          activeOpacity={0.7}
+        >
+          <View style={[styles.checkbox, staySignedIn && styles.checkboxChecked]}>
+            {staySignedIn && <Text style={styles.checkmark}>✓</Text>}
+          </View>
+          <Text style={styles.checkboxLabel}>Remember Me</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.submitBtn} onPress={handleSignUpClick}>

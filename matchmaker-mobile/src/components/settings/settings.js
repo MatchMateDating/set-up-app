@@ -301,6 +301,7 @@ const Settings = () => {
       // Account deleted successfully
       await AsyncStorage.removeItem('token');
       await AsyncStorage.removeItem('user');
+      await AsyncStorage.removeItem('staySignedIn');
       setShowDeleteAccountModal(false);
       Alert.alert(
         'Account Deleted',
@@ -327,6 +328,7 @@ const Settings = () => {
     try {
       await AsyncStorage.removeItem('token');
       await AsyncStorage.removeItem('user');
+      await AsyncStorage.removeItem('staySignedIn');
       navigation.reset({
         index: 0,
         routes: [{ name: 'Login' }],

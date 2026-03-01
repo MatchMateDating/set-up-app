@@ -85,6 +85,9 @@ const EmailVerificationScreen = () => {
         await AsyncStorage.removeItem('signupData');
         await AsyncStorage.removeItem('verificationToken');
 
+        const shouldStaySignedIn = signupData?.staySignedIn !== false;
+        await AsyncStorage.setItem('staySignedIn', shouldStaySignedIn ? 'true' : 'false');
+
         // Store user data and token
         await AsyncStorage.setItem('token', res.data.token);
         await AsyncStorage.setItem('user', JSON.stringify(res.data.user));

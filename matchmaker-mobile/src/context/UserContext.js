@@ -12,6 +12,14 @@ export const UserProvider = ({ children }) => {
   useEffect(() => {
     const loadUser = async () => {
       try {
+        const staySignedIn = await AsyncStorage.getItem('staySignedIn');
+        if (staySignedIn === 'false') {
+          await AsyncStorage.removeItem('token');
+          await AsyncStorage.removeItem('user');
+          setUser(null);
+          return;
+        }
+
         const stored = await AsyncStorage.getItem('user');
         if (stored) {
           try {

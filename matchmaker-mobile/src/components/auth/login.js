@@ -23,6 +23,7 @@ const LoginScreen = () => {
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [staySignedIn, setStaySignedIn] = useState(true);
   const [emailError, setEmailError] = useState('');
   const navigation = useNavigation();
   const identifierRef = useRef(null);
@@ -42,12 +43,39 @@ const LoginScreen = () => {
   };
 
   useEffect(() => {
+    const bootstrapAuth = async () => {
+      try {
+        const shouldStaySignedIn = await AsyncStorage.getItem('staySignedIn');
+        if (shouldStaySignedIn !== null) {
+          setStaySignedIn(shouldStaySignedIn === 'true');
+        }
+
+        if (shouldStaySignedIn === 'true') {
+          const token = await AsyncStorage.getItem('token');
+          const storedUser = await AsyncStorage.getItem('user');
+          if (token && storedUser) {
+            const parsedUser = JSON.parse(storedUser);
+            setUser(parsedUser);
+            if (parsedUser.role === 'user' && parsedUser.profile_completion_step) {
+              navigation.navigate('CompleteProfile');
+            } else {
+              navigation.navigate('Main', { screen: 'Matches' });
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Error bootstrapping auth state:', err);
+      }
+    };
+
+    bootstrapAuth();
+
     return () => {
       if (passwordRevealTimeoutRef.current) {
         clearTimeout(passwordRevealTimeoutRef.current);
       }
     };
-  }, []);
+  }, [navigation, setUser]);
 
   const clearPasswordRevealTimer = () => {
     if (passwordRevealTimeoutRef.current) {
@@ -85,6 +113,7 @@ const LoginScreen = () => {
         identifier: identifier,
         password 
       });
+      await AsyncStorage.setItem('staySignedIn', staySignedIn ? 'true' : 'false');
       // Store token in AsyncStorage
       await AsyncStorage.setItem('token', res.data.token);
       if (res.data.user) {
@@ -178,6 +207,17 @@ const LoginScreen = () => {
             </TouchableOpacity>
           </View>
 
+        <TouchableOpacity
+          style={styles.checkboxContainer}
+          onPress={() => setStaySignedIn((prev) => !prev)}
+          activeOpacity={0.7}
+        >
+          <View style={[styles.checkbox, staySignedIn && styles.checkboxChecked]}>
+            {staySignedIn && <Text style={styles.checkmark}>✓</Text>}
+          </View>
+          <Text style={styles.checkboxLabel}>Remember Me</Text>
+        </TouchableOpacity>
+
         <TouchableOpacity style={styles.button} onPress={handleLogin}>
           <Text style={styles.buttonText}>Login</Text>
         </TouchableOpacity>
@@ -265,6 +305,36 @@ const styles = StyleSheet.create({
     marginTop: -8,
     marginBottom: 8,
     marginLeft: 4,
+  },
+  checkboxContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+    marginBottom: 8,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderWidth: 2,
+    borderColor: '#6c5ce7',
+    borderRadius: 6,
+    marginRight: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+  },
+  checkboxChecked: {
+    backgroundColor: '#6c5ce7',
+  },
+  checkmark: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  checkboxLabel: {
+    flex: 1,
+    fontSize: 14,
+    color: '#4a4a68',
   },
   button: {
     width: '100%',
