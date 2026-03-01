@@ -1,10 +1,12 @@
 (function () {
-  var RESET_TIMEOUT_MS = 10000;
+  var REVEAL_TIMEOUT_MS = 10000;
   var PROD_API_BASE_URL = "https://set-up-app-production.up.railway.app";
 
-  var form = document.getElementById("resetForm");
+  var form = document.getElementById("matchmakerSignupForm");
+  var emailInput = document.getElementById("email");
   var passwordInput = document.getElementById("password");
   var confirmInput = document.getElementById("confirmPassword");
+  var referralInput = document.getElementById("referralCode");
   var togglePasswordBtn = document.getElementById("togglePasswordBtn");
   var toggleConfirmBtn = document.getElementById("toggleConfirmBtn");
   var submitBtn = document.getElementById("submitBtn");
@@ -17,10 +19,11 @@
 
   var passwordTimer = null;
   var confirmTimer = null;
+
   var params = new URLSearchParams(window.location.search);
-  var token = (params.get("token") || "").trim();
+  var referralFromQuery = (params.get("referral_code") || params.get("ref") || "").trim();
   var apiFromQuery = (params.get("api") || "").trim();
-  var configuredApiBaseUrl = (window.RESET_API_BASE_URL || "").trim();
+  var configuredApiBaseUrl = (window.SIGNUP_API_BASE_URL || window.RESET_API_BASE_URL || "").trim();
   var host = (window.location.hostname || "").trim();
   var isLocalLikeHost =
     host === "localhost" ||
@@ -35,14 +38,18 @@
     (isLocalLikeHost && inferredLocalApiBaseUrl ? inferredLocalApiBaseUrl : PROD_API_BASE_URL);
   var apiBaseUrl = apiFromQuery || defaultApiBaseUrl;
 
+  function setStatus(message, type) {
+    statusMessage.textContent = message;
+    statusMessage.className = "status " + type;
+  }
+
   function clearStatus() {
     statusMessage.textContent = "";
     statusMessage.className = "status";
   }
 
-  function setStatus(message, type) {
-    statusMessage.textContent = message;
-    statusMessage.className = "status " + type;
+  function isValidEmail(value) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value || "");
   }
 
   function getPasswordChecks(value) {
@@ -63,30 +70,34 @@
     ruleSpecial.classList.toggle("pass", checks.hasSpecial);
   }
 
+  function isStrongPassword() {
+    var checks = getPasswordChecks(passwordInput.value);
+    return checks.minLength && checks.hasUppercase && checks.hasLowercase && checks.hasSpecial;
+  }
+
   function passwordsMatch() {
     return passwordInput.value === confirmInput.value;
   }
 
   function updateMismatchUI() {
-    var shouldShow = confirmInput.value.length > 0 && !passwordsMatch();
-    mismatchError.style.display = shouldShow ? "block" : "none";
+    var showMismatch = confirmInput.value.length > 0 && !passwordsMatch();
+    mismatchError.style.display = showMismatch ? "block" : "none";
   }
 
-  function clearTimer(timerRefName) {
-    if (timerRefName === "password" && passwordTimer) {
+  function clearTimer(timerName) {
+    if (timerName === "password" && passwordTimer) {
       clearTimeout(passwordTimer);
       passwordTimer = null;
     }
-    if (timerRefName === "confirm" && confirmTimer) {
+    if (timerName === "confirm" && confirmTimer) {
       clearTimeout(confirmTimer);
       confirmTimer = null;
     }
   }
 
   function toggleVisibility(input, btn, timerName) {
-    var currentlyHidden = input.type === "password";
-
-    if (!currentlyHidden) {
+    var isHidden = input.type === "password";
+    if (!isHidden) {
       input.type = "password";
       btn.textContent = "Show";
       clearTimer(timerName);
@@ -97,7 +108,7 @@
     btn.textContent = "Hide";
     clearTimer(timerName);
 
-    var timeoutId = setTimeout(function () {
+    var timeout = setTimeout(function () {
       input.type = "password";
       btn.textContent = "Show";
       if (timerName === "password") {
@@ -105,46 +116,44 @@
       } else {
         confirmTimer = null;
       }
-    }, RESET_TIMEOUT_MS);
+    }, REVEAL_TIMEOUT_MS);
 
     if (timerName === "password") {
-      passwordTimer = timeoutId;
+      passwordTimer = timeout;
     } else {
-      confirmTimer = timeoutId;
+      confirmTimer = timeout;
     }
-  }
-
-  function isStrongPassword() {
-    var checks = getPasswordChecks(passwordInput.value);
-    return checks.minLength && checks.hasUppercase && checks.hasLowercase && checks.hasSpecial;
   }
 
   function validateForm() {
-    if (!token) {
-      setStatus("Invalid reset link: missing token.", "error");
+    if (!emailInput.value.trim()) {
+      setStatus("Please enter your email.", "error");
       return false;
     }
-
+    if (!isValidEmail(emailInput.value.trim())) {
+      setStatus("Please enter a valid email address.", "error");
+      return false;
+    }
     if (!passwordInput.value) {
-      setStatus("Please enter a new password.", "error");
+      setStatus("Please enter a password.", "error");
       return false;
     }
-
     if (!isStrongPassword()) {
-      setStatus("Password must include 8+ characters, uppercase, lowercase, and a special character.", "error");
+      setStatus("Password must include 8+ chars, uppercase, lowercase, and a special character.", "error");
       return false;
     }
-
     if (!confirmInput.value) {
-      setStatus("Please confirm your new password.", "error");
+      setStatus("Please confirm your password.", "error");
       return false;
     }
-
     if (!passwordsMatch()) {
       setStatus("Passwords do not match.", "error");
       return false;
     }
-
+    if (!referralInput.value.trim()) {
+      setStatus("Referral code is required.", "error");
+      return false;
+    }
     return true;
   }
 
@@ -156,40 +165,45 @@
     if (!validateForm()) return;
 
     submitBtn.disabled = true;
-    submitBtn.textContent = "Resetting...";
+    submitBtn.textContent = "Creating Account...";
 
     try {
-      var response = await fetch(apiBaseUrl + "/auth/reset-password", {
+      var response = await fetch(apiBaseUrl + "/auth/register-matchmaker-web", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
-          token: token,
+          email: emailInput.value.trim(),
           password: passwordInput.value,
+          referral_code: referralInput.value.trim(),
         }),
       });
 
       var data = {};
       try {
         data = await response.json();
-      } catch (jsonErr) {
+      } catch (parseErr) {
         data = {};
       }
 
       if (!response.ok) {
-        setStatus(data.msg || "Unable to reset password. Please request a new link.", "error");
+        setStatus(data.msg || "Could not create account. Please try again.", "error");
         return;
       }
 
-      setStatus(data.message || "Password reset successfully. You can now return to the app and log in.", "success");
-      form.reset();
-      updateRuleUI();
-      updateMismatchUI();
+      var nextUrl = "signup-finish-in-app.html";
+      window.location.href = nextUrl;
     } catch (err) {
       setStatus("Network error. Please try again.", "error");
     } finally {
       submitBtn.disabled = false;
-      submitBtn.textContent = "Reset Password";
+      submitBtn.textContent = "Create Matchmaker Account";
     }
+  }
+
+  if (referralFromQuery) {
+    referralInput.value = referralFromQuery;
   }
 
   togglePasswordBtn.addEventListener("click", function () {
@@ -211,6 +225,8 @@
     clearStatus();
   });
 
+  referralInput.addEventListener("input", clearStatus);
+  emailInput.addEventListener("input", clearStatus);
   form.addEventListener("submit", handleSubmit);
 
   updateRuleUI();

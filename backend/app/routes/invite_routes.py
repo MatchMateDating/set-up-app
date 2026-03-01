@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify
 import resend
 import os
+from urllib.parse import quote
 
 invite_bp = Blueprint('invite', __name__)
 
@@ -14,7 +15,10 @@ def invite_email():
     data = request.json
     email = data.get("email")
     referral_code = data.get("referralCode")
-    signup_url = f"{os.getenv('SIGNUP_URL')}?ref={referral_code}"
+    frontend_url = (os.getenv("FRONTEND_URL") or "https://matchmatedating.com").rstrip("/")
+    base_signup_url = f"{frontend_url}/matchmaker-signup.html"
+    separator = '&' if '?' in base_signup_url else '?'
+    signup_url = f"{base_signup_url}{separator}referral_code={quote(str(referral_code or ''))}"
     print("Signup URL:", signup_url)
 
     try:

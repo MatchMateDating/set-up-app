@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Finish in App - matchmate</title>
+  <link rel="icon" type="image/png" href="images/MatchMate_logo_thicker.png">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .done-shell {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: var(--off-white);
+    }
+
+    .done-card {
+      width: 100%;
+      max-width: 560px;
+      background: var(--white);
+      border: 1px solid var(--border-gray);
+      border-radius: 14px;
+      padding: 28px;
+      text-align: center;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+    }
+
+    .done-logo {
+      width: 70px;
+      height: 70px;
+      display: block;
+      margin: 0 auto 14px;
+    }
+
+    .done-title {
+      font-size: 1.8rem;
+      font-weight: 700;
+      color: var(--text-dark);
+      margin-bottom: 8px;
+    }
+
+    .done-subtitle {
+      color: var(--text-medium);
+      margin-bottom: 16px;
+    }
+
+    .done-steps {
+      text-align: left;
+      margin: 0 auto;
+      max-width: 420px;
+      color: var(--text-light);
+      line-height: 1.8;
+    }
+  </style>
+</head>
+<body>
+  <main class="done-shell">
+    <section class="done-card">
+      <img src="images/MatchMate_logo_thicker.png" alt="matchmate logo" class="done-logo">
+      <h1 class="done-title">Account Created</h1>
+      <p class="done-subtitle">You're all set. Finish setup in the MatchMate app.</p>
+      <div class="done-steps">
+        <p>1. Open the MatchMate app on your phone.</p>
+        <p>2. Log in with the email and password you just created.</p>
+        <p>3. Complete the rest of your profile in-app.</p>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

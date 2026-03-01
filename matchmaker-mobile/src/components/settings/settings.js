@@ -156,10 +156,11 @@ const Settings = () => {
 
   const handleShare = async () => {
     try {
-      const shareUrl = `${SIGNUP_URL || 'https://yourapp.com/signup'}?ref=${referralCode}`;
+      const separator = (SIGNUP_URL || '').includes('?') ? '&' : '?';
+      const shareUrl = `${SIGNUP_URL || 'https://matchmatedating.com/matchmaker-signup.html'}${separator}referral_code=${encodeURIComponent(referralCode)}`;
       await Share.share({
-        message: `Join this app! Sign up using my referral code: ${referralCode}\n${shareUrl}`,
-        title: 'Join this app!',
+        message: `Join MatchMate as my matchmaker! Your referral code is pre-filled:\n${shareUrl}`,
+        title: 'Join MatchMate as my matchmaker',
       });
     } catch (err) {
       console.error('Error sharing:', err);

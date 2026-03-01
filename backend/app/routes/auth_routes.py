@@ -113,6 +113,18 @@ def normalize_phone_number(phone):
         digits = '+' + digits
     return digits
 
+def is_strong_password(password):
+    """Password policy: 8+ chars, uppercase, lowercase, special char"""
+    if not password or len(password) < 8:
+        return False
+    if not re.search(r'[A-Z]', password):
+        return False
+    if not re.search(r'[a-z]', password):
+        return False
+    if not re.search(r'[^A-Za-z0-9]', password):
+        return False
+    return True
+
 @auth_bp.route('/register', methods=['POST'])
 def register():
     """Send verification code without creating user account"""
@@ -223,6 +235,54 @@ def register():
         'verification_method': method,
         'verification_token': verification_token  # Return token for verification
     }), 200
+
+@auth_bp.route('/register-matchmaker-web', methods=['POST'])
+def register_matchmaker_web():
+    """Create matchmaker account directly from hosted invite signup page"""
+    data = request.get_json() or {}
+    email = (data.get('email') or '').strip().lower()
+    password = data.get('password') or ''
+    referral_code = (data.get('referral_code') or '').strip()
+
+    if not email:
+        return jsonify({'msg': 'Email is required'}), 400
+    if not is_email(email):
+        return jsonify({'msg': 'Please enter a valid email address'}), 400
+    if not password:
+        return jsonify({'msg': 'Please enter a password'}), 400
+    if not is_strong_password(password):
+        return jsonify({
+            'msg': 'Password must be at least 8 characters and include uppercase, lowercase, and a special character'
+        }), 400
+    if not referral_code:
+        return jsonify({'msg': 'Referral code is required'}), 400
+
+    existing_user = User.query.filter_by(email=email).first()
+    if existing_user:
+        return jsonify({'msg': 'A user with this email already exists, please log in'}), 400
+
+    referrer = User.query.filter_by(referral_code=referral_code).first()
+    if not referrer:
+        return jsonify({'msg': 'Invalid referral code'}), 400
+
+    user = User(
+        email=email,
+        role='matchmaker',
+        first_name=None,
+        last_name=None,
+        referred_by_id=referrer.id
+    )
+    user.set_password(password)
+    user.email_verified = bool(is_test_email(email))
+    user.last_active_at = datetime.utcnow()
+
+    db.session.add(user)
+    db.session.commit()
+
+    return jsonify({
+        'message': 'Account created successfully. Please finish setup in the app.',
+        'user_id': user.id
+    }), 201
 
 @auth_bp.route('/login', methods=['POST'])
 def login():

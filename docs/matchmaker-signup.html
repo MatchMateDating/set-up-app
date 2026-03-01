@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Reset Password - matchmate</title>
+  <title>Matchmaker Signup - matchmate</title>
   <link rel="icon" type="image/png" href="images/MatchMate_logo_thicker.png">
   <link rel="stylesheet" href="styles.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    .reset-shell {
+    .signup-shell {
       min-height: 100vh;
       display: flex;
       align-items: center;
@@ -19,9 +19,9 @@
       background: var(--off-white);
     }
 
-    .reset-card {
+    .signup-card {
       width: 100%;
-      max-width: 520px;
+      max-width: 560px;
       background: var(--white);
       border: 1px solid var(--border-gray);
       border-radius: 14px;
@@ -29,14 +29,14 @@
       box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
     }
 
-    .reset-logo {
+    .signup-logo {
       width: 64px;
       height: 64px;
       display: block;
       margin: 0 auto 14px;
     }
 
-    .reset-title {
+    .signup-title {
       font-size: 1.8rem;
       font-weight: 700;
       text-align: center;
@@ -44,10 +44,18 @@
       margin-bottom: 6px;
     }
 
-    .reset-subtitle {
+    .signup-subtitle {
       text-align: center;
       color: var(--text-light);
       margin-bottom: 20px;
+    }
+
+    .field-label {
+      display: block;
+      margin: 8px 0 6px;
+      font-size: 13px;
+      color: var(--text-medium);
+      font-weight: 600;
     }
 
     .field-wrap {
@@ -65,6 +73,10 @@
       background: var(--off-white);
       font-family: inherit;
       outline: none;
+    }
+
+    .field-input.no-toggle {
+      padding-right: 14px;
     }
 
     .field-input:focus {
@@ -88,7 +100,7 @@
     }
 
     .rules {
-      margin: 4px 0 14px;
+      margin: 4px 0 12px;
       padding-left: 4px;
     }
 
@@ -146,29 +158,35 @@
     .status.error {
       color: #dc2626;
     }
-
-    .tiny {
-      margin-top: 14px;
-      text-align: center;
-      color: var(--text-light);
-      font-size: 12px;
-    }
   </style>
 </head>
 <body>
-  <main class="reset-shell">
-    <section class="reset-card">
-      <img src="images/MatchMate_logo_thicker.png" alt="matchmate logo" class="reset-logo">
-      <h1 class="reset-title">Reset Password</h1>
-      <p class="reset-subtitle">Enter your new password below.</p>
+  <main class="signup-shell">
+    <section class="signup-card">
+      <img src="images/MatchMate_logo_thicker.png" alt="matchmate logo" class="signup-logo">
+      <h1 class="signup-title">Become a Matchmaker</h1>
+      <p class="signup-subtitle">Create your account to help your dater find better matches.</p>
 
-      <form id="resetForm" novalidate>
+      <form id="matchmakerSignupForm" novalidate>
+        <label class="field-label" for="email">Email</label>
+        <div class="field-wrap">
+          <input
+            id="email"
+            class="field-input no-toggle"
+            type="email"
+            placeholder="Email address"
+            autocomplete="email"
+            required
+          >
+        </div>
+
+        <label class="field-label" for="password">Password</label>
         <div class="field-wrap">
           <input
             id="password"
             class="field-input"
             type="password"
-            placeholder="New Password"
+            placeholder="Create password"
             autocomplete="new-password"
             required
           >
@@ -183,12 +201,13 @@
           <div id="ruleSpecial" class="rule">- 1 special character</div>
         </div>
 
+        <label class="field-label" for="confirmPassword">Confirm Password</label>
         <div class="field-wrap">
           <input
             id="confirmPassword"
             class="field-input"
             type="password"
-            placeholder="Confirm New Password"
+            placeholder="Confirm password"
             autocomplete="new-password"
             required
           >
@@ -196,15 +215,24 @@
         </div>
         <div id="mismatchError" class="inline-error" style="display:none;">Passwords do not match.</div>
 
-        <button id="submitBtn" class="submit-btn" type="submit">Reset Password</button>
+        <label class="field-label" for="referralCode">Referral Code</label>
+        <div class="field-wrap">
+          <input
+            id="referralCode"
+            class="field-input no-toggle"
+            type="text"
+            placeholder="Referral code"
+            required
+          >
+        </div>
+
+        <button id="submitBtn" class="submit-btn" type="submit">Create Matchmaker Account</button>
         <div id="statusMessage" class="status" aria-live="polite"></div>
       </form>
-
-      <p class="tiny">If this link has expired, request a new reset link from the app.</p>
     </section>
   </main>
 
   <script src="config.local.js"></script>
-  <script src="reset-password.js"></script>
+  <script src="matchmaker-signup.js"></script>
 </body>
 </html>
