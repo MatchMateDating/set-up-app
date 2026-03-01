@@ -43,6 +43,7 @@ const SignUpScreen = () => {
   const [referralCode, setReferralCode] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isPasswordFocused, setIsPasswordFocused] = useState(false);
   const [emailError, setEmailError] = useState('');
   const [agreeToTexts, setAgreeToTexts] = useState(false);
   const [staySignedIn, setStaySignedIn] = useState(true);
@@ -440,6 +441,8 @@ const SignUpScreen = () => {
             value={password}
             secureTextEntry={!showPassword}
             onChangeText={setPassword}
+            onFocus={() => setIsPasswordFocused(true)}
+            onBlur={() => setIsPasswordFocused(false)}
             blurOnSubmit={false}
             returnKeyType="next"
             onSubmitEditing={() => confirmPasswordRef.current?.focus()}
@@ -459,46 +462,48 @@ const SignUpScreen = () => {
             </Text>
           </TouchableOpacity>
         </View>
-        <View style={styles.passwordRulesContainer}>
-          <Text style={styles.passwordRulesTitle}>Password requirements:</Text>
-          <Text
-            style={[
-              styles.passwordRuleText,
-              passwordChecks.minLength ? styles.passwordRulePassed : styles.passwordRulePending,
-            ]}
-          >
-            • At least 8 characters
-          </Text>
-          <Text
-            style={[
-              styles.passwordRuleText,
-              passwordChecks.hasUppercase ? styles.passwordRulePassed : styles.passwordRulePending,
-            ]}
-          >
-            • 1 uppercase letter
-          </Text>
-          <Text
-            style={[
-              styles.passwordRuleText,
-              passwordChecks.hasLowercase ? styles.passwordRulePassed : styles.passwordRulePending,
-            ]}
-          >
-            • 1 lowercase letter
-          </Text>
-          <Text
-            style={[
-              styles.passwordRuleText,
-              passwordChecks.hasSpecial ? styles.passwordRulePassed : styles.passwordRulePending,
-            ]}
-          >
-            • 1 special character
-          </Text>
-          {shouldSkipPasswordRules && (
-            <Text style={styles.passwordRuleTestBypass}>
-              Test email detected: password rules are optional for test mode.
+        {isPasswordFocused && (
+          <View style={styles.passwordRulesContainer}>
+            <Text style={styles.passwordRulesTitle}>Password requirements:</Text>
+            <Text
+              style={[
+                styles.passwordRuleText,
+                passwordChecks.minLength ? styles.passwordRulePassed : styles.passwordRulePending,
+              ]}
+            >
+              • At least 8 characters
             </Text>
-          )}
-        </View>
+            <Text
+              style={[
+                styles.passwordRuleText,
+                passwordChecks.hasUppercase ? styles.passwordRulePassed : styles.passwordRulePending,
+              ]}
+            >
+              • 1 uppercase letter
+            </Text>
+            <Text
+              style={[
+                styles.passwordRuleText,
+                passwordChecks.hasLowercase ? styles.passwordRulePassed : styles.passwordRulePending,
+              ]}
+            >
+              • 1 lowercase letter
+            </Text>
+            <Text
+              style={[
+                styles.passwordRuleText,
+                passwordChecks.hasSpecial ? styles.passwordRulePassed : styles.passwordRulePending,
+              ]}
+            >
+              • 1 special character
+            </Text>
+            {shouldSkipPasswordRules && (
+              <Text style={styles.passwordRuleTestBypass}>
+                Test email detected: password rules are optional for test mode.
+              </Text>
+            )}
+          </View>
+        )}
         <View style={styles.passwordInputWrapper}>
           <TextInput
             ref={confirmPasswordRef}
