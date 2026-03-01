@@ -42,6 +42,7 @@ const SignUpScreen = () => {
   const [referralCode, setReferralCode] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isPasswordFocused, setIsPasswordFocused] = useState(false);
   const [emailError, setEmailError] = useState('');
   const [agreeToTexts, setAgreeToTexts] = useState(false);
   const [staySignedIn, setStaySignedIn] = useState(true);
@@ -361,6 +362,8 @@ const SignUpScreen = () => {
             value={password}
             secureTextEntry={!showPassword}
             onChangeText={setPassword}
+            onFocus={() => setIsPasswordFocused(true)}
+            onBlur={() => setIsPasswordFocused(false)}
             blurOnSubmit={false}
             returnKeyType="next"
             onSubmitEditing={() => confirmPasswordRef.current?.focus()}
