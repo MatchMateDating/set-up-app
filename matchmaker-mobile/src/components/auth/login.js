@@ -1,4 +1,4 @@
-import React, { useState, useRef, useContext } from 'react';
+import React, { useState, useRef, useContext, useEffect } from 'react';
 import {
     View,
     Text,
@@ -17,14 +17,18 @@ import { useNavigation } from '@react-navigation/native';
 import { API_BASE_URL } from '../../env';
 import { UserContext } from '../../context/UserContext';
 import { startLocationWatcher } from './utils/startLocationWatcher';
+import { Ionicons } from '@expo/vector-icons';
 
 const LoginScreen = () => {
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [staySignedIn, setStaySignedIn] = useState(true);
   const [emailError, setEmailError] = useState('');
   const navigation = useNavigation();
   const identifierRef = useRef(null);
   const passwordRef = useRef(null);
+  const passwordRevealTimeoutRef = useRef(null);
   const { setUser } = useContext(UserContext);
 
   const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
@@ -36,6 +40,63 @@ const LoginScreen = () => {
     } else {
       setEmailError('');
     }
+  };
+
+  useEffect(() => {
+    const bootstrapAuth = async () => {
+      try {
+        const shouldStaySignedIn = await AsyncStorage.getItem('staySignedIn');
+        if (shouldStaySignedIn !== null) {
+          setStaySignedIn(shouldStaySignedIn === 'true');
+        }
+
+        if (shouldStaySignedIn === 'true') {
+          const token = await AsyncStorage.getItem('token');
+          const storedUser = await AsyncStorage.getItem('user');
+          if (token && storedUser) {
+            const parsedUser = JSON.parse(storedUser);
+            setUser(parsedUser);
+            if (parsedUser.role === 'user' && parsedUser.profile_completion_step) {
+              navigation.navigate('CompleteProfile');
+            } else {
+              navigation.navigate('Main', { screen: 'Matches' });
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Error bootstrapping auth state:', err);
+      }
+    };
+
+    bootstrapAuth();
+
+    return () => {
+      if (passwordRevealTimeoutRef.current) {
+        clearTimeout(passwordRevealTimeoutRef.current);
+      }
+    };
+  }, [navigation, setUser]);
+
+  const clearPasswordRevealTimer = () => {
+    if (passwordRevealTimeoutRef.current) {
+      clearTimeout(passwordRevealTimeoutRef.current);
+      passwordRevealTimeoutRef.current = null;
+    }
+  };
+
+  const handlePasswordVisibilityToggle = () => {
+    if (showPassword) {
+      setShowPassword(false);
+      clearPasswordRevealTimer();
+      return;
+    }
+
+    setShowPassword(true);
+    clearPasswordRevealTimer();
+    passwordRevealTimeoutRef.current = setTimeout(() => {
+      setShowPassword(false);
+      passwordRevealTimeoutRef.current = null;
+    }, 10000);
   };
 
   const handleLogin = async () => {
@@ -52,6 +113,7 @@ const LoginScreen = () => {
         identifier: identifier,
         password 
       });
+      await AsyncStorage.setItem('staySignedIn', staySignedIn ? 'true' : 'false');
       // Store token in AsyncStorage
       await AsyncStorage.setItem('token', res.data.token);
       if (res.data.user) {
@@ -59,7 +121,6 @@ const LoginScreen = () => {
         // Update UserContext immediately so viewerUnit is correct
         setUser(res.data.user);
       }
-      Alert.alert('Success', 'Login successful!');
 
       // Start location watcher for nearby matching (runs in background)
       startLocationWatcher(API_BASE_URL, res.data.token);
@@ -117,18 +178,45 @@ const LoginScreen = () => {
             onSubmitEditing={() => passwordRef.current?.focus()}
           />
           {emailError ? <Text style={styles.emailError}>{emailError}</Text> : null}
-          <TextInput
-            ref={passwordRef}
-            style={styles.input}
-            placeholder="Password"
-            placeholderTextColor="#6b7280"
-            value={password}
-            onChangeText={setPassword}
-            blurOnSubmit={false}
-            returnKeyType="done"
-            onSubmitEditing={handleLogin}
-            secureTextEntry
-          />
+          <View style={styles.passwordInputWrapper}>
+            <TextInput
+              ref={passwordRef}
+              style={[styles.input, styles.passwordInput]}
+              placeholder="Password"
+              placeholderTextColor="#6b7280"
+              value={password}
+              onChangeText={setPassword}
+              blurOnSubmit={false}
+              returnKeyType="done"
+              onSubmitEditing={handleLogin}
+              secureTextEntry={!showPassword}
+            />
+            <TouchableOpacity
+              style={styles.passwordToggleBtn}
+              onPress={handlePasswordVisibilityToggle}
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                size={18}
+                color="#6c5ce7"
+              />
+              <Text style={styles.passwordToggleText}>
+                {showPassword ? 'Hide' : 'Show'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+        <TouchableOpacity
+          style={styles.checkboxContainer}
+          onPress={() => setStaySignedIn((prev) => !prev)}
+          activeOpacity={0.7}
+        >
+          <View style={[styles.checkbox, staySignedIn && styles.checkboxChecked]}>
+            {staySignedIn && <Text style={styles.checkmark}>✓</Text>}
+          </View>
+          <Text style={styles.checkboxLabel}>Remember Me</Text>
+        </TouchableOpacity>
 
         <TouchableOpacity style={styles.button} onPress={handleLogin}>
           <Text style={styles.buttonText}>Login</Text>
@@ -191,12 +279,62 @@ const styles = StyleSheet.create({
     color: '#1a1a2e',
     backgroundColor: '#fafafa',
   },
+  passwordInputWrapper: {
+    position: 'relative',
+  },
+  passwordInput: {
+    paddingRight: 88,
+  },
+  passwordToggleBtn: {
+    position: 'absolute',
+    right: 12,
+    top: 0,
+    bottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  passwordToggleText: {
+    color: '#6c5ce7',
+    fontSize: 12,
+    fontWeight: '700',
+  },
   emailError: {
     color: '#e53e3e',
     fontSize: 13,
     marginTop: -8,
     marginBottom: 8,
     marginLeft: 4,
+  },
+  checkboxContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+    marginBottom: 8,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderWidth: 2,
+    borderColor: '#6c5ce7',
+    borderRadius: 6,
+    marginRight: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+  },
+  checkboxChecked: {
+    backgroundColor: '#6c5ce7',
+  },
+  checkmark: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  checkboxLabel: {
+    flex: 1,
+    fontSize: 14,
+    color: '#4a4a68',
   },
   button: {
     width: '100%',

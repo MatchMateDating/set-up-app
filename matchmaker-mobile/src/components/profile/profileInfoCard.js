@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -35,6 +35,7 @@ const ProfileInfoCard = ({
 }) => {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [tempBirthdate, setTempBirthdate] = useState(null);
+  const calendarWrapperRef = useRef(null);
   const heightSource = editing ? formData : user;
   const today = new Date();
   const effectiveUnit = editing
@@ -46,6 +47,18 @@ const ProfileInfoCard = ({
 
   const update = (name, value) =>
     onInputChange({ target: { name, value } });
+
+  const scrollCalendarWrapperIntoView = () => {
+    setTimeout(() => {
+      if (!calendarWrapperRef.current) {
+        scrollToBottom?.('birthdate-calendar');
+        return;
+      }
+      calendarWrapperRef.current.measureInWindow((_, calendarY, __, calendarH) => {
+        scrollToBottom?.('calendar-wrapper-end', calendarY + calendarH);
+      });
+    }, 80);
+  };
 
   const formatHeight = (unit, source) => {
     let totalCm = null;
@@ -103,12 +116,33 @@ const ProfileInfoCard = ({
 
 
   return (
-    <View style={styles.card}>
-      {user.role === 'user' && (
-        <>
+    <>
+      <View style={[styles.card, editing && styles.cardEditing]}>
+        {user.role === 'user' && (
+          <>
+          {['topRow', 'heroStack'].includes(formData.imageLayout) && (
+            <>
+              {editing && (<Text style={[styles.label, styles.firstFieldLabel]}>Add Images</Text>)}
+              <ImageGallery
+                images={images}
+                editing={editing}
+                onDeleteImage={onDeleteImage}
+                onPlaceholderClick={onPlaceholderClick}
+                layout={formData.imageLayout}
+              />
+            </>
+          )}
+
           {editing && (
             <>
-              <Text style={styles.label}>First Name</Text>
+              <Text
+                style={[
+                  styles.label,
+                  !['topRow', 'heroStack'].includes(formData.imageLayout) && styles.firstFieldLabel,
+                ]}
+              >
+                First Name
+              </Text>
               <TextInput
                 style={[styles.input, { fontFamily: formData.profileStyle === 'constitution' ? 'Pinyon Script' : formData.fontFamily }]}
                 value={formData.first_name}
@@ -145,12 +179,6 @@ const ProfileInfoCard = ({
                 </Text>
               )}
             </>
-          ) : user.show_location && (user.city || user.state) ? (
-            <>
-              <Text style={[styles.previewText, { fontFamily: formData.profileStyle === 'constitution' ? 'Pinyon Script' : formData.fontFamily }]}>
-                {[user.city, user.state].filter(Boolean).join(', ')}
-              </Text>
-            </>
           ) : null}
 
           {editing ? (
@@ -168,9 +196,7 @@ const ProfileInfoCard = ({
                       : null
                   );
                   setShowDatePicker(true);
-                  setTimeout(() => {
-                      scrollToBottom?.();
-                  }, 200);
+                  scrollCalendarWrapperIntoView();
                 }}
               >
                 <Text style={[styles.dateText, { fontFamily: formData.profileStyle === 'constitution' ? 'Pinyon Script' : formData.fontFamily }]}>
@@ -187,7 +213,11 @@ const ProfileInfoCard = ({
                       setShowDatePicker(false);
                     }}
                   />
-                  <View style={styles.modalCard}>
+                  <View
+                    ref={calendarWrapperRef}
+                    style={styles.modalCard}
+                    onLayout={scrollCalendarWrapperIntoView}
+                  >
                     <Text style={styles.modalTitle}>Select Birthdate</Text>
                     <View style={styles.calendarWrapper}>
                       <CalendarPicker
@@ -236,15 +266,7 @@ const ProfileInfoCard = ({
                 </View>
               )}
             </>
-          ) : (
-            <>
-              <Text style={[styles.previewText, { fontFamily: formData.profileStyle === 'constitution' ? 'Pinyon Script' : formData.fontFamily }]}>
-                {formData.birthdate
-                  ? `${calculateAge(formData.birthdate)}`
-                  : '—'}
-              </Text>
-            </>
-          )}
+          ) : null}
 
           {editing ? (
             <>
@@ -254,13 +276,7 @@ const ProfileInfoCard = ({
                 onChange={(v) => update('gender', v)}
               />
             </>
-          ) : (
-            <>
-              <Text style={[styles.previewText, { fontFamily: formData.profileStyle === 'constitution' ? 'Pinyon Script' : formData.fontFamily }]}>
-                {formData.gender ? formData.gender : '—'}
-              </Text>
-            </>
-          )}
+          ) : null}
 
           {editing ? (
             <>
@@ -331,38 +347,59 @@ const ProfileInfoCard = ({
                 </Text>
               </TouchableOpacity>
             </>
+          ) : null}
+
+          {editing ? (
+            <>
+              <Text style={styles.label}>About Me</Text>
+              <TextInput
+                style={[
+                  styles.input,
+                  styles.aboutInput,
+                  { fontFamily: formData.profileStyle === 'constitution' ? 'Pinyon Script' : formData.fontFamily },
+                ]}
+                value={formData.bio || ''}
+                onChangeText={(v) => update('bio', (v || '').slice(0, 100))}
+                placeholder="Tell people a little about yourself"
+                placeholderTextColor="#9CA3AF"
+                multiline
+                maxLength={100}
+                textAlignVertical="top"
+              />
+              <Text style={styles.charCount}>{(formData.bio || '').length}/100</Text>
+            </>
           ) : (
             <>
-              <Text style={[styles.previewText, { fontFamily: formData.profileStyle === 'constitution' ? 'Pinyon Script' : formData.fontFamily }]}>
-                {formatHeight(effectiveUnit, heightSource)}
-              </Text>
+              {Boolean((formData.bio || '').trim()) && (
+                <>
+                  <Text style={styles.label}>About Me</Text>
+                  <Text style={[styles.previewText, { fontFamily: formData.profileStyle === 'constitution' ? 'Pinyon Script' : formData.fontFamily }]}>
+                    {formData.bio.trim()}
+                  </Text>
+                </>
+              )}
             </>
           )}
 
-          {editing && (<Text style={styles.label}>Add Images</Text>)}
-          <ImageGallery
-            images={images}
-            editing={editing}
-            onDeleteImage={onDeleteImage}
-            onPlaceholderClick={onPlaceholderClick}
-            layout={formData.imageLayout}
-          />
-
-
-
-          {editing && (
-            <View style={styles.actions}>
-              <TouchableOpacity style={styles.saveBtn} onPress={onSubmit}>
-                <Text style={styles.saveText}>Save</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.cancelBtn} onPress={onCancel}>
-                <Text style={styles.cancelBtnText}>Cancel</Text>
-              </TouchableOpacity>
-            </View>
+          {!['topRow', 'heroStack'].includes(formData.imageLayout) && (
+            <>
+              {editing && (<Text style={styles.label}>Add Images</Text>)}
+              <ImageGallery
+                images={images}
+                editing={editing}
+                onDeleteImage={onDeleteImage}
+                onPlaceholderClick={onPlaceholderClick}
+                layout={formData.imageLayout}
+              />
+            </>
           )}
-        </>
-      )}
-    </View>
+
+
+
+          </>
+        )}
+      </View>
+    </>
   );
 };
 
@@ -372,11 +409,18 @@ const styles = StyleSheet.create({
   card: {
     padding: 16,
   },
+  cardEditing: {
+    paddingTop: 8,
+    paddingBottom: 44,
+  },
   label: {
     fontSize: 14,
     marginBottom: 4,
     marginTop: 12,
     color: '#111',
+  },
+  firstFieldLabel: {
+    marginTop: 0,
   },
   input: {
     height: 48,
@@ -386,6 +430,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     backgroundColor: '#fff',
     fontSize: 16,
+  },
+  aboutInput: {
+    minHeight: 92,
+    paddingTop: 10,
+  },
+  charCount: {
+    marginTop: 4,
+    marginBottom: 4,
+    textAlign: 'right',
+    color: '#6B7280',
+    fontSize: 12,
+    fontWeight: '600',
   },
   field: {
     borderWidth: 1,
@@ -493,6 +549,7 @@ const styles = StyleSheet.create({
   },
   pickerSmall: {
     width: '100%',
+    color: '#111',
     ...Platform.select({
       ios: { height: 215 },
       android: { height: 50 },
@@ -509,36 +566,6 @@ const styles = StyleSheet.create({
     color: '#6c5ce7',
     fontWeight: '600',
     textAlign: 'right',
-  },
-  actions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 12,
-    marginTop: 24,
-  },
-  saveBtn: {
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 10,
-    backgroundColor: '#6c5ce7',
-  },
-  saveText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  cancelBtn: {
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#6c5ce7',
-    backgroundColor: 'transparent',
-  },
-  cancelBtnText: {
-    color: '#6c5ce7',
-    fontSize: 16,
-    fontWeight: '600',
   },
   checkboxRow: {
     flexDirection: 'row',

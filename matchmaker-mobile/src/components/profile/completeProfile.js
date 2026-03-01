@@ -48,6 +48,8 @@ const CompleteProfile = () => {
   const { setUser: setContextUser } = useContext(UserContext);
   const { enableNotifications } = useNotifications();
   const scrollRef = React.useRef(null);
+  const calendarWrapperRef = React.useRef(null);
+  const scrollOffsetYRef = React.useRef(0);
   const firstNameRef = React.useRef(null);
   const lastNameRef = React.useRef(null);
   const today = new Date();
@@ -72,6 +74,26 @@ const CompleteProfile = () => {
   const radiusMax = radiusUnit === 'km' ? 800 : 500;
   const SCREEN_WIDTH = Dimensions.get('window').width;
 
+  const centerCalendarInView = React.useCallback(() => {
+    setTimeout(() => {
+      if (!scrollRef.current || !calendarWrapperRef.current) return;
+
+      calendarWrapperRef.current.measureInWindow((_, calendarY, __, calendarH) => {
+        scrollRef.current?.measureInWindow((_, scrollY, __2, scrollH) => {
+          const calendarCenterY = calendarY + (calendarH / 2);
+          const viewportCenterY = scrollY + (scrollH / 2);
+          const centerDelta = calendarCenterY - viewportCenterY;
+          const targetOffset = Math.max(0, scrollOffsetYRef.current + centerDelta);
+
+          scrollRef.current?.scrollTo({
+            y: targetOffset,
+            animated: true,
+          });
+        });
+      });
+    }, 100);
+  }, []);
+
   const [formData, setFormData] = useState({
     first_name: '',
     last_name: '',
@@ -84,12 +106,18 @@ const CompleteProfile = () => {
     preferredAgeMin: '18',
     preferredAgeMax: '50',
     preferredGenders: [],
+    bio: '',
     matchRadius: 50,
     imageLayout: 'grid',
     profileStyle: 'classic',
     fontFamily: 'Arial',
     show_location: false,
   });
+
+  useEffect(() => {
+    if (step !== 1 || !showDatePicker) return;
+    centerCalendarInView();
+  }, [formData.imageLayout, step, showDatePicker, centerCalendarInView]);
 
   const saveStepToBackend = async (stepNumber) => {
     try {
@@ -148,6 +176,7 @@ const CompleteProfile = () => {
           last_name: user.last_name ?? '',
           birthdate: user.birthdate ?? defaultBirthdate,
           gender: user.gender ?? '',
+          bio: user.bio ?? '',
           heightFeet: parsedHeight.heightFeet,
           heightInches: parsedHeight.heightInches,
           heightMeters: parsedHeight.heightMeters,
@@ -187,6 +216,7 @@ const CompleteProfile = () => {
             last_name: user.last_name ?? '',
             birthdate: user.birthdate ?? defaultBirthdate,
             gender: user.gender ?? '',
+            bio: user.bio ?? '',
             heightFeet: parsedHeight.heightFeet,
             heightInches: parsedHeight.heightInches,
             heightMeters: parsedHeight.heightMeters,
@@ -322,6 +352,18 @@ const CompleteProfile = () => {
           saveFormDataToBackend(saveData);
         }, 500);
       }
+
+      if (name === 'bio' && step === 1) {
+        if (autoSaveFormData.current) {
+          clearTimeout(autoSaveFormData.current);
+        }
+
+        autoSaveFormData.current = setTimeout(() => {
+          saveFormDataToBackend({
+            bio: String(value || '').trim().slice(0, 100),
+          });
+        }, 500);
+      }
       
       // Auto-save height when changed (for step 1)
       if (['heightFeet', 'heightInches', 'heightMeters', 'heightCentimeters'].includes(name) && step === 1) {
@@ -338,8 +380,21 @@ const CompleteProfile = () => {
         }, 1000);
       }
       
+      // Auto-save location visibility when changed on step 1 or step 3
+      if (name === 'show_location' && (step === 1 || step === 3)) {
+        if (autoSaveFormData.current) {
+          clearTimeout(autoSaveFormData.current);
+        }
+
+        autoSaveFormData.current = setTimeout(() => {
+          saveFormDataToBackend({
+            show_location: Boolean(value),
+          });
+        }, 500);
+      }
+
       // Auto-save preferences when changed (for step 3)
-      if (['preferredAgeMin', 'preferredAgeMax', 'preferredGenders', 'matchRadius', 'show_location'].includes(name) && step === 3) {
+      if (['preferredAgeMin', 'preferredAgeMax', 'preferredGenders', 'matchRadius'].includes(name) && step === 3) {
         if (autoSaveFormData.current) {
           clearTimeout(autoSaveFormData.current);
         }
@@ -350,8 +405,6 @@ const CompleteProfile = () => {
           if (name === 'preferredAgeMax') saveData.preferredAgeMax = parseInt(value, 10);
           if (name === 'preferredGenders') saveData.preferredGenders = value;
           if (name === 'matchRadius') saveData.match_radius = heightUnit === 'ft' ? Number(value) : kmToMiles(Number(value));
-          if (name === 'show_location') saveData.show_location = Boolean(value);
-          
           saveFormDataToBackend(saveData);
         }, 1000);
       }
@@ -451,8 +504,10 @@ const CompleteProfile = () => {
             last_name: formData.last_name.trim(),
             birthdate: formData.birthdate,
             gender: formData.gender,
+            bio: (formData.bio || '').trim().slice(0, 100),
             height: height,
             unit: heightUnit === 'ft' ? 'imperial' : 'metric',
+            show_location: formData.show_location ?? false,
             profile_completion_step: 2,
           }),
         });
@@ -491,6 +546,7 @@ const CompleteProfile = () => {
         last_name: formData.last_name,
         birthdate: formData.birthdate,
         gender: formData.gender,
+        bio: (formData.bio || '').trim().slice(0, 100),
         height: formatHeight(formData, heightUnit),
         preferredAgeMin: formData.preferredAgeMin
           ? parseInt(formData.preferredAgeMin, 10)
@@ -743,7 +799,6 @@ const CompleteProfile = () => {
 
       const newImage = await response.json();
       setImages((prevImages) => [...prevImages, newImage]);
-      Alert.alert('Success', 'Image uploaded successfully');
     } catch (err) {
       console.error(err);
       Alert.alert('Error', 'Failed to upload image');
@@ -754,7 +809,7 @@ const CompleteProfile = () => {
     <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
         <View style={styles.fixedHeader}>
           <StepIndicator step={step} />
@@ -770,19 +825,38 @@ const CompleteProfile = () => {
           ref={scrollRef}
           contentContainerStyle={styles.container}
           keyboardShouldPersistTaps="handled"
+          scrollEventThrottle={16}
+          onScroll={(event) => {
+            scrollOffsetYRef.current = event.nativeEvent.contentOffset.y;
+          }}
         >
 
           {step === 1 && (
-            <View style={[
-                styles.stepContainer,
-                themeStyles[formData.profileStyle],
-            ]}>
-              <View style={styles.themeLayer}>
-                {formData.profileStyle === 'pixelCloud' && <PixelClouds />}
-                {formData.profileStyle === 'pixelFlower' && <PixelFlowers />}
-                {formData.profileStyle === 'pixelCactus' && <PixelCactus />}
-              </View>
-              <Text style={styles.title}>Complete Your Profile</Text>
+            <View>
+              <View style={[
+                  styles.stepContainer,
+                  themeStyles[formData.profileStyle],
+              ]}>
+                <View style={styles.themeLayer}>
+                  {formData.profileStyle === 'pixelCloud' && <PixelClouds />}
+                  {formData.profileStyle === 'pixelFlower' && <PixelFlowers />}
+                  {formData.profileStyle === 'pixelCactus' && <PixelCactus />}
+                </View>
+              <View style={styles.contentLayer}>
+                <Text style={styles.title}>Complete Your Profile</Text>
+
+              {['topRow', 'heroStack'].includes(formData.imageLayout) && (
+                <>
+                  <Text style={styles.label}>Add Images:</Text>
+                  <ImageGallery
+                    images={images}
+                    editing={true}
+                    onDeleteImage={handleDeleteImage}
+                    onPlaceholderClick={handlePlaceholderClick}
+                    layout={formData.imageLayout}
+                  />
+                </>
+              )}
 
                   <Text style={styles.label}>First Name</Text>
                   <TextInput
@@ -816,14 +890,19 @@ const CompleteProfile = () => {
                           : null
                       );
                       setShowDatePicker(true);
-                      setTimeout(() => {
-                        scrollRef.current?.scrollTo({
-                          y: 300,
-                          animated: true,
-                        });
-                      }, 200);
+                      centerCalendarInView();
                     }}
                   />
+
+                  <TouchableOpacity
+                    style={styles.checkboxRow}
+                    onPress={() => update('show_location', !formData.show_location)}
+                  >
+                    <View style={[styles.checkbox, formData.show_location && styles.checkboxChecked]}>
+                      {formData.show_location && <Text style={styles.checkmark}>✓</Text>}
+                    </View>
+                    <Text style={styles.checkboxLabel}>Show location (e.g. Brooklyn, NY)</Text>
+                  </TouchableOpacity>
 
                   <Text style={styles.label}>Birthdate</Text>
                   <TouchableOpacity
@@ -839,12 +918,7 @@ const CompleteProfile = () => {
                           : null
                       );
                       setShowDatePicker(true);
-                      setTimeout(() => {
-                            scrollRef.current?.scrollTo({
-                              y: 300, // adjust if needed
-                              animated: true,
-                            });
-                          }, 200);
+                      centerCalendarInView();
                       }}
                     activeOpacity={0.8}
                   >
@@ -854,7 +928,11 @@ const CompleteProfile = () => {
                   </TouchableOpacity>
 
                   {showDatePicker && (
-                    <View style={styles.modalCard}>
+                    <View
+                      ref={calendarWrapperRef}
+                      style={styles.modalCard}
+                      onLayout={centerCalendarInView}
+                    >
                       <Text style={styles.modalTitle}>Select Birthdate</Text>
                       <View style={styles.calendarWrapper}>
                         <CalendarPicker
@@ -998,17 +1076,36 @@ const CompleteProfile = () => {
                 <Text style={styles.toggle}>Switch to {heightUnit === 'ft' ? 'meters' : 'feet'}</Text>
               </TouchableOpacity>
 
-              <Text style={styles.label}>Add Images:</Text>
-              <ImageGallery
-                images={images}
-                editing={true}
-                onDeleteImage={handleDeleteImage}
-                onPlaceholderClick={handlePlaceholderClick}
-                layout={formData.imageLayout}
+              <Text style={styles.label}>About Me</Text>
+              <TextInput
+                style={[styles.input, styles.aboutInput]}
+                value={formData.bio}
+                onChangeText={(v) => update('bio', (v || '').slice(0, 100))}
+                placeholder="Tell people a little about yourself"
+                placeholderTextColor="#9CA3AF"
+                multiline
+                maxLength={100}
+                textAlignVertical="top"
               />
+              <Text style={styles.charCount}>{(formData.bio || '').length}/100</Text>
 
-              {error ? <Text style={styles.error}>{error}</Text> : null}
+              {!['topRow', 'heroStack'].includes(formData.imageLayout) && (
+                <View style={styles.step1ImagesSection}>
+                  <Text style={styles.label}>Add Images:</Text>
+                  <ImageGallery
+                    images={images}
+                    editing={true}
+                    onDeleteImage={handleDeleteImage}
+                    onPlaceholderClick={handlePlaceholderClick}
+                    layout={formData.imageLayout}
+                  />
+                </View>
+              )}
 
+                {error ? <Text style={styles.error}>{error}</Text> : null}
+              </View>
+            </View>
+            <View style={styles.step1Actions}>
               <TouchableOpacity style={styles.nextBtn} onPress={saveStep1}>
                 <Text style={styles.nextBtnText}>Next</Text>
               </TouchableOpacity>
@@ -1018,6 +1115,7 @@ const CompleteProfile = () => {
               }}>
                 <Text style={styles.skipBtnText}>Skip</Text>
               </TouchableOpacity>
+            </View>
             </View>
           )}
 
@@ -1149,16 +1247,6 @@ const CompleteProfile = () => {
                 />
               </View>
 
-              <TouchableOpacity
-                style={styles.checkboxRow}
-                onPress={() => update('show_location', !formData.show_location)}
-              >
-                <View style={[styles.checkbox, formData.show_location && styles.checkboxChecked]}>
-                  {formData.show_location && <Text style={styles.checkmark}>✓</Text>}
-                </View>
-                <Text style={styles.checkboxLabel}>Show location (e.g. Brooklyn, NY)</Text>
-              </TouchableOpacity>
-
               {error ? <Text style={styles.error}>{error}</Text> : null}
 
               {loading ? (
@@ -1249,8 +1337,10 @@ const styles = StyleSheet.create({
   stepContainer: {
     position: 'relative',
     borderRadius: 16,
-    overflow: 'hidden', // VERY important
-    padding: 16,
+    overflow: 'visible',
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 44,
   },
   themeLayer: {
     ...StyleSheet.absoluteFillObject,
@@ -1351,6 +1441,18 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     marginBottom: 4,
     fontSize: 16,
+  },
+  aboutInput: {
+    minHeight: 92,
+    paddingTop: 10,
+    marginBottom: 0,
+  },
+  charCount: {
+    marginTop: 4,
+    marginBottom: 4,
+    textAlign: 'right',
+    color: '#6B7280',
+    fontSize: 12,
   },
   smallInput: {
     flex: 1,
@@ -1461,6 +1563,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginTop: 20,
+  },
+  step1Actions: {
+    marginTop: 32,
+  },
+  step1ImagesSection: {
+    paddingBottom: 12,
   },
   nextBtn: {
     backgroundColor: '#6c5ce7',
