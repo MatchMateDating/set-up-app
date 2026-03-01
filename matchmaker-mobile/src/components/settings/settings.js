@@ -137,10 +137,12 @@ const Settings = () => {
 
   const handleShare = async () => {
     try {
-      const separator = (SIGNUP_URL || '').includes('?') ? '&' : '?';
-      const shareUrl = `${SIGNUP_URL || 'https://matchmatedating.com/matchmaker-signup.html'}${separator}referral_code=${encodeURIComponent(referralCode)}`;
+      const frontendUrl = (FRONTEND_URL || 'https://matchmatedating.com').replace(/\/+$/, '');
+      const baseSignupUrl = `${frontendUrl}/matchmaker-signup.html`;
+      const separator = baseSignupUrl.includes('?') ? '&' : '?';
+      const shareUrl = `${baseSignupUrl}${separator}referral_code=${encodeURIComponent(String(referralCode || ''))}`;
       await Share.share({
-        message: `Join MatchMate as my matchmaker! Your referral code is pre-filled:\n${shareUrl}`,
+        message: `Join MatchMate as my matchmaker:\n${shareUrl}`,
         title: 'Join MatchMate as my matchmaker',
       });
     } catch (err) {
