@@ -894,6 +894,16 @@ const CompleteProfile = () => {
                     }}
                   />
 
+                  <TouchableOpacity
+                    style={styles.checkboxRow}
+                    onPress={() => update('show_location', !formData.show_location)}
+                  >
+                    <View style={[styles.checkbox, formData.show_location && styles.checkboxChecked]}>
+                      {formData.show_location && <Text style={styles.checkmark}>✓</Text>}
+                    </View>
+                    <Text style={styles.checkboxLabel}>Show location (e.g. Brooklyn, NY)</Text>
+                  </TouchableOpacity>
+
                   <Text style={styles.label}>Birthdate</Text>
                   <TouchableOpacity
                     style={[styles.field, styles.dateField, showDatePicker && styles.fieldActive]}
@@ -1078,16 +1088,6 @@ const CompleteProfile = () => {
                 textAlignVertical="top"
               />
               <Text style={styles.charCount}>{(formData.bio || '').length}/100</Text>
-
-              <TouchableOpacity
-                style={styles.checkboxRow}
-                onPress={() => update('show_location', !formData.show_location)}
-              >
-                <View style={[styles.checkbox, formData.show_location && styles.checkboxChecked]}>
-                  {formData.show_location && <Text style={styles.checkmark}>✓</Text>}
-                </View>
-                <Text style={styles.checkboxLabel}>Show location (e.g. Brooklyn, NY)</Text>
-              </TouchableOpacity>
 
               {!['topRow', 'heroStack'].includes(formData.imageLayout) && (
                 <View style={styles.step1ImagesSection}>

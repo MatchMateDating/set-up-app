@@ -320,6 +320,8 @@ const Profile = ({ user, framed, viewerUnit, editing, setEditing, onSave, onEdit
   const locationText = [user.city, user.state].filter(Boolean).join(', ');
   const shouldShowLocation = !editing && user.show_location && locationText;
   const initialLetter = (user.first_name || '?').charAt(0).toUpperCase();
+  const displayGender = (user.gender || formData.gender || '').trim();
+  const displayHeight = (user.height || formatHeight(formData, heightUnit) || '').trim();
 
   return (
     <>
@@ -355,6 +357,20 @@ const Profile = ({ user, framed, viewerUnit, editing, setEditing, onSave, onEdit
                     <Text style={styles.locationText}>{locationText}</Text>
                   </View>
                 ) : null}
+                <View style={styles.metaPillsRow}>
+                  {displayGender ? (
+                    <View style={styles.metaPill}>
+                      <Ionicons name="male-female-outline" size={14} color="#374151" />
+                      <Text style={styles.metaPillText}>{displayGender}</Text>
+                    </View>
+                  ) : null}
+                  {displayHeight ? (
+                    <View style={styles.metaPill}>
+                      <Ionicons name="resize-outline" size={14} color="#374151" />
+                      <Text style={styles.metaPillText}>{displayHeight}</Text>
+                    </View>
+                  ) : null}
+                </View>
               </View>
             )}
           </View>
@@ -495,6 +511,27 @@ const styles = StyleSheet.create({
   locationText: {
     fontSize: 16,
     color: '#4b5563',
+  },
+  metaPillsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 8,
+    flexWrap: 'wrap',
+  },
+  metaPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255, 255, 255, 0.62)',
+  },
+  metaPillText: {
+    fontSize: 15,
+    color: '#111827',
+    fontWeight: '600',
   },
   profileActions: {
     flexDirection: 'row',

@@ -276,13 +276,7 @@ const ProfileInfoCard = ({
                 onChange={(v) => update('gender', v)}
               />
             </>
-          ) : (
-            <>
-              <Text style={[styles.previewText, { fontFamily: formData.profileStyle === 'constitution' ? 'Pinyon Script' : formData.fontFamily }]}>
-                {formData.gender ? formData.gender : '—'}
-              </Text>
-            </>
-          )}
+          ) : null}
 
           {editing ? (
             <>
@@ -353,13 +347,7 @@ const ProfileInfoCard = ({
                 </Text>
               </TouchableOpacity>
             </>
-          ) : (
-            <>
-              <Text style={[styles.previewText, { fontFamily: formData.profileStyle === 'constitution' ? 'Pinyon Script' : formData.fontFamily }]}>
-                {formatHeight(effectiveUnit, heightSource)}
-              </Text>
-            </>
-          )}
+          ) : null}
 
           {editing ? (
             <>
