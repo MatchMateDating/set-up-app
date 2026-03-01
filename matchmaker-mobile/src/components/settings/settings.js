@@ -370,7 +370,7 @@ const Settings = () => {
         preferredAgeMin: Number(formData.preferredAgeMin),
         preferredAgeMax: Number(formData.preferredAgeMax),
         preferredGenders: formData.preferredGenders,
-        matchRadius: radiusMiles,
+        match_radius: radiusMiles,
         fontFamily: formData.fontFamily,
         profileStyle: formData.profileStyle
       };
