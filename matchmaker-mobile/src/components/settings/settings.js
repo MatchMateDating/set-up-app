@@ -18,7 +18,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
-import { API_BASE_URL, SIGNUP_URL } from '../../env';
+import { API_BASE_URL, FRONTEND_URL } from '../../env';
 import FormField from '../profile/components/formField';
 import MultiSelectGender from '../profile/components/multiSelectGender';
 import MultiSlider from '@ptomasroos/react-native-multi-slider';
@@ -133,33 +133,16 @@ const Settings = () => {
     }
   }, [user]);
 
-//  useEffect(() => {
-//    if (!user) return;
-//
-//    setFormData(prev => {
-//      let newRadius = prev.matchRadius;
-//
-//      if (user.unit === 'imperial') {
-//        newRadius = Math.round(prev.matchRadius * 0.621371);
-//      } else {
-//        newRadius = Math.round(prev.matchRadius / 0.621371);
-//      }
-//
-//      return {
-//        ...prev,
-//        matchRadius: Math.min(newRadius, radiusMax),
-//      };
-//    });
-//  }, [user?.unit]);
-
   const handleToggleCode = () => setShowCode((prev) => !prev);
 
   const handleShare = async () => {
     try {
-      const separator = (SIGNUP_URL || '').includes('?') ? '&' : '?';
-      const shareUrl = `${SIGNUP_URL || 'https://matchmatedating.com/matchmaker-signup.html'}${separator}referral_code=${encodeURIComponent(referralCode)}`;
+      const frontendUrl = (FRONTEND_URL || 'https://matchmatedating.com').replace(/\/+$/, '');
+      const baseSignupUrl = `${frontendUrl}/matchmaker-signup.html`;
+      const separator = baseSignupUrl.includes('?') ? '&' : '?';
+      const shareUrl = `${baseSignupUrl}${separator}referral_code=${encodeURIComponent(String(referralCode || ''))}`;
       await Share.share({
-        message: `Join MatchMate as my matchmaker! Your referral code is pre-filled:\n${shareUrl}`,
+        message: `Join MatchMate as my matchmaker:\n${shareUrl}`,
         title: 'Join MatchMate as my matchmaker',
       });
     } catch (err) {
@@ -893,7 +876,7 @@ const Settings = () => {
           keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
         >
           <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-            <View style={{ flex: 1 }}>
+            <View style={styles.modalInner}>
               <View style={styles.modalContent}>
                 <Text style={styles.modalTitle}>Invite by Email</Text>
                 <TextInput
@@ -1207,6 +1190,11 @@ const styles = StyleSheet.create({
   modalBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalInner: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
