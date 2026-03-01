@@ -6,6 +6,8 @@ import { getImageUrl } from './utils/profileUtils';
 
 const ImageGallery = ({ images = [], editing, onDeleteImage, onPlaceholderClick, layout = 'grid' }) => {
   const maxImages = 9;
+  const gridColumns = 3;
+  const gridGap = 10;
   const heroStackColumns = 3;
   const heroStackGap = 10;
   const isGrid = layout === 'grid';
@@ -13,8 +15,14 @@ const ImageGallery = ({ images = [], editing, onDeleteImage, onPlaceholderClick,
   const isHeroStack = layout === 'heroStack';
   const topRowScrollRef = useRef(null);
   const [topRowViewportWidth, setTopRowViewportWidth] = useState(0);
+  const [gridViewportWidth, setGridViewportWidth] = useState(0);
   const [heroStackViewportWidth, setHeroStackViewportWidth] = useState(0);
   const topRowSize = topRowViewportWidth > 0 ? topRowViewportWidth : 280;
+  const gridThumbSize =
+    gridViewportWidth > 0
+      ? Math.floor((gridViewportWidth - gridGap * (gridColumns - 1)) / gridColumns)
+      : null;
+  const gridThumbSizeStyle = isGrid && gridThumbSize ? { width: gridThumbSize, height: gridThumbSize } : null;
   const heroThumbSize =
     heroStackViewportWidth > 0
       ? Math.floor((heroStackViewportWidth - heroStackGap * (heroStackColumns - 1)) / heroStackColumns)
@@ -27,7 +35,7 @@ const ImageGallery = ({ images = [], editing, onDeleteImage, onPlaceholderClick,
   const containerStyle = [
     styles.imageGallery,
     isGrid
-      ? styles.gridLayout
+      ? [styles.gridLayout, styles.gridGallery]
       : isTopRow
         ? styles.topRowLayout
         : isHeroStack
@@ -41,7 +49,7 @@ const ImageGallery = ({ images = [], editing, onDeleteImage, onPlaceholderClick,
       key={img.id || index}
       style={[
         isGrid
-          ? styles.imageWrapper
+          ? [styles.imageWrapper, gridThumbSizeStyle]
           : isTopRow
             ? styles.topRowImageWrapper
             : isHeroStack
@@ -85,7 +93,7 @@ const ImageGallery = ({ images = [], editing, onDeleteImage, onPlaceholderClick,
       <TouchableOpacity
         style={
           isGrid
-            ? styles.imagePlaceholder
+            ? [styles.imagePlaceholder, gridThumbSizeStyle]
             : isTopRow
               ? [styles.topRowPlaceholder, topRowItemSizeStyle]
               : isHeroStack
@@ -142,10 +150,13 @@ const ImageGallery = ({ images = [], editing, onDeleteImage, onPlaceholderClick,
       <View
         style={containerStyle}
         onLayout={
-          isHeroStack
+          isHeroStack || isGrid
             ? (event) => {
               const nextWidth = Math.floor(event.nativeEvent.layout.width);
-              if (nextWidth > 0 && nextWidth !== heroStackViewportWidth) {
+              if (isGrid && nextWidth > 0 && nextWidth !== gridViewportWidth) {
+                setGridViewportWidth(nextWidth);
+              }
+              if (isHeroStack && nextWidth > 0 && nextWidth !== heroStackViewportWidth) {
                 setHeroStackViewportWidth(nextWidth);
               }
             }
@@ -241,19 +252,6 @@ const styles = StyleSheet.create({
     width: '100%',
     aspectRatio: 1,
   },
-  topRowImageWrapper: {
-    position: 'relative',
-    flexShrink: 0,
-  },
-  heroImageWrapper: {
-    position: 'relative',
-    width: '31%',
-    aspectRatio: 1,
-  },
-  heroMainWrapper: {
-    width: '100%',
-    aspectRatio: 1,
-  },
   listWrapper: {
     width: '100%',
     maxWidth: 250,
@@ -301,38 +299,6 @@ const styles = StyleSheet.create({
     aspectRatio: 1,
     flexShrink: 0,
     flexGrow: 0,
-    backgroundColor: '#fafafa',
-    borderWidth: 2,
-    borderColor: '#bbb',
-    borderStyle: 'dashed',
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  topRowPlaceholder: {
-    backgroundColor: '#fafafa',
-    borderWidth: 2,
-    borderColor: '#bbb',
-    borderStyle: 'dashed',
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    flexShrink: 0,
-  },
-  heroMainPlaceholder: {
-    width: '100%',
-    aspectRatio: 1,
-    backgroundColor: '#fafafa',
-    borderWidth: 2,
-    borderColor: '#bbb',
-    borderStyle: 'dashed',
-    borderRadius: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  heroThumbPlaceholder: {
-    width: '31%',
-    aspectRatio: 1,
     backgroundColor: '#fafafa',
     borderWidth: 2,
     borderColor: '#bbb',

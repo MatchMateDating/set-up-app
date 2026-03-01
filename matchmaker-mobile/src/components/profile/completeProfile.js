@@ -74,25 +74,24 @@ const CompleteProfile = () => {
   const radiusMax = radiusUnit === 'km' ? 800 : 500;
   const SCREEN_WIDTH = Dimensions.get('window').width;
 
-  const scrollToCalendarWrapperEnd = React.useCallback(() => {
+  const centerCalendarInView = React.useCallback(() => {
     setTimeout(() => {
       if (!scrollRef.current || !calendarWrapperRef.current) return;
 
       calendarWrapperRef.current.measureInWindow((_, calendarY, __, calendarH) => {
         scrollRef.current?.measureInWindow((_, scrollY, __2, scrollH) => {
-          const calendarBottom = calendarY + calendarH;
-          const viewportBottom = scrollY + scrollH;
-          const overflow = calendarBottom - viewportBottom;
+          const calendarCenterY = calendarY + (calendarH / 2);
+          const viewportCenterY = scrollY + (scrollH / 2);
+          const centerDelta = calendarCenterY - viewportCenterY;
+          const targetOffset = Math.max(0, scrollOffsetYRef.current + centerDelta);
 
-          if (overflow > 0) {
-            scrollRef.current?.scrollTo({
-              y: scrollOffsetYRef.current + overflow + 24,
-              animated: true,
-            });
-          }
+          scrollRef.current?.scrollTo({
+            y: targetOffset,
+            animated: true,
+          });
         });
       });
-    }, 80);
+    }, 100);
   }, []);
 
   const [formData, setFormData] = useState({
@@ -879,7 +878,7 @@ const CompleteProfile = () => {
                           : null
                       );
                       setShowDatePicker(true);
-                      scrollToCalendarWrapperEnd();
+                      centerCalendarInView();
                     }}
                   />
 
@@ -897,7 +896,7 @@ const CompleteProfile = () => {
                           : null
                       );
                       setShowDatePicker(true);
-                      scrollToCalendarWrapperEnd();
+                      centerCalendarInView();
                       }}
                     activeOpacity={0.8}
                   >
@@ -910,7 +909,7 @@ const CompleteProfile = () => {
                     <View
                       ref={calendarWrapperRef}
                       style={styles.modalCard}
-                      onLayout={scrollToCalendarWrapperEnd}
+                      onLayout={centerCalendarInView}
                     >
                       <Text style={styles.modalTitle}>Select Birthdate</Text>
                       <View style={styles.calendarWrapper}>
