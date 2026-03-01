@@ -179,12 +179,6 @@ const ProfileInfoCard = ({
                 </Text>
               )}
             </>
-          ) : user.show_location && (user.city || user.state) ? (
-            <>
-              <Text style={[styles.previewText, { fontFamily: formData.profileStyle === 'constitution' ? 'Pinyon Script' : formData.fontFamily }]}>
-                {[user.city, user.state].filter(Boolean).join(', ')}
-              </Text>
-            </>
           ) : null}
 
           {editing ? (
@@ -272,15 +266,7 @@ const ProfileInfoCard = ({
                 </View>
               )}
             </>
-          ) : (
-            <>
-              <Text style={[styles.previewText, { fontFamily: formData.profileStyle === 'constitution' ? 'Pinyon Script' : formData.fontFamily }]}>
-                {formData.birthdate
-                  ? `${calculateAge(formData.birthdate)}`
-                  : '—'}
-              </Text>
-            </>
-          )}
+          ) : null}
 
           {editing ? (
             <>

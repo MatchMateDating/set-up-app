@@ -1,10 +1,10 @@
 import React, { useEffect, useState, useContext, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView, Image } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import { API_BASE_URL } from '../../env';
-import { calculateAge, convertFtInToMetersCm, convertMetersCmToFtIn, formatHeight } from './utils/profileUtils';
+import { calculateAge, convertFtInToMetersCm, convertMetersCmToFtIn, formatHeight, getImageUrl } from './utils/profileUtils';
 import ProfileInfoCard from './profileInfoCard';
 import PixelClouds from './components/PixelClouds';
 import PixelFlowers from './components/PixelFlowers';
@@ -164,7 +164,6 @@ const Profile = ({ user, framed, viewerUnit, editing, setEditing, onSave, onEdit
 
       const newImage = await response.json();
       setImages((prevImages) => [...prevImages, newImage]);
-      Alert.alert('Success', 'Image uploaded successfully');
     } catch (err) {
       console.error(err);
       Alert.alert('Error', 'Failed to upload image');
@@ -246,8 +245,6 @@ const Profile = ({ user, framed, viewerUnit, editing, setEditing, onSave, onEdit
         unit: payload.unit,          // ← THIS is the critical line
         height: payload.height,      // keep height consistent too
       }));
-
-      Alert.alert('Success', 'Profile updated successfully');
       onSave();
     } catch (err) {
       console.error(err);
@@ -316,6 +313,14 @@ const Profile = ({ user, framed, viewerUnit, editing, setEditing, onSave, onEdit
 
   if (!user) return null;
 
+  const profileImageUri = images?.[0]?.image_url
+    ? getImageUrl(images[0].image_url, API_BASE_URL)
+    : null;
+  const ageText = user.birthdate ? ` ${calculateAge(user.birthdate)}` : '';
+  const locationText = [user.city, user.state].filter(Boolean).join(', ');
+  const shouldShowLocation = !editing && user.show_location && locationText;
+  const initialLetter = (user.first_name || '?').charAt(0).toUpperCase();
+
   return (
     <>
       <ScrollView
@@ -330,9 +335,27 @@ const Profile = ({ user, framed, viewerUnit, editing, setEditing, onSave, onEdit
           {formData.profileStyle === 'pixelCactus' && <PixelCactus />}
           {user.role === 'user' && (
         <View style={styles.profileHeader}>
-          <View style={styles.nameSection}>
+          <View style={styles.headerLeft}>
+            <View style={styles.avatarCircle}>
+              {profileImageUri ? (
+                <Image source={{ uri: profileImageUri }} style={styles.avatarImage} />
+              ) : (
+                <Text style={styles.avatarFallback}>{initialLetter}</Text>
+              )}
+            </View>
             {!editing && (
-              <Text style={[styles.name, { fontFamily: formData.fontFamily }]}>{user.first_name}</Text>
+              <View style={styles.nameSection}>
+                <Text style={[styles.name, { fontFamily: formData.fontFamily }]}>
+                  {user.first_name || ''}
+                  {ageText ? <Text style={styles.age}>{ageText}</Text> : null}
+                </Text>
+                {shouldShowLocation ? (
+                  <View style={styles.locationRow}>
+                    <Ionicons name="location" size={14} color="#d63384" />
+                    <Text style={styles.locationText}>{locationText}</Text>
+                  </View>
+                ) : null}
+              </View>
             )}
           </View>
           {!framed && !editing && (
@@ -421,15 +444,57 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 20,
-    padding: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  avatarCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#d3c8bb',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 3,
+    borderColor: '#f6f0e8',
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+  },
+  avatarFallback: {
+    fontSize: 34,
+    color: '#ffffff',
+    fontWeight: '600',
   },
   nameSection: {
     flex: 1,
   },
   name: {
-    fontSize: 24,
+    fontSize: 36,
     fontWeight: '700',
-    color: '#222',
+    color: '#111827',
+    lineHeight: 40,
+  },
+  age: {
+    fontSize: 28,
+    fontWeight: '500',
+    color: '#111827',
+  },
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 2,
+  },
+  locationText: {
+    fontSize: 16,
+    color: '#4b5563',
   },
   profileActions: {
     flexDirection: 'row',
