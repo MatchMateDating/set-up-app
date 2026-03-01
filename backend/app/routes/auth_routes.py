@@ -509,7 +509,7 @@ def resend_verification():
 def send_password_reset_email(email, reset_token, first_name):
     """Send password reset email using Resend"""
     try:
-        frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
+        frontend_url = (os.getenv("FRONTEND_URL") or "https://matchmatedating.com").rstrip("/")
         reset_url = f"{frontend_url}/reset-password.html?token={reset_token}"
         
         subject = "Reset Your Password"
@@ -552,7 +552,7 @@ def send_password_reset_sms(phone_number, reset_token, first_name):
             print("TWILIO_PHONE_NUMBER not configured")
             return False
         
-        frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
+        frontend_url = (os.getenv("FRONTEND_URL") or "https://matchmatedating.com").rstrip("/")
         reset_url = f"{frontend_url}/reset-password.html?token={reset_token}"
         
         message_body = f"Hello {first_name or 'there'}, you requested to reset your password. Click this link: {reset_url} This link expires in 1 hour. If you didn't request this, please ignore."
