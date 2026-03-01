@@ -23,6 +23,7 @@ const LoginScreen = () => {
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [staySignedIn, setStaySignedIn] = useState(true);
   const [emailError, setEmailError] = useState('');
   const navigation = useNavigation();
   const identifierRef = useRef(null);
@@ -42,12 +43,39 @@ const LoginScreen = () => {
   };
 
   useEffect(() => {
+    const bootstrapAuth = async () => {
+      try {
+        const shouldStaySignedIn = await AsyncStorage.getItem('staySignedIn');
+        if (shouldStaySignedIn !== null) {
+          setStaySignedIn(shouldStaySignedIn === 'true');
+        }
+
+        if (shouldStaySignedIn === 'true') {
+          const token = await AsyncStorage.getItem('token');
+          const storedUser = await AsyncStorage.getItem('user');
+          if (token && storedUser) {
+            const parsedUser = JSON.parse(storedUser);
+            setUser(parsedUser);
+            if (parsedUser.role === 'user' && parsedUser.profile_completion_step) {
+              navigation.navigate('CompleteProfile');
+            } else {
+              navigation.navigate('Main', { screen: 'Matches' });
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Error bootstrapping auth state:', err);
+      }
+    };
+
+    bootstrapAuth();
+
     return () => {
       if (passwordRevealTimeoutRef.current) {
         clearTimeout(passwordRevealTimeoutRef.current);
       }
     };
-  }, []);
+  }, [navigation, setUser]);
 
   const clearPasswordRevealTimer = () => {
     if (passwordRevealTimeoutRef.current) {
@@ -178,6 +206,17 @@ const LoginScreen = () => {
               </Text>
             </TouchableOpacity>
           </View>
+
+        <TouchableOpacity
+          style={styles.checkboxContainer}
+          onPress={() => setStaySignedIn((prev) => !prev)}
+          activeOpacity={0.7}
+        >
+          <View style={[styles.checkbox, staySignedIn && styles.checkboxChecked]}>
+            {staySignedIn && <Text style={styles.checkmark}>✓</Text>}
+          </View>
+          <Text style={styles.checkboxLabel}>Remember Me</Text>
+        </TouchableOpacity>
 
         <TouchableOpacity style={styles.button} onPress={handleLogin}>
           <Text style={styles.buttonText}>Login</Text>

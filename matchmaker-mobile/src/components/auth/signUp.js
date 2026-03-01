@@ -80,6 +80,19 @@ const SignUpScreen = () => {
   };
 
   useEffect(() => {
+    const loadStaySignedInPreference = async () => {
+      try {
+        const stored = await AsyncStorage.getItem('staySignedIn');
+        if (stored !== null) {
+          setStaySignedIn(stored === 'true');
+        }
+      } catch (err) {
+        console.error('Error loading stay signed in preference:', err);
+      }
+    };
+
+    loadStaySignedInPreference();
+
     return () => {
       if (passwordRevealTimeoutRef.current) {
         clearTimeout(passwordRevealTimeoutRef.current);
