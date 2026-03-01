@@ -88,6 +88,7 @@ const CompleteProfile = () => {
     imageLayout: 'grid',
     profileStyle: 'classic',
     fontFamily: 'Arial',
+    show_location: false,
   });
 
   const saveStepToBackend = async (stepNumber) => {
@@ -154,10 +155,11 @@ const CompleteProfile = () => {
           preferredAgeMin: user.preferredAgeMin?.toString() ?? '18',
           preferredAgeMax: user.preferredAgeMax?.toString() ?? '50',
           preferredGenders: user.preferredGenders ?? [],
-          matchRadius: user.match_radius ?? 50,
+          matchRadius: userUnit === 'm' ? milesToKm(user.match_radius || 50) : (user.match_radius || 50),
           imageLayout: user.imageLayout ?? 'grid',
           profileStyle: user.profileStyle ?? 'classic',
           fontFamily: user.fontFamily ?? 'Arial',
+          show_location: user.show_location ?? false,
         }));
 
         // Load images if available
@@ -177,7 +179,8 @@ const CompleteProfile = () => {
           const userUnit = user.unit === 'metric' ? 'm' : 'ft';
           setHeightUnit(userUnit);
           const parsedHeight = parseHeight(user.height, userUnit);
-          
+          const radiusMiles = user.match_radius || 50;
+          const radiusInUserUnit = userUnit === 'm' ? milesToKm(radiusMiles) : radiusMiles;
           setFormData(prev => ({
             ...prev,
             first_name: user.first_name ?? '',
@@ -191,8 +194,9 @@ const CompleteProfile = () => {
             preferredAgeMin: user.preferredAgeMin?.toString() ?? '18',
             preferredAgeMax: user.preferredAgeMax?.toString() ?? '50',
             preferredGenders: user.preferredGenders ?? [],
-            matchRadius: user.match_radius ?? 50,
-            imageLayout: user.imageLayout ?? 'grid',
+          matchRadius: radiusInUserUnit,
+          imageLayout: user.imageLayout ?? 'grid',
+          show_location: user.show_location ?? false,
             profileStyle: user.profileStyle ?? 'classic',
             fontFamily: user.fontFamily ?? 'Arial',
           }));
@@ -335,7 +339,7 @@ const CompleteProfile = () => {
       }
       
       // Auto-save preferences when changed (for step 3)
-      if (['preferredAgeMin', 'preferredAgeMax', 'preferredGenders', 'matchRadius'].includes(name) && step === 3) {
+      if (['preferredAgeMin', 'preferredAgeMax', 'preferredGenders', 'matchRadius', 'show_location'].includes(name) && step === 3) {
         if (autoSaveFormData.current) {
           clearTimeout(autoSaveFormData.current);
         }
@@ -345,7 +349,8 @@ const CompleteProfile = () => {
           if (name === 'preferredAgeMin') saveData.preferredAgeMin = parseInt(value, 10);
           if (name === 'preferredAgeMax') saveData.preferredAgeMax = parseInt(value, 10);
           if (name === 'preferredGenders') saveData.preferredGenders = value;
-          if (name === 'matchRadius') saveData.match_radius = Number(value);
+          if (name === 'matchRadius') saveData.match_radius = heightUnit === 'ft' ? Number(value) : kmToMiles(Number(value));
+          if (name === 'show_location') saveData.show_location = Boolean(value);
           
           saveFormDataToBackend(saveData);
         }, 1000);
@@ -494,7 +499,8 @@ const CompleteProfile = () => {
           ? parseInt(formData.preferredAgeMax, 10)
           : 50,
         preferredGenders: formData.preferredGenders ?? [],
-        match_radius: Number(formData.matchRadius) ?? 50,
+        match_radius: heightUnit === 'ft' ? (Number(formData.matchRadius) ?? 50) : (kmToMiles(Number(formData.matchRadius)) ?? 31),
+        show_location: formData.show_location ?? false,
         profileStyle: formData.profileStyle,
         fontFamily: formData.fontFamily,
         imageLayout: formData.imageLayout,
@@ -1053,7 +1059,8 @@ const CompleteProfile = () => {
                           preferredAgeMin: formData.preferredAgeMin ? parseInt(formData.preferredAgeMin, 10) : 18,
                           preferredAgeMax: formData.preferredAgeMax ? parseInt(formData.preferredAgeMax, 10) : 50,
                           preferredGenders: formData.preferredGenders ?? [],
-                          match_radius: Number(formData.matchRadius) ?? 50,
+                          match_radius: heightUnit === 'ft' ? (Number(formData.matchRadius) ?? 50) : (kmToMiles(Number(formData.matchRadius)) ?? 31),
+                          show_location: formData.show_location ?? false,
                           profile_completion_step: 3,
                         }),
                       });
@@ -1141,6 +1148,16 @@ const CompleteProfile = () => {
                   snapped
                 />
               </View>
+
+              <TouchableOpacity
+                style={styles.checkboxRow}
+                onPress={() => update('show_location', !formData.show_location)}
+              >
+                <View style={[styles.checkbox, formData.show_location && styles.checkboxChecked]}>
+                  {formData.show_location && <Text style={styles.checkmark}>✓</Text>}
+                </View>
+                <Text style={styles.checkboxLabel}>Show location (e.g. Brooklyn, NY)</Text>
+              </TouchableOpacity>
 
               {error ? <Text style={styles.error}>{error}</Text> : null}
 
@@ -1375,6 +1392,7 @@ const styles = StyleSheet.create({
   pickerSmall: {
     width: '100%',
     paddingTop: 6,
+    color: '#111',
     ...Platform.select({
       ios: {
         height: 215,
@@ -1482,5 +1500,33 @@ const styles = StyleSheet.create({
     marginTop: 10,
     color: 'red',
     textAlign: 'center',
+  },
+  checkboxRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 16,
+    gap: 10,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderWidth: 2,
+    borderColor: '#6c5ce7',
+    borderRadius: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checkboxChecked: {
+    backgroundColor: '#6c5ce7',
+  },
+  checkmark: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  checkboxLabel: {
+    flex: 1,
+    fontSize: 14,
+    color: '#333',
   },
 });

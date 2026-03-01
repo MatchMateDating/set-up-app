@@ -17,6 +17,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { API_BASE_URL } from '../../env';
 import { UserContext } from '../../context/UserContext';
+import { startLocationWatcher } from './utils/startLocationWatcher';
 
 const EmailVerificationScreen = () => {
   const navigation = useNavigation();
@@ -88,6 +89,9 @@ const EmailVerificationScreen = () => {
         await AsyncStorage.setItem('token', res.data.token);
         await AsyncStorage.setItem('user', JSON.stringify(res.data.user));
         setUser(res.data.user);
+
+        // Start location watcher for nearby matching
+        startLocationWatcher(API_BASE_URL, res.data.token);
 
         const verificationType = verificationMethod === 'phone' ? 'Phone number' : 'Email';
         Alert.alert('Success', `${verificationType} verified successfully!`, [

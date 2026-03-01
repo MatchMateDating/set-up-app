@@ -67,12 +67,12 @@ const Conversations = () => {
     fetchMatches();
   }, []);
 
-  // Refresh userInfo when page comes into focus to get latest selected dater
+  // Refresh profile and matches when page comes into focus
   useFocusEffect(
     React.useCallback(() => {
-      // Small delay to ensure backend has updated after dater selection
       const timer = setTimeout(() => {
         fetchProfile();
+        fetchMatches();
       }, 100);
       return () => clearTimeout(timer);
     }, [])

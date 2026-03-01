@@ -29,7 +29,10 @@ class User(db.Model):
     avatar = db.Column(db.String(255), nullable=True)
     latitude = db.Column(db.Float, nullable=True)
     longitude = db.Column(db.Float, nullable=True)
-    match_radius = db.Column(db.Integer, nullable=True, default=50)
+    city = db.Column(db.String(120), nullable=True)
+    state = db.Column(db.String(60), nullable=True)
+    show_location = db.Column(db.Boolean, nullable=False, default=False)
+    match_radius = db.Column(db.Integer, nullable=True, default=0)  # in miles; used with haversine_distance
     unit = db.Column(db.String(20), nullable=False, default='Imperial')
     last_active_at = db.Column(db.DateTime, nullable=True)
     push_token = db.Column(db.String(255), nullable=True)  # Expo push notification token
@@ -84,15 +87,13 @@ class User(db.Model):
         return str(uuid.uuid4())[:10]
     
     def generate_verification_token(self):
-        """Generate an 8-digit email verification code"""
-        # Generate a random 8-digit code (00000000 to 99999999)
-        return f"{secrets.randbelow(100000000):08d}"
+        """Generate a 4-digit verification code"""
+        return f"{secrets.randbelow(10000):04d}"
 
     @staticmethod
     def generate_verification_token_static():
-        """Generate an 8-digit verification code (static method)"""
-        # Generate a random 8-digit code (00000000 to 99999999)
-        return f"{secrets.randbelow(100000000):08d}"
+        """Generate a 4-digit verification code (static method)"""
+        return f"{secrets.randbelow(10000):04d}"
     
     def generate_password_reset_token(self):
         """Generate a secure password reset token"""
@@ -149,6 +150,9 @@ class User(db.Model):
             "avatar": self.avatar,
             "latitude": self.latitude,
             "longitude": self.longitude,
+            "city": self.city,
+            "state": self.state,
+            "show_location": self.show_location,
             "match_radius": self.match_radius,
             "unit": self.unit,
             "notifications_enabled": self.notifications_enabled,

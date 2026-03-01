@@ -36,7 +36,12 @@ def get_users_to_match(current_user):
         if not acting_user:
             return jsonify([]), 404
     
-    query = User.query.filter(User.role == 'user', User.id != acting_user.id)
+    query = User.query.filter(
+        User.role == 'user',
+        User.id != acting_user.id,
+        User.match_radius.isnot(None),
+        User.match_radius > 0
+    )
 
     # Add preferences filtering using acting_user (linked dater for matchmakers)
     # Age filtering
@@ -170,7 +175,11 @@ def get_users_to_match(current_user):
             if distance is None:
                 continue
             # user must be within acting_user's radius AND vice versa
-            if (distance > (acting_user.match_radius or 50)) or (distance > (user.match_radius or 50)):
+            acting_radius = acting_user.match_radius if acting_user.match_radius else 0
+            user_radius = user.match_radius if user.match_radius else 0
+            if acting_radius == 0 or user_radius == 0:
+                continue
+            if distance > acting_radius or distance > user_radius:
                 continue
         # Check if user's age preferences match acting_user's age
         if acting_user.preferredAgeMin and acting_user.preferredAgeMax and user.preferredAgeMin and user.preferredAgeMax:
@@ -300,7 +309,8 @@ def blind_match(current_user):
         # Log error but don't fail the request
         print(f"Error sending match notifications: {e}")
     
-    return jsonify({'message': 'Blind match created successfully'}), 201
+    match_obj = existing_match if existing_match else new_match
+    return jsonify({'message': 'Blind match created successfully', 'match': match_obj.to_dict()}), 201
 
 
 @match_bp.route('/like', methods=['POST'])

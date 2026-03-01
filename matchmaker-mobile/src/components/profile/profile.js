@@ -27,7 +27,8 @@ const Profile = ({ user, framed, viewerUnit, editing, setEditing, onSave, onEdit
     preferredGenders: [],
     fontFamily: 'Arial',
     profileStyle: 'classic',
-    imageLayout: 'grid'
+    imageLayout: 'grid',
+    show_location: false
   });
 
   const [images, setImages] = useState([]);
@@ -51,7 +52,8 @@ const Profile = ({ user, framed, viewerUnit, editing, setEditing, onSave, onEdit
         preferredGenders: user.preferredGenders || [],
         fontFamily: user.fontFamily || 'Arial',
         profileStyle: user.profileStyle || 'classic',
-        imageLayout: user.imageLayout || 'grid'
+        imageLayout: user.imageLayout || 'grid',
+        show_location: user.show_location ?? false
       };
 
       const heightString = user.height || "0'0";
@@ -207,6 +209,7 @@ const Profile = ({ user, framed, viewerUnit, editing, setEditing, onSave, onEdit
         fontFamily: formData.fontFamily,
         profileStyle: formData.profileStyle,
         imageLayout: formData.imageLayout,
+        show_location: formData.show_location,
         unit: heightUnit === 'ft' ? 'imperial' : 'metric',
       };
 

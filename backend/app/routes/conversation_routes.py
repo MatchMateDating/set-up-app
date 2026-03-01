@@ -4,11 +4,21 @@ from app.models.conversationDB import Conversation
 from app.models.matchDB import Match
 from app.models.userDB import User
 from app import db
-from datetime import datetime
+from datetime import datetime, timezone
 from app.routes.shared import token_required
 from app.services.notification_service import send_message_notification
 
 conversation_bp = Blueprint('conversation', __name__)
+
+
+def _message_timestamp_utc_iso(dt):
+    """Return message timestamp as ISO 8601 string in UTC (with Z suffix) so clients parse as UTC and can show in local time (EST, PST, etc.)."""
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        # Stored as naive UTC (from datetime.utcnow() or DB NOW() in UTC)
+        return dt.isoformat() + 'Z'
+    return dt.astimezone(timezone.utc).isoformat().replace('+00:00', 'Z')
 
 @conversation_bp.route('/<int:match_id>', methods=['GET'])
 @token_required
@@ -58,7 +68,7 @@ def get_matched_conversations(current_user, match_id):
             'text': msg.text,
             'puzzle_type': getattr(msg, 'puzzle_type', None),
             'puzzle_link': getattr(msg, 'puzzle_link', None),
-            'timestamp': msg.timestamp.isoformat()
+            'timestamp': _message_timestamp_utc_iso(msg.timestamp)
         }
         for msg in conversation.messages
     ]
@@ -115,6 +125,22 @@ def add_to_conversation(current_user, match_id):
     if not text and not puzzle_type:
         return jsonify({"error": "No message or puzzle provided"}), 400
 
+    if current_user.role == 'matchmaker':
+        sender_user_id = current_user.referred_by_id if current_user.referred_by_id else current_user.id
+    else:
+        sender_user_id = current_user.id
+
+    if match.user_id_1 == sender_user_id:
+        receiver_user_id = match.user_id_2
+    elif match.user_id_2 == sender_user_id:
+        receiver_user_id = match.user_id_1
+    else:
+        receiver_user_id = None
+        for liked_user in match.liked_by:
+            if liked_user.id != sender_user_id:
+                receiver_user_id = liked_user.id
+                break
+
     # Fetch or create conversation
     conversation = Conversation.query.filter_by(match_id=match_id).first()
     if not conversation:
@@ -127,7 +153,7 @@ def add_to_conversation(current_user, match_id):
         message = Message(
             conversation_id=conversation.id,
             sender_id=current_user.id,
-            receiver_id=match_id,
+            receiver_id=receiver_user_id,
             text=text if text else None,
             puzzle_type=puzzle_type if puzzle_type else None,
             puzzle_link=puzzle_link if puzzle_link else None,
@@ -176,42 +202,19 @@ def add_to_conversation(current_user, match_id):
 
     db.session.commit()
 
-    # Send push notification to the receiver
-    # Determine the receiver: the other user in the match
-    if match:
-        # Determine the actual receiver user ID
-        if current_user.role == 'matchmaker':
-            # For matchmakers, use their linked dater ID
-            sender_user_id = current_user.referred_by_id if current_user.referred_by_id else current_user.id
-        else:
-            sender_user_id = current_user.id
-        
-        # Find the other user in the match
-        if match.user_id_1 == sender_user_id:
-            receiver_user_id = match.user_id_2
-        elif match.user_id_2 == sender_user_id:
-            receiver_user_id = match.user_id_1
-        else:
-            # If sender is not directly in the match (e.g., matchmaker), determine receiver from liked_by
-            receiver_user_id = None
-            for liked_user in match.liked_by:
-                if liked_user.id != sender_user_id:
-                    receiver_user_id = liked_user.id
-                    break
-        
-        # Send notification if we found a receiver
-        if receiver_user_id and (text or puzzle_type):
-            message_preview = text if text else f"Sent a {puzzle_type}" if puzzle_type else "You have a new message"
-            try:
-                send_message_notification(
-                    receiver_id=receiver_user_id,
-                    sender_id=sender_user_id,
-                    match_id=match_id,
-                    message_text=message_preview
-                )
-            except Exception as e:
-                # Log error but don't fail the request
-                print(f"Error sending push notification: {e}")
+    # Send push notification to the receiver (receiver_user_id already computed above)
+    if match and (text or puzzle_type):
+        message_preview = text if text else f"Sent a {puzzle_type}" if puzzle_type else "You have a new message"
+        try:
+            send_message_notification(
+                receiver_id=receiver_user_id,
+                sender_id=sender_user_id,
+                match_id=match_id,
+                message_text=message_preview
+            )
+        except Exception as e:
+            # Log error but don't fail the request
+            print(f"Error sending push notification: {e}")
 
     messages_data = [
         {
@@ -221,7 +224,7 @@ def add_to_conversation(current_user, match_id):
             'text': msg.text,
             'puzzle_type': getattr(msg, 'puzzle_type', None),
             'puzzle_link': getattr(msg, 'puzzle_link', None),
-            'timestamp': msg.timestamp.isoformat() + "Z"
+            'timestamp': _message_timestamp_utc_iso(msg.timestamp)
         }
         for msg in conversation.messages
     ]

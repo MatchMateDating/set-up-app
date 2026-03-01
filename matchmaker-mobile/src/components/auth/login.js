@@ -16,18 +16,38 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import { API_BASE_URL } from '../../env';
 import { UserContext } from '../../context/UserContext';
+import { startLocationWatcher } from './utils/startLocationWatcher';
 
 const LoginScreen = () => {
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
+  const [emailError, setEmailError] = useState('');
   const navigation = useNavigation();
   const identifierRef = useRef(null);
   const passwordRef = useRef(null);
   const { setUser } = useContext(UserContext);
 
+  const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+
+  const handleEmailChange = (value) => {
+    setIdentifier(value);
+    if (value.trim() && !isValidEmail(value.trim())) {
+      setEmailError('Not a valid email');
+    } else {
+      setEmailError('');
+    }
+  };
+
   const handleLogin = async () => {
+    if (!identifier.trim()) {
+      Alert.alert('Error', 'Please enter your email.');
+      return;
+    }
+    if (!isValidEmail(identifier.trim())) {
+      setEmailError('Not a valid email');
+      return;
+    }
     try {
-      // Support both email and phone number login
       const res = await axios.post(`${API_BASE_URL}/auth/login`, { 
         identifier: identifier,
         password 
@@ -40,7 +60,10 @@ const LoginScreen = () => {
         setUser(res.data.user);
       }
       Alert.alert('Success', 'Login successful!');
-      
+
+      // Start location watcher for nearby matching (runs in background)
+      startLocationWatcher(API_BASE_URL, res.data.token);
+
       // Check if user needs to complete profile
       if (res.data.user && res.data.user.role === 'user' && res.data.user.profile_completion_step) {
         navigation.navigate('CompleteProfile');
@@ -83,16 +106,17 @@ const LoginScreen = () => {
           <TextInput
             ref={identifierRef}
             style={styles.input}
-            placeholder="Email or Phone Number"
+            placeholder="Email"
             placeholderTextColor="#6b7280"
             value={identifier}
-            onChangeText={setIdentifier}
+            onChangeText={handleEmailChange}
             blurOnSubmit={false}
-            keyboardType="default"
+            keyboardType="email-address"
             autoCapitalize="none"
             returnKeyType="next"
             onSubmitEditing={() => passwordRef.current?.focus()}
           />
+          {emailError ? <Text style={styles.emailError}>{emailError}</Text> : null}
           <TextInput
             ref={passwordRef}
             style={styles.input}
@@ -166,6 +190,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#1a1a2e',
     backgroundColor: '#fafafa',
+  },
+  emailError: {
+    color: '#e53e3e',
+    fontSize: 13,
+    marginTop: -8,
+    marginBottom: 8,
+    marginLeft: 4,
   },
   button: {
     width: '100%',

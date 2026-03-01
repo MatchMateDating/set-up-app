@@ -128,6 +128,31 @@ const ProfileInfoCard = ({
             </>
           )}
 
+{editing ? (
+            <>
+              <TouchableOpacity
+                style={styles.checkboxRow}
+                onPress={() => update('show_location', !formData.show_location)}
+              >
+                <View style={[styles.checkbox, formData.show_location && styles.checkboxChecked]}>
+                  {formData.show_location && <Text style={styles.checkmark}>✓</Text>}
+                </View>
+                <Text style={styles.checkboxLabel}>Show location</Text>
+              </TouchableOpacity>
+              {(user.city || user.state) && (
+                <Text style={styles.locationHint}>
+                  {[user.city, user.state].filter(Boolean).join(', ')}
+                </Text>
+              )}
+            </>
+          ) : user.show_location && (user.city || user.state) ? (
+            <>
+              <Text style={[styles.previewText, { fontFamily: formData.profileStyle === 'constitution' ? 'Pinyon Script' : formData.fontFamily }]}>
+                {[user.city, user.state].filter(Boolean).join(', ')}
+              </Text>
+            </>
+          ) : null}
+
           {editing ? (
             <>
               <Text style={styles.label}>Birthdate</Text>
@@ -323,6 +348,8 @@ const ProfileInfoCard = ({
             layout={formData.imageLayout}
           />
 
+
+
           {editing && (
             <View style={styles.actions}>
               <TouchableOpacity style={styles.saveBtn} onPress={onSubmit}>
@@ -374,6 +401,11 @@ const styles = StyleSheet.create({
   dateText: {
     fontSize: 16,
     color: '#111',
+  },
+  previewText: {
+    fontSize: 16,
+    color: '#111',
+    marginTop: 10,
   },
   calendarContainer: {
     position: 'relative',
@@ -507,5 +539,39 @@ const styles = StyleSheet.create({
     color: '#6c5ce7',
     fontSize: 16,
     fontWeight: '600',
+  },
+  checkboxRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 16,
+    gap: 10,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderWidth: 2,
+    borderColor: '#6c5ce7',
+    borderRadius: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checkboxChecked: {
+    backgroundColor: '#6c5ce7',
+  },
+  checkmark: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  checkboxLabel: {
+    flex: 1,
+    fontSize: 14,
+    color: '#333',
+  },
+  locationHint: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 4,
+    marginLeft: 34,
   },
 });
