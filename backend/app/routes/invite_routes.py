@@ -1,8 +1,6 @@
 from flask import Blueprint, request, jsonify
 import resend
 import os
-import base64
-from pathlib import Path
 from urllib.parse import quote
 
 invite_bp = Blueprint('invite', __name__)
