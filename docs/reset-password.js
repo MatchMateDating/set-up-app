@@ -1,6 +1,7 @@
 (function () {
   var RESET_TIMEOUT_MS = 10000;
-  var PROD_API_BASE_URL = "https://set-up-app-production.up.railway.app";
+  var DEFAULT_API_BASE_URL = "http://192.168.0.116:5000"
+//  var DEFAULT_API_BASE_URL = "https://set-up-app-production.up.railway.app";
 
   var form = document.getElementById("resetForm");
   var passwordInput = document.getElementById("password");
@@ -20,20 +21,7 @@
   var params = new URLSearchParams(window.location.search);
   var token = (params.get("token") || "").trim();
   var apiFromQuery = (params.get("api") || "").trim();
-  var configuredApiBaseUrl = (window.RESET_API_BASE_URL || "").trim();
-  var host = (window.location.hostname || "").trim();
-  var isLocalLikeHost =
-    host === "localhost" ||
-    host === "127.0.0.1" ||
-    host === "::1" ||
-    /^192\.168\./.test(host) ||
-    /^10\./.test(host) ||
-    /^172\.(1[6-9]|2\d|3[0-1])\./.test(host);
-  var inferredLocalApiBaseUrl = host ? "http://" + host + ":5000" : "";
-  var defaultApiBaseUrl =
-    configuredApiBaseUrl ||
-    (isLocalLikeHost && inferredLocalApiBaseUrl ? inferredLocalApiBaseUrl : PROD_API_BASE_URL);
-  var apiBaseUrl = apiFromQuery || defaultApiBaseUrl;
+  var apiBaseUrl = apiFromQuery || window.RESET_API_BASE_URL || DEFAULT_API_BASE_URL;
 
   function clearStatus() {
     statusMessage.textContent = "";
