@@ -1,10 +1,10 @@
 import React, { useEffect, useState, useContext, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView, Image } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import { API_BASE_URL } from '../../env';
-import { calculateAge, convertFtInToMetersCm, convertMetersCmToFtIn, formatHeight } from './utils/profileUtils';
+import { calculateAge, convertFtInToMetersCm, convertMetersCmToFtIn, formatHeight, getImageUrl } from './utils/profileUtils';
 import ProfileInfoCard from './profileInfoCard';
 import PixelClouds from './components/PixelClouds';
 import PixelFlowers from './components/PixelFlowers';
@@ -25,6 +25,7 @@ const Profile = ({ user, framed, viewerUnit, editing, setEditing, onSave, onEdit
     preferredAgeMin: '0',
     preferredAgeMax: '0',
     preferredGenders: [],
+    bio: '',
     fontFamily: 'Arial',
     profileStyle: 'classic',
     imageLayout: 'grid',
@@ -35,6 +36,7 @@ const Profile = ({ user, framed, viewerUnit, editing, setEditing, onSave, onEdit
   const [heightUnit, setHeightUnit] = useState('ft');
   const navigation = useNavigation();
   const scrollViewRef = useRef(null);
+  const scrollOffsetYRef = useRef(0);
 
   useEffect(() => {
     if (user) {
@@ -47,6 +49,7 @@ const Profile = ({ user, framed, viewerUnit, editing, setEditing, onSave, onEdit
         last_name: user.last_name || '',
         birthdate: user.birthdate || '',
         gender: user.gender || '',
+        bio: user.bio || '',
         preferredAgeMin: user.preferredAgeMin || '',
         preferredAgeMax: user.preferredAgeMax || '',
         preferredGenders: user.preferredGenders || [],
@@ -161,7 +164,6 @@ const Profile = ({ user, framed, viewerUnit, editing, setEditing, onSave, onEdit
 
       const newImage = await response.json();
       setImages((prevImages) => [...prevImages, newImage]);
-      Alert.alert('Success', 'Image uploaded successfully');
     } catch (err) {
       console.error(err);
       Alert.alert('Error', 'Failed to upload image');
@@ -202,6 +204,7 @@ const Profile = ({ user, framed, viewerUnit, editing, setEditing, onSave, onEdit
         last_name: formData.last_name,
         birthdate: formData.birthdate,
         gender: formData.gender,
+        bio: (formData.bio || '').trim().slice(0, 100),
         height: heightFormatted,
         preferredAgeMin: formData.preferredAgeMin,
         preferredAgeMax: formData.preferredAgeMax,
@@ -242,8 +245,6 @@ const Profile = ({ user, framed, viewerUnit, editing, setEditing, onSave, onEdit
         unit: payload.unit,          // ← THIS is the critical line
         height: payload.height,      // keep height consistent too
       }));
-
-      Alert.alert('Success', 'Profile updated successfully');
       onSave();
     } catch (err) {
       console.error(err);
@@ -312,18 +313,65 @@ const Profile = ({ user, framed, viewerUnit, editing, setEditing, onSave, onEdit
 
   if (!user) return null;
 
+  const profileImageUri = images?.[0]?.image_url
+    ? getImageUrl(images[0].image_url, API_BASE_URL)
+    : null;
+  const ageText = user.birthdate ? ` ${calculateAge(user.birthdate)}` : '';
+  const locationText = [user.city, user.state].filter(Boolean).join(', ');
+  const shouldShowLocation = !editing && user.show_location && locationText;
+  const initialLetter = (user.first_name || '?').charAt(0).toUpperCase();
+  const displayGender = (user.gender || formData.gender || '').trim();
+  const displayHeight = (user.height || formatHeight(formData, heightUnit) || '').trim();
+
   return (
-    <ScrollView
+    <>
+      <ScrollView
         ref={scrollViewRef}
+        scrollEventThrottle={16}
+        onScroll={(event) => {
+          scrollOffsetYRef.current = event.nativeEvent.contentOffset.y;
+        }}
         style={[styles.container, framed && styles.framed, formData.profileStyle === 'pixelCloud' && styles.pixelCloud, formData.profileStyle === 'pixelFlower' && styles.pixelFlower, formData.profileStyle === 'minimal' && styles.minimal, formData.profileStyle === 'bold' && styles.bold, formData.profileStyle === 'classic' && styles.classic]}>
           {formData.profileStyle === 'pixelCloud' && <PixelClouds />}
           {formData.profileStyle === 'pixelFlower' && <PixelFlowers />}
           {formData.profileStyle === 'pixelCactus' && <PixelCactus />}
           {user.role === 'user' && (
         <View style={styles.profileHeader}>
-          <View style={styles.nameSection}>
+          <View style={styles.headerLeft}>
+            <View style={styles.avatarCircle}>
+              {profileImageUri ? (
+                <Image source={{ uri: profileImageUri }} style={styles.avatarImage} />
+              ) : (
+                <Text style={styles.avatarFallback}>{initialLetter}</Text>
+              )}
+            </View>
             {!editing && (
-              <Text style={[styles.name, { fontFamily: formData.fontFamily }]}>{user.first_name}</Text>
+              <View style={styles.nameSection}>
+                <Text style={[styles.name, { fontFamily: formData.fontFamily }]}>
+                  {user.first_name || ''}
+                  {ageText ? <Text style={styles.age}>{ageText}</Text> : null}
+                </Text>
+                {shouldShowLocation ? (
+                  <View style={styles.locationRow}>
+                    <Ionicons name="location" size={14} color="#d63384" />
+                    <Text style={styles.locationText}>{locationText}</Text>
+                  </View>
+                ) : null}
+                <View style={styles.metaPillsRow}>
+                  {displayGender ? (
+                    <View style={styles.metaPill}>
+                      <Ionicons name="male-female-outline" size={14} color="#374151" />
+                      <Text style={styles.metaPillText}>{displayGender}</Text>
+                    </View>
+                  ) : null}
+                  {displayHeight ? (
+                    <View style={styles.metaPill}>
+                      <Ionicons name="resize-outline" size={14} color="#374151" />
+                      <Text style={styles.metaPillText}>{displayHeight}</Text>
+                    </View>
+                  ) : null}
+                </View>
+              </View>
             )}
           </View>
           {!framed && !editing && (
@@ -352,14 +400,40 @@ const Profile = ({ user, framed, viewerUnit, editing, setEditing, onSave, onEdit
             onDeleteImage={handleDeleteImage}
             onPlaceholderClick={handlePlaceholderClick}
             profileStyle={formData.profileStyle}
-            scrollToBottom={() => {
+            scrollToBottom={(target, calendarBottomYInWindow) => {
                 const ref = parentScrollRef || scrollViewRef;
+                if (target === 'calendar-wrapper-end' && calendarBottomYInWindow) {
+                  ref.current?.measureInWindow((_, scrollY, __, scrollH) => {
+                    const viewportBottom = scrollY + scrollH;
+                    const overflow = calendarBottomYInWindow - viewportBottom;
+                    if (overflow > 0) {
+                      ref.current?.scrollTo({
+                        y: scrollOffsetYRef.current + overflow + 24,
+                        animated: true,
+                      });
+                    }
+                  });
+                  return;
+                }
                 ref.current?.scrollTo({ y: 300, animated: true });
             }}
           />
       )}
 
-    </ScrollView>
+      </ScrollView>
+      {editing && user.role === 'user' && (
+        <View style={styles.actionsOutsideCard}>
+          <View style={styles.actions}>
+            <TouchableOpacity style={styles.saveBtn} onPress={handleFormSubmit}>
+              <Text style={styles.saveText}>Save</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.cancelBtn} onPress={handleCancel}>
+              <Text style={styles.cancelBtnText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+    </>
   );
 };
 
@@ -386,19 +460,114 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 20,
-    padding: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  avatarCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#d3c8bb',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 3,
+    borderColor: '#f6f0e8',
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+  },
+  avatarFallback: {
+    fontSize: 34,
+    color: '#ffffff',
+    fontWeight: '600',
   },
   nameSection: {
     flex: 1,
   },
   name: {
-    fontSize: 24,
+    fontSize: 36,
     fontWeight: '700',
-    color: '#222',
+    color: '#111827',
+    lineHeight: 40,
+  },
+  age: {
+    fontSize: 28,
+    fontWeight: '500',
+    color: '#111827',
+  },
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 2,
+  },
+  locationText: {
+    fontSize: 16,
+    color: '#4b5563',
+  },
+  metaPillsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 8,
+    flexWrap: 'wrap',
+  },
+  metaPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255, 255, 255, 0.62)',
+  },
+  metaPillText: {
+    fontSize: 15,
+    color: '#111827',
+    fontWeight: '600',
   },
   profileActions: {
     flexDirection: 'row',
     gap: 12,
+  },
+  actionsOutsideCard: {
+    marginTop: 20,
+  },
+  actions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 12,
+  },
+  saveBtn: {
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: '#6c5ce7',
+  },
+  saveText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  cancelBtn: {
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#6c5ce7',
+    backgroundColor: 'transparent',
+  },
+  cancelBtnText: {
+    color: '#6c5ce7',
+    fontSize: 16,
+    fontWeight: '600',
   },
   /* Theme styles */
   pixelCloud: {

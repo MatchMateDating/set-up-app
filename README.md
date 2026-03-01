@@ -133,6 +133,11 @@ eas build:list
    ```
    Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
 
+4. **Run the docs:**
+    ```bash
+    python -m http.server 8080
+   ```
+
 ### Backend Setup (Local Development)
 
 See `backend/RunningInstructions.md` for detailed backend setup instructions.
@@ -153,7 +158,7 @@ export FLASK_ENV=development
 flask db init
 flask db migrate
 flask db upgrade
-flask run
+flask run or flask run --host=0.0.0.0
 ```
 
 ## Project Structure
@@ -165,6 +170,11 @@ matchmatedating-app/
 │   ├── env.template     # Environment variables template
 │   ├── requirements.txt # Python dependencies
 │   └── run.py           # Entry point
+├── docs/
+│   ├── images/           
+│   ├── index.html
+│   ├── reset-password.html
+│   └── run.py
 ├── matchmaker-mobile/    # React Native mobile app (Expo)
 │   ├── src/             # Source code
 │   └── package.json     # Node dependencies

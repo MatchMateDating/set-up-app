@@ -6,5 +6,7 @@
 /backend/instance
 /backend/migrations
 /backend/.env
+/docs/config.local.js
+/.env
 /.idea/
 .expo/

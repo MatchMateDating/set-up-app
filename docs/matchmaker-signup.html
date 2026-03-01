@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Matchmaker Signup - matchmate</title>
+  <link rel="icon" type="image/png" href="images/MatchMate_logo_thicker.png">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    .signup-shell {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: var(--off-white);
+    }
+
+    .signup-card {
+      width: 100%;
+      max-width: 560px;
+      background: var(--white);
+      border: 1px solid var(--border-gray);
+      border-radius: 14px;
+      padding: 24px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+    }
+
+    .signup-logo {
+      width: 64px;
+      height: auto;
+      max-height: 64px;
+      display: block;
+      margin: 0 auto 14px;
+      object-fit: contain;
+    }
+
+    .signup-title {
+      font-size: 1.8rem;
+      font-weight: 700;
+      text-align: center;
+      color: var(--text-dark);
+      margin-bottom: 6px;
+    }
+
+    .signup-subtitle {
+      text-align: center;
+      color: var(--text-light);
+      margin-bottom: 20px;
+    }
+
+    .field-label {
+      display: block;
+      margin: 8px 0 6px;
+      font-size: 13px;
+      color: var(--text-medium);
+      font-weight: 600;
+    }
+
+    .field-wrap {
+      position: relative;
+      margin-bottom: 10px;
+    }
+
+    .field-input {
+      width: 100%;
+      border: 1px solid var(--border-gray);
+      border-radius: 10px;
+      padding: 14px 100px 14px 14px;
+      font-size: 16px;
+      color: var(--text-dark);
+      background: var(--off-white);
+      font-family: inherit;
+      outline: none;
+    }
+
+    .field-input.no-toggle {
+      padding-right: 14px;
+    }
+
+    .field-input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.12);
+      background: var(--white);
+    }
+
+    .toggle-btn {
+      position: absolute;
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      border: none;
+      background: transparent;
+      color: var(--primary);
+      font-weight: 700;
+      font-size: 12px;
+      cursor: pointer;
+      padding: 6px;
+    }
+
+    .rules {
+      margin: 4px 0 12px;
+      padding-left: 4px;
+    }
+
+    .rules-title {
+      font-size: 13px;
+      color: var(--text-medium);
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .rule {
+      font-size: 12px;
+      margin-bottom: 2px;
+      color: var(--text-light);
+    }
+
+    .rule.pass {
+      color: #16a34a;
+    }
+
+    .inline-error {
+      color: #dc2626;
+      font-size: 13px;
+      margin: 2px 0 10px 4px;
+    }
+
+    .submit-btn {
+      width: 100%;
+      border: none;
+      border-radius: 10px;
+      background: var(--primary);
+      color: var(--white);
+      font-weight: 600;
+      font-size: 16px;
+      padding: 14px;
+      cursor: pointer;
+      margin-top: 6px;
+    }
+
+    .submit-btn:disabled {
+      opacity: 0.65;
+      cursor: not-allowed;
+    }
+
+    .status {
+      margin-top: 12px;
+      font-size: 14px;
+      text-align: center;
+    }
+
+    .status.success {
+      color: #15803d;
+    }
+
+    .status.error {
+      color: #dc2626;
+    }
+  </style>
+</head>
+<body>
+  <main class="signup-shell">
+    <section class="signup-card">
+      <img src="images/MatchMate_logo_thicker.png" alt="matchmate logo" class="signup-logo">
+      <h1 class="signup-title">Become a Matchmaker</h1>
+      <p class="signup-subtitle">Create your account to help your dater find better matches.</p>
+
+      <form id="matchmakerSignupForm" novalidate>
+        <label class="field-label" for="email">Email</label>
+        <div class="field-wrap">
+          <input
+            id="email"
+            class="field-input no-toggle"
+            type="email"
+            placeholder="Email address"
+            autocomplete="email"
+            required
+          >
+        </div>
+
+        <label class="field-label" for="password">Password</label>
+        <div class="field-wrap">
+          <input
+            id="password"
+            class="field-input"
+            type="password"
+            placeholder="Create password"
+            autocomplete="new-password"
+            required
+          >
+          <button id="togglePasswordBtn" class="toggle-btn" type="button">Show</button>
+        </div>
+
+        <div class="rules">
+          <div class="rules-title">Password requirements:</div>
+          <div id="ruleLength" class="rule">- At least 8 characters</div>
+          <div id="ruleUpper" class="rule">- 1 uppercase letter</div>
+          <div id="ruleLower" class="rule">- 1 lowercase letter</div>
+          <div id="ruleSpecial" class="rule">- 1 special character</div>
+        </div>
+
+        <label class="field-label" for="confirmPassword">Confirm Password</label>
+        <div class="field-wrap">
+          <input
+            id="confirmPassword"
+            class="field-input"
+            type="password"
+            placeholder="Confirm password"
+            autocomplete="new-password"
+            required
+          >
+          <button id="toggleConfirmBtn" class="toggle-btn" type="button">Show</button>
+        </div>
+        <div id="mismatchError" class="inline-error" style="display:none;">Passwords do not match.</div>
+
+        <label class="field-label" for="referralCode">Referral Code</label>
+        <div class="field-wrap">
+          <input
+            id="referralCode"
+            class="field-input no-toggle"
+            type="text"
+            placeholder="Referral code"
+            required
+          >
+        </div>
+
+        <button id="submitBtn" class="submit-btn" type="submit">Create Matchmaker Account</button>
+        <div id="statusMessage" class="status" aria-live="polite"></div>
+      </form>
+    </section>
+  </main>
+
+  <script src="config.local.js"></script>
+  <script src="matchmaker-signup.js"></script>
+</body>
+</html>

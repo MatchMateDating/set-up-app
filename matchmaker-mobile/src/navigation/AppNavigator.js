@@ -1,7 +1,8 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import LoginScreen from '../components/auth/login';
 import SignUpScreen from '../components/auth/signUp';
 import EmailVerificationScreen from '../components/auth/emailVerification';
@@ -19,13 +20,19 @@ import ZodiacQuiz from '../components/puzzles/zodiacQuiz';
 import TriviaChallenge from '../components/puzzles/triviaChallenge';
 
 const Stack = createNativeStackNavigator();
-const Tab = createBottomTabNavigator();
+const Tab = createMaterialTopTabNavigator();
 
 function MainTabs() {
+  const insets = useSafeAreaInsets();
+  const bottomInset = Math.max(insets.bottom, 8);
+
   return (
     <Tab.Navigator
+      tabBarPosition="bottom"
       screenOptions={({ route }) => ({
-        tabBarIcon: ({ focused, color, size }) => {
+        swipeEnabled: true,
+        animationEnabled: true,
+        tabBarIcon: ({ focused, color }) => {
           let iconName;
 
           if (route.name === 'Profile') {
@@ -38,8 +45,17 @@ function MainTabs() {
             iconName = focused ? 'settings' : 'settings-outline';
           }
 
-          return <Ionicons name={iconName} size={size} color={color} />;
+          return <Ionicons name={iconName} size={20} color={color} />;
         },
+        tabBarShowIcon: true,
+        tabBarShowLabel: false,
+        tabBarIndicatorStyle: { height: 0 },
+        tabBarItemStyle: { justifyContent: 'center', alignItems: 'center' },
+        tabBarStyle: {
+          height: 56 + bottomInset,
+          paddingBottom: bottomInset,
+        },
+        tabBarPressColor: 'rgba(108, 92, 231, 0.12)',
         tabBarActiveTintColor: '#6c5ce7',
         tabBarInactiveTintColor: 'gray',
         headerShown: false,
