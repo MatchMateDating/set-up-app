@@ -213,6 +213,7 @@ const SignUpScreen = () => {
         password,
         role,
         email: normalizedEmail,
+        staySignedIn,
       };
 
       if (role === 'matchmaker') {
