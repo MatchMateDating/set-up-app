@@ -532,7 +532,13 @@ const Match = () => {
           />
         </MatcherHeader>
       )}
-      <ScrollView style={styles.scrollView} contentContainerStyle={[styles.content, userInfo?.role === 'matchmaker' && styles.contentWithDropdown]}>
+      <ScrollView
+        style={[
+          styles.scrollView,
+          userInfo?.role === 'matchmaker' && styles.scrollViewWithDropdown,
+        ]}
+        contentContainerStyle={[styles.content, userInfo?.role === 'matchmaker' && styles.contentWithDropdown]}
+      >
         {currentProfile ? (
           <>
             <ProfileCard
@@ -670,12 +676,15 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingTop: 50,
   },
+  scrollViewWithDropdown: {
+    paddingTop: 8,
+  },
   content: {
     padding: 20,
     paddingBottom: 100, // Space for buttons at bottom
   },
   contentWithDropdown: {
-    paddingTop: 8, // Extra space for dropdown
+    paddingTop: 4,
   },
   loadingContainer: {
     flex: 1,
