@@ -18,6 +18,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { API_BASE_URL } from '../../env';
 import { useUserInfo } from './hooks/useUserInfo';
 import { games } from '../puzzles/puzzlesPage';
@@ -60,6 +61,10 @@ const MatchConvo = () => {
   const [puzzleSheetOpen, setPuzzleSheetOpen] = useState(false);
   const [matchInfo, setMatchInfo] = useState(null);
   const [menuVisible, setMenuVisible] = useState(false);
+  const insets = useSafeAreaInsets();
+  const [hasOpenedKeyboard, setHasOpenedKeyboard] = useState(false);
+  const [androidBottomInset, setAndroidBottomInset] = useState(insets.bottom);
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
 
   const scrollViewRef = useRef(null);
 
@@ -157,9 +162,12 @@ const MatchConvo = () => {
 
   useEffect(() => {
     const showSub = Keyboard.addListener('keyboardDidShow', () => {
+      setHasOpenedKeyboard(true);
+      setIsKeyboardVisible(true);
       scrollViewRef.current?.scrollToEnd({ animated: true });
     });
     const hideSub = Keyboard.addListener('keyboardDidHide', () => {
+      setIsKeyboardVisible(false);
       scrollViewRef.current?.scrollToEnd({ animated: true });
     });
   
@@ -168,6 +176,12 @@ const MatchConvo = () => {
       hideSub.remove();
     };
   }, []);
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    if (hasOpenedKeyboard) return;
+    setAndroidBottomInset(insets.bottom);
+  }, [insets.bottom, hasOpenedKeyboard]);
 
   useEffect(() => {
   if (!loading) {
@@ -317,6 +331,11 @@ const MatchConvo = () => {
   const showSpeakingWithMatchmaker = isPendingApproval && userInfo?.role === 'matchmaker' && matchInfo?.both_matchmakers_involved && !approvedByOtherMatchmaker;
   // Show "(approved by other matchmaker)" when the other matchmaker has approved but we haven't
   const showApprovedByOther = isPendingApproval && userInfo?.role === 'matchmaker' && approvedByOtherMatchmaker;
+  const androidActionsBottomPadding =
+    Platform.OS === 'android'
+      ? (isKeyboardVisible ? 16 : 16 + androidBottomInset)
+      : 16;
+  const androidSheetBottomPadding = Platform.OS === 'android' ? 16 + androidBottomInset : 16;
 
   if (loading) {
     return (
@@ -512,7 +531,11 @@ const MatchConvo = () => {
   };
 
   return (
-    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      enabled={Platform.OS === 'ios' || (Platform.OS === 'android' && isKeyboardVisible)}
+    >
       <View style={styles.header}>
         <View style={styles.headerTopRow}>
           <TouchableOpacity style={styles.backButton} onPress={() => navigation.navigate('Main', { screen: 'Conversations' })}>
@@ -678,7 +701,7 @@ const MatchConvo = () => {
         />
       )}
 
-      <View style={styles.sendActions}>
+      <View style={[styles.sendActions, { paddingBottom: androidActionsBottomPadding }]}>
         <TouchableOpacity
           style={[
             styles.sendButton,
@@ -699,7 +722,7 @@ const MatchConvo = () => {
 
       <Modal visible={puzzleSheetOpen} transparent animationType="slide" onRequestClose={() => setPuzzleSheetOpen(false)}>
         <Pressable style={styles.overlay} onPress={() => setPuzzleSheetOpen(false)} />
-        <View style={styles.sheet}>
+        <View style={[styles.sheet, { paddingBottom: androidSheetBottomPadding }]}>
           <Text style={styles.sheetTitle}>Choose a Puzzle</Text>
           <FlatList
             data={games}
