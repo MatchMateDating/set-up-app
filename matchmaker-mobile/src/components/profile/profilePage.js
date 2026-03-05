@@ -183,7 +183,11 @@ const ProfilePage = () => {
   useFocusEffect(
     React.useCallback(() => {
       if (!matchProfile) {
-        // Small delay to ensure backend has updated after dater selection
+        // Clear stale role data immediately so previous account info never flashes.
+        setLoading(true);
+        setUser(null);
+        setReferrer(null);
+        // Small delay to ensure backend has updated after account/dater selection
         const timer = setTimeout(() => {
           fetchProfile();
         }, 100);
