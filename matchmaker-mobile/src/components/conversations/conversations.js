@@ -14,6 +14,7 @@ import MatcherHeader from '../layout/components/matcherHeader';
 
 const Conversations = () => {
   const [showDaterMatches, setShowDaterMatches] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const { userInfo, setUserInfo, referrerInfo, setReferrerInfo, loading: userLoading } = useUserInfo(API_BASE_URL);
   const { matches, setMatches, loading: matchesLoading, fetchMatches } = useMatches(API_BASE_URL);
   const matchedList = Array.isArray(matches) ? matches : (matches?.matched || []);
@@ -24,7 +25,7 @@ const Conversations = () => {
   // Initialize notification polling
   useNotificationPolling();
 
-  const loading = userLoading || matchesLoading;
+  const loading = userLoading || matchesLoading || refreshing;
 
   const fetchProfile = async () => {
     try {
@@ -70,9 +71,16 @@ const Conversations = () => {
   // Refresh profile and matches when page comes into focus
   useFocusEffect(
     React.useCallback(() => {
+      // Prevent stale account data flash while switching roles/daters.
+      setRefreshing(true);
+      setUserInfo(null);
+      setReferrer(null);
+      setMatches({ matched: [], pending_approval: [] });
       const timer = setTimeout(() => {
-        fetchProfile();
-        fetchMatches();
+        Promise.all([fetchProfile(), fetchMatches()])
+          .finally(() => {
+            setRefreshing(false);
+          });
       }, 100);
       return () => clearTimeout(timer);
     }, [])
@@ -249,8 +257,13 @@ const Conversations = () => {
   };
 
   const handleDaterChange = async (daterId) => {
-    await fetchProfile();
-    fetchMatches();
+    setRefreshing(true);
+    setMatches({ matched: [], pending_approval: [] });
+    try {
+      await Promise.all([fetchProfile(), fetchMatches()]);
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   if (loading) {

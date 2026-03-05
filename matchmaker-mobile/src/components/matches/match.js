@@ -16,6 +16,7 @@ import { getImageUrl } from '../profile/utils/profileUtils';
 const Match = () => {
   const { profiles, setProfiles, loading } = useProfiles(API_BASE_URL);
   const { userInfo, setUserInfo } = useUserInfo(API_BASE_URL);
+  const [refreshing, setRefreshing] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [showMatchModal, setShowMatchModal] = useState(false);
@@ -53,9 +54,15 @@ const Match = () => {
 
   const handleDaterChange = async (daterId) => {
     // Refresh userInfo to get updated referred_by_id, then refresh profiles
-    await refreshUserInfo();
+    setRefreshing(true);
     setCurrentIndex(0);
-    fetchProfiles();
+    setProfiles([]);
+    try {
+      await refreshUserInfo();
+      await fetchProfiles();
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   const fetchProfile = async () => {
@@ -150,13 +157,23 @@ const Match = () => {
   // Refresh userInfo and profiles when page comes into focus to get latest selected dater
   useFocusEffect(
     React.useCallback(() => {
+      // Prevent stale account data flash while switching roles/daters.
+      setRefreshing(true);
       setCurrentIndex(0);
+      setProfiles([]);
+      setReferrer(null);
+      setUserInfo(null);
       
       // Small delay to ensure backend has updated after dater selection
       const timer = setTimeout(async () => {
-        await refreshUserInfo();
-        // Refresh profiles after userInfo is updated
-        fetchProfiles();
+        try {
+          await refreshUserInfo();
+          await fetchProfile();
+          // Refresh profiles after userInfo is updated
+          await fetchProfiles();
+        } finally {
+          setRefreshing(false);
+        }
       }, 100);
       return () => clearTimeout(timer);
     }, [])
@@ -494,7 +511,7 @@ const Match = () => {
     }
   };
 
-  if (loading) {
+  if (loading || refreshing) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#6c5ce7" />
