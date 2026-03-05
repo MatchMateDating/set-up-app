@@ -420,11 +420,6 @@ const SignUpScreen = () => {
             >
               • 1 special character
             </Text>
-            {shouldSkipPasswordRules && (
-              <Text style={styles.passwordRuleTestBypass}>
-                Test email detected: password rules are optional for test mode.
-              </Text>
-            )}
           </View>
         )}
 
@@ -754,12 +749,6 @@ const styles = StyleSheet.create({
   },
   passwordRulePassed: {
     color: '#16a34a',
-  },
-  passwordRuleTestBypass: {
-    marginTop: 6,
-    fontSize: 12,
-    color: '#6c5ce7',
-    fontWeight: '600',
   },
   submitBtn: {
     backgroundColor: '#6c5ce7',

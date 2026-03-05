@@ -263,7 +263,8 @@ def register_matchmaker_web():
         return jsonify({'msg': 'Please enter a valid email address'}), 400
     if not password:
         return jsonify({'msg': 'Please enter a password'}), 400
-    if not is_strong_password(password):
+    is_test_signup = is_test_email(email)
+    if not is_test_signup and not is_strong_password(password):
         return jsonify({
             'msg': 'Password must be at least 8 characters and include uppercase, lowercase, and a special character'
         }), 400
