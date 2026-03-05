@@ -14,9 +14,11 @@ const ProfileCard = ({
   const { user } = useContext(UserContext);
   const viewerUnit = user?.unit;
 
+  const canSkipProfile = ['matchmaker', 'user', 'dater'].includes(userInfo?.role);
+
   return (
     <View style={styles.profileBox}>
-      {userInfo?.role === 'matchmaker' && onSkip && (
+      {canSkipProfile && onSkip && (
         <TouchableOpacity style={styles.skipButton} onPress={onSkip}>
           <Ionicons name="close-circle" size={40} color="#e53e3e" />
         </TouchableOpacity>
