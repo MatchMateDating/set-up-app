@@ -14,6 +14,7 @@ import MatcherHeader from '../layout/components/matcherHeader';
 
 const Conversations = () => {
   const [showDaterMatches, setShowDaterMatches] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const { userInfo, setUserInfo, referrerInfo, setReferrerInfo, loading: userLoading } = useUserInfo(API_BASE_URL);
   const { matches, setMatches, loading: matchesLoading, fetchMatches } = useMatches(API_BASE_URL);
   const matchedList = Array.isArray(matches) ? matches : (matches?.matched || []);
@@ -24,7 +25,7 @@ const Conversations = () => {
   // Initialize notification polling
   useNotificationPolling();
 
-  const loading = userLoading || matchesLoading;
+  const loading = userLoading || matchesLoading || refreshing;
 
   const fetchProfile = async () => {
     try {
@@ -70,9 +71,16 @@ const Conversations = () => {
   // Refresh profile and matches when page comes into focus
   useFocusEffect(
     React.useCallback(() => {
+      // Prevent stale account data flash while switching roles/daters.
+      setRefreshing(true);
+      setUserInfo(null);
+      setReferrer(null);
+      setMatches({ matched: [], pending_approval: [] });
       const timer = setTimeout(() => {
-        fetchProfile();
-        fetchMatches();
+        Promise.all([fetchProfile(), fetchMatches()])
+          .finally(() => {
+            setRefreshing(false);
+          });
       }, 100);
       return () => clearTimeout(timer);
     }, [])
@@ -93,8 +101,8 @@ const Conversations = () => {
       }
     });
     
-    // Pending approval matches go in dater section
-    return { matched: filteredMatched, pending_approval: pendingApprovalList };
+    // Daters should not see pending_approval conversations.
+    return { matched: filteredMatched, pending_approval: [] };
   };
 
   const unmatch = async (matchId) => {
@@ -249,8 +257,13 @@ const Conversations = () => {
   };
 
   const handleDaterChange = async (daterId) => {
-    await fetchProfile();
-    fetchMatches();
+    setRefreshing(true);
+    setMatches({ matched: [], pending_approval: [] });
+    try {
+      await Promise.all([fetchProfile(), fetchMatches()]);
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   if (loading) {
@@ -281,7 +294,7 @@ const Conversations = () => {
         </MatcherHeader>
       )}
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-        {userInfo && userInfo.role === 'user' && (matchedList.length > 0 || pendingApprovalList.length > 0) && (
+        {userInfo && userInfo.role === 'user' && matchedList.length > 0 && (
           <ToggleConversationsDater
             showDaterMatches={showDaterMatches}
             setShowDaterMatches={setShowDaterMatches}
@@ -363,30 +376,11 @@ const Conversations = () => {
                     hide={hide}
                   />
                 ))
-              ) : filteredMatches.pending_approval.length === 0 ? (
+              ) : (
                 <View style={styles.emptyContainer}>
                   <Text style={styles.emptyText}>No matches yet!</Text>
                 </View>
-              ) : null}
-            </View>
-          </View>
-        )}
-        
-        {/* Pending Approval Section - for daters (in dater section) */}
-        {userInfo?.role === 'user' && showDaterMatches && filteredMatches.pending_approval.length > 0 && (
-          <View style={styles.sectionContainer}>
-            <View style={styles.matchList}>
-              {filteredMatches.pending_approval.map((matchObj, index) => (
-                <MatchCard
-                  key={`pending-${index}`}
-                  matchObj={matchObj}
-                  userInfo={userInfo}
-                  navigation={navigation}
-                  unmatch={handleUnmatch}
-                  reveal={reveal}
-                  hide={hide}
-                />
-              ))}
+              )}
             </View>
           </View>
         )}

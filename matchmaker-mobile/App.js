@@ -15,8 +15,14 @@ function NotificationHandler({ navigationRef }) {
     try {
       // Handle notifications received while app is in foreground
       notificationListener.current = Notifications.addNotificationReceivedListener((notification) => {
-        // You can handle foreground notifications here if needed
-        console.log('Notification received:', notification);
+        // Log only stable fields to avoid deprecated proxy access warnings.
+        const { title, body, data } = notification.request.content;
+        console.log('Notification received:', {
+          id: notification.request.identifier,
+          title,
+          body,
+          data,
+        });
       });
 
       // Handle notification taps
@@ -45,12 +51,8 @@ function NotificationHandler({ navigationRef }) {
 
     return () => {
       try {
-        if (notificationListener.current) {
-          Notifications.removeNotificationSubscription(notificationListener.current);
-        }
-        if (responseListener.current) {
-          Notifications.removeNotificationSubscription(responseListener.current);
-        }
+        notificationListener.current?.remove?.();
+        responseListener.current?.remove?.();
       } catch (error) {
         console.error('Error cleaning up notification listeners:', error);
       }
