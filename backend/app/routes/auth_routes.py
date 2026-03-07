@@ -216,7 +216,7 @@ def register():
         db.session.commit()
 
         # Create access token (persistent only when remember-me is requested)
-        token_expiry = False if remember_me else None
+        token_expiry = False if remember_me else timedelta(days=1)
         token = create_access_token(identity=str(user.id), expires_delta=token_expiry)
         
         return jsonify({
@@ -347,7 +347,7 @@ def login():
     db.session.commit()
     
     # Keep users signed in until they explicitly sign out when remember-me is enabled.
-    token_expiry = False if remember_me else None
+    token_expiry = False if remember_me else timedelta(days=1)
     token = create_access_token(identity=str(user.id), expires_delta=token_expiry)
     response_data = {
         'message': 'Login successful', 
@@ -453,7 +453,7 @@ def verify_email():
 
     # Create access token for verified user
     remember_me = get_remember_me_flag(signup_data)
-    token_expiry = False if remember_me else None
+    token_expiry = False if remember_me else timedelta(days=1)
     access_token = create_access_token(identity=str(user.id), expires_delta=token_expiry)
 
     method_text = 'Email' if verification_method == 'email' else 'Phone number'
