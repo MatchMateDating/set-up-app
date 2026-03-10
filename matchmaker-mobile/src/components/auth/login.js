@@ -111,7 +111,8 @@ const LoginScreen = () => {
     try {
       const res = await axios.post(`${API_BASE_URL}/auth/login`, { 
         identifier: identifier,
-        password 
+        password,
+        staySignedIn
       });
       await AsyncStorage.setItem('staySignedIn', staySignedIn ? 'true' : 'false');
       // Store token in AsyncStorage

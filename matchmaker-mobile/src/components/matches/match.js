@@ -16,6 +16,7 @@ import { getImageUrl } from '../profile/utils/profileUtils';
 const Match = () => {
   const { profiles, setProfiles, loading } = useProfiles(API_BASE_URL);
   const { userInfo, setUserInfo } = useUserInfo(API_BASE_URL);
+  const [refreshing, setRefreshing] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [showMatchModal, setShowMatchModal] = useState(false);
@@ -53,9 +54,15 @@ const Match = () => {
 
   const handleDaterChange = async (daterId) => {
     // Refresh userInfo to get updated referred_by_id, then refresh profiles
-    await refreshUserInfo();
+    setRefreshing(true);
     setCurrentIndex(0);
-    fetchProfiles();
+    setProfiles([]);
+    try {
+      await refreshUserInfo();
+      await fetchProfiles();
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   const fetchProfile = async () => {
@@ -150,13 +157,23 @@ const Match = () => {
   // Refresh userInfo and profiles when page comes into focus to get latest selected dater
   useFocusEffect(
     React.useCallback(() => {
+      // Prevent stale account data flash while switching roles/daters.
+      setRefreshing(true);
       setCurrentIndex(0);
+      setProfiles([]);
+      setReferrer(null);
+      setUserInfo(null);
       
       // Small delay to ensure backend has updated after dater selection
       const timer = setTimeout(async () => {
-        await refreshUserInfo();
-        // Refresh profiles after userInfo is updated
-        fetchProfiles();
+        try {
+          await refreshUserInfo();
+          await fetchProfile();
+          // Refresh profiles after userInfo is updated
+          await fetchProfiles();
+        } finally {
+          setRefreshing(false);
+        }
       }, 100);
       return () => clearTimeout(timer);
     }, [])
@@ -494,7 +511,7 @@ const Match = () => {
     }
   };
 
-  if (loading) {
+  if (loading || refreshing) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#6c5ce7" />
@@ -515,7 +532,13 @@ const Match = () => {
           />
         </MatcherHeader>
       )}
-      <ScrollView style={styles.scrollView} contentContainerStyle={[styles.content, userInfo?.role === 'matchmaker' && styles.contentWithDropdown]}>
+      <ScrollView
+        style={[
+          styles.scrollView,
+          userInfo?.role === 'matchmaker' && styles.scrollViewWithDropdown,
+        ]}
+        contentContainerStyle={[styles.content, userInfo?.role === 'matchmaker' && styles.contentWithDropdown]}
+      >
         {currentProfile ? (
           <>
             <ProfileCard
@@ -537,39 +560,49 @@ const Match = () => {
         )}
       </ScrollView>
       {currentProfile && (
-        <TouchableOpacity style={styles.skipButton} onPress={nextProfile}>
-          <Ionicons name="close-circle" size={44} color="#e53e3e" />
-        </TouchableOpacity>
-      )}
-      {currentProfile && (
         <View style={styles.buttonContainer}>
           <View style={styles.leftButtonContainer}>
             {userInfo?.role === 'user' && (
-              <TouchableOpacity style={styles.smallButton} onPress={() => blockUser(currentProfile.id)}>
-                <Ionicons name="ban-outline" size={24} color="#e53e3e" />
-              </TouchableOpacity>
+              <View style={styles.actionItem}>
+                <TouchableOpacity style={[styles.actionButton, styles.sideActionButton, styles.blockActionButton]} onPress={() => blockUser(currentProfile.id)}>
+                  <Ionicons name="ban-outline" size={24} color="#ffffff" />
+                </TouchableOpacity>
+                <Text style={styles.actionLabel}>Block</Text>
+              </View>
             )}
             {userInfo?.role === 'matchmaker' && !currentProfile.liked_linked_dater && (
-              <TouchableOpacity style={styles.smallButton} onPress={handleBlindMatch}>
-                <Ionicons name="person" size={24} color="#6c5ce7" />
-              </TouchableOpacity>
+              <View style={styles.actionItem}>
+                <TouchableOpacity style={[styles.actionButton, styles.sideActionButton, styles.blindActionButton]} onPress={handleBlindMatch}>
+                  <Ionicons name="eye-off-outline" size={24} color="#ffffff" />
+                </TouchableOpacity>
+                <Text style={styles.actionLabel}>Blind Match</Text>
+              </View>
             )}
           </View>
           <View style={styles.centerButtonContainer}>
             {userInfo?.role === 'matchmaker' && currentProfile.liked_linked_dater ? (
-              <TouchableOpacity style={styles.likeButton} onPress={handleBlindMatch}>
-                <Ionicons name="heart" size={40} color="#e53e3e" />
-              </TouchableOpacity>
+              <View style={styles.actionItem}>
+                <TouchableOpacity style={[styles.actionButton, styles.likeActionButton]} onPress={handleBlindMatch}>
+                  <Ionicons name="heart" size={34} color="#ffffff" />
+                </TouchableOpacity>
+                <Text style={styles.actionLabel}>Like</Text>
+              </View>
             ) : (
-              <TouchableOpacity style={styles.likeButton} onPress={handleLike}>
-                <Ionicons name="heart" size={40} color="#e53e3e" />
-              </TouchableOpacity>
+              <View style={styles.actionItem}>
+                <TouchableOpacity style={[styles.actionButton, styles.likeActionButton]} onPress={handleLike}>
+                  <Ionicons name="heart" size={34} color="#ffffff" />
+                </TouchableOpacity>
+                <Text style={styles.actionLabel}>Like</Text>
+              </View>
             )}
           </View>
           <View style={styles.rightButtonContainer}>
-            <TouchableOpacity style={styles.smallButton} onPress={() => setShowNoteModal(true)}>
-              <Ionicons name="create-outline" size={24} color="#6c5ce7" />
-            </TouchableOpacity>
+            <View style={styles.actionItem}>
+              <TouchableOpacity style={[styles.actionButton, styles.sideActionButton, styles.noteActionButton]} onPress={() => setShowNoteModal(true)}>
+                <Ionicons name="create-outline" size={24} color="#ffffff" />
+              </TouchableOpacity>
+              <Text style={styles.actionLabel}>Send Note</Text>
+            </View>
           </View>
         </View>
       )}
@@ -643,12 +676,15 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingTop: 50,
   },
+  scrollViewWithDropdown: {
+    paddingTop: 8,
+  },
   content: {
     padding: 20,
     paddingBottom: 100, // Space for buttons at bottom
   },
   contentWithDropdown: {
-    paddingTop: 8, // Extra space for dropdown
+    paddingTop: 4,
   },
   loadingContainer: {
     flex: 1,
@@ -670,33 +706,21 @@ const styles = StyleSheet.create({
     color: '#6b7280',
     textAlign: 'center',
   },
-  skipButton: {
-    position: 'absolute',
-    top: 70,
-    right: 30,
-    zIndex: 10,
-    backgroundColor: '#fff',
-    borderRadius: 22,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    elevation: 4,
-  },
   buttonContainer: {
     position: 'absolute',
-    bottom: 30,
+    bottom: 22,
     left: 0,
     right: 0,
     flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    paddingHorizontal: 24,
+    paddingVertical: 10,
     backgroundColor: 'transparent',
   },
   leftButtonContainer: {
     flex: 1,
-    alignItems: 'flex-start',
+    alignItems: 'center',
     justifyContent: 'center',
   },
   centerButtonContainer: {
@@ -706,36 +730,47 @@ const styles = StyleSheet.create({
   },
   rightButtonContainer: {
     flex: 1,
-    alignItems: 'flex-end',
-    justifyContent: 'center',
-  },
-  smallButton: {
-    padding: 12,
-    borderRadius: 8,
-    backgroundColor: '#fafafa',
     alignItems: 'center',
     justifyContent: 'center',
-    width: 56,
-    height: 56,
+  },
+  actionItem: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6,
   },
-  likeButton: {
-    padding: 12,
-    borderRadius: 8,
-    backgroundColor: '#fafafa',
-    alignItems: 'center',
-    justifyContent: 'center',
+  sideActionButton: {
+    height: 56,
+    width: 56,
+    borderRadius: 28,
+  },
+  likeActionButton: {
     width: 72,
     height: 72,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    elevation: 4,
+    borderRadius: 36,
+    backgroundColor: '#ef4d73',
+  },
+  blindActionButton: {
+    backgroundColor: '#4d59b6',
+  },
+  noteActionButton: {
+    backgroundColor: '#c6a03c',
+  },
+  blockActionButton: {
+    backgroundColor: '#e53e3e',
+  },
+  actionLabel: {
+    marginTop: 8,
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#48506a',
   },
   matchModalOverlay: {
     flex: 1,

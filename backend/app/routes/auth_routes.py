@@ -125,12 +125,23 @@ def is_strong_password(password):
         return False
     return True
 
+def get_remember_me_flag(payload):
+    """Return whether caller requested a persistent session."""
+    payload = payload or {}
+    return (
+        payload.get('remember_me') is True or
+        payload.get('rememberMe') is True or
+        payload.get('stay_signed_in') is True or
+        payload.get('staySignedIn') is True
+    )
+
 @auth_bp.route('/register', methods=['POST'])
 def register():
     """Send verification code without creating user account"""
     print('registering')
-    data = request.get_json()
+    data = request.get_json() or {}
     print(f"Received data: {data}")
+    remember_me = get_remember_me_flag(data)
 
     # Require either email OR phone_number (not both, at least one)
     email = data.get('email')
@@ -204,14 +215,16 @@ def register():
         db.session.add(user)
         db.session.commit()
 
-        # Create access token
-        token = create_access_token(identity=str(user.id))
+        # Create access token (persistent only when remember-me is requested)
+        token_expiry = False if remember_me else timedelta(days=1)
+        token = create_access_token(identity=str(user.id), expires_delta=token_expiry)
         
         return jsonify({
             'message': 'User created successfully (TEST MODE - auto-verified)',
             'user': user.to_dict(),
             'token': token,
-            'test_mode': True
+            'test_mode': True,
+            'remember_me': remember_me
         }), 200
 
     # Normal flow: Generate verification token (temporary - not stored in DB)
@@ -250,7 +263,8 @@ def register_matchmaker_web():
         return jsonify({'msg': 'Please enter a valid email address'}), 400
     if not password:
         return jsonify({'msg': 'Please enter a password'}), 400
-    if not is_strong_password(password):
+    is_test_signup = is_test_email(email)
+    if not is_test_signup and not is_strong_password(password):
         return jsonify({
             'msg': 'Password must be at least 8 characters and include uppercase, lowercase, and a special character'
         }), 400
@@ -286,9 +300,10 @@ def register_matchmaker_web():
 
 @auth_bp.route('/login', methods=['POST'])
 def login():
-    data = request.json
+    data = request.json or {}
     identifier = data.get('email') or data.get('phone_number') or data.get('identifier')
     password = data.get('password')
+    remember_me = get_remember_me_flag(data)
     
     if not identifier or not password:
         return jsonify({'error': 'Email/phone number and password are required'}), 400
@@ -331,11 +346,14 @@ def login():
     user.last_active_at = datetime.utcnow()
     db.session.commit()
     
-    token = create_access_token(identity=str(user.id))
+    # Keep users signed in until they explicitly sign out when remember-me is enabled.
+    token_expiry = False if remember_me else timedelta(days=1)
+    token = create_access_token(identity=str(user.id), expires_delta=token_expiry)
     response_data = {
         'message': 'Login successful', 
         'user': user.to_dict(),
-        'token': token
+        'token': token,
+        'remember_me': remember_me
     }
     
     # Add warning if verification is needed (but still allow login)
@@ -434,13 +452,16 @@ def verify_email():
     db.session.commit()
 
     # Create access token for verified user
-    access_token = create_access_token(identity=str(user.id))
+    remember_me = get_remember_me_flag(signup_data)
+    token_expiry = False if remember_me else timedelta(days=1)
+    access_token = create_access_token(identity=str(user.id), expires_delta=token_expiry)
 
     method_text = 'Email' if verification_method == 'email' else 'Phone number'
     return jsonify({
         'message': f'{method_text} verified successfully. Account created.',
         'user': user.to_dict(),
-        'token': access_token
+        'token': access_token,
+        'remember_me': remember_me
     }), 200
 
 @auth_bp.route('/resend-verification', methods=['POST'])
@@ -509,7 +530,7 @@ def resend_verification():
 def send_password_reset_email(email, reset_token, first_name):
     """Send password reset email using Resend"""
     try:
-        frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
+        frontend_url = (os.getenv("FRONTEND_URL") or "https://matchmatedating.com").rstrip("/")
         reset_url = f"{frontend_url}/reset-password.html?token={reset_token}"
         
         subject = "Reset Your Password"
@@ -552,7 +573,7 @@ def send_password_reset_sms(phone_number, reset_token, first_name):
             print("TWILIO_PHONE_NUMBER not configured")
             return False
         
-        frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
+        frontend_url = (os.getenv("FRONTEND_URL") or "https://matchmatedating.com").rstrip("/")
         reset_url = f"{frontend_url}/reset-password.html?token={reset_token}"
         
         message_body = f"Hello {first_name or 'there'}, you requested to reset your password. Click this link: {reset_url} This link expires in 1 hour. If you didn't request this, please ignore."

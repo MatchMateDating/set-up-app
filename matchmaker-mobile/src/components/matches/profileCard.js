@@ -14,8 +14,15 @@ const ProfileCard = ({
   const { user } = useContext(UserContext);
   const viewerUnit = user?.unit;
 
+  const canSkipProfile = ['matchmaker', 'user', 'dater'].includes(userInfo?.role);
+
   return (
     <View style={styles.profileBox}>
+      {canSkipProfile && onSkip && (
+        <TouchableOpacity style={styles.skipButton} onPress={onSkip}>
+          <Ionicons name="close-circle" size={40} color="#e53e3e" />
+        </TouchableOpacity>
+      )}
       {profile.note && (
         <View style={styles.noteBox}>
           <Text style={styles.noteLabel}>
@@ -52,6 +59,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 3,
+  },
+  skipButton: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    zIndex: 5,
   },
   noteBox: {
     backgroundColor: '#fafafa',

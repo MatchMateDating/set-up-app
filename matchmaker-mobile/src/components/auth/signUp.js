@@ -42,6 +42,7 @@ const SignUpScreen = () => {
   const [referralCode, setReferralCode] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isPasswordFocused, setIsPasswordFocused] = useState(false);
   const [emailError, setEmailError] = useState('');
   const [agreeToTexts, setAgreeToTexts] = useState(false);
   const [staySignedIn, setStaySignedIn] = useState(true);
@@ -212,6 +213,7 @@ const SignUpScreen = () => {
         password,
         role,
         email: normalizedEmail,
+        staySignedIn,
       };
 
       if (role === 'matchmaker') {
@@ -361,6 +363,8 @@ const SignUpScreen = () => {
             value={password}
             secureTextEntry={!showPassword}
             onChangeText={setPassword}
+            onFocus={() => setIsPasswordFocused(true)}
+            onBlur={() => setIsPasswordFocused(false)}
             blurOnSubmit={false}
             returnKeyType="next"
             onSubmitEditing={() => confirmPasswordRef.current?.focus()}
@@ -416,11 +420,6 @@ const SignUpScreen = () => {
             >
               • 1 special character
             </Text>
-            {shouldSkipPasswordRules && (
-              <Text style={styles.passwordRuleTestBypass}>
-                Test email detected: password rules are optional for test mode.
-              </Text>
-            )}
           </View>
         )}
 
@@ -750,12 +749,6 @@ const styles = StyleSheet.create({
   },
   passwordRulePassed: {
     color: '#16a34a',
-  },
-  passwordRuleTestBypass: {
-    marginTop: 6,
-    fontSize: 12,
-    color: '#6c5ce7',
-    fontWeight: '600',
   },
   submitBtn: {
     backgroundColor: '#6c5ce7',
