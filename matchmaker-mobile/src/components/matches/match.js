@@ -9,9 +9,8 @@ import ProfileCard from './profileCard';
 import { useProfiles } from './hooks/useProfiles';
 import { useUserInfo } from './hooks/useUserInfo';
 import { startLocationWatcher, stopLocationWatcher } from '../auth/utils/startLocationWatcher';
-import DaterDropdown from '../layout/daterDropdown';
-import MatcherHeader from '../layout/components/matcherHeader';
 import { getImageUrl } from '../profile/utils/profileUtils';
+import { getRoleAccentColor, getRoleBackgroundTint } from '../layout/components/RoleHeaderBanner';
 
 const Match = () => {
   const { profiles, setProfiles, loading } = useProfiles(API_BASE_URL);
@@ -49,19 +48,6 @@ const Match = () => {
       setUserInfo(data.user);
     } catch (err) {
       console.error('Error refreshing user info:', err);
-    }
-  };
-
-  const handleDaterChange = async (daterId) => {
-    // Refresh userInfo to get updated referred_by_id, then refresh profiles
-    setRefreshing(true);
-    setCurrentIndex(0);
-    setProfiles([]);
-    try {
-      await refreshUserInfo();
-      await fetchProfiles();
-    } finally {
-      setRefreshing(false);
     }
   };
 
@@ -512,26 +498,22 @@ const Match = () => {
   };
 
   if (loading || refreshing) {
+    const loadingColor = getRoleAccentColor(userInfo?.role || 'matchmaker');
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#6c5ce7" />
+        <ActivityIndicator size="large" color={loadingColor} />
         <Text style={styles.loadingText}>Loading profiles...</Text>
       </View>
     );
   }
 
   const currentProfile = profiles.length > 0 && currentIndex < profiles.length ? profiles[currentIndex] : null;
+  const accentColor = getRoleAccentColor(userInfo?.role || 'matchmaker');
+  const backgroundTint = getRoleBackgroundTint(userInfo?.role || 'matchmaker');
+  const overlayTopPadding = userInfo?.role === 'matchmaker' ? 150 : 56;
 
   return (
-    <View style={styles.container}>
-      {userInfo?.role === 'matchmaker' && (
-        <MatcherHeader>
-          <DaterDropdown
-            userInfo={userInfo}
-            onDaterChange={handleDaterChange}
-          />
-        </MatcherHeader>
-      )}
+    <View style={[styles.container, { backgroundColor: backgroundTint, paddingTop: overlayTopPadding }]}>
       <ScrollView
         style={[
           styles.scrollView,
@@ -582,14 +564,20 @@ const Match = () => {
           <View style={styles.centerButtonContainer}>
             {userInfo?.role === 'matchmaker' && currentProfile.liked_linked_dater ? (
               <View style={styles.actionItem}>
-                <TouchableOpacity style={[styles.actionButton, styles.likeActionButton]} onPress={handleBlindMatch}>
+                <TouchableOpacity
+                  style={[styles.actionButton, styles.likeActionButton, { backgroundColor: accentColor }]}
+                  onPress={handleBlindMatch}
+                >
                   <Ionicons name="heart" size={34} color="#ffffff" />
                 </TouchableOpacity>
                 <Text style={styles.actionLabel}>Like</Text>
               </View>
             ) : (
               <View style={styles.actionItem}>
-                <TouchableOpacity style={[styles.actionButton, styles.likeActionButton]} onPress={handleLike}>
+                <TouchableOpacity
+                  style={[styles.actionButton, styles.likeActionButton, { backgroundColor: accentColor }]}
+                  onPress={handleLike}
+                >
                   <Ionicons name="heart" size={34} color="#ffffff" />
                 </TouchableOpacity>
                 <Text style={styles.actionLabel}>Like</Text>
@@ -618,10 +606,10 @@ const Match = () => {
             {matchModalData?.imageUrl ? (
               <Image
                 source={{ uri: matchModalData.imageUrl }}
-                style={styles.matchModalImage}
+                style={[styles.matchModalImage, { borderColor: accentColor }]}
               />
             ) : (
-              <View style={styles.matchModalImagePlaceholder}>
+              <View style={[styles.matchModalImagePlaceholder, { borderColor: accentColor }]}>
                 <Ionicons name="person" size={48} color="#ccc" />
               </View>
             )}
@@ -634,7 +622,7 @@ const Match = () => {
                 : `You and ${matchModalData?.firstName} liked each other`}
             </Text>
             <TouchableOpacity
-              style={styles.matchModalButton}
+              style={[styles.matchModalButton, { backgroundColor: accentColor }]}
               onPress={() => {
                 setShowMatchModal(false);
                 navigation.navigate('MatchConvo', {
@@ -664,6 +652,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fafafa',
+    paddingTop: 24,
   },
   dropdownContainer: {
     position: 'absolute',

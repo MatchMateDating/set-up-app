@@ -453,7 +453,7 @@ def create_linked_matchmaker(current_user):
         if not data:
             return jsonify({'error': 'Request body must be JSON'}), 400
         
-        referral_code = data.get('referral_code')
+        referral_code = (data.get('referral_code') or '').strip()
         
         if not referral_code:
             return jsonify({'error': 'Referral code is required'}), 400
@@ -466,6 +466,10 @@ def create_linked_matchmaker(current_user):
         # Ensure the referrer is a dater (user role)
         if referrer.role != 'user':
             return jsonify({'error': 'Referral code must be from a dater account'}), 400
+
+        # Prevent self-referrals when creating a linked matchmaker account.
+        if referrer.id == current_user.id:
+            return jsonify({'error': 'You cannot use your own referral code'}), 400
         
         # Check if already has a linked matchmaker account
         if current_user.linked_account_id:

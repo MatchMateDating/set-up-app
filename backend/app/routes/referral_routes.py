@@ -91,3 +91,50 @@ def set_selected_dater():
 
     return jsonify({"message": f"Selected dater set to {selected_dater_id}"}), 200
 
+
+@referral_bp.route('/unlink_dater', methods=['POST'])
+@jwt_required()
+def unlink_dater():
+    data = request.get_json() or {}
+    linked_dater_id = data.get('linked_dater_id')
+    current_user_id = get_jwt_identity()
+
+    if not linked_dater_id:
+        return jsonify({"error": "linked_dater_id is required"}), 400
+
+    matchmaker = User.query.get(current_user_id)
+    if not matchmaker or matchmaker.role != "matchmaker":
+        return jsonify({"error": "Only matchmakers can unlink daters"}), 403
+
+    referral_row = ReferredUsers.query.filter_by(matchmaker_id=matchmaker.id).first()
+    if not referral_row:
+        return jsonify({"error": "No linked daters found"}), 404
+
+    linked_dater_id = int(linked_dater_id)
+    removed = False
+    for i in range(1, 11):
+        col = f"linked_dater_{i}_id"
+        if getattr(referral_row, col) == linked_dater_id:
+            setattr(referral_row, col, None)
+            removed = True
+            break
+
+    if not removed:
+        return jsonify({"error": "Dater not linked to this matchmaker"}), 404
+
+    # Keep selected dater consistent after removal.
+    remaining_ids = [
+        getattr(referral_row, f"linked_dater_{i}_id")
+        for i in range(1, 11)
+        if getattr(referral_row, f"linked_dater_{i}_id") is not None
+    ]
+    if matchmaker.referred_by_id == linked_dater_id:
+        matchmaker.referred_by_id = remaining_ids[0] if remaining_ids else None
+
+    db.session.commit()
+    return jsonify({
+        "message": "Linked dater removed successfully",
+        "linked_daters": referral_row.to_dict().get("linked_daters", []),
+        "selected_dater_id": matchmaker.referred_by_id
+    }), 200
+

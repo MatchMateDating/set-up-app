@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 
 const GENDER_OPTIONS = ["female", "male", "nonbinary"];
 
-const SelectGender = ({ selected, onChange }) => {
+const SelectGender = ({ selected, onChange, accentColor = '#6c5ce7' }) => {
   const handleSelect = (value) => {
     // Optional: allow deselect by tapping again
     onChange(selected === value ? "" : value);
@@ -20,7 +20,7 @@ const SelectGender = ({ selected, onChange }) => {
             onPress={() => handleSelect(option)}
             style={[
               styles.option,
-              isSelected && styles.optionSelected
+              isSelected && [styles.optionSelected, { backgroundColor: accentColor, borderColor: accentColor }]
             ]}
           >
             <Text
@@ -52,10 +52,7 @@ const styles = StyleSheet.create({
     borderColor: "#ccc",
     borderRadius: 20,
   },
-  optionSelected: {
-    backgroundColor: "#6c5ce7",
-    borderColor: "#6c5ce7",
-  },
+  optionSelected: {},
   optionText: {
     fontSize: 14,
     color: "#555",

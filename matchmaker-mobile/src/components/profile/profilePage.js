@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useContext, useEffect, useState, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, Alert, ScrollView, Image, TouchableOpacity } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
@@ -9,14 +9,16 @@ import AvatarSelectorModal from './avatarSelectorModal';
 import { avatarMap } from './avatarSelectorModal';
 import { Ionicons } from '@expo/vector-icons';
 import { EditToolbar } from './components/editToolbar';
-import DaterDropdown from '../layout/daterDropdown';
 import ImageCropModal from './components/ImageCropModal';
+import { getRoleAccentColor, getRoleBackgroundTint } from '../layout/components/RoleHeaderBanner';
 
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { UserContext } from '../../context/UserContext';
 
 const ProfilePage = () => {
   const route = useRoute();
   const { userId, matchProfile } = route.params || {};
+  const { setIsProfileEditing } = useContext(UserContext);
   const [user, setUser] = useState(null);
   const [referrer, setReferrer] = useState(null);
   const [editing, setEditing] = useState(false);
@@ -183,11 +185,7 @@ const ProfilePage = () => {
   useFocusEffect(
     React.useCallback(() => {
       if (!matchProfile) {
-        // Clear stale role data immediately so previous account info never flashes.
-        setLoading(true);
-        setUser(null);
-        setReferrer(null);
-        // Small delay to ensure backend has updated after account/dater selection
+        // Refresh in place to avoid a UI flash/glitch when swiping tabs.
         const timer = setTimeout(() => {
           fetchProfile();
         }, 100);
@@ -217,15 +215,25 @@ const ProfilePage = () => {
     }
   };
 
-  const handleDaterChange = async (daterId) => {
-    setHasInitializedDater(true);
-    await fetchProfile();
-  };
+  useEffect(() => {
+    if (!matchProfile) {
+      setIsProfileEditing(Boolean(editing));
+    }
+  }, [editing, matchProfile, setIsProfileEditing]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      return () => {
+        setIsProfileEditing(false);
+      };
+    }, [setIsProfileEditing])
+  );
 
   if (loading) {
+    const loadingColor = getRoleAccentColor(user?.role || 'matchmaker');
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#6c5ce7" />
+        <ActivityIndicator size="large" color={loadingColor} />
         <Text style={styles.loadingText}>Loading user profile...</Text>
       </View>
     );
@@ -239,12 +247,23 @@ const ProfilePage = () => {
     );
   }
 
+  const accentColor = getRoleAccentColor(user.role);
+  const backgroundTint = getRoleBackgroundTint(user.role);
+  const overlayTopPadding = !matchProfile ? (user.role === 'matchmaker' ? 96 : 56) : 0;
+
   return (
-    <SafeAreaView style={[styles.container, editing && styles.containerWithToolbar]}>
+    <SafeAreaView
+      style={[
+        styles.container,
+        editing && styles.containerWithToolbar,
+        { backgroundColor: backgroundTint },
+        { paddingTop: overlayTopPadding },
+      ]}
+    >
       {matchProfile && !editing && (
         <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color="#6c5ce7" />
-          <Text style={styles.backButtonText}>Back</Text>
+          <Ionicons name="arrow-back" size={24} color={accentColor} />
+          <Text style={[styles.backButtonText, { color: accentColor }]}>Back</Text>
         </TouchableOpacity>
       )}
       
@@ -257,16 +276,6 @@ const ProfilePage = () => {
         />
       )}
 
-      {user?.role === 'matchmaker' && !matchProfile && (
-        <View style={styles.daterDropdownWrapper}>
-          <DaterDropdown
-            API_BASE_URL={API_BASE_URL}
-            userInfo={user}
-            onDaterChange={handleDaterChange}
-          />
-        </View>
-      )}
-      
       <ScrollView ref={scrollViewRef} contentContainerStyle={styles.content}>
         {user.role === 'user' && (
           <Profile
@@ -297,7 +306,7 @@ const ProfilePage = () => {
               </View>
             </View>
             <View style={styles.embeddedProfile}>
-              <Text style={styles.subHeader}>Dater's Profile</Text>
+              <Text style={[styles.subHeader, { color: accentColor }]}>Dater's Profile</Text>
               <Profile user={referrer} framed={true} editing={false} />
             </View>
           </>

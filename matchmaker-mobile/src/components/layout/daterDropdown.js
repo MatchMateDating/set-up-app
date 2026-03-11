@@ -13,9 +13,10 @@ const DaterDropdown = ({ userInfo, onDaterChange }) => {
 
   useEffect(() => {
     if (userInfo && userInfo.role === 'matchmaker') {
+      setLoading(true);
       fetchLinkedDaters();
     }
-  }, [userInfo?.id, API_BASE_URL]);
+  }, [userInfo?.id, userInfo?.referred_by_id, JSON.stringify(userInfo?.linked_daters || []), API_BASE_URL]);
 
   // Update selected dater when userInfo.referrer_id or linkedDaters changes
   // This ensures the dropdown stays in sync when navigating between pages
@@ -75,6 +76,9 @@ const DaterDropdown = ({ userInfo, onDaterChange }) => {
       const data = await res.json();
       const daters = data.linked_daters || [];
       setLinkedDaters(daters);
+      if (daters.length === 0) {
+        setSelectedDater(null);
+      }
 
       // Set selected dater based on userInfo.referrer_id
       // The useEffect will handle syncing when userInfo changes
@@ -154,7 +158,13 @@ const DaterDropdown = ({ userInfo, onDaterChange }) => {
   }
 
   if (linkedDaters.length === 0) {
-    return null;
+    return (
+      <View style={styles.container}>
+        <View style={styles.headerSingle}>
+          <Text style={styles.placeholder}>No daters available</Text>
+        </View>
+      </View>
+    );
   }
 
   const selected = selectedDater || linkedDaters[0];

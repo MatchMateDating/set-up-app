@@ -13,6 +13,7 @@ import { Picker } from '@react-native-picker/picker';
 import CalendarPicker from 'react-native-calendar-picker';
 import ImageGallery from './images';
 import SelectGender from './components/selectGender';
+import { getRoleAccentColor } from '../layout/components/RoleHeaderBanner';
 
 // Get screen width for responsive sizing
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -44,6 +45,8 @@ const ProfileInfoCard = ({
   const defaultBirthdate = new Date(today.setFullYear(today.getFullYear() - 18))
     .toISOString()
     .split('T')[0];
+  const accentColor = getRoleAccentColor(user?.role || 'matchmaker');
+  const editAccentColor = editing ? '#ef4d73' : accentColor;
 
   const update = (name, value) =>
     onInputChange({ target: { name, value } });
@@ -129,6 +132,7 @@ const ProfileInfoCard = ({
                 onDeleteImage={onDeleteImage}
                 onPlaceholderClick={onPlaceholderClick}
                 layout={formData.imageLayout}
+                accentColor={editAccentColor}
               />
             </>
           )}
@@ -168,7 +172,13 @@ const ProfileInfoCard = ({
                 style={styles.checkboxRow}
                 onPress={() => update('show_location', !formData.show_location)}
               >
-                <View style={[styles.checkbox, formData.show_location && styles.checkboxChecked]}>
+                <View
+                  style={[
+                    styles.checkbox,
+                    { borderColor: editAccentColor },
+                    formData.show_location && [styles.checkboxChecked, { backgroundColor: editAccentColor }],
+                  ]}
+                >
                   {formData.show_location && <Text style={styles.checkmark}>✓</Text>}
                 </View>
                 <Text style={styles.checkboxLabel}>Show location</Text>
@@ -227,7 +237,7 @@ const ProfileInfoCard = ({
                         maxDate={new Date(defaultBirthdate)}
                         width={SCREEN_WIDTH - 80} // 2. Ensures calendar fits inside the padding of the card
                         restrictMonthNavigation={true}
-                        selectedDayColor="#6c5ce7"
+                        selectedDayColor={editAccentColor}
                         selectedDayTextColor="#fff"
                         textStyle={{
                           color: '#111',
@@ -249,7 +259,7 @@ const ProfileInfoCard = ({
                       </TouchableOpacity>
 
                       <TouchableOpacity
-                        style={styles.confirmButton}
+                        style={[styles.confirmButton, { backgroundColor: editAccentColor }]}
                         onPress={() => {
                           if (tempBirthdate) {
                             // Ensure tempBirthdate is handled correctly as a moment object or Date
@@ -274,6 +284,7 @@ const ProfileInfoCard = ({
               <SelectGender
                 selected={formData.gender}
                 onChange={(v) => update('gender', v)}
+                accentColor={editAccentColor}
               />
             </>
           ) : null}
@@ -342,7 +353,7 @@ const ProfileInfoCard = ({
               </View>
 
               <TouchableOpacity onPress={onUnitToggle}>
-                <Text style={styles.toggle}>
+                <Text style={[styles.toggle, { color: editAccentColor }]}>
                   Switch to {heightUnit === 'ft' ? 'meters' : 'feet'}
                 </Text>
               </TouchableOpacity>
@@ -390,6 +401,7 @@ const ProfileInfoCard = ({
                 onDeleteImage={onDeleteImage}
                 onPlaceholderClick={onPlaceholderClick}
                 layout={formData.imageLayout}
+                accentColor={editAccentColor}
               />
             </>
           )}
@@ -410,7 +422,7 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   cardEditing: {
-    paddingTop: 8,
+    paddingTop: 44,
     paddingBottom: 44,
   },
   label: {
@@ -418,6 +430,9 @@ const styles = StyleSheet.create({
     marginBottom: 4,
     marginTop: 12,
     color: '#111',
+    textShadowColor: 'rgba(255, 255, 255, 0.95)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 1.5,
   },
   firstFieldLabel: {
     marginTop: 0,
@@ -457,6 +472,9 @@ const styles = StyleSheet.create({
   dateText: {
     fontSize: 16,
     color: '#111',
+    textShadowColor: 'rgba(255, 255, 255, 0.95)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 1.5,
   },
   previewText: {
     fontSize: 16,
@@ -566,6 +584,9 @@ const styles = StyleSheet.create({
     color: '#6c5ce7',
     fontWeight: '600',
     textAlign: 'right',
+    textShadowColor: 'rgba(255, 255, 255, 0.95)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 1.5,
   },
   checkboxRow: {
     flexDirection: 'row',
@@ -594,11 +615,17 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14,
     color: '#333',
+    textShadowColor: 'rgba(255, 255, 255, 0.95)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 1.5,
   },
   locationHint: {
     fontSize: 12,
     color: '#666',
     marginTop: 4,
     marginLeft: 34,
+    textShadowColor: 'rgba(255, 255, 255, 0.95)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 1.5,
   },
 });

@@ -11,6 +11,7 @@ import PixelFlowers from './components/PixelFlowers';
 import PixelCactus from './components/PixelCactus';
 import { Ionicons } from '@expo/vector-icons';
 import { UserContext } from '../../context/UserContext';
+import { getRoleAccentColor } from '../layout/components/RoleHeaderBanner';
 const Profile = ({ user, framed, viewerUnit, editing, setEditing, onSave, onEditingFormData, parentScrollRef, onRequestCrop }) => {
   const { setUser } = useContext(UserContext);
   const [formData, setFormData] = useState({
@@ -322,6 +323,7 @@ const Profile = ({ user, framed, viewerUnit, editing, setEditing, onSave, onEdit
   const initialLetter = (user.first_name || '?').charAt(0).toUpperCase();
   const displayGender = (user.gender || formData.gender || '').trim();
   const displayHeight = (user.height || formatHeight(formData, heightUnit) || '').trim();
+  const accentColor = getRoleAccentColor(user?.role || 'matchmaker');
 
   return (
     <>
@@ -377,7 +379,7 @@ const Profile = ({ user, framed, viewerUnit, editing, setEditing, onSave, onEdit
           {!framed && !editing && (
             <View style={styles.profileActions}>
               <TouchableOpacity onPress={() => setEditing(true)}>
-                <Ionicons name="create-outline" size={24} color="#6c5ce7" />
+                <Ionicons name="create-outline" size={24} color={accentColor} />
               </TouchableOpacity>
             </View>
           )}
@@ -424,11 +426,11 @@ const Profile = ({ user, framed, viewerUnit, editing, setEditing, onSave, onEdit
       {editing && user.role === 'user' && (
         <View style={styles.actionsOutsideCard}>
           <View style={styles.actions}>
-            <TouchableOpacity style={styles.saveBtn} onPress={handleFormSubmit}>
+            <TouchableOpacity style={[styles.saveBtn, { backgroundColor: accentColor }]} onPress={handleFormSubmit}>
               <Text style={styles.saveText}>Save</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.cancelBtn} onPress={handleCancel}>
-              <Text style={styles.cancelBtnText}>Cancel</Text>
+            <TouchableOpacity style={[styles.cancelBtn, { borderColor: accentColor }]} onPress={handleCancel}>
+              <Text style={[styles.cancelBtnText, { color: accentColor }]}>Cancel</Text>
             </TouchableOpacity>
           </View>
         </View>

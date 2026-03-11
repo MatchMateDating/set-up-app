@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -23,6 +23,8 @@ import { API_BASE_URL, FRONTEND_URL } from '../../env';
 import FormField from '../profile/components/formField';
 import MultiSelectGender from '../profile/components/multiSelectGender';
 import { useNotifications } from '../../context/NotificationContext';
+import { getRoleAccentColor, getRoleBackgroundTint } from '../layout/components/RoleHeaderBanner';
+import { UserContext } from '../../context/UserContext';
 
 const SECTION_KEYS = {
   PERSONAL: 'personal',
@@ -41,6 +43,7 @@ const getPasswordChecks = (value) => ({
 
 const SettingsSections = () => {
   const navigation = useNavigation();
+  const { setUser: setContextUser } = useContext(UserContext);
   const { notificationsEnabled, enableNotifications, disableNotifications, permissionStatus } = useNotifications();
 
   const [activeSection, setActiveSection] = useState(null);
@@ -54,6 +57,8 @@ const SettingsSections = () => {
   const [showEmailVerificationModal, setShowEmailVerificationModal] = useState(false);
   const [emailVerificationCode, setEmailVerificationCode] = useState('');
   const [pendingEmail, setPendingEmail] = useState('');
+  const [showEmailInviteModal, setShowEmailInviteModal] = useState(false);
+  const [emailInviteInput, setEmailInviteInput] = useState('');
 
   const [currentEmail, setCurrentEmail] = useState('');
   const [newEmail, setNewEmail] = useState('');
@@ -88,23 +93,45 @@ const SettingsSections = () => {
   const displayRadius = formData.matchRadius;
   const passwordChecks = getPasswordChecks(newPassword);
   const isPasswordStrong = Object.values(passwordChecks).every(Boolean);
+  const overlayTopPadding = role === 'matchmaker' ? 120 : 56;
+  const accentColor = getRoleAccentColor(role || 'matchmaker');
+  const backgroundTint = getRoleBackgroundTint(role || 'matchmaker');
 
   const sectionItems = useMemo(() => {
     const base = [
-      { key: SECTION_KEYS.PERSONAL, label: 'Personal Information', icon: 'person-outline' },
-      { key: SECTION_KEYS.MANAGE_ACCOUNTS, label: 'Manage Accounts', icon: 'people-outline' },
+      {
+        key: SECTION_KEYS.PERSONAL,
+        label: 'Personal Information',
+        description: 'Update your email and password.',
+        icon: 'person-outline',
+      },
+      {
+        key: SECTION_KEYS.MANAGE_ACCOUNTS,
+        label: 'Manage Accounts',
+        description: 'Add, switch, or remove linked account types.',
+        icon: 'people-outline',
+      },
       {
         key: SECTION_KEYS.REFERRAL,
         label: role === 'matchmaker' ? 'Manage Linked Daters' : 'Referral Code',
+        description: role === 'matchmaker'
+          ? 'Link and manage your connected daters.'
+          : 'Copy, share, or email your referral code.',
         icon: 'gift-outline',
       },
-      { key: SECTION_KEYS.NOTIFICATIONS, label: 'Notifications', icon: 'notifications-outline' },
+      {
+        key: SECTION_KEYS.NOTIFICATIONS,
+        label: 'Notifications',
+        description: 'Control push notification preferences.',
+        icon: 'notifications-outline',
+      },
     ];
 
     if (role === 'user') {
       base.splice(3, 0, {
         key: SECTION_KEYS.DATING_PREFERENCES,
         label: 'Dating Preferences',
+        description: 'Set preferred age, gender, and match distance.',
         icon: 'heart-outline',
       });
     }
@@ -143,6 +170,7 @@ const SettingsSections = () => {
 
       const data = await res.json();
       setUser(data.user);
+      setContextUser(data.user);
       setRole(data.user.role);
       setCurrentEmail(data.user.email || '');
       setNewEmail('');
@@ -403,7 +431,9 @@ const SettingsSections = () => {
         await AsyncStorage.setItem('token', data.token);
       }
       await AsyncStorage.setItem('user', JSON.stringify(data.user));
+      setContextUser(data.user);
       Alert.alert('Success', 'Dater account created successfully');
+      navigation.navigate('CompleteProfile');
       fetchUserProfile();
     } catch (err) {
       console.error(err);
@@ -418,8 +448,15 @@ const SettingsSections = () => {
   const submitCreateMatchmaker = async () => {
     Keyboard.dismiss();
 
-    if (!referralInput.trim()) {
+    const trimmedReferralCode = referralInput.trim();
+    if (!trimmedReferralCode) {
       Alert.alert('Error', 'Please enter a referral code');
+      return;
+    }
+
+    const ownReferralCode = String(user?.referral_code || '').trim();
+    if (ownReferralCode && trimmedReferralCode.toLowerCase() === ownReferralCode.toLowerCase()) {
+      Alert.alert('Error', "You can't use your own referral code to create a matchmaker account");
       return;
     }
 
@@ -437,7 +474,7 @@ const SettingsSections = () => {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ referral_code: referralInput.trim() }),
+        body: JSON.stringify({ referral_code: trimmedReferralCode }),
       });
 
       if (!res.ok) {
@@ -451,6 +488,7 @@ const SettingsSections = () => {
         await AsyncStorage.setItem('token', data.token);
       }
       await AsyncStorage.setItem('user', JSON.stringify(data.user));
+      setContextUser(data.user);
       setShowReferralModal(false);
       setReferralInput('');
       Alert.alert('Success', 'Matchmaker account created successfully');
@@ -487,6 +525,7 @@ const SettingsSections = () => {
       const data = await res.json();
       await AsyncStorage.setItem('token', data.token);
       await AsyncStorage.setItem('user', JSON.stringify(data.user));
+      setContextUser(data.user);
       Alert.alert('Success', `Switched to ${data.user.role} account`);
       fetchUserProfile();
     } catch (err) {
@@ -540,6 +579,7 @@ const SettingsSections = () => {
               }
               if (data.user) {
                 await AsyncStorage.setItem('user', JSON.stringify(data.user));
+                setContextUser(data.user);
               }
 
               Alert.alert('Success', data.message || `${roleLabel} account deleted successfully`);
@@ -569,6 +609,62 @@ const SettingsSections = () => {
     } catch (err) {
       console.error('Error sharing:', err);
       Alert.alert('Error', 'Failed to share referral code');
+    }
+  };
+
+  const handleCopyReferralCode = async () => {
+    try {
+      await Share.share({ message: String(referralCode || '') });
+    } catch (err) {
+      console.error('Error sharing referral code:', err);
+      Alert.alert('Error', 'Failed to share referral code');
+    }
+  };
+
+  const handleOpenEmailInvite = () => {
+    setShowEmailInviteModal(true);
+  };
+
+  const sendEmailInvite = async () => {
+    Keyboard.dismiss();
+
+    if (!emailInviteInput.trim()) {
+      Alert.alert('Error', 'Please enter an email address');
+      return;
+    }
+
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) {
+        Alert.alert('Error', 'Please log in');
+        navigation.navigate('Login');
+        return;
+      }
+
+      const res = await fetch(`${API_BASE_URL}/invite/email`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          email: emailInviteInput.trim(),
+          referralCode: String(referralCode || user?.referral_code || ''),
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        Alert.alert('Error', data.error || 'Failed to send invite');
+        return;
+      }
+
+      Alert.alert('Success', 'Email invite sent');
+      setEmailInviteInput('');
+      setShowEmailInviteModal(false);
+    } catch (err) {
+      console.error('Error sending invite:', err);
+      Alert.alert('Error', 'Failed to send invite');
     }
   };
 
@@ -605,14 +701,61 @@ const SettingsSections = () => {
 
       let name = data.message.split(' linked')[0];
       name = name.replace(/^Dater\s*/i, '').trim();
-      const newDater = { name, referral_code: code };
+      const newDater = { id: data.linked_dater_id, name, referral_code: code };
       setSavedReferrals((prev) => [...prev, newDater]);
       setReferralCode('');
+      await fetchUserProfile();
       Alert.alert('Success', 'Referral code linked successfully');
     } catch (err) {
       console.error(err);
       Alert.alert('Error', 'Failed to link referral');
     }
+  };
+
+  const handleDeleteLinkedDater = (linkedDater) => {
+    Alert.alert(
+      'Remove Linked Dater',
+      `Are you sure you want to remove ${linkedDater.name || 'this dater'}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const token = await AsyncStorage.getItem('token');
+              if (!token) {
+                Alert.alert('Error', 'Please log in');
+                navigation.navigate('Login');
+                return;
+              }
+
+              const res = await fetch(`${API_BASE_URL}/referral/unlink_dater`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({ linked_dater_id: linkedDater.id }),
+              });
+
+              const data = await res.json().catch(() => ({}));
+              if (!res.ok) {
+                Alert.alert('Error', data.error || 'Failed to remove linked dater');
+                return;
+              }
+
+              setSavedReferrals(data.linked_daters || []);
+              Alert.alert('Success', 'Linked dater removed successfully');
+              fetchUserProfile();
+            } catch (err) {
+              console.error(err);
+              Alert.alert('Error', 'Failed to remove linked dater');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handleInputChangeWrapper = (name, value) => {
@@ -749,7 +892,7 @@ const SettingsSections = () => {
 
   const renderSectionList = () => (
     <View>
-      <Text style={styles.title}>Settings</Text>
+      <View style={styles.titleSpacer} />
       {sectionItems.map((section) => (
         <TouchableOpacity
           key={section.key}
@@ -757,8 +900,11 @@ const SettingsSections = () => {
           onPress={() => setActiveSection(section.key)}
         >
           <View style={styles.sectionLeft}>
-            <Ionicons name={section.icon} size={20} color="#6c5ce7" />
-            <Text style={styles.sectionText}>{section.label}</Text>
+            <Ionicons name={section.icon} size={20} color={accentColor} />
+            <View style={styles.sectionTextWrap}>
+              <Text style={styles.sectionText}>{section.label}</Text>
+              <Text style={styles.sectionDescription}>{section.description}</Text>
+            </View>
           </View>
           <Ionicons name="chevron-forward-outline" size={20} color="#9CA3AF" />
         </TouchableOpacity>
@@ -812,7 +958,7 @@ const SettingsSections = () => {
           returnKeyType="done"
           onSubmitEditing={handleSaveEmail}
         />
-        <TouchableOpacity style={styles.primaryBtn} onPress={handleSaveEmail}>
+        <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: accentColor }]} onPress={handleSaveEmail}>
           <Text style={styles.primaryBtnText}>Save New Email</Text>
         </TouchableOpacity>
       </View>
@@ -840,9 +986,9 @@ const SettingsSections = () => {
             <Ionicons
               name={showOldPassword ? 'eye-off-outline' : 'eye-outline'}
               size={18}
-              color="#6c5ce7"
+              color={accentColor}
             />
-            <Text style={styles.passwordToggleText}>{showOldPassword ? 'Hide' : 'Show'}</Text>
+            <Text style={[styles.passwordToggleText, { color: accentColor }]}>{showOldPassword ? 'Hide' : 'Show'}</Text>
           </TouchableOpacity>
         </View>
         <View style={styles.passwordInputWrapper}>
@@ -874,9 +1020,9 @@ const SettingsSections = () => {
             <Ionicons
               name={showNewPassword ? 'eye-off-outline' : 'eye-outline'}
               size={18}
-              color="#6c5ce7"
+              color={accentColor}
             />
-            <Text style={styles.passwordToggleText}>{showNewPassword ? 'Hide' : 'Show'}</Text>
+            <Text style={[styles.passwordToggleText, { color: accentColor }]}>{showNewPassword ? 'Hide' : 'Show'}</Text>
           </TouchableOpacity>
         </View>
         {isNewPasswordFocused ? (
@@ -936,15 +1082,17 @@ const SettingsSections = () => {
             <Ionicons
               name={showConfirmNewPassword ? 'eye-off-outline' : 'eye-outline'}
               size={18}
-              color="#6c5ce7"
+              color={accentColor}
             />
-            <Text style={styles.passwordToggleText}>{showConfirmNewPassword ? 'Hide' : 'Show'}</Text>
+            <Text style={[styles.passwordToggleText, { color: accentColor }]}>
+              {showConfirmNewPassword ? 'Hide' : 'Show'}
+            </Text>
           </TouchableOpacity>
         </View>
         {confirmNewPassword.length > 0 && newPassword !== confirmNewPassword ? (
           <Text style={styles.inputErrorText}>Passwords do not match</Text>
         ) : null}
-        <TouchableOpacity style={styles.primaryBtn} onPress={handleSavePassword}>
+        <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: accentColor }]} onPress={handleSavePassword}>
           <Text style={styles.primaryBtnText}>Save New Password</Text>
         </TouchableOpacity>
       </View>
@@ -952,7 +1100,7 @@ const SettingsSections = () => {
   );
 
   const renderManageAccounts = () => (
-    <View style={styles.card}>
+    <View style={[styles.card, role === 'matchmaker' && styles.manageAccountsMatchmakerPad]}>
       <Text style={styles.cardHeader}>Manage Accounts</Text>
       <Text style={styles.cardDescription}>
         Add a different account type and switch between your two linked accounts.
@@ -965,7 +1113,7 @@ const SettingsSections = () => {
 
       {!user?.linked_account ? (
         <TouchableOpacity
-          style={styles.primaryBtn}
+          style={[styles.primaryBtn, { backgroundColor: accentColor }]}
           onPress={role === 'user' ? handleCreateMatchmakerAccount : handleCreateDaterAccount}
         >
           <Text style={styles.primaryBtnText}>
@@ -974,7 +1122,7 @@ const SettingsSections = () => {
         </TouchableOpacity>
       ) : (
         <View>
-          <TouchableOpacity style={styles.primaryBtn} onPress={handleSwitchAccount}>
+          <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: accentColor }]} onPress={handleSwitchAccount}>
             <Text style={styles.primaryBtnText}>
               Switch to {user.linked_account.role === 'matchmaker' ? 'Matchmaker' : 'Dater'} Account
             </Text>
@@ -1004,12 +1152,23 @@ const SettingsSections = () => {
         <View style={styles.card}>
           <Text style={styles.cardHeader}>Referral Code</Text>
           <Text style={styles.cardDescription}>Share your referral code with your matchmaker.</Text>
-          <View style={styles.referralCodeBox}>
-            <Text style={styles.referralCodeText}>{referralCode || 'No code available'}</Text>
+          <View style={[styles.referralCodeBox, { borderColor: accentColor }]}>
+            <Text style={[styles.referralCodeText, { color: accentColor }]}>{referralCode || 'No code available'}</Text>
           </View>
-          <TouchableOpacity style={styles.primaryBtn} onPress={handleShareReferralCode}>
-            <Text style={styles.primaryBtnText}>Share Referral Code</Text>
-          </TouchableOpacity>
+          <View style={styles.actionButtonGroup}>
+            <TouchableOpacity style={styles.iconActionBtn} onPress={handleCopyReferralCode}>
+              <Ionicons name="copy-outline" size={20} color={accentColor} />
+              <Text style={[styles.iconActionText, { color: accentColor }]}>Copy</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.iconActionBtn} onPress={handleShareReferralCode}>
+              <Ionicons name="share-outline" size={20} color={accentColor} />
+              <Text style={[styles.iconActionText, { color: accentColor }]}>Share</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.iconActionBtn} onPress={handleOpenEmailInvite}>
+              <Ionicons name="mail-outline" size={20} color={accentColor} />
+              <Text style={[styles.iconActionText, { color: accentColor }]}>Email</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       );
     }
@@ -1027,15 +1186,23 @@ const SettingsSections = () => {
             onChangeText={setReferralCode}
             placeholder="Enter referral code"
           />
-          <TouchableOpacity style={styles.saveBtn} onPress={handleLinkReferral}>
+          <TouchableOpacity style={[styles.saveBtn, { backgroundColor: accentColor }]} onPress={handleLinkReferral}>
             <Text style={styles.saveBtnText}>Add</Text>
           </TouchableOpacity>
         </View>
         {savedReferrals.length > 0 ? (
           savedReferrals.map((ref, idx) => (
             <View key={`${ref.referral_code}-${idx}`} style={styles.referralItem}>
-              <Text style={styles.referralName}>{ref.name}</Text>
-              <Text style={styles.referralTag}>{ref.referral_code}</Text>
+              <View style={styles.referralInfo}>
+                <Text style={styles.referralName}>{ref.name}</Text>
+                <Text style={styles.referralTag}>{ref.referral_code}</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.linkedDaterDeleteBtn}
+                onPress={() => handleDeleteLinkedDater(ref)}
+              >
+                <Ionicons name="trash-outline" size={16} color="#DC2626" />
+              </TouchableOpacity>
             </View>
           ))
         ) : (
@@ -1056,7 +1223,7 @@ const SettingsSections = () => {
               setEditingPreferences(true);
             }}
           >
-            <Ionicons name="create-outline" size={24} color="#6c5ce7" />
+            <Ionicons name="create-outline" size={24} color={accentColor} />
           </TouchableOpacity>
         ) : null}
       </View>
@@ -1085,9 +1252,9 @@ const SettingsSections = () => {
                   handleInputChangeWrapper('preferredAgeMin', values[0].toString());
                   handleInputChangeWrapper('preferredAgeMax', values[1].toString());
                 }}
-                selectedStyle={{ backgroundColor: '#6c5ce7' }}
+                selectedStyle={{ backgroundColor: accentColor }}
                 unselectedStyle={{ backgroundColor: '#E5E7EB' }}
-                markerStyle={styles.sliderMarker}
+                markerStyle={[styles.sliderMarker, { backgroundColor: accentColor }]}
                 trackStyle={styles.sliderTrack}
               />
             </View>
@@ -1125,9 +1292,9 @@ const SettingsSections = () => {
                 step={1}
                 sliderLength={280}
                 onValuesChange={(values) => handleInputChangeWrapper('matchRadius', values[0])}
-                selectedStyle={{ backgroundColor: '#6c5ce7' }}
+                selectedStyle={{ backgroundColor: accentColor }}
                 unselectedStyle={{ backgroundColor: '#E5E7EB' }}
-                markerStyle={styles.sliderMarker}
+                markerStyle={[styles.sliderMarker, { backgroundColor: accentColor }]}
                 trackStyle={styles.sliderTrack}
               />
             </View>
@@ -1137,7 +1304,7 @@ const SettingsSections = () => {
 
       {editingPreferences ? (
         <View style={styles.formActions}>
-          <TouchableOpacity style={styles.primaryBtn} onPress={handleSavePreferences}>
+          <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: accentColor }]} onPress={handleSavePreferences}>
             <Text style={styles.primaryBtnText}>Save</Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -1167,7 +1334,7 @@ const SettingsSections = () => {
         <Switch
           value={notificationsEnabled}
           onValueChange={handleNotificationToggle}
-          trackColor={{ false: '#E5E7EB', true: '#6c5ce7' }}
+          trackColor={{ false: '#E5E7EB', true: accentColor }}
           thumbColor={notificationsEnabled ? '#fff' : '#f4f3f4'}
         />
       </View>
@@ -1198,7 +1365,7 @@ const SettingsSections = () => {
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={[styles.container, { backgroundColor: backgroundTint }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
     >
@@ -1208,11 +1375,11 @@ const SettingsSections = () => {
           contentContainerStyle={styles.contentContainer}
           keyboardShouldPersistTaps="handled"
         >
-          <View style={styles.content}>
+          <View style={[styles.content, { paddingTop: overlayTopPadding }]}>
             {activeSection ? (
               <TouchableOpacity style={styles.backRow} onPress={() => setActiveSection(null)}>
-                <Ionicons name="chevron-back-outline" size={20} color="#6c5ce7" />
-                <Text style={styles.backText}>Back to Settings</Text>
+                <Ionicons name="chevron-back-outline" size={20} color={accentColor} />
+                <Text style={[styles.backText, { color: accentColor }]}>Back to Settings</Text>
               </TouchableOpacity>
             ) : null}
             {renderActiveSection()}
@@ -1252,7 +1419,7 @@ const SettingsSections = () => {
                 >
                   <Text style={styles.cancelBtnText}>Cancel</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.primaryBtn} onPress={submitCreateMatchmaker}>
+                <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: accentColor }]} onPress={submitCreateMatchmaker}>
                   <Text style={styles.primaryBtnText}>Create</Text>
                 </TouchableOpacity>
               </View>
@@ -1315,12 +1482,58 @@ const SettingsSections = () => {
               >
                 <Text style={styles.cancelBtnText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.primaryBtn} onPress={handleVerifyEmailChange}>
+              <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: accentColor }]} onPress={handleVerifyEmailChange}>
                 <Text style={styles.primaryBtnText}>Verify</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
+      </Modal>
+
+      <Modal
+        visible={showEmailInviteModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowEmailInviteModal(false)}
+      >
+        <KeyboardAvoidingView
+          style={styles.modalBackdrop}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+        >
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Invite by Email</Text>
+              <Text style={styles.modalDescription}>
+                Send your referral code directly to your matchmaker.
+              </Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter email address"
+                placeholderTextColor="#111827"
+                value={emailInviteInput}
+                onChangeText={setEmailInviteInput}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={styles.cancelBtn}
+                  onPress={() => {
+                    setShowEmailInviteModal(false);
+                    setEmailInviteInput('');
+                  }}
+                >
+                  <Text style={styles.cancelBtnText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: accentColor }]} onPress={sendEmailInvite}>
+                  <Text style={styles.primaryBtnText}>Send</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
       </Modal>
     </KeyboardAvoidingView>
   );
@@ -1338,11 +1551,16 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 20,
+    paddingTop: 56,
   },
   title: {
     fontSize: 28,
     fontWeight: '700',
     color: '#222',
+    marginBottom: 20,
+  },
+  titleSpacer: {
+    height: 33,
     marginBottom: 20,
   },
   backRow: {
@@ -1373,12 +1591,22 @@ const styles = StyleSheet.create({
   sectionLeft: {
     flexDirection: 'row',
     alignItems: 'center',
+    flex: 1,
+  },
+  sectionTextWrap: {
+    marginLeft: 10,
+    flex: 1,
   },
   sectionText: {
-    marginLeft: 10,
     fontSize: 16,
     color: '#111827',
     fontWeight: '600',
+  },
+  sectionDescription: {
+    marginTop: 2,
+    fontSize: 12,
+    color: '#6B7280',
+    fontWeight: '500',
   },
   card: {
     backgroundColor: '#fff',
@@ -1390,6 +1618,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 4,
     elevation: 2,
+  },
+  manageAccountsMatchmakerPad: {
+    paddingTop: 32,
   },
   subCard: {
     backgroundColor: '#fff',
@@ -1568,6 +1799,28 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     textAlign: 'center',
   },
+  actionButtonGroup: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  iconActionBtn: {
+    minWidth: 86,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+  },
+  iconActionText: {
+    marginTop: 4,
+    color: '#6c5ce7',
+    fontSize: 12,
+    fontWeight: '700',
+  },
   referralInputRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1598,6 +1851,10 @@ const styles = StyleSheet.create({
     padding: 12,
     marginBottom: 8,
   },
+  referralInfo: {
+    flex: 1,
+    marginRight: 10,
+  },
   referralName: {
     color: '#111827',
     fontWeight: '600',
@@ -1607,6 +1864,16 @@ const styles = StyleSheet.create({
     color: '#6c5ce7',
     fontWeight: '700',
     fontSize: 12,
+  },
+  linkedDaterDeleteBtn: {
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    borderRadius: 999,
+    width: 32,
+    height: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#FFF1F2',
   },
   emptyState: {
     color: '#6B7280',

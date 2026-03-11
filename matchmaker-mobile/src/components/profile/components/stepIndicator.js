@@ -56,7 +56,7 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === 'ios' ? 50 : (StatusBar.currentHeight || 24) + 12,
     paddingBottom: 12,
     paddingHorizontal: 20,
-    backgroundColor: '#ebe7fb',
+    backgroundColor: '#ffe6ee',
     opacity: 0.95,
   },
   stepItem: {
@@ -73,7 +73,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   stepNumberActive: {
-    borderColor: '#6c5ce7',
+    borderColor: '#ef4d73',
   },
   stepNumberText: {
     fontSize: 14,
@@ -81,7 +81,7 @@ const styles = StyleSheet.create({
   },
   stepNumberTextActive: {
     fontWeight: '700',
-    color: '#6c5ce7',
+    color: '#ef4d73',
   },
   stepLabel: {
     marginTop: 4,
@@ -91,6 +91,6 @@ const styles = StyleSheet.create({
   stepLabelActive: {
     opacity: 1,
     fontWeight: '600',
-    color: '#6c5ce7',
+    color: '#ef4d73',
   },
 });

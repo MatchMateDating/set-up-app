@@ -9,8 +9,7 @@ import ToggleConversationsMatcher from './toggleConversationsMatcher';
 import { useMatches } from './hooks/useMatches';
 import { useUserInfo } from './hooks/useUserInfo';
 import { useNotificationPolling } from './hooks/useNotificationPolling';
-import DaterDropdown from '../layout/daterDropdown';
-import MatcherHeader from '../layout/components/matcherHeader';
+import { getRoleAccentColor, getRoleBackgroundTint } from '../layout/components/RoleHeaderBanner';
 
 const Conversations = () => {
   const [showDaterMatches, setShowDaterMatches] = useState(true);
@@ -256,26 +255,20 @@ const Conversations = () => {
     }
   };
 
-  const handleDaterChange = async (daterId) => {
-    setRefreshing(true);
-    setMatches({ matched: [], pending_approval: [] });
-    try {
-      await Promise.all([fetchProfile(), fetchMatches()]);
-    } finally {
-      setRefreshing(false);
-    }
-  };
-
   if (loading) {
+    const loadingColor = getRoleAccentColor(userInfo?.role || 'matchmaker');
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#6c5ce7" />
+        <ActivityIndicator size="large" color={loadingColor} />
         <Text style={styles.loadingText}>Loading conversations...</Text>
       </View>
     );
   }
 
   const filteredMatches = getFilteredMatches();
+  const accentColor = getRoleAccentColor(userInfo?.role || 'matchmaker');
+  const backgroundTint = getRoleBackgroundTint(userInfo?.role || 'matchmaker');
+  const overlayTopPadding = userInfo?.role === 'matchmaker' ? 140 : 56;
   
   // Update unmatch to handle new structure
   const handleUnmatch = async (matchId) => {
@@ -284,20 +277,13 @@ const Conversations = () => {
   };
 
   return (
-    <View style={styles.container}>
-      {userInfo?.role === 'matchmaker' && (
-        <MatcherHeader>
-          <DaterDropdown
-            userInfo={userInfo}
-            onDaterChange={handleDaterChange}
-          />
-        </MatcherHeader>
-      )}
-      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <View style={[styles.container, { backgroundColor: backgroundTint, paddingTop: overlayTopPadding }]}>
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
         {userInfo && userInfo.role === 'user' && matchedList.length > 0 && (
           <ToggleConversationsDater
             showDaterMatches={showDaterMatches}
             setShowDaterMatches={setShowDaterMatches}
+            accentColor={accentColor}
           />
         )}
 
@@ -305,13 +291,14 @@ const Conversations = () => {
           <ToggleConversationsMatcher
             showDaterMatches={showDaterMatches}
             setShowDaterMatches={setShowDaterMatches}
+            accentColor={accentColor}
           />
         )}
         
         {/* Pending Approval Section - for matchmakers */}
         {userInfo?.role === 'matchmaker' && showDaterMatches && (
           <View style={styles.sectionContainer}>
-            <Text style={styles.sectionTitle}>Pending</Text>
+            <Text style={[styles.sectionTitle, { color: accentColor }]}>Pending</Text>
             <View style={styles.matchList}>
               {filteredMatches.pending_approval.length > 0 ? (
                 filteredMatches.pending_approval.map((matchObj, index) => (
@@ -337,7 +324,7 @@ const Conversations = () => {
         {/* Approved/Matched Section - for matchmakers */}
         {userInfo?.role === 'matchmaker' && !showDaterMatches && (
           <View style={styles.sectionContainer}>
-            <Text style={styles.sectionTitle}>Approved</Text>
+            <Text style={[styles.sectionTitle, { color: accentColor }]}>Approved</Text>
             <View style={styles.matchList}>
               {filteredMatches.matched.length > 0 ? (
                 filteredMatches.matched.map((matchObj, index) => (
@@ -393,6 +380,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fafafa',
+    paddingTop: 24,
+  },
+  scrollView: {
+    flex: 1,
+    backgroundColor: 'transparent',
   },
   content: {
     paddingTop: 20,
