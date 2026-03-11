@@ -93,7 +93,11 @@ const SettingsSections = () => {
     const base = [
       { key: SECTION_KEYS.PERSONAL, label: 'Personal Information', icon: 'person-outline' },
       { key: SECTION_KEYS.MANAGE_ACCOUNTS, label: 'Manage Accounts', icon: 'people-outline' },
-      { key: SECTION_KEYS.REFERRAL, label: 'Referral Code', icon: 'gift-outline' },
+      {
+        key: SECTION_KEYS.REFERRAL,
+        label: role === 'matchmaker' ? 'Manage Linked Daters' : 'Referral Code',
+        icon: 'gift-outline',
+      },
       { key: SECTION_KEYS.NOTIFICATIONS, label: 'Notifications', icon: 'notifications-outline' },
     ];
 
@@ -489,6 +493,65 @@ const SettingsSections = () => {
       console.error(err);
       Alert.alert('Error', 'Failed to switch account');
     }
+  };
+
+  const handleDeleteAccountByRole = (targetRole) => {
+    const roleLabel = targetRole === 'user' ? 'Dater' : 'Matchmaker';
+    const deletingCurrent = role === targetRole;
+    const confirmationMessage = deletingCurrent
+      ? `Delete your ${roleLabel} account? You will be switched to your other linked account.`
+      : `Delete your linked ${roleLabel} account?`;
+
+    Alert.alert(
+      `Delete ${roleLabel} Account`,
+      confirmationMessage,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const token = await AsyncStorage.getItem('token');
+              if (!token) {
+                Alert.alert('Error', 'Please log in');
+                navigation.navigate('Login');
+                return;
+              }
+
+              const res = await fetch(`${API_BASE_URL}/profile/delete_account_by_role`, {
+                method: 'DELETE',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({ role: targetRole }),
+              });
+
+              if (!res.ok) {
+                const errorData = await res.json().catch(() => ({}));
+                Alert.alert('Error', errorData.error || `Failed to delete ${roleLabel} account`);
+                return;
+              }
+
+              const data = await res.json();
+              if (data.token) {
+                await AsyncStorage.setItem('token', data.token);
+              }
+              if (data.user) {
+                await AsyncStorage.setItem('user', JSON.stringify(data.user));
+              }
+
+              Alert.alert('Success', data.message || `${roleLabel} account deleted successfully`);
+              fetchUserProfile();
+            } catch (err) {
+              console.error(err);
+              Alert.alert('Error', `Failed to delete ${roleLabel} account`);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handleShareReferralCode = async () => {
@@ -910,11 +973,27 @@ const SettingsSections = () => {
           </Text>
         </TouchableOpacity>
       ) : (
-        <TouchableOpacity style={styles.primaryBtn} onPress={handleSwitchAccount}>
-          <Text style={styles.primaryBtnText}>
-            Switch to {user.linked_account.role === 'matchmaker' ? 'Matchmaker' : 'Dater'} Account
-          </Text>
-        </TouchableOpacity>
+        <View>
+          <TouchableOpacity style={styles.primaryBtn} onPress={handleSwitchAccount}>
+            <Text style={styles.primaryBtnText}>
+              Switch to {user.linked_account.role === 'matchmaker' ? 'Matchmaker' : 'Dater'} Account
+            </Text>
+          </TouchableOpacity>
+
+          <Text style={styles.secondarySectionTitle}>Delete Account Type</Text>
+          <TouchableOpacity
+            style={styles.dangerOutlineBtn}
+            onPress={() => handleDeleteAccountByRole('user')}
+          >
+            <Text style={styles.dangerOutlineBtnText}>Delete Dater Account</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.dangerOutlineBtn}
+            onPress={() => handleDeleteAccountByRole('matchmaker')}
+          >
+            <Text style={styles.dangerOutlineBtnText}>Delete Matchmaker Account</Text>
+          </TouchableOpacity>
+        </View>
       )}
     </View>
   );
@@ -937,7 +1016,7 @@ const SettingsSections = () => {
 
     return (
       <View style={styles.card}>
-        <Text style={styles.cardHeader}>Referral Code</Text>
+        <Text style={styles.cardHeader}>Manage Linked Daters</Text>
         <Text style={styles.cardDescription}>
           Link new daters by entering their referral code.
         </Text>
@@ -1451,6 +1530,29 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     textTransform: 'capitalize',
+  },
+  secondarySectionTitle: {
+    marginTop: 18,
+    marginBottom: 10,
+    color: '#6B7280',
+    fontSize: 13,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  dangerOutlineBtn: {
+    borderWidth: 1,
+    borderColor: '#DC2626',
+    borderRadius: 8,
+    paddingVertical: 11,
+    alignItems: 'center',
+    marginBottom: 10,
+    backgroundColor: '#fff',
+  },
+  dangerOutlineBtnText: {
+    color: '#DC2626',
+    fontSize: 14,
+    fontWeight: '600',
   },
   referralCodeBox: {
     borderWidth: 2,
