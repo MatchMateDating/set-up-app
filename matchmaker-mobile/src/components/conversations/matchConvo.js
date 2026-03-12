@@ -250,13 +250,17 @@ const MatchConvo = () => {
     if (isMine(msg)) return '';
     const senderRole = senderRoles[msg.sender_id];
     const senderName = senderNames[msg.sender_id] || 'Loading...';
+    if (senderRole === undefined && userInfo?.role === 'matchmaker') {
+      // During profile lookup, prefer a stable label for matchmaker-mediated chats.
+      return 'Matchmaker';
+    }
     if (senderRole === 'matchmaker') {
       if (userInfo?.role === 'user') {
         const senderLinkedDaterId = senderReferrerIds[msg.sender_id];
         const isUsersMatchmaker = Number(senderLinkedDaterId) === Number(userInfo?.id);
         return isUsersMatchmaker ? 'Matchmaker(you)' : 'Matchmaker(them)';
       }
-      return senderName;
+      return 'Matchmaker';
     }
     return senderName;
   };
@@ -680,7 +684,7 @@ const MatchConvo = () => {
                     <Text style={[styles.puzzleText, { color: accentColor }]}>Play {msg.puzzle_type}</Text>
                   </TouchableOpacity>
                 )}
-                <Text style={styles.timestamp}>
+                <Text style={[styles.timestamp, mine && userInfo?.role === 'user' && styles.timestampMineDater]}>
                   {formatMessageTimestamp(msg.timestamp)}
                 </Text>
               </View>
@@ -905,6 +909,7 @@ const styles = StyleSheet.create({
   puzzleBubble: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8, padding: 8, backgroundColor: '#fafafa', borderRadius: 8 },
   puzzleText: { fontSize: 14, color: '#6c5ce7', fontWeight: '600' },
   timestamp: { fontSize: 11, color: '#999', marginTop: 4 },
+  timestampMineDater: { color: '#d1d5db' },
   selectedPuzzlePreview: {
     flexDirection: 'row',
     alignItems: 'center',

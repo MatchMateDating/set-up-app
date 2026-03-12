@@ -477,6 +477,10 @@ const Match = () => {
   const handleSendNote = async (note) => {
     try {
       const likedUser = profiles[currentIndex];
+      if (!likedUser) {
+        Alert.alert('Error', 'No profile selected');
+        return;
+      }
       const token = await AsyncStorage.getItem('token');
       if (!token) {
         Alert.alert('Error', 'Please log in');
@@ -484,7 +488,7 @@ const Match = () => {
         return;
       }
 
-      await fetch(`${API_BASE_URL}/match/send_note`, {
+      const res = await fetch(`${API_BASE_URL}/match/send_note`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -492,6 +496,28 @@ const Match = () => {
         },
         body: JSON.stringify({ recipient_id: likedUser.id, note })
       });
+
+      if (res.status === 401) {
+        const data = await res.json();
+        if (data.error_code === 'TOKEN_EXPIRED') {
+          await AsyncStorage.removeItem('token');
+          Alert.alert('Session expired', 'Please log in again.');
+          navigation.navigate('Login');
+          return;
+        }
+      }
+
+      if (!res.ok) {
+        let message = 'Failed to send note';
+        try {
+          const data = await res.json();
+          if (data?.message) message = data.message;
+        } catch (_) {
+          // Keep default message if response body isn't JSON
+        }
+        Alert.alert('Error', message);
+        return;
+      }
 
       setShowNoteModal(false);
       // Remove the user from profiles after sending note (note creates a pending match)

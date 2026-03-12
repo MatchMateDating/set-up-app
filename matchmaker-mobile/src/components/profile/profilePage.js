@@ -249,7 +249,9 @@ const ProfilePage = () => {
 
   const accentColor = getRoleAccentColor(user.role);
   const backgroundTint = getRoleBackgroundTint(user.role);
-  const overlayTopPadding = !matchProfile ? (user.role === 'matchmaker' ? 96 : 56) : 0;
+  const overlayTopPadding = !matchProfile
+    ? (editing ? (user.role === 'matchmaker' ? 28 : 20) : (user.role === 'matchmaker' ? 96 : 56))
+    : 0;
 
   return (
     <SafeAreaView

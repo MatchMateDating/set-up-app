@@ -378,7 +378,7 @@ const Profile = ({ user, framed, viewerUnit, editing, setEditing, onSave, onEdit
           </View>
           {!framed && !editing && (
             <View style={styles.profileActions}>
-              <TouchableOpacity onPress={() => setEditing(true)}>
+              <TouchableOpacity style={styles.editIconButton} onPress={() => setEditing(true)}>
                 <Ionicons name="create-outline" size={24} color={accentColor} />
               </TouchableOpacity>
             </View>
@@ -538,6 +538,9 @@ const styles = StyleSheet.create({
   profileActions: {
     flexDirection: 'row',
     gap: 12,
+  },
+  editIconButton: {
+    transform: [{ translateX: -20 }],
   },
   actionsOutsideCard: {
     marginTop: 20,
