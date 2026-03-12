@@ -14,6 +14,7 @@ import { getRoleAccentColor, getRoleBackgroundTint } from '../layout/components/
 const Conversations = () => {
   const [showDaterMatches, setShowDaterMatches] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [roleHint, setRoleHint] = useState(null);
   const { userInfo, setUserInfo, referrerInfo, setReferrerInfo, loading: userLoading } = useUserInfo(API_BASE_URL);
   const { matches, setMatches, loading: matchesLoading, fetchMatches } = useMatches(API_BASE_URL);
   const matchedList = Array.isArray(matches) ? matches : (matches?.matched || []);
@@ -23,6 +24,28 @@ const Conversations = () => {
   
   // Initialize notification polling
   useNotificationPolling();
+
+  useEffect(() => {
+    const loadRoleHint = async () => {
+      try {
+        const storedUser = await AsyncStorage.getItem('user');
+        if (!storedUser) return;
+        const parsedUser = JSON.parse(storedUser);
+        if (parsedUser?.role) {
+          setRoleHint(parsedUser.role);
+        }
+      } catch (err) {
+        console.error('Error loading role hint:', err);
+      }
+    };
+    loadRoleHint();
+  }, []);
+
+  useEffect(() => {
+    if (userInfo?.role) {
+      setRoleHint(userInfo.role);
+    }
+  }, [userInfo?.role]);
 
   const loading = userLoading || matchesLoading || refreshing;
 
@@ -256,9 +279,11 @@ const Conversations = () => {
   };
 
   if (loading) {
-    const loadingColor = getRoleAccentColor(userInfo?.role || 'matchmaker');
+    const loadingRole = userInfo?.role || roleHint || 'user';
+    const loadingColor = getRoleAccentColor(loadingRole);
+    const loadingBackgroundTint = getRoleBackgroundTint(loadingRole);
     return (
-      <View style={styles.loadingContainer}>
+      <View style={[styles.loadingContainer, { backgroundColor: loadingBackgroundTint }]}>
         <ActivityIndicator size="large" color={loadingColor} />
         <Text style={styles.loadingText}>Loading conversations...</Text>
       </View>
@@ -269,6 +294,13 @@ const Conversations = () => {
   const accentColor = getRoleAccentColor(userInfo?.role || 'matchmaker');
   const backgroundTint = getRoleBackgroundTint(userInfo?.role || 'matchmaker');
   const overlayTopPadding = userInfo?.role === 'matchmaker' ? 140 : 56;
+  const isPendingEmptyState =
+    userInfo?.role === 'matchmaker' &&
+    showDaterMatches &&
+    filteredMatches.pending_approval.length === 0;
+  const isDaterEmptyState =
+    userInfo?.role === 'user' &&
+    filteredMatches.matched.length === 0;
   
   // Update unmatch to handle new structure
   const handleUnmatch = async (matchId) => {
@@ -278,7 +310,13 @@ const Conversations = () => {
 
   return (
     <View style={[styles.container, { backgroundColor: backgroundTint, paddingTop: overlayTopPadding }]}>
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={[
+          styles.content,
+          (isPendingEmptyState || isDaterEmptyState) && styles.contentGrow,
+        ]}
+      >
         {userInfo && userInfo.role === 'user' && matchedList.length > 0 && (
           <ToggleConversationsDater
             showDaterMatches={showDaterMatches}
@@ -297,9 +335,11 @@ const Conversations = () => {
         
         {/* Pending Approval Section - for matchmakers */}
         {userInfo?.role === 'matchmaker' && showDaterMatches && (
-          <View style={styles.sectionContainer}>
-            <Text style={[styles.sectionTitle, { color: accentColor }]}>Pending</Text>
-            <View style={styles.matchList}>
+          <View style={[styles.sectionContainer, isPendingEmptyState && styles.sectionContainerFill]}>
+            {!isPendingEmptyState && (
+              <Text style={[styles.sectionTitle, { color: accentColor }]}>Pending</Text>
+            )}
+            <View style={[styles.matchList, isPendingEmptyState && styles.matchListFill]}>
               {filteredMatches.pending_approval.length > 0 ? (
                 filteredMatches.pending_approval.map((matchObj, index) => (
                   <MatchCard
@@ -313,8 +353,8 @@ const Conversations = () => {
                   />
                 ))
               ) : (
-                <View style={styles.emptyContainer}>
-                  <Text style={styles.emptyText}>No pending matches yet!</Text>
+                <View style={styles.loadingContainerInline}>
+                  <Text style={styles.loadingText}>No pending matches yet!</Text>
                 </View>
               )}
             </View>
@@ -349,8 +389,8 @@ const Conversations = () => {
         
         {/* Matched Section - for daters */}
         {userInfo?.role === 'user' && (
-          <View style={styles.sectionContainer}>
-            <View style={styles.matchList}>
+          <View style={[styles.sectionContainer, isDaterEmptyState && styles.sectionContainerFill]}>
+            <View style={[styles.matchList, isDaterEmptyState && styles.matchListFill]}>
               {filteredMatches.matched.length > 0 ? (
                 filteredMatches.matched.map((matchObj, index) => (
                   <MatchCard
@@ -364,8 +404,8 @@ const Conversations = () => {
                   />
                 ))
               ) : (
-                <View style={styles.emptyContainer}>
-                  <Text style={styles.emptyText}>No matches yet!</Text>
+                <View style={styles.loadingContainerInline}>
+                  <Text style={styles.loadingText}>No matches yet!</Text>
                 </View>
               )}
             </View>
@@ -391,6 +431,9 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
     paddingHorizontal: 16,
   },
+  contentGrow: {
+    flexGrow: 1,
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -415,6 +458,19 @@ const styles = StyleSheet.create({
   },
   sectionContainer: {
     marginBottom: 24,
+  },
+  sectionContainerFill: {
+    flex: 1,
+    marginBottom: 0,
+  },
+  matchListFill: {
+    flex: 1,
+  },
+  loadingContainerInline: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'transparent',
   },
   sectionTitle: {
     fontSize: 20,

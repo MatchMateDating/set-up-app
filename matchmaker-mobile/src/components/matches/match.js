@@ -21,7 +21,30 @@ const Match = () => {
   const [showMatchModal, setShowMatchModal] = useState(false);
   const [matchModalData, setMatchModalData] = useState(null);
   const [referrer, setReferrer] = useState(null);
+  const [roleHint, setRoleHint] = useState(null);
   const navigation = useNavigation();
+
+  useEffect(() => {
+    const loadRoleHint = async () => {
+      try {
+        const storedUser = await AsyncStorage.getItem('user');
+        if (!storedUser) return;
+        const parsedUser = JSON.parse(storedUser);
+        if (parsedUser?.role) {
+          setRoleHint(parsedUser.role);
+        }
+      } catch (err) {
+        console.error('Error loading role hint:', err);
+      }
+    };
+    loadRoleHint();
+  }, []);
+
+  useEffect(() => {
+    if (userInfo?.role) {
+      setRoleHint(userInfo.role);
+    }
+  }, [userInfo?.role]);
 
   const refreshUserInfo = async () => {
     try {
@@ -498,9 +521,11 @@ const Match = () => {
   };
 
   if (loading || refreshing) {
-    const loadingColor = getRoleAccentColor(userInfo?.role || 'matchmaker');
+    const loadingRole = userInfo?.role || roleHint || 'user';
+    const loadingColor = getRoleAccentColor(loadingRole);
+    const loadingBackgroundTint = getRoleBackgroundTint(loadingRole);
     return (
-      <View style={styles.loadingContainer}>
+      <View style={[styles.loadingContainer, { backgroundColor: loadingBackgroundTint }]}>
         <ActivityIndicator size="large" color={loadingColor} />
         <Text style={styles.loadingText}>Loading profiles...</Text>
       </View>
@@ -511,6 +536,7 @@ const Match = () => {
   const accentColor = getRoleAccentColor(userInfo?.role || 'matchmaker');
   const backgroundTint = getRoleBackgroundTint(userInfo?.role || 'matchmaker');
   const overlayTopPadding = userInfo?.role === 'matchmaker' ? 150 : 56;
+  const isProfilesEmptyState = !currentProfile;
 
   return (
     <View style={[styles.container, { backgroundColor: backgroundTint, paddingTop: overlayTopPadding }]}>
@@ -519,7 +545,11 @@ const Match = () => {
           styles.scrollView,
           userInfo?.role === 'matchmaker' && styles.scrollViewWithDropdown,
         ]}
-        contentContainerStyle={[styles.content, userInfo?.role === 'matchmaker' && styles.contentWithDropdown]}
+        contentContainerStyle={[
+          styles.content,
+          userInfo?.role === 'matchmaker' && styles.contentWithDropdown,
+          isProfilesEmptyState && styles.contentGrow,
+        ]}
       >
         {currentProfile ? (
           <>
@@ -536,8 +566,8 @@ const Match = () => {
             )}
           </>
         ) : (
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>No profiles to match with currently, come back later!</Text>
+          <View style={styles.loadingContainerInline}>
+            <Text style={styles.loadingText}>No profiles to match with currently, come back later!</Text>
           </View>
         )}
       </ScrollView>
@@ -672,6 +702,9 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingBottom: 100, // Space for buttons at bottom
   },
+  contentGrow: {
+    flexGrow: 1,
+  },
   contentWithDropdown: {
     paddingTop: 4,
   },
@@ -685,6 +718,12 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontSize: 16,
     color: '#6b7280',
+  },
+  loadingContainerInline: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'transparent',
   },
   emptyContainer: {
     padding: 40,

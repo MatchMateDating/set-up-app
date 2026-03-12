@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 export const getRoleAccentColor = (role) => (role === 'user' ? '#ef4d73' : '#6c5ce7');
@@ -13,11 +13,19 @@ const getRoleLabel = (role) => (role === 'user' ? 'DATER' : 'MATCHMAKER');
 const RoleHeaderBanner = ({ role }) => {
   const accentColor = getRoleAccentColor(role);
   const roleLabel = getRoleLabel(role);
+  const isDater = role === 'user';
 
   return (
     <View style={styles.container}>
       <View style={[styles.badge, { backgroundColor: accentColor }]}>
-        <Ionicons name="sparkles-outline" size={13} color="#fff" />
+        {isDater ? (
+          <Ionicons name="heart" size={16} color="#fff" style={styles.daterIcon} />
+        ) : (
+          <Image
+            source={require('../../../../assets/matchmaker_pill_logo.png')}
+            style={styles.badgeLogo}
+          />
+        )}
         <Text style={styles.badgeText}>{roleLabel}</Text>
       </View>
     </View>
@@ -45,6 +53,15 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     letterSpacing: 0.4,
+  },
+  badgeLogo: {
+    width: 18,
+    height: 18,
+    resizeMode: 'contain',
+  },
+  daterIcon: {
+    width: 18,
+    textAlign: 'center',
   },
 });
 
