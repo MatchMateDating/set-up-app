@@ -602,6 +602,20 @@ def get_mutual_matches(current_user):
             user1_matchmaker_involved = bool(match.matched_by_user_id_1_matcher)
             user2_matchmaker_involved = bool(match.matched_by_user_id_2_matcher)
 
+            # For single-matchmaker pending approvals, only show to the dater who does
+            # NOT have a matchmaker (the direct dater participant). Hide from the
+            # matchmaker-backed dater until approval is complete.
+            single_matchmaker_involved = user1_matchmaker_involved != user2_matchmaker_involved
+            if single_matchmaker_involved:
+                current_user_is_user1 = match.user_id_1 == current_user.id
+                current_user_is_user2 = match.user_id_2 == current_user.id
+                current_user_has_matchmaker = (
+                    (current_user_is_user1 and user1_matchmaker_involved) or
+                    (current_user_is_user2 and user2_matchmaker_involved)
+                )
+                if current_user_has_matchmaker:
+                    continue
+
             pending_approval_users.append({
                 'match_id': match.id,
                 'match_user': user_dict,

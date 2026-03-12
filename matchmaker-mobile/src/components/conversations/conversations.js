@@ -122,9 +122,11 @@ const Conversations = () => {
         return match.both_matchmakers_involved || match.linked_dater !== null;
       }
     });
-    
-    // Daters should not see pending_approval conversations.
-    return { matched: filteredMatched, pending_approval: [] };
+
+    // Backend decides which pending approvals are visible to this dater.
+    const filteredPendingApprovals = showDaterMatches ? pendingApprovalList : [];
+
+    return { matched: filteredMatched, pending_approval: filteredPendingApprovals };
   };
 
   const unmatch = async (matchId) => {
@@ -300,7 +302,7 @@ const Conversations = () => {
     filteredMatches.pending_approval.length === 0;
   const isDaterEmptyState =
     userInfo?.role === 'user' &&
-    filteredMatches.matched.length === 0;
+    (filteredMatches.matched.length + filteredMatches.pending_approval.length) === 0;
   
   // Update unmatch to handle new structure
   const handleUnmatch = async (matchId) => {
@@ -317,7 +319,7 @@ const Conversations = () => {
           (isPendingEmptyState || isDaterEmptyState) && styles.contentGrow,
         ]}
       >
-        {userInfo && userInfo.role === 'user' && matchedList.length > 0 && (
+        {userInfo && userInfo.role === 'user' && (matchedList.length > 0 || pendingApprovalList.length > 0) && (
           <ToggleConversationsDater
             showDaterMatches={showDaterMatches}
             setShowDaterMatches={setShowDaterMatches}
@@ -350,6 +352,7 @@ const Conversations = () => {
                     unmatch={handleUnmatch}
                     reveal={reveal}
                     hide={hide}
+                    isApprovedMatch={false}
                   />
                 ))
               ) : (
@@ -376,6 +379,7 @@ const Conversations = () => {
                     unmatch={handleUnmatch}
                     reveal={reveal}
                     hide={hide}
+                    isApprovedMatch={true}
                   />
                 ))
               ) : (
@@ -391,8 +395,8 @@ const Conversations = () => {
         {userInfo?.role === 'user' && (
           <View style={[styles.sectionContainer, isDaterEmptyState && styles.sectionContainerFill]}>
             <View style={[styles.matchList, isDaterEmptyState && styles.matchListFill]}>
-              {filteredMatches.matched.length > 0 ? (
-                filteredMatches.matched.map((matchObj, index) => (
+              {(filteredMatches.matched.length + filteredMatches.pending_approval.length) > 0 ? (
+                [...filteredMatches.matched, ...filteredMatches.pending_approval].map((matchObj, index) => (
                   <MatchCard
                     key={`matched-${index}`}
                     matchObj={matchObj}
@@ -401,6 +405,7 @@ const Conversations = () => {
                     unmatch={handleUnmatch}
                     reveal={reveal}
                     hide={hide}
+                    isApprovedMatch={false}
                   />
                 ))
               ) : (
