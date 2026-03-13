@@ -15,6 +15,7 @@ const Preferences = () => {
     preferredAgeMax: '0',
     preferredGenders: [],
     matchRadius: '50',
+    matchWithAll: false,
   });
 
   useEffect(() => {
@@ -23,11 +24,13 @@ const Preferences = () => {
 
   useEffect(() => {
     if (user) {
+      const matchWithAll = (user.match_radius >= 9999);
       setFormData({
         preferredAgeMin: user.preferredAgeMin || '0',
         preferredAgeMax: user.preferredAgeMax || '0',
         preferredGenders: user.preferredGenders || [],
-        matchRadius: user.match_radius || 50,
+        matchRadius: matchWithAll ? 500 : (user.match_radius || 50),
+        matchWithAll,
       });
     }
   }, [user]);
@@ -70,7 +73,7 @@ const Preferences = () => {
         preferredAgeMin: formData.preferredAgeMin,
         preferredAgeMax: formData.preferredAgeMax,
         preferredGenders: formData.preferredGenders,
-        match_radius: formData.matchRadius,
+        match_radius: formData.matchWithAll ? 9999 : Number(formData.matchRadius),
       };
 
       const res = await fetch(`${API_BASE_URL}/profile/update`, {
@@ -187,22 +190,37 @@ const Preferences = () => {
           />
 
           <FormField
-            label="Match Radius"
+            label={editing ? `Match Radius (${formData.matchWithAll ? '500+' : formData.matchRadius} mi)` : 'Match Radius'}
             editing={editing}
-            value={`${formData.matchRadius} miles`}
+            value={formData.matchWithAll ? '500+ mi' : `${formData.matchRadius} miles`}
             input={
-              <div className="radius-slider">
-                <input
-                  type="range"
-                  name="matchRadius"
-                  min="1"
-                  max="500"
-                  step="1"
-                  value={formData.matchRadius}
-                  onChange={handleInputChange}
-                />
-                <span>{formData.matchRadius} mi</span>
-              </div>
+              <>
+                <div className={`radius-slider${formData.matchWithAll ? ' radius-slider--disabled' : ''}`}>
+                  <input
+                    type="range"
+                    name="matchRadius"
+                    min="1"
+                    max="500"
+                    step="1"
+                    value={formData.matchWithAll ? 500 : formData.matchRadius}
+                    onChange={handleInputChange}
+                    disabled={formData.matchWithAll}
+                  />
+                  <span>{formData.matchWithAll ? '500+' : formData.matchRadius} mi</span>
+                </div>
+                <label className="checkbox-label" style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={formData.matchWithAll || false}
+                    onChange={(e) => setFormData((prev) => ({
+                      ...prev,
+                      matchWithAll: e.target.checked,
+                      matchRadius: e.target.checked ? 500 : 50,
+                    }))}
+                  />
+                  <span>No distance limit</span>
+                </label>
+              </>
             }
           />
 

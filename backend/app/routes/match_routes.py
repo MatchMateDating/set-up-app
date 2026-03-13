@@ -3,6 +3,8 @@ from app.models.userDB import User
 from app.models.matchDB import Match
 from app.models.skipDB import UserSkip
 from app.models.blockDB import UserBlock
+from app.models.conversationDB import Conversation
+from app.models.messageDB import Message
 from app import db
 from app.routes.shared import token_required
 from app.services.ai_embeddings import get_conversation_similarity
@@ -11,6 +13,9 @@ from math import radians, sin, cos, sqrt, atan2
 from app.services.notification_service import send_match_notification
 
 match_bp = Blueprint('match', __name__)
+
+# Sentinel for "no distance limit" (matches anyone who fits other criteria, regardless of distance)
+MATCH_ALL_RADIUS = 9999  # miles
 
 def haversine_distance(lat1, lon1, lat2, lon2):
     """Return distance between two coordinates in miles."""
@@ -174,12 +179,15 @@ def get_users_to_match(current_user):
                                           user.latitude, user.longitude)
             if distance is None:
                 continue
-            # user must be within acting_user's radius AND vice versa
+            # user must be within acting_user's radius AND vice versa (unless either has "no distance limit")
             acting_radius = acting_user.match_radius if acting_user.match_radius else 0
             user_radius = user.match_radius if user.match_radius else 0
             if acting_radius == 0 or user_radius == 0:
                 continue
-            if distance > acting_radius or distance > user_radius:
+            # treat radius >= MATCH_ALL_RADIUS as "no distance limit" for that user
+            if (acting_radius < MATCH_ALL_RADIUS and distance > acting_radius) or (
+                user_radius < MATCH_ALL_RADIUS and distance > user_radius
+            ):
                 continue
         # Check if user's age preferences match acting_user's age
         if acting_user.preferredAgeMin and acting_user.preferredAgeMax and user.preferredAgeMin and user.preferredAgeMax:
@@ -633,6 +641,11 @@ def unmatch(current_user, match_id):
         if match.matched_by_user_id_1_matcher != current_user.id and match.matched_by_user_id_2_matcher != current_user.id:
             return jsonify({'message': 'You are not authorized to unmatch this match'}), 403
 
+    # Delete conversations (and their messages) that reference this match before deleting the match
+    conversations = Conversation.query.filter_by(match_id=match_id).all()
+    for conversation in conversations:
+        Message.query.filter_by(conversation_id=conversation.id).delete()
+        db.session.delete(conversation)
     db.session.delete(match)
     db.session.commit()
 

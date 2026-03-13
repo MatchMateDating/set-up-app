@@ -108,6 +108,7 @@ const CompleteProfile = () => {
     preferredGenders: [],
     bio: '',
     matchRadius: 50,
+    matchWithAll: false,
     imageLayout: 'grid',
     profileStyle: 'classic',
     fontFamily: 'Arial',
@@ -184,7 +185,8 @@ const CompleteProfile = () => {
           preferredAgeMin: user.preferredAgeMin?.toString() ?? '18',
           preferredAgeMax: user.preferredAgeMax?.toString() ?? '50',
           preferredGenders: user.preferredGenders ?? [],
-          matchRadius: userUnit === 'm' ? milesToKm(user.match_radius || 50) : (user.match_radius || 50),
+          matchWithAll: (user.match_radius >= 9999),
+          matchRadius: user.match_radius >= 9999 ? 500 : (userUnit === 'm' ? milesToKm(user.match_radius || 50) : (user.match_radius || 50)),
           imageLayout: user.imageLayout ?? 'grid',
           profileStyle: user.profileStyle ?? 'classic',
           fontFamily: user.fontFamily ?? 'Arial',
@@ -333,6 +335,9 @@ const CompleteProfile = () => {
   const update = (name, value) => {
     setFormData(prev => {
       const newData = { ...prev, [name]: value };
+      if (name === 'matchWithAll') {
+        newData.matchRadius = value ? 500 : 50;
+      }
       
       // Auto-save certain fields immediately
       if (['first_name', 'last_name', 'birthdate', 'gender'].includes(name)) {
@@ -394,7 +399,7 @@ const CompleteProfile = () => {
       }
 
       // Auto-save preferences when changed (for step 3)
-      if (['preferredAgeMin', 'preferredAgeMax', 'preferredGenders', 'matchRadius'].includes(name) && step === 3) {
+      if (['preferredAgeMin', 'preferredAgeMax', 'preferredGenders', 'matchRadius', 'matchWithAll'].includes(name) && step === 3) {
         if (autoSaveFormData.current) {
           clearTimeout(autoSaveFormData.current);
         }
@@ -404,8 +409,10 @@ const CompleteProfile = () => {
           if (name === 'preferredAgeMin') saveData.preferredAgeMin = parseInt(value, 10);
           if (name === 'preferredAgeMax') saveData.preferredAgeMax = parseInt(value, 10);
           if (name === 'preferredGenders') saveData.preferredGenders = value;
-          if (name === 'matchRadius') saveData.match_radius = heightUnit === 'ft' ? Number(value) : kmToMiles(Number(value));
-          saveFormDataToBackend(saveData);
+          if (name === 'matchRadius' || name === 'matchWithAll') {
+            saveData.match_radius = newData.matchWithAll ? 9999 : (heightUnit === 'ft' ? Number(newData.matchRadius) : kmToMiles(Number(newData.matchRadius)));
+          }
+          if (Object.keys(saveData).length) saveFormDataToBackend(saveData);
         }, 1000);
       }
       
@@ -431,7 +438,7 @@ const CompleteProfile = () => {
         ...prev,
         heightMeters: meters,
         heightCentimeters: centimeters,
-        matchRadius: kmToMiles(prev.matchRadius),
+        matchRadius: prev.matchWithAll ? 500 : kmToMiles(prev.matchRadius),
       }));
 
       setHeightUnit('m');
@@ -446,7 +453,7 @@ const CompleteProfile = () => {
         ...prev,
         heightFeet: feet,
         heightInches: inches,
-        matchRadius: milesToKm(prev.matchRadius),
+        matchRadius: prev.matchWithAll ? 500 : milesToKm(prev.matchRadius),
       }));
 
       setHeightUnit('ft');
@@ -555,7 +562,7 @@ const CompleteProfile = () => {
           ? parseInt(formData.preferredAgeMax, 10)
           : 50,
         preferredGenders: formData.preferredGenders ?? [],
-        match_radius: heightUnit === 'ft' ? (Number(formData.matchRadius) ?? 50) : (kmToMiles(Number(formData.matchRadius)) ?? 31),
+        match_radius: formData.matchWithAll ? 9999 : (heightUnit === 'ft' ? (Number(formData.matchRadius) ?? 50) : (kmToMiles(Number(formData.matchRadius)) ?? 31)),
         show_location: formData.show_location ?? false,
         profileStyle: formData.profileStyle,
         fontFamily: formData.fontFamily,
@@ -1157,7 +1164,7 @@ const CompleteProfile = () => {
                           preferredAgeMin: formData.preferredAgeMin ? parseInt(formData.preferredAgeMin, 10) : 18,
                           preferredAgeMax: formData.preferredAgeMax ? parseInt(formData.preferredAgeMax, 10) : 50,
                           preferredGenders: formData.preferredGenders ?? [],
-                          match_radius: heightUnit === 'ft' ? (Number(formData.matchRadius) ?? 50) : (kmToMiles(Number(formData.matchRadius)) ?? 31),
+                          match_radius: formData.matchWithAll ? 9999 : (heightUnit === 'ft' ? (Number(formData.matchRadius) ?? 50) : (kmToMiles(Number(formData.matchRadius)) ?? 31)),
                           show_location: formData.show_location ?? false,
                           profile_completion_step: 3,
                         }),
@@ -1219,9 +1226,9 @@ const CompleteProfile = () => {
               />
 
               <Text style={styles.label}>
-                Match Radius ({formData.matchRadius} {radiusUnit})
+                Match Radius ({formData.matchWithAll ? '500+' : formData.matchRadius} {radiusUnit})
               </Text>
-              <View style={{ alignItems: 'center', marginTop: 10 }}>
+              <View style={[formData.matchWithAll && { opacity: 0.5 }, { alignItems: 'center', marginTop: 10 }]}>
                 <MultiSlider
                   values={[formData.matchRadius]}
                   min={1}
@@ -1229,12 +1236,12 @@ const CompleteProfile = () => {
                   step={1}
                   sliderLength={280}
                   onValuesChange={(values) => {
-                    update('matchRadius', values[0]);
+                    if (!formData.matchWithAll) update('matchRadius', values[0]);
                   }}
-                  selectedStyle={{ backgroundColor: '#6c5ce7' }}
+                  selectedStyle={{ backgroundColor: formData.matchWithAll ? '#9CA3AF' : '#6c5ce7' }}
                   unselectedStyle={{ backgroundColor: '#E5E7EB' }}
                   markerStyle={{
-                    backgroundColor: '#6c5ce7',
+                    backgroundColor: formData.matchWithAll ? '#9CA3AF' : '#6c5ce7',
                     height: 22,
                     width: 22,
                     borderRadius: 11,
@@ -1246,6 +1253,16 @@ const CompleteProfile = () => {
                   snapped
                 />
               </View>
+
+              <TouchableOpacity
+                style={styles.checkboxRow}
+                onPress={() => update('matchWithAll', !formData.matchWithAll)}
+              >
+                <View style={[styles.checkbox, formData.matchWithAll && styles.checkboxChecked]}>
+                  {formData.matchWithAll && <Text style={styles.checkmark}>✓</Text>}
+                </View>
+                <Text style={styles.checkboxLabel}>No distance limit</Text>
+              </TouchableOpacity>
 
               {error ? <Text style={styles.error}>{error}</Text> : null}
 
