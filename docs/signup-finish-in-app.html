@@ -29,9 +29,11 @@
 
     .done-logo {
       width: 70px;
-      height: 70px;
+      height: auto;
+      max-height: 70px;
       display: block;
       margin: 0 auto 14px;
+      object-fit: contain;
     }
 
     .done-title {
@@ -59,14 +61,34 @@
   <main class="done-shell">
     <section class="done-card">
       <img src="images/MatchMate_logo_thicker.png" alt="matchmate logo" class="done-logo">
-      <h1 class="done-title">Account Created</h1>
-      <p class="done-subtitle">You're all set. Finish setup in the MatchMate app.</p>
+      <h1 id="doneTitle" class="done-title">Account Created</h1>
+      <p id="doneSubtitle" class="done-subtitle">You're all set. Finish setup in the MatchMate app.</p>
       <div class="done-steps">
-        <p>1. Open the MatchMate app on your phone.</p>
-        <p>2. Log in with the email and password you just created.</p>
-        <p>3. Complete the rest of your profile in-app.</p>
+        <p id="doneStep1">1. Open the MatchMate app on your phone.</p>
+        <p id="doneStep2">2. Log in with the email and password you just created.</p>
+        <p id="doneStep3">3. Complete the rest of your profile in-app.</p>
       </div>
     </section>
   </main>
+  <script>
+    (function () {
+      var params = new URLSearchParams(window.location.search);
+      var flow = (params.get("flow") || "").trim().toLowerCase();
+      if (flow !== "existing") return;
+
+      var referrerFirstName = (params.get("referrer_first_name") || "").trim();
+      var referrerNameText = referrerFirstName || "your dater";
+
+      var doneTitle = document.getElementById("doneTitle");
+      var doneSubtitle = document.getElementById("doneSubtitle");
+      var doneStep2 = document.getElementById("doneStep2");
+      var doneStep3 = document.getElementById("doneStep3");
+
+      if (doneTitle) doneTitle.textContent = "Referral Code added";
+      if (doneSubtitle) doneSubtitle.textContent = "You're all set.";
+      if (doneStep2) doneStep2.textContent = "2. Login with the email that you just used.";
+      if (doneStep3) doneStep3.textContent = "3. Start Matchmaking for " + referrerNameText;
+    })();
+  </script>
 </body>
 </html>

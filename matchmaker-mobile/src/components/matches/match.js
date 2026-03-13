@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Alert, TouchableOpacity, Modal, Image } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -9,20 +9,70 @@ import ProfileCard from './profileCard';
 import { useProfiles } from './hooks/useProfiles';
 import { useUserInfo } from './hooks/useUserInfo';
 import { startLocationWatcher, stopLocationWatcher } from '../auth/utils/startLocationWatcher';
-import DaterDropdown from '../layout/daterDropdown';
-import MatcherHeader from '../layout/components/matcherHeader';
 import { getImageUrl } from '../profile/utils/profileUtils';
+import { getRoleAccentColor, getRoleBackgroundTint } from '../layout/components/RoleHeaderBanner';
+import { UserContext } from '../../context/UserContext';
 
 const Match = () => {
   const { profiles, setProfiles, loading } = useProfiles(API_BASE_URL);
   const { userInfo, setUserInfo } = useUserInfo(API_BASE_URL);
+  const { user: contextUser } = useContext(UserContext);
   const [refreshing, setRefreshing] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [showMatchModal, setShowMatchModal] = useState(false);
   const [matchModalData, setMatchModalData] = useState(null);
   const [referrer, setReferrer] = useState(null);
+  const [roleHint, setRoleHint] = useState(null);
   const navigation = useNavigation();
+  const selectedDaterId = userInfo?.referrer_id || userInfo?.referred_by_id || null;
+
+  useEffect(() => {
+    const loadRoleHint = async () => {
+      try {
+        const storedUser = await AsyncStorage.getItem('user');
+        if (!storedUser) return;
+        const parsedUser = JSON.parse(storedUser);
+        if (parsedUser?.role) {
+          setRoleHint(parsedUser.role);
+        }
+      } catch (err) {
+        console.error('Error loading role hint:', err);
+      }
+    };
+    loadRoleHint();
+  }, []);
+
+  useEffect(() => {
+    if (userInfo?.role) {
+      setRoleHint(userInfo.role);
+    }
+  }, [userInfo?.role]);
+
+  useEffect(() => {
+    if (!contextUser) {
+      return;
+    }
+
+    setUserInfo((prevUserInfo) => {
+      if (!prevUserInfo) {
+        return contextUser;
+      }
+
+      const sameUser = prevUserInfo.id === contextUser.id;
+      const sameSelectedDater =
+        prevUserInfo.referrer_id === contextUser.referrer_id &&
+        prevUserInfo.referred_by_id === contextUser.referred_by_id;
+      const sameLinkedDaters =
+        JSON.stringify(prevUserInfo.linked_daters || []) === JSON.stringify(contextUser.linked_daters || []);
+
+      if (sameUser && sameSelectedDater && sameLinkedDaters) {
+        return prevUserInfo;
+      }
+
+      return { ...prevUserInfo, ...contextUser };
+    });
+  }, [contextUser, setUserInfo]);
 
   const refreshUserInfo = async () => {
     try {
@@ -49,19 +99,6 @@ const Match = () => {
       setUserInfo(data.user);
     } catch (err) {
       console.error('Error refreshing user info:', err);
-    }
-  };
-
-  const handleDaterChange = async (daterId) => {
-    // Refresh userInfo to get updated referred_by_id, then refresh profiles
-    setRefreshing(true);
-    setCurrentIndex(0);
-    setProfiles([]);
-    try {
-      await refreshUserInfo();
-      await fetchProfiles();
-    } finally {
-      setRefreshing(false);
     }
   };
 
@@ -152,7 +189,7 @@ const Match = () => {
       fetchProfiles();
       setCurrentIndex(0); // Reset to first profile
     }
-  }, [userInfo?.referrer_id]);
+  }, [selectedDaterId]);
 
   // Refresh userInfo and profiles when page comes into focus to get latest selected dater
   useFocusEffect(
@@ -468,6 +505,10 @@ const Match = () => {
   const handleSendNote = async (note) => {
     try {
       const likedUser = profiles[currentIndex];
+      if (!likedUser) {
+        Alert.alert('Error', 'No profile selected');
+        return;
+      }
       const token = await AsyncStorage.getItem('token');
       if (!token) {
         Alert.alert('Error', 'Please log in');
@@ -475,7 +516,7 @@ const Match = () => {
         return;
       }
 
-      await fetch(`${API_BASE_URL}/match/send_note`, {
+      const res = await fetch(`${API_BASE_URL}/match/send_note`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -483,6 +524,28 @@ const Match = () => {
         },
         body: JSON.stringify({ recipient_id: likedUser.id, note })
       });
+
+      if (res.status === 401) {
+        const data = await res.json();
+        if (data.error_code === 'TOKEN_EXPIRED') {
+          await AsyncStorage.removeItem('token');
+          Alert.alert('Session expired', 'Please log in again.');
+          navigation.navigate('Login');
+          return;
+        }
+      }
+
+      if (!res.ok) {
+        let message = 'Failed to send note';
+        try {
+          const data = await res.json();
+          if (data?.message) message = data.message;
+        } catch (_) {
+          // Keep default message if response body isn't JSON
+        }
+        Alert.alert('Error', message);
+        return;
+      }
 
       setShowNoteModal(false);
       // Remove the user from profiles after sending note (note creates a pending match)
@@ -512,38 +575,42 @@ const Match = () => {
   };
 
   if (loading || refreshing) {
+    const loadingRole = userInfo?.role || roleHint || 'user';
+    const loadingColor = getRoleAccentColor(loadingRole);
+    const loadingBackgroundTint = getRoleBackgroundTint(loadingRole);
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#6c5ce7" />
+      <View style={[styles.loadingContainer, { backgroundColor: loadingBackgroundTint }]}>
+        <ActivityIndicator size="large" color={loadingColor} />
         <Text style={styles.loadingText}>Loading profiles...</Text>
       </View>
     );
   }
 
   const currentProfile = profiles.length > 0 && currentIndex < profiles.length ? profiles[currentIndex] : null;
+  const accentColor = getRoleAccentColor(userInfo?.role || 'matchmaker');
+  const backgroundTint = getRoleBackgroundTint(userInfo?.role || 'matchmaker');
+  const overlayTopPadding = userInfo?.role === 'matchmaker' ? 150 : 56;
+  const isProfilesEmptyState = !currentProfile;
 
   return (
-    <View style={styles.container}>
-      {userInfo?.role === 'matchmaker' && (
-        <MatcherHeader>
-          <DaterDropdown
-            userInfo={userInfo}
-            onDaterChange={handleDaterChange}
-          />
-        </MatcherHeader>
-      )}
+    <View style={[styles.container, { backgroundColor: backgroundTint, paddingTop: overlayTopPadding }]}>
       <ScrollView
         style={[
           styles.scrollView,
           userInfo?.role === 'matchmaker' && styles.scrollViewWithDropdown,
         ]}
-        contentContainerStyle={[styles.content, userInfo?.role === 'matchmaker' && styles.contentWithDropdown]}
+        contentContainerStyle={[
+          styles.content,
+          userInfo?.role === 'matchmaker' && styles.contentWithDropdown,
+          isProfilesEmptyState && styles.contentGrow,
+        ]}
       >
         {currentProfile ? (
           <>
             <ProfileCard
               profile={currentProfile}
               userInfo={userInfo}
+              preferredViewerUnit={userInfo?.role === 'matchmaker' ? referrer?.unit : undefined}
               onSkip={nextProfile}
             />
             {showNoteModal && (
@@ -554,8 +621,8 @@ const Match = () => {
             )}
           </>
         ) : (
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>No profiles to match with currently, come back later!</Text>
+          <View style={styles.loadingContainerInline}>
+            <Text style={styles.loadingText}>No profiles to match with currently, come back later!</Text>
           </View>
         )}
       </ScrollView>
@@ -582,14 +649,20 @@ const Match = () => {
           <View style={styles.centerButtonContainer}>
             {userInfo?.role === 'matchmaker' && currentProfile.liked_linked_dater ? (
               <View style={styles.actionItem}>
-                <TouchableOpacity style={[styles.actionButton, styles.likeActionButton]} onPress={handleBlindMatch}>
+                <TouchableOpacity
+                  style={[styles.actionButton, styles.likeActionButton, { backgroundColor: accentColor }]}
+                  onPress={handleBlindMatch}
+                >
                   <Ionicons name="heart" size={34} color="#ffffff" />
                 </TouchableOpacity>
                 <Text style={styles.actionLabel}>Like</Text>
               </View>
             ) : (
               <View style={styles.actionItem}>
-                <TouchableOpacity style={[styles.actionButton, styles.likeActionButton]} onPress={handleLike}>
+                <TouchableOpacity
+                  style={[styles.actionButton, styles.likeActionButton, { backgroundColor: accentColor }]}
+                  onPress={handleLike}
+                >
                   <Ionicons name="heart" size={34} color="#ffffff" />
                 </TouchableOpacity>
                 <Text style={styles.actionLabel}>Like</Text>
@@ -618,10 +691,10 @@ const Match = () => {
             {matchModalData?.imageUrl ? (
               <Image
                 source={{ uri: matchModalData.imageUrl }}
-                style={styles.matchModalImage}
+                style={[styles.matchModalImage, { borderColor: accentColor }]}
               />
             ) : (
-              <View style={styles.matchModalImagePlaceholder}>
+              <View style={[styles.matchModalImagePlaceholder, { borderColor: accentColor }]}>
                 <Ionicons name="person" size={48} color="#ccc" />
               </View>
             )}
@@ -634,7 +707,7 @@ const Match = () => {
                 : `You and ${matchModalData?.firstName} liked each other`}
             </Text>
             <TouchableOpacity
-              style={styles.matchModalButton}
+              style={[styles.matchModalButton, { backgroundColor: accentColor }]}
               onPress={() => {
                 setShowMatchModal(false);
                 navigation.navigate('MatchConvo', {
@@ -664,6 +737,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fafafa',
+    paddingTop: 24,
   },
   dropdownContainer: {
     position: 'absolute',
@@ -683,6 +757,9 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingBottom: 100, // Space for buttons at bottom
   },
+  contentGrow: {
+    flexGrow: 1,
+  },
   contentWithDropdown: {
     paddingTop: 4,
   },
@@ -696,6 +773,12 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontSize: 16,
     color: '#6b7280',
+  },
+  loadingContainerInline: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'transparent',
   },
   emptyContainer: {
     padding: 40,

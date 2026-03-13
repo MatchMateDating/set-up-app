@@ -4,13 +4,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import { API_BASE_URL } from '../../env';
-import { calculateAge, convertFtInToMetersCm, convertMetersCmToFtIn, formatHeight, getImageUrl } from './utils/profileUtils';
+import { calculateAge, convertFtInToMetersCm, convertMetersCmToFtIn, formatHeight, getImageUrl, convertHeightForViewer } from './utils/profileUtils';
 import ProfileInfoCard from './profileInfoCard';
 import PixelClouds from './components/PixelClouds';
 import PixelFlowers from './components/PixelFlowers';
 import PixelCactus from './components/PixelCactus';
 import { Ionicons } from '@expo/vector-icons';
 import { UserContext } from '../../context/UserContext';
+import { getRoleAccentColor } from '../layout/components/RoleHeaderBanner';
 const Profile = ({ user, framed, viewerUnit, editing, setEditing, onSave, onEditingFormData, parentScrollRef, onRequestCrop }) => {
   const { setUser } = useContext(UserContext);
   const [formData, setFormData] = useState({
@@ -286,27 +287,6 @@ const Profile = ({ user, framed, viewerUnit, editing, setEditing, onSave, onEdit
     }
   };
 
-  const formatHeightForViewer = (profile, unit) => {
-    if (!profile) return '—';
-
-    if (unit === 'imperial') {
-      const feet = profile.height_feet;
-      const inches = profile.height_inches;
-      if (feet == null && inches == null) return '—';
-      return `${feet || 0}' ${inches || 0}"`;
-    }
-
-    // metric
-    const meters = profile.height_meters;
-    const centimeters = profile.height_centimeters;
-    if (meters == null && centimeters == null) return '—';
-
-    const totalMeters =
-      Number(meters || 0) + Number(centimeters || 0) / 100;
-
-    return `${totalMeters.toFixed(2)} m`;
-  };
-
   const handleCancel = () => {
     setEditing(false);
   };
@@ -321,7 +301,13 @@ const Profile = ({ user, framed, viewerUnit, editing, setEditing, onSave, onEdit
   const shouldShowLocation = !editing && user.show_location && locationText;
   const initialLetter = (user.first_name || '?').charAt(0).toUpperCase();
   const displayGender = (user.gender || formData.gender || '').trim();
-  const displayHeight = (user.height || formatHeight(formData, heightUnit) || '').trim();
+  const displayHeight = (
+    convertHeightForViewer(user.height, user.unit, viewerUnit) ||
+    user.height ||
+    formatHeight(formData, heightUnit) ||
+    ''
+  ).trim();
+  const accentColor = getRoleAccentColor(user?.role || 'matchmaker');
 
   return (
     <>
@@ -376,8 +362,8 @@ const Profile = ({ user, framed, viewerUnit, editing, setEditing, onSave, onEdit
           </View>
           {!framed && !editing && (
             <View style={styles.profileActions}>
-              <TouchableOpacity onPress={() => setEditing(true)}>
-                <Ionicons name="create-outline" size={24} color="#6c5ce7" />
+              <TouchableOpacity style={styles.editIconButton} onPress={() => setEditing(true)}>
+                <Ionicons name="create-outline" size={24} color={accentColor} />
               </TouchableOpacity>
             </View>
           )}
@@ -424,11 +410,11 @@ const Profile = ({ user, framed, viewerUnit, editing, setEditing, onSave, onEdit
       {editing && user.role === 'user' && (
         <View style={styles.actionsOutsideCard}>
           <View style={styles.actions}>
-            <TouchableOpacity style={styles.saveBtn} onPress={handleFormSubmit}>
+            <TouchableOpacity style={[styles.saveBtn, { backgroundColor: accentColor }]} onPress={handleFormSubmit}>
               <Text style={styles.saveText}>Save</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.cancelBtn} onPress={handleCancel}>
-              <Text style={styles.cancelBtnText}>Cancel</Text>
+            <TouchableOpacity style={[styles.cancelBtn, { borderColor: accentColor }]} onPress={handleCancel}>
+              <Text style={[styles.cancelBtnText, { color: accentColor }]}>Cancel</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -536,6 +522,9 @@ const styles = StyleSheet.create({
   profileActions: {
     flexDirection: 'row',
     gap: 12,
+  },
+  editIconButton: {
+    transform: [{ translateX: -20 }],
   },
   actionsOutsideCard: {
     marginTop: 20,

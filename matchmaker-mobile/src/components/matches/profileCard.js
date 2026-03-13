@@ -9,10 +9,16 @@ import { UserContext } from '../../context/UserContext';
 const ProfileCard = ({
   profile,
   userInfo,
+  preferredViewerUnit,
   onSkip
 }) => {
   const { user } = useContext(UserContext);
-  const viewerUnit = user?.unit;
+  const viewerUnit = preferredViewerUnit || userInfo?.unit || user?.unit;
+  const hasMatchmakerMediation = Boolean(
+    profile?.matched_by_matcher ||
+    profile?.matched_by_matcher_user_1 ||
+    profile?.matched_by_matcher_user_2
+  );
 
   const canSkipProfile = ['matchmaker', 'user', 'dater'].includes(userInfo?.role);
 
@@ -26,7 +32,7 @@ const ProfileCard = ({
       {profile.note && (
         <View style={styles.noteBox}>
           <Text style={styles.noteLabel}>
-            {profile.matched_by_matcher ? 'Matchmaker Note: ' : 'Note: '}
+            {hasMatchmakerMediation ? 'Matchmaker Note: ' : 'Note: '}
           </Text>
           <Text style={styles.noteText}>{profile.note}</Text>
         </View>

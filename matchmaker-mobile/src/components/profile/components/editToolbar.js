@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useContext, useState } from 'react';
 import {
   View,
   StyleSheet,
@@ -10,8 +10,10 @@ import {
   StatusBar,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { UserContext } from '../../../context/UserContext';
+import { getRoleAccentColor } from '../../layout/components/RoleHeaderBanner';
 
-const Dropdown = ({ icon, value, options, onSelect }) => {
+const Dropdown = ({ icon, value, options, onSelect, accentColor }) => {
   const [visible, setVisible] = useState(false);
 
   return (
@@ -20,7 +22,7 @@ const Dropdown = ({ icon, value, options, onSelect }) => {
         style={styles.dropdownTrigger}
         onPress={() => setVisible(true)}
       >
-        <Ionicons name={icon} size={16} color="#6c5ce7" />
+        <Ionicons name={icon} size={16} color={accentColor} />
         <Text style={styles.dropdownText} numberOfLines={1}>
           {value}
         </Text>
@@ -52,8 +54,16 @@ const Dropdown = ({ icon, value, options, onSelect }) => {
   );
 };
 
-export const EditToolbar = ({ formData, handleInputChange, editing, extendToTop = false }) => {
+export const EditToolbar = ({
+  formData,
+  handleInputChange,
+  editing,
+  extendToTop = false,
+  accentColorOverride,
+}) => {
+  const { user } = useContext(UserContext);
   if (!editing) return null;
+  const accentColor = accentColorOverride || getRoleAccentColor(user?.role || 'matchmaker');
 
   const update = (name, value) => {
     handleInputChange({ target: { name, value } });
@@ -73,6 +83,7 @@ export const EditToolbar = ({ formData, handleInputChange, editing, extendToTop 
           <Dropdown
             icon="text"
             value={formData.fontFamily}
+            accentColor={accentColor}
             options={[
               { label: 'Arial', value: 'Arial' },
               { label: 'Times', value: 'Times New Roman' },
@@ -90,6 +101,7 @@ export const EditToolbar = ({ formData, handleInputChange, editing, extendToTop 
           <Dropdown
             icon="color-palette"
             value={formData.profileStyle}
+            accentColor={accentColor}
             options={[
               { label: 'Classic', value: 'classic' },
               { label: 'PixelCloud', value: 'pixelCloud' },
@@ -107,56 +119,56 @@ export const EditToolbar = ({ formData, handleInputChange, editing, extendToTop 
             <TouchableOpacity
               style={[
                 styles.layoutBtn,
-                formData.imageLayout === 'grid' && styles.layoutBtnActive,
+                formData.imageLayout === 'grid' && [styles.layoutBtnActive, { backgroundColor: accentColor }],
               ]}
               onPress={() => update('imageLayout', 'grid')}
             >
               <Ionicons
                 name="grid"
                 size={18}
-                color={formData.imageLayout === 'grid' ? '#FFF' : '#6c5ce7'}
+                color={formData.imageLayout === 'grid' ? '#FFF' : accentColor}
               />
             </TouchableOpacity>
 
             <TouchableOpacity
               style={[
                 styles.layoutBtn,
-                formData.imageLayout === 'vertical' && styles.layoutBtnActive,
+                formData.imageLayout === 'vertical' && [styles.layoutBtnActive, { backgroundColor: accentColor }],
               ]}
               onPress={() => update('imageLayout', 'vertical')}
             >
               <Ionicons
                 name="reorder-four"
                 size={18}
-                color={formData.imageLayout === 'vertical' ? '#FFF' : '#6c5ce7'}
+                color={formData.imageLayout === 'vertical' ? '#FFF' : accentColor}
               />
             </TouchableOpacity>
 
             <TouchableOpacity
               style={[
                 styles.layoutBtn,
-                formData.imageLayout === 'topRow' && styles.layoutBtnActive,
+                formData.imageLayout === 'topRow' && [styles.layoutBtnActive, { backgroundColor: accentColor }],
               ]}
               onPress={() => update('imageLayout', 'topRow')}
             >
               <Ionicons
                 name="images"
                 size={18}
-                color={formData.imageLayout === 'topRow' ? '#FFF' : '#6c5ce7'}
+                color={formData.imageLayout === 'topRow' ? '#FFF' : accentColor}
               />
             </TouchableOpacity>
 
             <TouchableOpacity
               style={[
                 styles.layoutBtn,
-                formData.imageLayout === 'heroStack' && styles.layoutBtnActive,
+                formData.imageLayout === 'heroStack' && [styles.layoutBtnActive, { backgroundColor: accentColor }],
               ]}
               onPress={() => update('imageLayout', 'heroStack')}
             >
               <Ionicons
                 name="image-outline"
                 size={18}
-                color={formData.imageLayout === 'heroStack' ? '#FFF' : '#6c5ce7'}
+                color={formData.imageLayout === 'heroStack' ? '#FFF' : accentColor}
               />
             </TouchableOpacity>
           </View>
@@ -168,14 +180,14 @@ export const EditToolbar = ({ formData, handleInputChange, editing, extendToTop 
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#ebe7fb',
+    backgroundColor: 'transparent',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
     paddingTop: 0,
     paddingBottom: 12,
     paddingHorizontal: 0,
     width: '100%',
-    opacity: 0.95,
+    opacity: 1,
   },
   containerExtendTop: {
     paddingTop: 8,

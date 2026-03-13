@@ -4,7 +4,14 @@ import { API_BASE_URL } from '../../env';
 import { Ionicons } from '@expo/vector-icons';
 import { getImageUrl } from './utils/profileUtils';
 
-const ImageGallery = ({ images = [], editing, onDeleteImage, onPlaceholderClick, layout = 'grid' }) => {
+const ImageGallery = ({
+  images = [],
+  editing,
+  onDeleteImage,
+  onPlaceholderClick,
+  layout = 'grid',
+  accentColor = '#6c5ce7',
+}) => {
   const maxImages = 9;
   const gridColumns = 3;
   const gridGap = 10;
@@ -141,8 +148,8 @@ const ImageGallery = ({ images = [], editing, onDeleteImage, onPlaceholderClick,
         </View>
         {editing && (
           <View pointerEvents="none" style={styles.scrollHint}>
-            <Text style={styles.scrollHintText}>scroll to add</Text>
-            <Ionicons name="arrow-forward" size={24} color="#6c5ce7" />
+            <Text style={[styles.scrollHintText, { color: accentColor }]}>scroll to add</Text>
+            <Ionicons name="arrow-forward" size={24} color={accentColor} />
           </View>
         )}
       </View>

@@ -36,6 +36,64 @@ export const formatHeight = (formData, heightUnit) => {
   return `${formData.heightMeters}m ${formData.heightCentimeters}cm`;
 };
 
+export const normalizeHeightUnit = (unit) => {
+  const normalized = (unit || '').toString().trim().toLowerCase();
+  if (normalized === 'imperial' || normalized === 'ft') return 'imperial';
+  if (normalized === 'metric' || normalized === 'm') return 'metric';
+  return null;
+};
+
+const parseHeightToCm = (heightString, sourceUnit) => {
+  if (!heightString) return null;
+  const text = heightString.toString().trim();
+  if (!text) return null;
+
+  const normalizedSourceUnit = normalizeHeightUnit(sourceUnit);
+
+  if (normalizedSourceUnit === 'imperial' || text.includes("'")) {
+    const imperialMatch = text.match(/(\d+)\s*'\s*(\d+)?\s*"?/);
+    if (!imperialMatch) return null;
+    const feet = Number(imperialMatch[1] || 0);
+    const inches = Number(imperialMatch[2] || 0);
+    return feet * 30.48 + inches * 2.54;
+  }
+
+  const metricCmMatch = text.match(/(\d+)\s*m\s*(\d+)?\s*cm?/i);
+  if (metricCmMatch) {
+    const meters = Number(metricCmMatch[1] || 0);
+    const centimeters = Number(metricCmMatch[2] || 0);
+    return meters * 100 + centimeters;
+  }
+
+  const metricDecimalMatch = text.match(/(\d+(?:\.\d+)?)\s*m/i);
+  if (metricDecimalMatch) {
+    return Number(metricDecimalMatch[1]) * 100;
+  }
+
+  return null;
+};
+
+export const convertHeightForViewer = (heightString, sourceUnit, viewerUnit) => {
+  const preferredUnit = normalizeHeightUnit(viewerUnit);
+  if (!heightString) return '';
+  if (!preferredUnit) return heightString;
+
+  const totalCm = parseHeightToCm(heightString, sourceUnit);
+  if (totalCm == null || Number.isNaN(totalCm)) return heightString;
+
+  if (preferredUnit === 'imperial') {
+    const totalInches = Math.round(totalCm / 2.54);
+    const feet = Math.floor(totalInches / 12);
+    const inches = totalInches % 12;
+    return `${feet}'${inches}"`;
+  }
+
+  const roundedCm = Math.round(totalCm);
+  const meters = Math.floor(roundedCm / 100);
+  const centimeters = roundedCm % 100;
+  return `${meters}m ${centimeters}cm`;
+};
+
 /**
  * Get the full image URL, handling both Cloudflare R2 full URLs and local relative paths
  * @param {string} imageUrl - The image URL from the database (can be full URL or relative path)

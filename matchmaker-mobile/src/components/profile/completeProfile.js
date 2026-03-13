@@ -256,25 +256,16 @@ const CompleteProfile = () => {
 
   useEffect(() => {
     getSignUpData();
-    setFormData(prev => {
-      const current = prev.matchRadius;
+  }, []);
 
-      if (heightUnit === 'm') {
-        // switched to metric → km
-        return { ...prev, matchRadius: milesToKm(current) };
-      } else {
-        // switched to imperial → mi
-        return { ...prev, matchRadius: kmToMiles(current) };
-      }
-    });
-    
+  useEffect(() => {
     // Cleanup timeout on unmount
     return () => {
       if (autoSaveFormData.current) {
         clearTimeout(autoSaveFormData.current);
       }
     };
-  }, [heightUnit]);
+  }, []);
 
   // Parse height from backend format (e.g., "5'10\"" or "1m 78cm") to formData format
   const parseHeight = React.useCallback((heightString, unit) => {
@@ -428,35 +419,49 @@ const CompleteProfile = () => {
 
   const handleUnitToggle = () => {
     if (heightUnit === 'ft') {
-      // ft → m (radius km → mi)
+      // ft (mi) -> m (km)
       const { meters, centimeters } = convertFtInToMetersCm(
         formData.heightFeet,
         formData.heightInches
       );
 
-      setFormData(prev => ({
-        ...prev,
+      const nextFormData = {
+        ...formData,
         heightMeters: meters,
         heightCentimeters: centimeters,
-        matchRadius: prev.matchWithAll ? 500 : kmToMiles(prev.matchRadius),
-      }));
+        matchRadius: formData.matchWithAll ? 500 : milesToKm(Number(formData.matchRadius)),
+      };
+
+      setFormData(nextFormData);
 
       setHeightUnit('m');
+
+      saveFormDataToBackend({
+        height: formatHeight(nextFormData, 'm'),
+        unit: 'metric',
+      });
     } else {
-      // m → ft (radius mi → km)
+      // m (km) -> ft (mi)
       const { feet, inches } = convertMetersCmToFtIn(
         formData.heightMeters,
         formData.heightCentimeters
       );
 
-      setFormData(prev => ({
-        ...prev,
+      const nextFormData = {
+        ...formData,
         heightFeet: feet,
         heightInches: inches,
-        matchRadius: prev.matchWithAll ? 500 : milesToKm(prev.matchRadius),
-      }));
+        matchRadius: formData.matchWithAll ? 500 : kmToMiles(Number(formData.matchRadius)),
+      };
+
+      setFormData(nextFormData);
 
       setHeightUnit('ft');
+
+      saveFormDataToBackend({
+        height: formatHeight(nextFormData, 'ft'),
+        unit: 'imperial',
+      });
     }
   };
 
@@ -815,7 +820,7 @@ const CompleteProfile = () => {
   return (
     <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={{ flex: 1 }}
+        style={styles.screen}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
         <View style={styles.fixedHeader}>
@@ -825,6 +830,7 @@ const CompleteProfile = () => {
               formData={formData}
               handleInputChange={handleInputChange}
               editing={true}
+              accentColorOverride="#ef4d73"
             />
           )}
         </View>
@@ -952,7 +958,7 @@ const CompleteProfile = () => {
                             new Date().setFullYear(new Date().getFullYear() - 100)
                           )}
                           todayBackgroundColor="#E9D8FD"
-                          selectedDayColor="#6c5ce7"
+                          selectedDayColor="#ef4d73"
                           selectedDayTextColor="#fff"
                           textStyle={{
                             color: '#111',
@@ -1000,6 +1006,7 @@ const CompleteProfile = () => {
               <SelectGender
                 selected={formData.gender}
                 onChange={(value) => update("gender", value)}
+                accentColor="#ef4d73"
               />
 
               <Text style={styles.label}>Height ({heightUnit})</Text>
@@ -1204,10 +1211,10 @@ const CompleteProfile = () => {
                     update('preferredAgeMin', values[0].toString());
                     update('preferredAgeMax', values[1].toString());
                   }}
-                  selectedStyle={{ backgroundColor: '#6c5ce7' }}
+                  selectedStyle={{ backgroundColor: '#ef4d73' }}
                   unselectedStyle={{ backgroundColor: '#E5E7EB' }}
                   markerStyle={{
-                    backgroundColor: '#6c5ce7',
+                    backgroundColor: '#ef4d73',
                     height: 22,
                     width: 22,
                     borderRadius: 11,
@@ -1223,6 +1230,7 @@ const CompleteProfile = () => {
               <MultiSelectGender
                 selected={formData.preferredGenders || []}
                 onChange={(v) => update("preferredGenders", v)}
+                accentColor="#ef4d73"
               />
 
               <Text style={styles.label}>
@@ -1238,10 +1246,10 @@ const CompleteProfile = () => {
                   onValuesChange={(values) => {
                     if (!formData.matchWithAll) update('matchRadius', values[0]);
                   }}
-                  selectedStyle={{ backgroundColor: formData.matchWithAll ? '#9CA3AF' : '#6c5ce7' }}
+                  selectedStyle={{ backgroundColor: '#ef4d73' }}
                   unselectedStyle={{ backgroundColor: '#E5E7EB' }}
                   markerStyle={{
-                    backgroundColor: formData.matchWithAll ? '#9CA3AF' : '#6c5ce7',
+                    backgroundColor: '#ef4d73',
                     height: 22,
                     width: 22,
                     borderRadius: 11,
@@ -1267,7 +1275,7 @@ const CompleteProfile = () => {
               {error ? <Text style={styles.error}>{error}</Text> : null}
 
               {loading ? (
-                <ActivityIndicator size="large" color="#6c5ce7" />
+                <ActivityIndicator size="large" color="#ef4d73" />
               ) : (
                 <View style={styles.rowBetween}>
                   <TouchableOpacity style={styles.secondaryBtn} onPress={() => {
@@ -1331,8 +1339,12 @@ const themeStyles = {
 };
 
 const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    backgroundColor: '#ffeef4',
+  },
   fixedHeader: {
-    backgroundColor: '#ebe7fb',
+    backgroundColor: '#ffe6ee',
     zIndex: 10,
   },
   container: {
@@ -1387,7 +1399,7 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
   },
   fieldActive: {
-    borderColor: '#6c5ce7',
+    borderColor: '#ef4d73',
   },
   modalCard: {
     backgroundColor: '#fff',
@@ -1438,7 +1450,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   confirmButton: {
-    backgroundColor: '#6c5ce7',
+    backgroundColor: '#ef4d73',
     paddingVertical: 10,
     paddingHorizontal: 20,
     borderRadius: 8,
@@ -1567,7 +1579,7 @@ const styles = StyleSheet.create({
   },
   toggle: {
     marginTop: 8,
-    color: '#6c5ce7',
+    color: '#ef4d73',
     fontWeight: '600',
     textAlign: 'right',
   },
@@ -1588,7 +1600,7 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
   },
   nextBtn: {
-    backgroundColor: '#6c5ce7',
+    backgroundColor: '#ef4d73',
     padding: 14,
     borderRadius: 10,
     marginTop: 20,
@@ -1602,11 +1614,11 @@ const styles = StyleSheet.create({
     padding: 14,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#6c5ce7',
+    borderColor: '#ef4d73',
     marginTop: 20,
   },
   skipBtnText: {
-    color: '#6c5ce7',
+    color: '#ef4d73',
     fontWeight: '700',
     textAlign: 'center',
   },
@@ -1614,11 +1626,11 @@ const styles = StyleSheet.create({
     padding: 14,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#6c5ce7',
+    borderColor: '#ef4d73',
     marginTop: 20,
   },
   secondaryBtnText: {
-    color: '#6c5ce7',
+    color: '#ef4d73',
     fontWeight: '700',
   },
   error: {
@@ -1636,13 +1648,13 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderWidth: 2,
-    borderColor: '#6c5ce7',
+    borderColor: '#ef4d73',
     borderRadius: 6,
     justifyContent: 'center',
     alignItems: 'center',
   },
   checkboxChecked: {
-    backgroundColor: '#6c5ce7',
+    backgroundColor: '#ef4d73',
   },
   checkmark: {
     color: '#fff',

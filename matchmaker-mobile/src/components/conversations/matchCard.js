@@ -5,12 +5,21 @@ import { API_BASE_URL } from '../../env';
 import { useNavigation } from '@react-navigation/native';
 import { getImageUrl } from '../profile/utils/profileUtils';
 
-const MatchCard = ({ matchObj, userInfo, unmatch, reveal, hide }) => {
+const MatchCard = ({ matchObj, userInfo, unmatch, reveal, hide, isApprovedMatch = false }) => {
   const navigation = useNavigation();
   const bothMm = !!matchObj.both_matchmakers_involved;
   const oneMm = !!matchObj.user_1_matchmaker_involved || !!matchObj.user_2_matchmaker_involved;
   const isBlind = matchObj.blind_match === 'Blind';
   const isPendingApproval = matchObj.status === 'pending_approval' || matchObj.message_count !== undefined;
+  const isApprovedByMatchmaker =
+    userInfo?.role === 'matchmaker' &&
+    (
+      isApprovedMatch ||
+      matchObj.status === 'matched' ||
+      !!matchObj.waiting_for_other_approval ||
+      !!matchObj.approved_by_other_matchmaker
+    );
+  const showUnmatchButton = !isApprovedByMatchmaker;
 
   const renderMatchmakerIcons = () => {
     if (bothMm) {
@@ -112,12 +121,14 @@ const MatchCard = ({ matchObj, userInfo, unmatch, reveal, hide }) => {
         </View>
 
         <View style={styles.cardActions}>
-          <TouchableOpacity
-            style={[styles.iconBtn, styles.unmatchBtn]}
-            onPress={() => unmatch(matchObj.match_id)}
-          >
-            <Ionicons name="close-circle" size={20} color="#e53e3e" />
-          </TouchableOpacity>
+          {showUnmatchButton && (
+            <TouchableOpacity
+              style={[styles.iconBtn, styles.unmatchBtn]}
+              onPress={() => unmatch(matchObj.match_id)}
+            >
+              <Ionicons name="close-circle" size={20} color="#e53e3e" />
+            </TouchableOpacity>
+          )}
 
           {userInfo?.role === 'matchmaker' && isBlind && (
             <TouchableOpacity

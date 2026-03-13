@@ -56,6 +56,12 @@ rmdir /s /q android
 npx eas build -p android --profile preview
 ```
 
+**Demo Build(Android):**
+```bash
+rmdir /s /q android
+npx eas build -p android --profile demo
+```
+
 **Clean Build:**
 ```bash
 npx expo prebuild --clean
