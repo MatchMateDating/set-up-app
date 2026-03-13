@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -10,8 +10,10 @@ import { useMatches } from './hooks/useMatches';
 import { useUserInfo } from './hooks/useUserInfo';
 import { useNotificationPolling } from './hooks/useNotificationPolling';
 import { getRoleAccentColor, getRoleBackgroundTint } from '../layout/components/RoleHeaderBanner';
+import { UserContext } from '../../context/UserContext';
 
 const Conversations = () => {
+  const { user: contextUser } = useContext(UserContext);
   const [showDaterMatches, setShowDaterMatches] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [roleHint, setRoleHint] = useState(null);
@@ -21,6 +23,7 @@ const Conversations = () => {
   const pendingApprovalList = Array.isArray(matches) ? [] : (matches?.pending_approval || []);
   const navigation = useNavigation();
   const [referrer, setReferrer] = useState(null);
+  const selectedDaterId = userInfo?.referrer_id || userInfo?.referred_by_id || null;
   
   // Initialize notification polling
   useNotificationPolling();
@@ -46,6 +49,31 @@ const Conversations = () => {
       setRoleHint(userInfo.role);
     }
   }, [userInfo?.role]);
+
+  useEffect(() => {
+    if (!contextUser) {
+      return;
+    }
+
+    setUserInfo((prevUserInfo) => {
+      if (!prevUserInfo) {
+        return contextUser;
+      }
+
+      const sameUser = prevUserInfo.id === contextUser.id;
+      const sameSelectedDater =
+        prevUserInfo.referrer_id === contextUser.referrer_id &&
+        prevUserInfo.referred_by_id === contextUser.referred_by_id;
+      const sameLinkedDaters =
+        JSON.stringify(prevUserInfo.linked_daters || []) === JSON.stringify(contextUser.linked_daters || []);
+
+      if (sameUser && sameSelectedDater && sameLinkedDaters) {
+        return prevUserInfo;
+      }
+
+      return { ...prevUserInfo, ...contextUser };
+    });
+  }, [contextUser, setUserInfo]);
 
   const loading = userLoading || matchesLoading || refreshing;
 
@@ -89,6 +117,21 @@ const Conversations = () => {
     fetchProfile();
     fetchMatches();
   }, []);
+
+  useEffect(() => {
+    if (!userInfo || userInfo.role !== 'matchmaker') {
+      return;
+    }
+
+    setRefreshing(true);
+    const timer = setTimeout(() => {
+      Promise.all([fetchProfile(), fetchMatches()]).finally(() => {
+        setRefreshing(false);
+      });
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, [selectedDaterId]);
 
   // Refresh profile and matches when page comes into focus
   useFocusEffect(

@@ -18,7 +18,7 @@ import { UserContext } from '../../context/UserContext';
 const ProfilePage = () => {
   const route = useRoute();
   const { userId, matchProfile } = route.params || {};
-  const { setIsProfileEditing } = useContext(UserContext);
+  const { user: contextUser, setIsProfileEditing } = useContext(UserContext);
   const [user, setUser] = useState(null);
   const [referrer, setReferrer] = useState(null);
   const [editing, setEditing] = useState(false);
@@ -34,6 +34,8 @@ const ProfilePage = () => {
   const [selectedImageUri, setSelectedImageUri] = useState(null);
   const cropCompleteRef = useRef(null);
   const [cropKey, setCropKey] = useState(0);
+  const selectedDaterId = user?.referrer_id || user?.referred_by_id || null;
+  const linkedDatersSignature = JSON.stringify(user?.linked_daters || []);
 
   const handleRequestCrop = useCallback((uri, onComplete) => {
     setSelectedImageUri(uri);
@@ -109,6 +111,31 @@ const ProfilePage = () => {
   }, []);
 
   useEffect(() => {
+    if (matchProfile || !contextUser) {
+      return;
+    }
+
+    setUser((prevUser) => {
+      if (!prevUser) {
+        return contextUser;
+      }
+
+      const sameUser = prevUser.id === contextUser.id;
+      const sameSelectedDater =
+        prevUser.referrer_id === contextUser.referrer_id &&
+        prevUser.referred_by_id === contextUser.referred_by_id;
+      const sameLinkedDaters =
+        JSON.stringify(prevUser.linked_daters || []) === JSON.stringify(contextUser.linked_daters || []);
+
+      if (sameUser && sameSelectedDater && sameLinkedDaters) {
+        return prevUser;
+      }
+
+      return { ...prevUser, ...contextUser };
+    });
+  }, [contextUser, matchProfile]);
+
+  useEffect(() => {
     const unsub = subscribeToLocationUpdated(() => {
       if (!matchProfile) fetchProfile();
     });
@@ -117,8 +144,8 @@ const ProfilePage = () => {
 
   useEffect(() => {
     if (user?.role === 'matchmaker') {
-      if (user.referred_by_id) {
-        fetchReferrer(user.referred_by_id);
+      if (selectedDaterId) {
+        fetchReferrer(selectedDaterId);
         // Mark as initialized once we have a referred_by_id
         // This prevents auto-setting first dater when switching daters
         if (!hasInitializedDater) {
@@ -130,10 +157,10 @@ const ProfilePage = () => {
         fetchLinkedDatersAndSetFirst();
       }
     }
-  }, [user?.referred_by_id, matchProfile, hasInitializedDater]);
+  }, [user?.id, user?.role, selectedDaterId, linkedDatersSignature, matchProfile, hasInitializedDater]);
 
   const fetchLinkedDatersAndSetFirst = async () => {
-    if (!user || user.role !== 'matchmaker' || user.referred_by_id) return;
+    if (!user || user.role !== 'matchmaker' || selectedDaterId) return;
     
     try {
       const token = await AsyncStorage.getItem('token');
@@ -172,6 +199,7 @@ const ProfilePage = () => {
         });
 
         if (setRes.ok) {
+          setHasInitializedDater(true);
           // Refresh profile to get updated user with referred_by_id
           await fetchProfile();
         }

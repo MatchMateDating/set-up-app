@@ -97,6 +97,8 @@ const EmailVerificationScreen = () => {
         startLocationWatcher(API_BASE_URL, res.data.token);
 
         const verificationType = verificationMethod === 'phone' ? 'Phone number' : 'Email';
+        const shouldPromptLinkedDater =
+          signupData?.role === 'matchmaker' && !String(signupData?.referral_code || '').trim();
         Alert.alert('Success', `${verificationType} verified successfully!`, [
           {
             text: 'OK',
@@ -105,6 +107,11 @@ const EmailVerificationScreen = () => {
               if (res.data.user.role === 'user') {
                 // User will go to CompleteProfile (step will be loaded from user data)
                 navigation.navigate('CompleteProfile');
+              } else if (shouldPromptLinkedDater) {
+                navigation.navigate('Main', {
+                  screen: 'Settings',
+                  params: { showLinkedDatersOnboarding: true },
+                });
               } else {
                 navigation.navigate('Main');
               }

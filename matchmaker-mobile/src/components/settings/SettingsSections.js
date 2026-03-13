@@ -18,7 +18,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import MultiSlider from '@ptomasroos/react-native-multi-slider';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { API_BASE_URL, FRONTEND_URL } from '../../env';
 import FormField from '../profile/components/formField';
 import MultiSelectGender from '../profile/components/multiSelectGender';
@@ -43,6 +43,7 @@ const getPasswordChecks = (value) => ({
 
 const SettingsSections = () => {
   const navigation = useNavigation();
+  const route = useRoute();
   const { setUser: setContextUser } = useContext(UserContext);
   const { notificationsEnabled, enableNotifications, disableNotifications, permissionStatus } = useNotifications();
 
@@ -59,6 +60,7 @@ const SettingsSections = () => {
   const [pendingEmail, setPendingEmail] = useState('');
   const [showEmailInviteModal, setShowEmailInviteModal] = useState(false);
   const [emailInviteInput, setEmailInviteInput] = useState('');
+  const [showLinkedDatersOnboarding, setShowLinkedDatersOnboarding] = useState(false);
 
   const [currentEmail, setCurrentEmail] = useState('');
   const [newEmail, setNewEmail] = useState('');
@@ -212,6 +214,21 @@ const SettingsSections = () => {
   useEffect(() => {
     fetchUserProfile();
   }, []);
+
+  useEffect(() => {
+    const shouldShowFromRoute = Boolean(route.params?.showLinkedDatersOnboarding);
+    if (!shouldShowFromRoute || role !== 'matchmaker') {
+      return;
+    }
+
+    setActiveSection(null);
+    setShowLinkedDatersOnboarding(true);
+  }, [route.params?.showLinkedDatersOnboarding, role]);
+
+  const dismissLinkedDatersOnboarding = () => {
+    setShowLinkedDatersOnboarding(false);
+    navigation.setParams({ showLinkedDatersOnboarding: false });
+  };
 
   const handleSaveEmail = async () => {
     try {
@@ -893,22 +910,45 @@ const SettingsSections = () => {
   const renderSectionList = () => (
     <View>
       <View style={styles.titleSpacer} />
-      {sectionItems.map((section) => (
-        <TouchableOpacity
-          key={section.key}
-          style={styles.sectionButton}
-          onPress={() => setActiveSection(section.key)}
-        >
-          <View style={styles.sectionLeft}>
-            <Ionicons name={section.icon} size={20} color={accentColor} />
-            <View style={styles.sectionTextWrap}>
-              <Text style={styles.sectionText}>{section.label}</Text>
-              <Text style={styles.sectionDescription}>{section.description}</Text>
-            </View>
+      {sectionItems.map((section) => {
+        const isLinkedDatersSection = section.key === SECTION_KEYS.REFERRAL && role === 'matchmaker';
+        const shouldHighlightLinkedDaters = isLinkedDatersSection && showLinkedDatersOnboarding;
+
+        return (
+          <View key={section.key} style={styles.sectionItemWrap}>
+            <TouchableOpacity
+              style={[
+                styles.sectionButton,
+                shouldHighlightLinkedDaters && styles.sectionButtonHighlighted,
+              ]}
+              onPress={() => setActiveSection(section.key)}
+            >
+              <View style={styles.sectionLeft}>
+                <Ionicons name={section.icon} size={20} color={accentColor} />
+                <View style={styles.sectionTextWrap}>
+                  <Text style={styles.sectionText}>{section.label}</Text>
+                  <Text style={styles.sectionDescription}>{section.description}</Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward-outline" size={20} color="#9CA3AF" />
+            </TouchableOpacity>
+            {shouldHighlightLinkedDaters ? (
+              <View style={styles.linkedDatersHintBox}>
+                <Text style={styles.linkedDatersHintText}>
+                  add a linked dater to start matchmaking
+                </Text>
+                <TouchableOpacity
+                  onPress={dismissLinkedDatersOnboarding}
+                  style={styles.linkedDatersHintClose}
+                  hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                >
+                  <Ionicons name="close" size={18} color="#6c5ce7" />
+                </TouchableOpacity>
+              </View>
+            ) : null}
           </View>
-          <Ionicons name="chevron-forward-outline" size={20} color="#9CA3AF" />
-        </TouchableOpacity>
-      ))}
+        );
+      })}
 
       <TouchableOpacity style={styles.signOutBtn} onPress={handleSignOut}>
         <Text style={styles.signOutBtnText}>Sign Out</Text>
@@ -1578,7 +1618,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 12,
     padding: 16,
-    marginBottom: 12,
+    marginBottom: 0,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -1587,6 +1627,16 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 4,
     elevation: 2,
+  },
+  sectionItemWrap: {
+    marginBottom: 12,
+  },
+  sectionButtonHighlighted: {
+    borderWidth: 2,
+    borderColor: '#6c5ce7',
+    shadowColor: '#6c5ce7',
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
   },
   sectionLeft: {
     flexDirection: 'row',
@@ -1607,6 +1657,27 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#6B7280',
     fontWeight: '500',
+  },
+  linkedDatersHintBox: {
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: '#D8B4FE',
+    backgroundColor: '#F3E8FF',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  linkedDatersHintText: {
+    flex: 1,
+    color: '#5B21B6',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  linkedDatersHintClose: {
+    marginLeft: 10,
+    padding: 2,
   },
   card: {
     backgroundColor: '#fff',

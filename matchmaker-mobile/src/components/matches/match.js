@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Alert, TouchableOpacity, Modal, Image } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -11,10 +11,12 @@ import { useUserInfo } from './hooks/useUserInfo';
 import { startLocationWatcher, stopLocationWatcher } from '../auth/utils/startLocationWatcher';
 import { getImageUrl } from '../profile/utils/profileUtils';
 import { getRoleAccentColor, getRoleBackgroundTint } from '../layout/components/RoleHeaderBanner';
+import { UserContext } from '../../context/UserContext';
 
 const Match = () => {
   const { profiles, setProfiles, loading } = useProfiles(API_BASE_URL);
   const { userInfo, setUserInfo } = useUserInfo(API_BASE_URL);
+  const { user: contextUser } = useContext(UserContext);
   const [refreshing, setRefreshing] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showNoteModal, setShowNoteModal] = useState(false);
@@ -23,6 +25,7 @@ const Match = () => {
   const [referrer, setReferrer] = useState(null);
   const [roleHint, setRoleHint] = useState(null);
   const navigation = useNavigation();
+  const selectedDaterId = userInfo?.referrer_id || userInfo?.referred_by_id || null;
 
   useEffect(() => {
     const loadRoleHint = async () => {
@@ -45,6 +48,31 @@ const Match = () => {
       setRoleHint(userInfo.role);
     }
   }, [userInfo?.role]);
+
+  useEffect(() => {
+    if (!contextUser) {
+      return;
+    }
+
+    setUserInfo((prevUserInfo) => {
+      if (!prevUserInfo) {
+        return contextUser;
+      }
+
+      const sameUser = prevUserInfo.id === contextUser.id;
+      const sameSelectedDater =
+        prevUserInfo.referrer_id === contextUser.referrer_id &&
+        prevUserInfo.referred_by_id === contextUser.referred_by_id;
+      const sameLinkedDaters =
+        JSON.stringify(prevUserInfo.linked_daters || []) === JSON.stringify(contextUser.linked_daters || []);
+
+      if (sameUser && sameSelectedDater && sameLinkedDaters) {
+        return prevUserInfo;
+      }
+
+      return { ...prevUserInfo, ...contextUser };
+    });
+  }, [contextUser, setUserInfo]);
 
   const refreshUserInfo = async () => {
     try {
@@ -161,7 +189,7 @@ const Match = () => {
       fetchProfiles();
       setCurrentIndex(0); // Reset to first profile
     }
-  }, [userInfo?.referrer_id]);
+  }, [selectedDaterId]);
 
   // Refresh userInfo and profiles when page comes into focus to get latest selected dater
   useFocusEffect(

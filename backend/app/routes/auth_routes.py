@@ -184,16 +184,15 @@ def register():
         # For test emails, create user immediately without verification
         print(f"TEST MODE: Auto-creating account for test email: {email}")
         
-        # Handle referral code for matchmakers
+        # Handle referral code for matchmakers (optional).
         referred_by = None
         if role == 'matchmaker':
-            referral_code = data.get('referral_code')
-            if not referral_code:
-                return jsonify({'msg': 'Referral code required for matchmaker'}), 400
-            referrer = User.query.filter_by(referral_code=referral_code).first()
-            if not referrer:
-                return jsonify({'msg': 'Invalid referral code'}), 400
-            referred_by = referrer.id
+            referral_code = (data.get('referral_code') or '').strip()
+            if referral_code:
+                referrer = User.query.filter_by(referral_code=referral_code).first()
+                if not referrer:
+                    return jsonify({'msg': 'Invalid referral code'}), 400
+                referred_by = referrer.id
 
         # Create the user immediately
         user = User(
@@ -409,17 +408,15 @@ def verify_email():
         if existing_user:
             return jsonify({'msg': 'Phone number already registered'}), 400
 
-    # Handle referral code for matchmakers
+    # Handle referral code for matchmakers (optional).
     referred_by = None
     if role == 'matchmaker':
-        if not referral_code:
-            return jsonify({'msg': 'Referral code required for matchmaker'}), 400
-
-        referrer = User.query.filter_by(referral_code=referral_code).first()
-        if not referrer:
-            return jsonify({'msg': 'Invalid referral code'}), 400
-
-        referred_by = referrer.id
+        normalized_referral_code = (referral_code or '').strip()
+        if normalized_referral_code:
+            referrer = User.query.filter_by(referral_code=normalized_referral_code).first()
+            if not referrer:
+                return jsonify({'msg': 'Invalid referral code'}), 400
+            referred_by = referrer.id
 
     # Create the user now that verification is successful
     user = User(
