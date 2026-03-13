@@ -6,9 +6,16 @@ const FormField = ({ label, value, editing, input }) => {
   
   return (
     <View style={styles.profileField}>
-      <Text style={styles.label}>
-        {label}: {editing ? input : <Text style={styles.profileValue}>{value}</Text>}
-      </Text>
+      {editing ? (
+        <>
+          <Text style={styles.label}>{label}</Text>
+          <View style={styles.inputContainer}>{input}</View>
+        </>
+      ) : (
+        <Text style={styles.label}>
+          {label}: <Text style={styles.profileValue}>{value}</Text>
+        </Text>
+      )}
     </View>
   );
 };
@@ -27,6 +34,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#6b7280',
     fontWeight: '400',
+  },
+  inputContainer: {
+    width: '100%',
   },
 });
 

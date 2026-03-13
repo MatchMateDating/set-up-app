@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -18,7 +18,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import MultiSlider from '@ptomasroos/react-native-multi-slider';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import { API_BASE_URL, FRONTEND_URL } from '../../env';
 import FormField from '../profile/components/formField';
 import MultiSelectGender from '../profile/components/multiSelectGender';
@@ -141,7 +141,7 @@ const SettingsSections = () => {
     return base;
   }, [role]);
 
-  const fetchUserProfile = async () => {
+  const fetchUserProfile = useCallback(async () => {
     try {
       const token = await AsyncStorage.getItem('token');
       if (!token) {
@@ -212,11 +212,17 @@ const SettingsSections = () => {
       console.error(err);
       Alert.alert('Error', 'Failed to load settings');
     }
-  };
+  }, [navigation, setContextUser]);
 
   useEffect(() => {
     fetchUserProfile();
-  }, []);
+  }, [fetchUserProfile]);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchUserProfile();
+    }, [fetchUserProfile])
+  );
 
   useEffect(() => {
     const shouldShowFromRoute = Boolean(route.params?.showLinkedDatersOnboarding);
