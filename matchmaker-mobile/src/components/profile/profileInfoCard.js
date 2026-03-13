@@ -383,7 +383,6 @@ const ProfileInfoCard = ({
             <>
               {Boolean((formData.bio || '').trim()) && (
                 <>
-                  <Text style={styles.label}>About Me</Text>
                   <Text style={[styles.previewText, { fontFamily: formData.profileStyle === 'constitution' ? 'Pinyon Script' : formData.fontFamily }]}>
                     {formData.bio.trim()}
                   </Text>
