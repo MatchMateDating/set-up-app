@@ -9,10 +9,11 @@ import { UserContext } from '../../context/UserContext';
 const ProfileCard = ({
   profile,
   userInfo,
+  preferredViewerUnit,
   onSkip
 }) => {
   const { user } = useContext(UserContext);
-  const viewerUnit = user?.unit;
+  const viewerUnit = preferredViewerUnit || userInfo?.unit || user?.unit;
   const hasMatchmakerMediation = Boolean(
     profile?.matched_by_matcher ||
     profile?.matched_by_matcher_user_1 ||

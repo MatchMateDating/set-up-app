@@ -582,6 +582,7 @@ const Match = () => {
             <ProfileCard
               profile={currentProfile}
               userInfo={userInfo}
+              preferredViewerUnit={userInfo?.role === 'matchmaker' ? referrer?.unit : undefined}
               onSkip={nextProfile}
             />
             {showNoteModal && (

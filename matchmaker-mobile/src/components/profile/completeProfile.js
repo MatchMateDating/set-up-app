@@ -256,25 +256,16 @@ const CompleteProfile = () => {
 
   useEffect(() => {
     getSignUpData();
-    setFormData(prev => {
-      const current = prev.matchRadius;
+  }, []);
 
-      if (heightUnit === 'm') {
-        // switched to metric → km
-        return { ...prev, matchRadius: milesToKm(current) };
-      } else {
-        // switched to imperial → mi
-        return { ...prev, matchRadius: kmToMiles(current) };
-      }
-    });
-    
+  useEffect(() => {
     // Cleanup timeout on unmount
     return () => {
       if (autoSaveFormData.current) {
         clearTimeout(autoSaveFormData.current);
       }
     };
-  }, [heightUnit]);
+  }, []);
 
   // Parse height from backend format (e.g., "5'10\"" or "1m 78cm") to formData format
   const parseHeight = React.useCallback((heightString, unit) => {
@@ -428,35 +419,49 @@ const CompleteProfile = () => {
 
   const handleUnitToggle = () => {
     if (heightUnit === 'ft') {
-      // ft → m (radius km → mi)
+      // ft (mi) -> m (km)
       const { meters, centimeters } = convertFtInToMetersCm(
         formData.heightFeet,
         formData.heightInches
       );
 
-      setFormData(prev => ({
-        ...prev,
+      const nextFormData = {
+        ...formData,
         heightMeters: meters,
         heightCentimeters: centimeters,
-        matchRadius: prev.matchWithAll ? 500 : kmToMiles(prev.matchRadius),
-      }));
+        matchRadius: milesToKm(Number(formData.matchRadius)),
+      };
+
+      setFormData(nextFormData);
 
       setHeightUnit('m');
+
+      saveFormDataToBackend({
+        height: formatHeight(nextFormData, 'm'),
+        unit: 'metric',
+      });
     } else {
-      // m → ft (radius mi → km)
+      // m (km) -> ft (mi)
       const { feet, inches } = convertMetersCmToFtIn(
         formData.heightMeters,
         formData.heightCentimeters
       );
 
-      setFormData(prev => ({
-        ...prev,
+      const nextFormData = {
+        ...formData,
         heightFeet: feet,
         heightInches: inches,
-        matchRadius: prev.matchWithAll ? 500 : milesToKm(prev.matchRadius),
-      }));
+        matchRadius: kmToMiles(Number(formData.matchRadius)),
+      };
+
+      setFormData(nextFormData);
 
       setHeightUnit('ft');
+
+      saveFormDataToBackend({
+        height: formatHeight(nextFormData, 'ft'),
+        unit: 'imperial',
+      });
     }
   };
 
