@@ -86,13 +86,14 @@ const SettingsSections = () => {
     preferredAgeMax: '60',
     preferredGenders: [],
     matchRadius: 50,
+    matchWithAll: false,
     fontFamily: 'Arial',
     profileStyle: 'classic',
   });
 
   const radiusUnit = user?.unit === 'imperial' ? 'mi' : 'km';
   const radiusMax = radiusUnit === 'km' ? 800 : 500;
-  const displayRadius = formData.matchRadius;
+  const displayRadius = formData.matchWithAll ? '500+' : formData.matchRadius;
   const passwordChecks = getPasswordChecks(newPassword);
   const isPasswordStrong = Object.values(passwordChecks).every(Boolean);
   const overlayTopPadding = role === 'matchmaker' ? 120 : 56;
@@ -180,14 +181,16 @@ const SettingsSections = () => {
       setReferralCode(data.user.role === 'user' ? data.user?.referral_code || '' : '');
 
       const radiusMiles = data.user.match_radius ?? 50;
-      const radiusInUserUnit =
-        data.user?.unit === 'metric' ? Math.round(radiusMiles * 1.60934) : radiusMiles;
+      const matchWithAll = radiusMiles >= 9999;
+      const radiusInUserUnit = matchWithAll ? 500 :
+        (data.user?.unit === 'metric' ? Math.round(radiusMiles * 1.60934) : radiusMiles);
 
       setFormData({
         preferredAgeMin: data.user.preferredAgeMin || '18',
         preferredAgeMax: data.user.preferredAgeMax || '60',
         preferredGenders: data.user.preferredGenders || [],
         matchRadius: radiusInUserUnit,
+        matchWithAll,
         fontFamily: data.user.fontFamily || 'Arial',
         profileStyle: data.user.profileStyle || 'classic',
       });
@@ -788,10 +791,10 @@ const SettingsSections = () => {
         return;
       }
 
-      const radiusMiles =
-        user?.unit === 'metric'
+      const radiusMiles = formData.matchWithAll ? 9999 :
+        (user?.unit === 'metric'
           ? Math.round(Number(formData.matchRadius) / 1.60934)
-          : Number(formData.matchRadius);
+          : Number(formData.matchRadius));
 
       const payload = {
         preferredAgeMin: Number(formData.preferredAgeMin),
@@ -1321,22 +1324,43 @@ const SettingsSections = () => {
           editingPreferences ? `Match Radius (${displayRadius} ${radiusUnit})` : `Match Radius (${radiusUnit})`
         }
         editing={editingPreferences}
-        value={String(formData.matchRadius)}
+        value={ formData.matchWithAll ? '500+' : String(formData.matchRadius)}
         input={
           editingPreferences ? (
             <View style={styles.sliderContainer}>
-              <MultiSlider
-                values={[formData.matchRadius]}
-                min={1}
-                max={radiusMax}
-                step={1}
-                sliderLength={280}
-                onValuesChange={(values) => handleInputChangeWrapper('matchRadius', values[0])}
-                selectedStyle={{ backgroundColor: accentColor }}
-                unselectedStyle={{ backgroundColor: '#E5E7EB' }}
-                markerStyle={[styles.sliderMarker, { backgroundColor: accentColor }]}
-                trackStyle={styles.sliderTrack}
-              />
+              <View style={[formData.matchWithAll && { opacity: 0.5 }, { alignItems: 'center', marginTop: 10 }]}>
+                <MultiSlider
+                  values={[formData.matchRadius]}
+                  min={1}
+                  max={radiusMax}
+                  step={1}
+                  sliderLength={280}
+                  onValuesChange={(values) => {
+                    if (!formData.matchWithAll) {
+                      handleInputChangeWrapper('matchRadius', values[0]);
+                    }
+                  }}
+                  selectedStyle={{ backgroundColor: accentColor }}
+                  unselectedStyle={{ backgroundColor: '#E5E7EB' }}
+                  markerStyle={[styles.sliderMarker, { backgroundColor: accentColor }]}
+                  trackStyle={styles.sliderTrack}
+                />
+              </View>
+              <TouchableOpacity
+                style={styles.checkboxRow}
+                onPress={() =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    matchWithAll: !prev.matchWithAll,
+                    matchRadius: !prev.matchWithAll ? 500 : 50,
+                  }))
+                }
+              >
+                <View style={[styles.checkbox, formData.matchWithAll && styles.checkboxChecked]}>
+                  {formData.matchWithAll && <Text style={styles.checkmark}>✓</Text>}
+                </View>
+                <Text style={styles.checkboxLabel}>No distance limit</Text>
+              </TouchableOpacity>
             </View>
           ) : null
         }
@@ -1969,6 +1993,34 @@ const styles = StyleSheet.create({
   sliderTrack: {
     height: 6,
     borderRadius: 3,
+  },
+  checkboxRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 16,
+    gap: 10,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderWidth: 2,
+    borderColor: '#6c5ce7',
+    borderRadius: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checkboxChecked: {
+    backgroundColor: '#6c5ce7',
+  },
+  checkmark: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  checkboxLabel: {
+    flex: 1,
+    fontSize: 14,
+    color: '#333',
   },
   formActions: {
     flexDirection: 'row',

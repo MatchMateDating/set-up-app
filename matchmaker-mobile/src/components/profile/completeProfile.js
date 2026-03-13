@@ -429,7 +429,7 @@ const CompleteProfile = () => {
         ...formData,
         heightMeters: meters,
         heightCentimeters: centimeters,
-        matchRadius: milesToKm(Number(formData.matchRadius)),
+        matchRadius: formData.matchWithAll ? 500 : milesToKm(Number(formData.matchRadius)),
       };
 
       setFormData(nextFormData);
@@ -451,7 +451,7 @@ const CompleteProfile = () => {
         ...formData,
         heightFeet: feet,
         heightInches: inches,
-        matchRadius: kmToMiles(Number(formData.matchRadius)),
+        matchRadius: formData.matchWithAll ? 500 : kmToMiles(Number(formData.matchRadius)),
       };
 
       setFormData(nextFormData);
