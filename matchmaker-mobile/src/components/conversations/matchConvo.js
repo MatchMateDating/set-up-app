@@ -349,6 +349,9 @@ const MatchConvo = () => {
   const canSendMore = messageCount < 10;
   const waitingForOtherApproval = matchInfo?.waiting_for_other_approval || false;
   const approvedByOtherMatchmaker = matchInfo?.approved_by_other_matchmaker || false;
+  const hasBlindValueFromMatchInfo = typeof matchInfo?.blind_match === 'string';
+  const isBlindFromMatchInfo = hasBlindValueFromMatchInfo && matchInfo?.blind_match === 'Blind';
+  const effectiveIsBlind = hasBlindValueFromMatchInfo ? isBlindFromMatchInfo : !!isBlind;
   const accentColor = getRoleAccentColor(userInfo?.role || 'matchmaker');
 
   // Matchmakers see this when both are involved and one approval is still outstanding.
@@ -611,7 +614,7 @@ const MatchConvo = () => {
         {matchUser && (
           <TouchableOpacity
             style={styles.matchAvatarSection}
-            disabled={isBlind && userInfo?.role !== 'matchmaker'}
+            disabled={effectiveIsBlind && userInfo?.role !== 'matchmaker'}
             activeOpacity={0.7}
             onPress={() => navigation.navigate('ProfilePage', { userId: matchUser.id, matchProfile: true })}
           >
@@ -619,7 +622,7 @@ const MatchConvo = () => {
               <Image
                 source={{ uri: getImageUrl(matchUser.first_image, API_BASE_URL) }}
                 style={[styles.matchAvatarImg, { borderColor: accentColor }]}
-                blurRadius={isBlind && userInfo?.role !== 'matchmaker' ? 40 : 0}
+                blurRadius={effectiveIsBlind && userInfo?.role !== 'matchmaker' ? 40 : 0}
               />
             ) : (
               <View style={[styles.matchPlaceholder, { backgroundColor: accentColor }]}>

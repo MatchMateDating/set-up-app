@@ -724,7 +724,8 @@ const Match = () => {
                 setShowMatchModal(false);
                 navigation.navigate('MatchConvo', {
                   matchId: matchModalData?.matchId,
-                  isBlind: matchModalData?.isPendingApproval ? true : false,
+                  // Pending approval can come from "send note" and should not imply blind.
+                  isBlind: false,
                 });
               }}
             >
