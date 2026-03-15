@@ -17,6 +17,8 @@ import {
   Keyboard,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useKeyboardHandler } from 'react-native-keyboard-controller';
+import Animated, { useSharedValue, useAnimatedStyle } from 'react-native-reanimated';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { API_BASE_URL } from '../../env';
@@ -26,6 +28,7 @@ import { Ionicons } from '@expo/vector-icons';
 import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 import { getImageUrl } from '../profile/utils/profileUtils';
 import { getRoleAccentColor } from '../layout/components/RoleHeaderBanner';
+import { runOnJS } from 'react-native-reanimated';
 
 function formatMessageTimestamp(isoString) {
   if (!isoString) return '';
@@ -49,6 +52,7 @@ function formatMessageTimestamp(isoString) {
 const MatchConvo = () => {
   const route = useRoute();
   const navigation = useNavigation();
+  const containerRef = useRef(null);
   const { matchId, isBlind } = route.params || {};
   const { userInfo } = useUserInfo(API_BASE_URL);
   const [messages, setMessages] = useState([]);
@@ -63,10 +67,9 @@ const MatchConvo = () => {
   const [puzzleSheetOpen, setPuzzleSheetOpen] = useState(false);
   const [matchInfo, setMatchInfo] = useState(null);
   const [menuVisible, setMenuVisible] = useState(false);
-  const insets = useSafeAreaInsets();
-  const [hasOpenedKeyboard, setHasOpenedKeyboard] = useState(false);
-  const [androidBottomInset, setAndroidBottomInset] = useState(insets.bottom);
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+  const insets = useSafeAreaInsets();
+  const keyboardHeightAnim = useSharedValue(0);
 
   const scrollViewRef = useRef(null);
 
@@ -166,35 +169,42 @@ const MatchConvo = () => {
   }, [matchId]);
 
   useEffect(() => {
-    const showSub = Keyboard.addListener('keyboardDidShow', () => {
-      setHasOpenedKeyboard(true);
-      setIsKeyboardVisible(true);
-      scrollViewRef.current?.scrollToEnd({ animated: true });
-    });
-    const hideSub = Keyboard.addListener('keyboardDidHide', () => {
-      setIsKeyboardVisible(false);
-      scrollViewRef.current?.scrollToEnd({ animated: true });
-    });
-  
+      if (!loading) {
+        requestAnimationFrame(() => {
+          scrollViewRef.current?.scrollToEnd({ animated: false });
+        });
+      }
+  }, [loading, messages, selectedPuzzleLink]);
+
+  const scrollToEnd = () => {
+    setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 50);
+  };
+
+  useKeyboardHandler({
+    onMove: (e) => {
+      'worklet';
+      keyboardHeightAnim.value = e.height;
+    },
+    onEnd: (e) => {
+      'worklet';
+      keyboardHeightAnim.value = e.height;
+      runOnJS(scrollToEnd)();
+    },
+  }, []);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener('keyboardDidShow', () => setIsKeyboardVisible(true));
+    const hideSub = Keyboard.addListener('keyboardDidHide', () => setIsKeyboardVisible(false));
+
     return () => {
       showSub.remove();
       hideSub.remove();
     };
   }, []);
 
-  useEffect(() => {
-    if (Platform.OS !== 'android') return;
-    if (hasOpenedKeyboard) return;
-    setAndroidBottomInset(insets.bottom);
-  }, [insets.bottom, hasOpenedKeyboard]);
-
-  useEffect(() => {
-  if (!loading) {
-    requestAnimationFrame(() => {
-      scrollViewRef.current?.scrollToEnd({ animated: false });
-    });
-  }
-}, [loading, messages, selectedPuzzleLink]);
+  const animatedStyle = useAnimatedStyle(() => ({
+    marginBottom: Platform.OS === 'android' ? keyboardHeightAnim.value : 0,
+  }));
 
   const sendMessage = async () => {
     if (!newMessageText.trim() && !selectedPuzzleLink) return;
@@ -357,11 +367,10 @@ const MatchConvo = () => {
     showSpeakingWithMatchmakerForMatchmaker || showSpeakingWithMatchmakerForDater;
   // Show "(approved by other matchmaker)" when the other matchmaker has approved but we haven't
   const showApprovedByOther = isPendingApproval && userInfo?.role === 'matchmaker' && approvedByOtherMatchmaker;
+  // REPLACE WITH:
   const androidActionsBottomPadding =
-    Platform.OS === 'android'
-      ? (isKeyboardVisible ? 16 : 16 + androidBottomInset)
-      : 16;
-  const androidSheetBottomPadding = Platform.OS === 'android' ? 16 + androidBottomInset : 16;
+    Platform.OS === 'android' ? (isKeyboardVisible ? 8 : 16 + insets.bottom) : 16;
+  const androidSheetBottomPadding = 16 + insets.bottom;
 
   if (loading) {
     return (
@@ -558,10 +567,10 @@ const MatchConvo = () => {
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      enabled={Platform.OS === 'ios' || (Platform.OS === 'android' && isKeyboardVisible)}
-    >
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+      <Animated.View style={[{ flex: 1 }, animatedStyle]}>
       <View style={styles.header}>
         <View style={styles.headerTopRow}>
           <TouchableOpacity style={styles.backButton} onPress={() => navigation.navigate('Main', { screen: 'Conversations' })}>
@@ -746,6 +755,7 @@ const MatchConvo = () => {
           <Text style={[styles.sendPuzzleButtonText, { color: accentColor }]}>Puzzle</Text>
         </TouchableOpacity>
       </View>
+      </Animated.View>
 
       <Modal visible={puzzleSheetOpen} transparent animationType="slide" onRequestClose={() => setPuzzleSheetOpen(false)}>
         <Pressable style={styles.overlay} onPress={() => setPuzzleSheetOpen(false)} />
