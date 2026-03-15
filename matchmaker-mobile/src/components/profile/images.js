@@ -61,11 +61,9 @@ const ImageGallery = ({
             ? styles.topRowImageWrapper
             : isHeroStack
               ? [
-                styles.heroImageWrapper,
-                index === 0
-                  ? [styles.heroMainWrapper, heroMainSizeStyle]
-                  : heroThumbSizeStyle,
-              ]
+                  styles.heroImageWrapper,
+                  index === 0 ? [styles.heroMainWrapper, heroMainSizeStyle] : heroThumbSizeStyle,
+                ]
               : styles.listWrapper,
         topRowItemSizeStyle,
       ]}
@@ -159,14 +157,14 @@ const ImageGallery = ({
         onLayout={
           isHeroStack || isGrid
             ? (event) => {
-              const nextWidth = Math.floor(event.nativeEvent.layout.width);
-              if (isGrid && nextWidth > 0 && nextWidth !== gridViewportWidth) {
-                setGridViewportWidth(nextWidth);
+                const nextWidth = Math.floor(event.nativeEvent.layout.width);
+                if (isGrid && nextWidth > 0 && nextWidth !== gridViewportWidth) {
+                  setGridViewportWidth(nextWidth);
+                }
+                if (isHeroStack && nextWidth > 0 && nextWidth !== heroStackViewportWidth) {
+                  setHeroStackViewportWidth(nextWidth);
+                }
               }
-              if (isHeroStack && nextWidth > 0 && nextWidth !== heroStackViewportWidth) {
-                setHeroStackViewportWidth(nextWidth);
-              }
-            }
             : undefined
         }
       >
