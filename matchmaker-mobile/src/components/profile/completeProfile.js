@@ -67,6 +67,7 @@ const CompleteProfile = () => {
   const [tempBirthdate, setTempBirthdate] = useState(null);
   const [cropModalVisible, setCropModalVisible] = useState(false);
   const [selectedImageUri, setSelectedImageUri] = useState(null);
+  const [pendingCropUris, setPendingCropUris] = useState([]); // queue of URIs to crop (multi-select order)
   const [cropKey, setCropKey] = useState(0);
   const radiusUnit = heightUnit === 'ft' ? 'mi' : 'km';
   const milesToKm = (mi) => Math.round(mi * 1.60934);
@@ -760,13 +761,16 @@ const CompleteProfile = () => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: false,
+      allowsMultipleSelection: true,
       quality: 1,
     });
 
-    if (!result.canceled && result.assets[0]) {
-      setSelectedImageUri(result.assets[0].uri);
+    if (!result.canceled && result.assets?.length) {
+      const uris = result.assets.map((a) => a.uri);
+      setPendingCropUris(uris);
+      setSelectedImageUri(uris[0]);
       setCropModalVisible(true);
-      setCropKey(prev => prev + 1);
+      setCropKey((prev) => prev + 1);
     }
   };
 
@@ -811,6 +815,19 @@ const CompleteProfile = () => {
 
       const newImage = await response.json();
       setImages((prevImages) => [...prevImages, newImage]);
+
+      // Advance to next image in queue, or close modal
+      setPendingCropUris((prev) => {
+        const next = prev.slice(1);
+        if (next.length === 0) {
+          setCropModalVisible(false);
+          setSelectedImageUri(null);
+          return [];
+        }
+        setSelectedImageUri(next[0]);
+        setCropKey((k) => k + 1);
+        return next;
+      });
     } catch (err) {
       console.error(err);
       Alert.alert('Error', 'Failed to upload image');
@@ -1298,14 +1315,11 @@ const CompleteProfile = () => {
         key={cropKey}
         visible={cropModalVisible}
         imageUri={selectedImageUri}
-        onCropComplete={(croppedImage) => {
-          setCropModalVisible(false);
-          setSelectedImageUri(null);
-          handleCropComplete(croppedImage);
-        }}
+        onCropComplete={handleCropComplete}
         onCancel={() => {
           setCropModalVisible(false);
           setSelectedImageUri(null);
+          setPendingCropUris([]);
         }}
       />
     </KeyboardAvoidingView>

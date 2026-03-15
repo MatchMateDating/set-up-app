@@ -114,13 +114,13 @@ const Profile = ({ user, framed, viewerUnit, editing, setEditing, onSave, onEdit
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: false,
+      allowsMultipleSelection: true,
       quality: 1,
     });
 
-    if (!result.canceled && result.assets[0]) {
-      if (onRequestCrop) {
-        onRequestCrop(result.assets[0].uri, handleCropComplete);
-      }
+    if (!result.canceled && result.assets?.length && onRequestCrop) {
+      const uris = result.assets.map((a) => a.uri);
+      onRequestCrop(uris, handleCropComplete);
     }
   };
 

@@ -32,15 +32,19 @@ const ProfilePage = () => {
   const scrollViewRef = useRef(null);
   const [cropModalVisible, setCropModalVisible] = useState(false);
   const [selectedImageUri, setSelectedImageUri] = useState(null);
+  const [pendingCropUris, setPendingCropUris] = useState([]);
   const cropCompleteRef = useRef(null);
   const [cropKey, setCropKey] = useState(0);
   const selectedDaterId = user?.referrer_id || user?.referred_by_id || null;
   const linkedDatersSignature = JSON.stringify(user?.linked_daters || []);
 
-  const handleRequestCrop = useCallback((uri, onComplete) => {
-    setSelectedImageUri(uri);
+  const handleRequestCrop = useCallback((uris, onComplete) => {
+    const list = Array.isArray(uris) ? uris : [uris];
+    if (!list.length) return;
+    setPendingCropUris(list);
+    setSelectedImageUri(list[0]);
     setCropModalVisible(true);
-    setCropKey(prev => prev + 1);
+    setCropKey((prev) => prev + 1);
     cropCompleteRef.current = onComplete;
   }, []);
 
@@ -359,16 +363,26 @@ const ProfilePage = () => {
         visible={cropModalVisible}
         imageUri={selectedImageUri}
         onCropComplete={(croppedImage) => {
-          setCropModalVisible(false);
-          setSelectedImageUri(null);
           if (cropCompleteRef.current) {
             cropCompleteRef.current(croppedImage);
-            cropCompleteRef.current = null;
           }
+          setPendingCropUris((prev) => {
+            const next = prev.slice(1);
+            if (next.length === 0) {
+              setCropModalVisible(false);
+              setSelectedImageUri(null);
+              cropCompleteRef.current = null;
+              return [];
+            }
+            setSelectedImageUri(next[0]);
+            setCropKey((k) => k + 1);
+            return next;
+          });
         }}
         onCancel={() => {
           setCropModalVisible(false);
           setSelectedImageUri(null);
+          setPendingCropUris([]);
           cropCompleteRef.current = null;
         }}
       />
