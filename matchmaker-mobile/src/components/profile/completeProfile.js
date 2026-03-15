@@ -1157,6 +1157,8 @@ const CompleteProfile = () => {
               <Profile
                 user={{
                   ...formData,
+                  city: user?.city ?? '',
+                  state: user?.state ?? '',
                   images: images,
                   height: setUserHeight(),
                   role: 'user'

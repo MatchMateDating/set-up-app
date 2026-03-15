@@ -30,6 +30,7 @@ const ProfilePage = () => {
   const [hasInitializedDater, setHasInitializedDater] = useState(false);
   const navigation = useNavigation();
   const scrollViewRef = useRef(null);
+  const parentScrollOffsetYRef = useRef(0);
   const [cropModalVisible, setCropModalVisible] = useState(false);
   const [selectedImageUri, setSelectedImageUri] = useState(null);
   const [pendingCropUris, setPendingCropUris] = useState([]);
@@ -310,7 +311,14 @@ const ProfilePage = () => {
         />
       )}
 
-      <ScrollView ref={scrollViewRef} contentContainerStyle={styles.content}>
+      <ScrollView
+        ref={scrollViewRef}
+        contentContainerStyle={styles.content}
+        scrollEventThrottle={16}
+        onScroll={(event) => {
+          parentScrollOffsetYRef.current = event.nativeEvent.contentOffset.y;
+        }}
+      >
         {user.role === 'user' && (
           <Profile
             user={user}
@@ -320,6 +328,7 @@ const ProfilePage = () => {
             onSave={handleSave}
             onEditingFormData={handleEditingFormData}
             parentScrollRef={scrollViewRef}
+            parentScrollOffsetYRef={parentScrollOffsetYRef}
             onRequestCrop={handleRequestCrop}
           />
         )}
