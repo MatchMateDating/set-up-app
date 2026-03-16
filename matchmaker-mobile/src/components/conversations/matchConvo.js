@@ -68,6 +68,7 @@ const MatchConvo = () => {
   const [matchInfo, setMatchInfo] = useState(null);
   const [menuVisible, setMenuVisible] = useState(false);
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+  const [approvedByMeLocally, setApprovedByMeLocally] = useState(false);
   const insets = useSafeAreaInsets();
   const keyboardHeightAnim = useSharedValue(0);
 
@@ -313,6 +314,7 @@ const MatchConvo = () => {
 
       if (res.ok) {
         const data = await res.json();
+        setApprovedByMeLocally(true);
         if (data.waiting_for_other) {
           Alert.alert('Success', 'Your approval has been recorded. Waiting for the other matchmaker to approve.');
         } else {
@@ -370,6 +372,20 @@ const MatchConvo = () => {
     showSpeakingWithMatchmakerForMatchmaker || showSpeakingWithMatchmakerForDater;
   // Show "(approved by other matchmaker)" when the other matchmaker has approved but we haven't
   const showApprovedByOther = isPendingApproval && userInfo?.role === 'matchmaker' && approvedByOtherMatchmaker;
+  const hasLeftPendingApproval = !!matchInfo?.status && matchInfo.status !== 'pending_approval';
+  const isApprovedByMatchmaker =
+    userInfo?.role === 'matchmaker' &&
+    (
+      hasLeftPendingApproval ||
+      matchInfo?.status === 'matched' ||
+      waitingForOtherApproval ||
+      approvedByMeLocally
+    );
+  const showHeaderUnmatchAction =
+    userInfo?.role === 'matchmaker' &&
+    isPendingApproval &&
+    !isApprovedByMatchmaker;
+  const showHeaderBlindToggle = userInfo?.role === 'matchmaker' && !!matchInfo;
   // REPLACE WITH:
   const androidActionsBottomPadding =
     Platform.OS === 'android' ? (isKeyboardVisible ? 8 : 16 + insets.bottom) : 16;
@@ -513,6 +529,21 @@ const MatchConvo = () => {
     await handleBlock();
   };
 
+  const handleRevealFromMenu = async () => {
+    setMenuVisible(false);
+    await handleReveal();
+  };
+
+  const handleHideFromMenu = async () => {
+    setMenuVisible(false);
+    await handleHide();
+  };
+
+  const handleUnmatchConfirmFromMenu = async () => {
+    setMenuVisible(false);
+    await handleUnmatch();
+  };
+
   const handleUnmatch = async () => {
     try {
       const token = await AsyncStorage.getItem('token');
@@ -568,6 +599,82 @@ const MatchConvo = () => {
     }
   };
 
+  const handleReveal = async () => {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) {
+        Alert.alert('Error', 'Please log in');
+        navigation.navigate('Login');
+        return;
+      }
+
+      const res = await fetch(`${API_BASE_URL}/match/reveal/${matchId}`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (res.status === 401) {
+        const data = await res.json();
+        if (data.error_code === 'TOKEN_EXPIRED') {
+          await AsyncStorage.removeItem('token');
+          Alert.alert('Session expired', 'Please log in again.');
+          navigation.navigate('Login');
+          return;
+        }
+      }
+
+      if (!res.ok) {
+        const data = await res.json();
+        Alert.alert('Error', data.message || 'Failed to reveal match');
+        return;
+      }
+
+      setMatchInfo((prev) => (prev ? { ...prev, blind_match: 'Revealed' } : prev));
+      Alert.alert('Success', 'Match revealed');
+    } catch (err) {
+      console.error('Error revealing match:', err);
+      Alert.alert('Error', 'Something went wrong revealing the match');
+    }
+  };
+
+  const handleHide = async () => {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) {
+        Alert.alert('Error', 'Please log in');
+        navigation.navigate('Login');
+        return;
+      }
+
+      const res = await fetch(`${API_BASE_URL}/match/hide/${matchId}`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (res.status === 401) {
+        const data = await res.json();
+        if (data.error_code === 'TOKEN_EXPIRED') {
+          await AsyncStorage.removeItem('token');
+          Alert.alert('Session expired', 'Please log in again.');
+          navigation.navigate('Login');
+          return;
+        }
+      }
+
+      if (!res.ok) {
+        const data = await res.json();
+        Alert.alert('Error', data.message || 'Failed to hide match');
+        return;
+      }
+
+      setMatchInfo((prev) => (prev ? { ...prev, blind_match: 'Blind' } : prev));
+      Alert.alert('Success', 'Match hidden');
+    } catch (err) {
+      console.error('Error hiding match:', err);
+      Alert.alert('Error', 'Something went wrong hiding the match');
+    }
+  };
+
   return (
     <KeyboardAvoidingView
         style={styles.container}
@@ -581,15 +688,9 @@ const MatchConvo = () => {
             <Text style={[styles.backButtonText, { color: accentColor }]}>Back</Text>
           </TouchableOpacity>
 
-          {userInfo?.role === 'matchmaker' && isPendingApproval && (
+          {userInfo?.role === 'matchmaker' && (
             <View style={styles.headerActions}>
-              <TouchableOpacity
-                style={[styles.headerUnmatchButton, { borderColor: accentColor }]}
-                onPress={handleUnmatch}
-              >
-                <Text style={[styles.headerUnmatchButtonText, { color: accentColor }]}>Unmatch</Text>
-              </TouchableOpacity>
-              {!waitingForOtherApproval && (
+              {isPendingApproval && !waitingForOtherApproval && (
                 <TouchableOpacity
                   style={[styles.headerApproveButton, { backgroundColor: accentColor }]}
                   onPress={handleApprove}
@@ -597,6 +698,12 @@ const MatchConvo = () => {
                   <Text style={styles.headerApproveButtonText}>Approve</Text>
                 </TouchableOpacity>
               )}
+              <TouchableOpacity
+                style={styles.menuButton}
+                onPress={() => setMenuVisible(true)}
+              >
+                <Ionicons name="ellipsis-vertical" size={24} color={accentColor} />
+              </TouchableOpacity>
             </View>
           )}
           {userInfo?.role === 'user' && (
@@ -788,23 +895,39 @@ const MatchConvo = () => {
         </View>
       </Modal>
 
-      {/* Menu Modal for daters */}
-      {userInfo?.role === 'user' && (
+      {/* Overflow menu modal */}
+      {(userInfo?.role === 'user' || userInfo?.role === 'matchmaker') && (
         <Modal visible={menuVisible} transparent animationType="fade" onRequestClose={() => setMenuVisible(false)}>
           <Pressable style={styles.menuOverlay} onPress={() => setMenuVisible(false)}>
             <View style={styles.menuContainer}>
-              <TouchableOpacity
-                style={styles.menuItem}
-                onPress={handleUnmatchFromMenu}
-              >
-                <Ionicons name="close-circle" size={20} color="#e53e3e" />
-                <Text style={styles.menuItemText}>Unmatch</Text>
-              </TouchableOpacity>
+              {userInfo?.role === 'matchmaker' && showHeaderBlindToggle && (
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={effectiveIsBlind ? handleRevealFromMenu : handleHideFromMenu}
+                >
+                  <Text style={styles.menuItemText}>{effectiveIsBlind ? 'Reveal' : 'Hide'}</Text>
+                </TouchableOpacity>
+              )}
+              {userInfo?.role === 'matchmaker' && showHeaderUnmatchAction && (
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={handleUnmatchConfirmFromMenu}
+                >
+                  <Text style={[styles.menuItemText, styles.menuItemTextDanger]}>Unmatch</Text>
+                </TouchableOpacity>
+              )}
+              {userInfo?.role === 'user' && (
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={handleUnmatchFromMenu}
+                >
+                  <Text style={[styles.menuItemText, styles.menuItemTextDanger]}>Unmatch</Text>
+                </TouchableOpacity>
+              )}
               <TouchableOpacity
                 style={[styles.menuItem, styles.menuItemLast]}
                 onPress={handleBlockFromMenu}
               >
-                <Ionicons name="ban-outline" size={20} color="#e53e3e" />
                 <Text style={[styles.menuItemText, styles.menuItemTextDanger]}>Block</Text>
               </TouchableOpacity>
             </View>
@@ -822,18 +945,6 @@ const styles = StyleSheet.create({
   backButton: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   backButtonText: { color: '#6c5ce7', fontSize: 16, fontWeight: '600' },
   headerActions: { flexDirection: 'row', gap: 8, alignItems: 'center' },
-  headerUnmatchButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#6c5ce7',
-  },
-  headerUnmatchButtonText: {
-    color: '#6c5ce7',
-    fontSize: 14,
-    fontWeight: '600',
-  },
   headerApproveButton: {
     paddingHorizontal: 12,
     paddingVertical: 6,

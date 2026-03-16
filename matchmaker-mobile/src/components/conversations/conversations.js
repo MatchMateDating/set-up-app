@@ -381,9 +381,6 @@ const Conversations = () => {
         {/* Pending Approval Section - for matchmakers */}
         {userInfo?.role === 'matchmaker' && showDaterMatches && (
           <View style={[styles.sectionContainer, isPendingEmptyState && styles.sectionContainerFill]}>
-            {!isPendingEmptyState && (
-              <Text style={[styles.sectionTitle, { color: accentColor }]}>Pending</Text>
-            )}
             <View style={[styles.matchList, isPendingEmptyState && styles.matchListFill]}>
               {filteredMatches.pending_approval.length > 0 ? (
                 filteredMatches.pending_approval.map((matchObj, index) => (
@@ -391,11 +388,6 @@ const Conversations = () => {
                     key={`pending-${index}`}
                     matchObj={matchObj}
                     userInfo={userInfo}
-                    navigation={navigation}
-                    unmatch={handleUnmatch}
-                    reveal={reveal}
-                    hide={hide}
-                    isApprovedMatch={false}
                   />
                 ))
               ) : (
@@ -410,7 +402,6 @@ const Conversations = () => {
         {/* Approved/Matched Section - for matchmakers */}
         {userInfo?.role === 'matchmaker' && !showDaterMatches && (
           <View style={styles.sectionContainer}>
-            <Text style={[styles.sectionTitle, { color: accentColor }]}>Approved</Text>
             <View style={styles.matchList}>
               {filteredMatches.matched.length > 0 ? (
                 filteredMatches.matched.map((matchObj, index) => (
@@ -418,11 +409,6 @@ const Conversations = () => {
                     key={`matched-${index}`}
                     matchObj={matchObj}
                     userInfo={userInfo}
-                    navigation={navigation}
-                    unmatch={handleUnmatch}
-                    reveal={reveal}
-                    hide={hide}
-                    isApprovedMatch={true}
                   />
                 ))
               ) : (
@@ -444,11 +430,6 @@ const Conversations = () => {
                     key={`matched-${index}`}
                     matchObj={matchObj}
                     userInfo={userInfo}
-                    navigation={navigation}
-                    unmatch={handleUnmatch}
-                    reveal={reveal}
-                    hide={hide}
-                    isApprovedMatch={false}
                   />
                 ))
               ) : (

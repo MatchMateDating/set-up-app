@@ -1,34 +1,35 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { API_BASE_URL } from '../../env';
 import { useNavigation } from '@react-navigation/native';
 import { getImageUrl } from '../profile/utils/profileUtils';
 
-const MatchCard = ({ matchObj, userInfo, unmatch, reveal, hide, isApprovedMatch = false }) => {
+const MatchCard = ({ matchObj, userInfo }) => {
   const navigation = useNavigation();
-  const bothMm = !!matchObj.both_matchmakers_involved;
+  const isDater = userInfo?.role === 'user';
+  const roleBadgeBackground = isDater ? '#fde7f3' : '#efe8ff';
+  const roleBadgeText = isDater ? '#b83280' : '#5b3fa3';
+  const bothMm = !!(
+    matchObj.both_matchmakers_involved ||
+    (matchObj.user_1_matchmaker_involved && matchObj.user_2_matchmaker_involved)
+  );
   const oneMm = !!matchObj.user_1_matchmaker_involved || !!matchObj.user_2_matchmaker_involved;
   const isBlind = matchObj.blind_match === 'Blind';
   const isPendingApproval = matchObj.status === 'pending_approval' || matchObj.message_count !== undefined;
-  const isApprovedByMatchmaker =
-    userInfo?.role === 'matchmaker' &&
-    (
-      isApprovedMatch ||
-      matchObj.status === 'matched' ||
-      !!matchObj.waiting_for_other_approval ||
-      !!matchObj.approved_by_other_matchmaker
-    );
-  const showUnmatchButton = !isApprovedByMatchmaker;
+  const isWaitingForOtherApproval = !!matchObj.waiting_for_other_approval;
+  const showBothMmsPill = bothMm;
+  const showMmLikedYouPill =
+    userInfo?.role === 'user' &&
+    !showBothMmsPill &&
+    oneMm &&
+    !matchObj.linked_dater;
 
-  const renderMatchmakerIcons = () => {
-    if (bothMm) {
-      return <Ionicons name="people" size={16} color="#9f7aea" />;
+  const getPendingBannerText = () => {
+    if (!isPendingApproval) return '';
+    if (userInfo?.role === 'matchmaker') {
+      return isWaitingForOtherApproval ? 'Awaiting approval' : 'Approval needed';
     }
-    if (oneMm) {
-      return <Ionicons name="person" size={16} color="#5a67d8" />;
-    }
-    return null;
+    return 'Awaiting approval';
   };
 
   const renderOverlappedImages = () => {
@@ -95,59 +96,47 @@ const MatchCard = ({ matchObj, userInfo, unmatch, reveal, hide, isApprovedMatch 
           )
         }
 
-        {/* Purple matchmaker banner for pending approval matches between 2 matchmakers */}
-        {isPendingApproval && matchObj.both_matchmakers_involved && (
-          <View style={styles.matchmakerBanner}>
-            <Text style={styles.matchmakerBannerText}>matchmaker</Text>
+        {/* Pending-approval banner */}
+        {isPendingApproval && (
+          <View style={[styles.pendingBanner, { backgroundColor: roleBadgeBackground }]}>
+            <Text
+              style={[styles.pendingBannerText, { color: roleBadgeText }]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.8}
+            >
+              {getPendingBannerText()}
+            </Text>
           </View>
         )}
 
         <View style={styles.matchInfo}>
           <View style={styles.nameRow}>
             <Text style={styles.matchName}>{matchObj.match_user.first_name}</Text>
-            {isPendingApproval && (
-              matchObj.waiting_for_other_approval ? (
-                <Ionicons name="hourglass-outline" size={18} color="#6c5ce7" style={styles.clockIcon} />
-              ) : (
-                <Ionicons name="time-outline" size={18} color="#f59e0b" style={styles.clockIcon} />
-              )
-            )}
           </View>
-          {userInfo?.role === 'user' && (
-            <View style={styles.matchIcons}>
-              {renderMatchmakerIcons()}
+          {(isBlind || userInfo?.role === 'user' || showBothMmsPill) && (
+            <View style={styles.pillsRow}>
+              {isBlind && (
+                <View style={[styles.blindMatchPill, { backgroundColor: roleBadgeBackground }]}>
+                  <Text style={[styles.blindMatchPillText, { color: roleBadgeText }]}>Blind match</Text>
+                </View>
+              )}
+              {showBothMmsPill && (
+                <View style={[styles.bothMmsPill, { backgroundColor: roleBadgeBackground }]}>
+                  <Text style={[styles.bothMmsPillText, { color: roleBadgeText }]}>Both MMs</Text>
+                </View>
+              )}
+              {userInfo?.role === 'user' && (
+                showMmLikedYouPill ? (
+                  <View style={[styles.mmLikedYouPill, { backgroundColor: roleBadgeBackground }]}>
+                    <Text style={[styles.mmLikedYouPillText, { color: roleBadgeText }]}>MM liked you</Text>
+                  </View>
+                ) : null
+              )}
             </View>
           )}
         </View>
 
-        <View style={styles.cardActions}>
-          {showUnmatchButton && (
-            <TouchableOpacity
-              style={[styles.iconBtn, styles.unmatchBtn]}
-              onPress={() => unmatch(matchObj.match_id)}
-            >
-              <Ionicons name="close-circle" size={20} color="#e53e3e" />
-            </TouchableOpacity>
-          )}
-
-          {userInfo?.role === 'matchmaker' && isBlind && (
-            <TouchableOpacity
-              style={[styles.iconBtn, styles.revealBtn]}
-              onPress={() => reveal(matchObj.match_id)}
-            >
-              <Ionicons name="eye" size={20} color="#38a169" />
-            </TouchableOpacity>
-          )}
-
-          {userInfo?.role === 'matchmaker' && !isBlind && (
-            <TouchableOpacity
-              style={[styles.iconBtn, styles.hideBtn]}
-              onPress={() => hide(matchObj.match_id)}
-            >
-              <Ionicons name="eye-off" size={20} color="#718096" />
-            </TouchableOpacity>
-          )}
-        </View>
       </View>
     </TouchableOpacity>
   );
@@ -236,31 +225,42 @@ const styles = StyleSheet.create({
     color: '#333',
     marginBottom: 4,
   },
-  clockIcon: {
-    marginBottom: 4,
-  },
-  matchIcons: {
+  pillsRow: {
+    marginTop: 2,
     flexDirection: 'row',
     gap: 6,
+    alignItems: 'center',
     justifyContent: 'center',
+    flexWrap: 'wrap',
   },
-  cardActions: {
-    flexDirection: 'row',
-    gap: 6,
-    marginTop: 8,
+  blindMatchPill: {
+    backgroundColor: '#f2f2f2',
+    borderRadius: 12,
+    paddingVertical: 3,
+    paddingHorizontal: 8,
   },
-  iconBtn: {
-    borderRadius: 8,
-    padding: 4,
+  blindMatchPillText: {
+    fontSize: 11,
+    fontWeight: '600',
   },
-  unmatchBtn: {
-    // Styles handled by icon color
+  mmLikedYouPill: {
+    backgroundColor: '#ece8ff',
+    borderRadius: 12,
+    paddingVertical: 3,
+    paddingHorizontal: 8,
   },
-  revealBtn: {
-    // Styles handled by icon color
+  mmLikedYouPillText: {
+    fontSize: 11,
+    fontWeight: '600',
   },
-  hideBtn: {
-    // Styles handled by icon color
+  bothMmsPill: {
+    borderRadius: 12,
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+  },
+  bothMmsPillText: {
+    fontSize: 11,
+    fontWeight: '600',
   },
   linkedSection: {
     marginTop: 10,
@@ -277,20 +277,22 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#eee',
   },
-  matchmakerBanner: {
-    backgroundColor: '#6c5ce7',
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderRadius: 8,
+  pendingBanner: {
+    backgroundColor: '#efe5d3',
+    width: '100%',
+    paddingVertical: 6,
+    paddingHorizontal: 6,
+    borderRadius: 0,
     marginTop: 8,
+    flexDirection: 'row',
+    gap: 4,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  matchmakerBannerText: {
-    color: '#fff',
-    fontSize: 12,
+  pendingBannerText: {
+    fontSize: 11,
     fontWeight: '600',
-    textTransform: 'lowercase',
+    flexShrink: 1,
   },
 });
 
