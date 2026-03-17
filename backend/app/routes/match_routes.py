@@ -3,6 +3,7 @@ from app.models.userDB import User
 from app.models.matchDB import Match
 from app.models.conversationDB import Conversation
 from app.models.messageDB import Message
+from app.models.conversationReadStateDB import ConversationReadState
 from app.models.skipDB import UserSkip
 from app.models.blockDB import UserBlock
 from app.models.conversationDB import Conversation
@@ -18,6 +19,26 @@ match_bp = Blueprint('match', __name__)
 
 # Sentinel for "no distance limit" (matches anyone who fits other criteria, regardless of distance)
 MATCH_ALL_RADIUS = 9999  # miles
+
+
+def _unread_count_for_match(match_id, receiver_id):
+    if receiver_id is None:
+        return 0
+    conversation = Conversation.query.filter_by(match_id=match_id).first()
+    if not conversation:
+        return 0
+
+    read_state = ConversationReadState.query.filter_by(
+        conversation_id=conversation.id,
+        viewer_user_id=receiver_id
+    ).first()
+    last_read_message_id = read_state.last_read_message_id if read_state and read_state.last_read_message_id else 0
+
+    return Message.query.filter(
+        Message.conversation_id == conversation.id,
+        Message.id > last_read_message_id,
+        Message.sender_id != receiver_id
+    ).count()
 
 def haversine_distance(lat1, lon1, lat2, lon2):
     """Return distance between two coordinates in miles."""
@@ -473,7 +494,8 @@ def get_mutual_matches(current_user):
                 'match_id': match.id,
                 'match_user': user_dict,
                 'linked_dater': linked_dater_dict,
-                'blind_match': match.blind_match
+                'blind_match': match.blind_match,
+                'unread_count': _unread_count_for_match(match.id, current_user.id)
             })
 
         # Get pending approval matches - only show if this matchmaker is involved
@@ -528,6 +550,7 @@ def get_mutual_matches(current_user):
                 'linked_dater': linked_dater_dict,
                 'blind_match': match.blind_match,
                 'status': match.status,
+                'unread_count': _unread_count_for_match(match.id, current_user.id),
                 'message_count': message_count,
                 'waiting_for_other_approval': waiting_for_other,
                 'approved_by_other_matchmaker': both_matchmakers_involved and approved_by_other and not approved_by_current,
@@ -575,6 +598,7 @@ def get_mutual_matches(current_user):
                 'match_user': user_dict,
                 'linked_dater': linked_dater_dict,
                 'blind_match': match.blind_match,
+                'unread_count': _unread_count_for_match(match.id, current_user.id),
                 'user_1_matchmaker_involved': user1_matchmaker_involved,
                 'user_2_matchmaker_involved': user2_matchmaker_involved,
                 'both_matchmakers_involved': both_matchmakers_involved
@@ -624,6 +648,7 @@ def get_mutual_matches(current_user):
                 'linked_dater': None,
                 'blind_match': match.blind_match,
                 'status': 'pending_approval',
+                'unread_count': _unread_count_for_match(match.id, current_user.id),
                 'user_1_matchmaker_involved': user1_matchmaker_involved,
                 'user_2_matchmaker_involved': user2_matchmaker_involved,
                 'both_matchmakers_involved': both_matchmakers_involved
@@ -874,7 +899,8 @@ def send_note(current_user):
         conversation_id=conversation.id,
         sender_id=current_user.id,
         receiver_id=recipient_id,
-        text=note_text
+        text=note_text,
+        read=False
     )
     db.session.add(note_message)
 

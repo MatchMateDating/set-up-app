@@ -4,7 +4,7 @@ import { API_BASE_URL } from '../../env';
 import { useNavigation } from '@react-navigation/native';
 import { getImageUrl } from '../profile/utils/profileUtils';
 
-const MatchCard = ({ matchObj, userInfo }) => {
+const MatchCard = ({ matchObj, userInfo, unreadCount = 0, onOpenConversation }) => {
   const navigation = useNavigation();
   const isDater = userInfo?.role === 'user';
   const roleBadgeBackground = isDater ? '#fde7f3' : '#efe8ff';
@@ -17,6 +17,9 @@ const MatchCard = ({ matchObj, userInfo }) => {
   const isBlind = matchObj.blind_match === 'Blind';
   const isPendingApproval = matchObj.status === 'pending_approval' || matchObj.message_count !== undefined;
   const isWaitingForOtherApproval = !!matchObj.waiting_for_other_approval;
+  const hasUnreadMessages = unreadCount > 0;
+  const unreadBadgeColor = isDater ? '#ec4899' : '#6c5ce7';
+  const unreadBadgeText = unreadCount > 99 ? '99+' : `${unreadCount}`;
   const showBothMmsPill = bothMm;
   const showMmLikedYouPill =
     userInfo?.role === 'user' &&
@@ -63,9 +66,17 @@ const MatchCard = ({ matchObj, userInfo }) => {
   return (
     <TouchableOpacity
       style={styles.matchCard}
-      onPress={() => navigation.navigate('MatchConvo', { matchId: matchObj.match_id, isBlind: isBlind })}
+      onPress={() => {
+        onOpenConversation?.(matchObj.match_id);
+        navigation.navigate('MatchConvo', { matchId: matchObj.match_id, isBlind: isBlind });
+      }}
       activeOpacity={0.7}
     >
+      {hasUnreadMessages && (
+        <View style={[styles.unreadBadge, { backgroundColor: unreadBadgeColor }]}>
+          <Text style={styles.unreadBadgeText}>{unreadBadgeText}</Text>
+        </View>
+      )}
       <View style={styles.profileSection}>
         {userInfo?.role === 'matchmaker' && matchObj.linked_dater
           ? renderOverlappedImages()
@@ -158,6 +169,25 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 3,
     marginBottom: 16,
+    position: 'relative',
+  },
+  unreadBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    paddingHorizontal: 5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 5,
+  },
+  unreadBadgeText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '700',
+    textAlign: 'center',
   },
   vennContainer: {
     width: 110,

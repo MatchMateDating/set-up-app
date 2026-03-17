@@ -7,5 +7,6 @@ class Message(db.Model):
     text = db.Column(db.Text, nullable=True)
     timestamp = db.Column(db.DateTime, server_default=db.func.now())
     receiver_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    read = db.Column(db.Boolean, nullable=False, default=False, server_default=db.text('false'))
     puzzle_type = db.Column(db.String(50), nullable=True)
     puzzle_link = db.Column(db.String(50), nullable=True)
