@@ -12,7 +12,18 @@ import PixelCactus from './components/PixelCactus';
 import { Ionicons } from '@expo/vector-icons';
 import { UserContext } from '../../context/UserContext';
 import { getRoleAccentColor } from '../layout/components/RoleHeaderBanner';
-const Profile = ({ user, framed, viewerUnit, editing, setEditing, onSave, onEditingFormData, parentScrollRef, onRequestCrop }) => {
+const Profile = ({
+  user,
+  framed,
+  viewerUnit,
+  editing,
+  setEditing,
+  onSave,
+  onEditingFormData,
+  parentScrollRef,
+  parentScrollOffsetYRef,
+  onRequestCrop,
+}) => {
   const { setUser } = useContext(UserContext);
   const [formData, setFormData] = useState({
     first_name: '',
@@ -388,13 +399,17 @@ const Profile = ({ user, framed, viewerUnit, editing, setEditing, onSave, onEdit
             profileStyle={formData.profileStyle}
             scrollToBottom={(target, calendarBottomYInWindow) => {
                 const ref = parentScrollRef || scrollViewRef;
+                const activeScrollOffset =
+                  (parentScrollRef
+                    ? parentScrollOffsetYRef?.current
+                    : scrollOffsetYRef.current) || 0;
                 if (target === 'calendar-wrapper-end' && calendarBottomYInWindow) {
                   ref.current?.measureInWindow((_, scrollY, __, scrollH) => {
                     const viewportBottom = scrollY + scrollH;
                     const overflow = calendarBottomYInWindow - viewportBottom;
                     if (overflow > 0) {
                       ref.current?.scrollTo({
-                        y: scrollOffsetYRef.current + overflow + 24,
+                        y: activeScrollOffset + overflow + 24,
                         animated: true,
                       });
                     }

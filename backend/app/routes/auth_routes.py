@@ -338,7 +338,8 @@ def register_matchmaker_web():
             new_matchmaker.password_hash = existing_dater.password_hash
             new_matchmaker.email_verified = existing_dater.email_verified
             new_matchmaker.phone_verified = existing_dater.phone_verified
-            new_matchmaker.last_active_at = datetime.utcnow()
+            # Invite-based web signup should not count as an active session.
+            new_matchmaker.last_active_at = None
 
             db.session.add(new_matchmaker)
             db.session.flush()
@@ -382,7 +383,8 @@ def register_matchmaker_web():
     )
     user.set_password(password)
     user.email_verified = bool(is_test_signup)
-    user.last_active_at = datetime.utcnow()
+    # Invite-based web signup should not count as an active session.
+    user.last_active_at = None
 
     db.session.add(user)
     db.session.commit()
@@ -467,6 +469,7 @@ def login():
     # Sort by last_active_at (most recent first), with None values treated as oldest
     matching_users.sort(key=lambda u: u.last_active_at if u.last_active_at else datetime.min, reverse=True)
     user = matching_users[0]
+    is_first_active_session = user.last_active_at is None
     
     # Update last_active_at to current time
     user.last_active_at = datetime.utcnow()
@@ -479,7 +482,8 @@ def login():
         'message': 'Login successful', 
         'user': user.to_dict(),
         'token': token,
-        'remember_me': remember_me
+        'remember_me': remember_me,
+        'is_first_active_session': is_first_active_session
     }
     
     # Add warning if verification is needed (but still allow login)

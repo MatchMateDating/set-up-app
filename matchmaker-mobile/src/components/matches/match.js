@@ -547,6 +547,7 @@ const Match = () => {
         return;
       }
 
+      const data = await res.json();
       setShowNoteModal(false);
       // Remove the user from profiles after sending note (note creates a pending match)
       setProfiles(prevProfiles => {
@@ -568,6 +569,17 @@ const Match = () => {
         
         return filtered;
       });
+
+      if (data.match?.status === 'matched' || data.match?.status === 'pending_approval') {
+        const firstImage = likedUser?.images?.[0]?.image_url || null;
+        setMatchModalData({
+          matchId: data.match.id,
+          firstName: likedUser?.first_name || 'someone',
+          imageUrl: firstImage ? getImageUrl(firstImage, API_BASE_URL) : null,
+          isPendingApproval: data.match.status === 'pending_approval',
+        });
+        setShowMatchModal(true);
+      }
     } catch (err) {
       console.error('Error sending note:', err);
       Alert.alert('Error', 'Failed to send note');
@@ -712,7 +724,8 @@ const Match = () => {
                 setShowMatchModal(false);
                 navigation.navigate('MatchConvo', {
                   matchId: matchModalData?.matchId,
-                  isBlind: matchModalData?.isPendingApproval ? true : false,
+                  // Pending approval can come from "send note" and should not imply blind.
+                  isBlind: false,
                 });
               }}
             >

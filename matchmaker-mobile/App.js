@@ -5,6 +5,7 @@ import { UserProvider } from './src/context/UserContext';
 import { NotificationProvider } from './src/context/NotificationContext';
 import AppNavigator from './src/navigation/AppNavigator';
 import ErrorBoundary from './src/components/ErrorBoundary';
+import { KeyboardProvider } from 'react-native-keyboard-controller';
 
 // This component handles notification responses (taps)
 function NotificationHandler({ navigationRef }) {
@@ -66,15 +67,17 @@ export default function App() {
   const navigationRef = React.useRef();
 
   return (
-    <ErrorBoundary>
-      <UserProvider>
-        <NotificationProvider>
-          <NavigationContainer ref={navigationRef}>
-            <NotificationHandler navigationRef={navigationRef} />
-            <AppNavigator />
-          </NavigationContainer>
-        </NotificationProvider>
-      </UserProvider>
-    </ErrorBoundary>
+    <KeyboardProvider>
+        <ErrorBoundary>
+          <UserProvider>
+            <NotificationProvider>
+              <NavigationContainer ref={navigationRef}>
+                <NotificationHandler navigationRef={navigationRef} />
+                <AppNavigator />
+              </NavigationContainer>
+            </NotificationProvider>
+          </UserProvider>
+        </ErrorBoundary>
+    </KeyboardProvider>
   );
 }

@@ -826,6 +826,8 @@ def send_note(current_user):
 
     if match:
         match.note = note_text
+        # Notes should always create/update a normal (non-blind) match.
+        match.blind_match = ''
         if current_user.role == 'matchmaker':
             if match.user_id_1 == acting_dater_id:
                 match.matched_by_user_id_1_matcher = current_user.id
@@ -838,7 +840,8 @@ def send_note(current_user):
             user_id_1=acting_dater_id,
             user_id_2=recipient_id,
             status='pending',
-            note=note_text
+            note=note_text,
+            blind_match=''
         )
         match.liked_by.append(sender_user)
         if current_user.role == 'matchmaker':
