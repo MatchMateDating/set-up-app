@@ -13,10 +13,13 @@ import { getRoleAccentColor, getRoleBackgroundTint } from '../layout/components/
 import { UserContext } from '../../context/UserContext';
 
 const Conversations = () => {
+  const READ_STATE_STORAGE_PREFIX = 'conversationLastRead';
+  const ACTIVE_CONVERSATION_STORAGE_KEY = 'activeConversationMatchId';
   const { user: contextUser } = useContext(UserContext);
   const [showDaterMatches, setShowDaterMatches] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [roleHint, setRoleHint] = useState(null);
+  const [unreadCounts, setUnreadCounts] = useState({});
   const { userInfo, setUserInfo, referrerInfo, setReferrerInfo, loading: userLoading } = useUserInfo(API_BASE_URL);
   const { matches, setMatches, loading: matchesLoading, fetchMatches } = useMatches(API_BASE_URL);
   const matchedList = Array.isArray(matches) ? matches : (matches?.matched || []);
@@ -24,6 +27,9 @@ const Conversations = () => {
   const navigation = useNavigation();
   const [referrer, setReferrer] = useState(null);
   const selectedDaterId = userInfo?.referrer_id || userInfo?.referred_by_id || null;
+  const currentConversationUserId = userInfo?.referred_by_id ?? userInfo?.id ?? null;
+  const getConversationReadStateKey = (matchId) =>
+    `${READ_STATE_STORAGE_PREFIX}:${userInfo?.id || 'unknown'}:${matchId}`;
   
   // Initialize notification polling
   useNotificationPolling();
@@ -76,6 +82,130 @@ const Conversations = () => {
   }, [contextUser, setUserInfo]);
 
   const loading = userLoading || matchesLoading || refreshing;
+
+  const markConversationAsRead = async (matchId, readAtIso) => {
+    if (!matchId) return;
+    const key = getConversationReadStateKey(matchId);
+    const readMarker = {
+      timestamp: readAtIso || new Date().toISOString(),
+      messageId: null,
+    };
+    await AsyncStorage.setItem(key, JSON.stringify(readMarker));
+    setUnreadCounts((prev) => ({ ...prev, [matchId]: 0 }));
+  };
+
+  const refreshUnreadCounts = async () => {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token || currentConversationUserId == null) return;
+
+      const allMatches = Array.isArray(matches)
+        ? matches
+        : [...(matches?.matched || []), ...(matches?.pending_approval || [])];
+      if (allMatches.length === 0) {
+        setUnreadCounts({});
+        return;
+      }
+
+      const activeConversationMatchId = await AsyncStorage.getItem(ACTIVE_CONVERSATION_STORAGE_KEY);
+      const nextUnreadCounts = {};
+
+      for (const match of allMatches) {
+        const matchId = match.match_id;
+        if (!matchId) continue;
+
+        const conversationRes = await fetch(`${API_BASE_URL}/conversation/${matchId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!conversationRes.ok) {
+          nextUnreadCounts[matchId] = unreadCounts[matchId] || 0;
+          continue;
+        }
+
+        const conversationData = await conversationRes.json();
+        const conversationMessages =
+          Array.isArray(conversationData) && conversationData.length > 0
+            ? (conversationData[0].messages || [])
+            : [];
+        const latestMessage = conversationMessages[conversationMessages.length - 1];
+        const latestTimestamp = latestMessage?.timestamp || new Date().toISOString();
+        const latestMessageId = latestMessage?.id ?? latestMessage?.message_id ?? null;
+        const readStateKey = getConversationReadStateKey(matchId);
+        const storedReadState = await AsyncStorage.getItem(readStateKey);
+        let lastReadIso = null;
+        let lastReadMessageId = null;
+
+        if (storedReadState) {
+          if (storedReadState.trim().startsWith('{')) {
+            try {
+              const parsedReadState = JSON.parse(storedReadState);
+              lastReadIso = parsedReadState?.timestamp || null;
+              lastReadMessageId = parsedReadState?.messageId ?? null;
+            } catch (err) {
+              lastReadIso = storedReadState;
+            }
+          } else {
+            // Backward compatibility with old plain ISO storage.
+            lastReadIso = storedReadState;
+          }
+        }
+
+        // First run baseline per conversation to avoid historical count spikes.
+        if (!lastReadIso) {
+          await AsyncStorage.setItem(readStateKey, JSON.stringify({
+            timestamp: latestTimestamp,
+            messageId: latestMessageId,
+          }));
+          nextUnreadCounts[matchId] = 0;
+          continue;
+        }
+
+        // If this conversation is currently open, treat incoming messages as already read.
+        if (String(matchId) === String(activeConversationMatchId)) {
+          await AsyncStorage.setItem(readStateKey, JSON.stringify({
+            timestamp: latestTimestamp,
+            messageId: latestMessageId,
+          }));
+          nextUnreadCounts[matchId] = 0;
+          continue;
+        }
+
+        let unreadMessages = [];
+        if (lastReadMessageId != null) {
+          const lastReadIndex = conversationMessages.findIndex(
+            (message) =>
+              (message?.id ?? message?.message_id ?? null) === lastReadMessageId
+          );
+          if (lastReadIndex >= 0) {
+            unreadMessages = conversationMessages.slice(lastReadIndex + 1);
+          }
+        }
+
+        if (unreadMessages.length === 0) {
+          const lastReadMs = new Date(lastReadIso).getTime();
+          unreadMessages = conversationMessages.filter((message) => {
+            const messageTs = new Date(message?.timestamp).getTime();
+            return Number.isFinite(messageTs) && messageTs > lastReadMs;
+          });
+        }
+
+        const unreadCount = unreadMessages.reduce((count, message) => {
+          const hasReceiver = message?.receiver_id !== undefined && message?.receiver_id !== null;
+          if (hasReceiver) {
+            return String(message.receiver_id) === String(currentConversationUserId) ? count + 1 : count;
+          }
+
+          return String(message?.sender_id) !== String(currentConversationUserId) ? count + 1 : count;
+        }, 0);
+
+        nextUnreadCounts[matchId] = unreadCount;
+      }
+
+      setUnreadCounts(nextUnreadCounts);
+    } catch (err) {
+      console.error('Error refreshing unread counts:', err);
+    }
+  };
 
   const fetchProfile = async () => {
     try {
@@ -136,6 +266,11 @@ const Conversations = () => {
   // Refresh profile and matches when page comes into focus
   useFocusEffect(
     React.useCallback(() => {
+      // This screen is the thread list, so no single conversation should be marked active.
+      AsyncStorage.removeItem(ACTIVE_CONVERSATION_STORAGE_KEY).catch((err) => {
+        console.error('Error clearing active conversation marker on list focus:', err);
+      });
+
       // Prevent stale account data flash while switching roles/daters.
       setRefreshing(true);
       setUserInfo(null);
@@ -150,6 +285,25 @@ const Conversations = () => {
       return () => clearTimeout(timer);
     }, [])
   );
+
+  useFocusEffect(
+    React.useCallback(() => {
+      const pollId = setInterval(() => {
+        fetchMatches();
+      }, 3000);
+
+      return () => clearInterval(pollId);
+    }, [])
+  );
+
+  useEffect(() => {
+    refreshUnreadCounts();
+    const unreadPollInterval = setInterval(() => {
+      refreshUnreadCounts();
+    }, 3000);
+
+    return () => clearInterval(unreadPollInterval);
+  }, [matches, currentConversationUserId, selectedDaterId]);
 
   const getFilteredMatches = () => {
     if (!userInfo || userInfo.role !== 'user') {
@@ -388,6 +542,7 @@ const Conversations = () => {
                     key={`pending-${index}`}
                     matchObj={matchObj}
                     userInfo={userInfo}
+                    unreadCount={matchObj.unread_count || 0}
                   />
                 ))
               ) : (
@@ -409,6 +564,7 @@ const Conversations = () => {
                     key={`matched-${index}`}
                     matchObj={matchObj}
                     userInfo={userInfo}
+                    unreadCount={matchObj.unread_count || 0}
                   />
                 ))
               ) : (
@@ -430,6 +586,7 @@ const Conversations = () => {
                     key={`matched-${index}`}
                     matchObj={matchObj}
                     userInfo={userInfo}
+                    unreadCount={matchObj.unread_count || 0}
                   />
                 ))
               ) : (

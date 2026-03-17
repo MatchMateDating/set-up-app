@@ -1,6 +1,7 @@
 from flask import Blueprint, jsonify, request
 from app.models.messageDB import Message
 from app.models.conversationDB import Conversation
+from app.models.conversationReadStateDB import ConversationReadState
 from app.models.matchDB import Match
 from app.models.userDB import User
 from app import db
@@ -20,6 +21,13 @@ def _message_timestamp_utc_iso(dt):
         return dt.isoformat() + 'Z'
     return dt.astimezone(timezone.utc).isoformat().replace('+00:00', 'Z')
 
+
+def _conversation_user_id(current_user):
+    """Return the dater identity for conversation read/unread semantics."""
+    if current_user.role == 'matchmaker' and current_user.referred_by_id:
+        return current_user.referred_by_id
+    return current_user.id
+
 @conversation_bp.route('/<int:match_id>', methods=['GET'])
 @token_required
 def get_matched_conversations(current_user, match_id):
@@ -29,11 +37,9 @@ def get_matched_conversations(current_user, match_id):
         return jsonify({'error': 'Match not found'}), 404
     
     # Determine the user ID to check (for matchmakers, use their linked dater)
-    check_user_id = current_user.id
-    if current_user.role == 'matchmaker':
-        if not current_user.referred_by_id:
-            return jsonify({'error': 'Matchmaker has no linked dater'}), 403
-        check_user_id = current_user.referred_by_id
+    check_user_id = _conversation_user_id(current_user)
+    if current_user.role == 'matchmaker' and not current_user.referred_by_id:
+        return jsonify({'error': 'Matchmaker has no linked dater'}), 403
     
     # For pending_approval matches, only users in liked_by or involved matchmakers can access
     if match.status == 'pending_approval':
@@ -66,6 +72,7 @@ def get_matched_conversations(current_user, match_id):
             'sender_id': msg.sender_id,
             'receiver_id': msg.receiver_id,
             'text': msg.text,
+            'read': bool(getattr(msg, 'read', False)),
             'puzzle_type': getattr(msg, 'puzzle_type', None),
             'puzzle_link': getattr(msg, 'puzzle_link', None),
             'timestamp': _message_timestamp_utc_iso(msg.timestamp)
@@ -90,11 +97,9 @@ def add_to_conversation(current_user, match_id):
         return jsonify({'error': 'Match not found'}), 404
     
     # Determine the user ID to check (for matchmakers, use their linked dater)
-    check_user_id = current_user.id
-    if current_user.role == 'matchmaker':
-        if not current_user.referred_by_id:
-            return jsonify({'error': 'Matchmaker has no linked dater'}), 403
-        check_user_id = current_user.referred_by_id
+    check_user_id = _conversation_user_id(current_user)
+    if current_user.role == 'matchmaker' and not current_user.referred_by_id:
+        return jsonify({'error': 'Matchmaker has no linked dater'}), 403
     
     # For pending_approval matches, only users in liked_by or involved matchmakers can send messages
     if match.status == 'pending_approval':
@@ -155,6 +160,7 @@ def add_to_conversation(current_user, match_id):
             sender_id=current_user.id,
             receiver_id=receiver_user_id,
             text=text if text else None,
+            read=False,
             puzzle_type=puzzle_type if puzzle_type else None,
             puzzle_link=puzzle_link if puzzle_link else None,
             timestamp=datetime.utcnow()
@@ -222,6 +228,7 @@ def add_to_conversation(current_user, match_id):
             'sender_id': msg.sender_id,
             'receiver_id': msg.receiver_id,
             'text': msg.text,
+            'read': bool(getattr(msg, 'read', False)),
             'puzzle_type': getattr(msg, 'puzzle_type', None),
             'puzzle_link': getattr(msg, 'puzzle_link', None),
             'timestamp': _message_timestamp_utc_iso(msg.timestamp)
@@ -234,3 +241,57 @@ def add_to_conversation(current_user, match_id):
         'match_id': conversation.match_id,
         'messages': messages_data
     }), 201
+
+
+@conversation_bp.route('/<int:match_id>/read', methods=['POST'])
+@token_required
+def mark_conversation_read(current_user, match_id):
+    match = Match.query.get(match_id)
+    if not match:
+        return jsonify({'error': 'Match not found'}), 404
+
+    check_user_id = _conversation_user_id(current_user)
+    if current_user.role == 'matchmaker' and not current_user.referred_by_id:
+        return jsonify({'error': 'Matchmaker has no linked dater'}), 403
+
+    if match.status == 'pending_approval':
+        liked_ids = {u.id for u in match.liked_by}
+        matchmaker_involved = (
+            current_user.role == 'matchmaker' and
+            (match.matched_by_user_id_1_matcher == current_user.id or
+             match.matched_by_user_id_2_matcher == current_user.id)
+        )
+        if check_user_id not in liked_ids and not matchmaker_involved:
+            return jsonify({'error': 'You do not have permission to update this conversation'}), 403
+    elif match.status == 'matched':
+        if check_user_id not in [match.user_id_1, match.user_id_2]:
+            return jsonify({'error': 'You do not have permission to update this conversation'}), 403
+    else:
+        liked_ids = {u.id for u in match.liked_by}
+        if check_user_id not in liked_ids:
+            return jsonify({'error': 'You do not have permission to update this conversation'}), 403
+
+    conversation = Conversation.query.filter_by(match_id=match_id).first()
+    if not conversation:
+        return jsonify({'updated': 0}), 200
+
+    latest_message = Message.query.filter_by(conversation_id=conversation.id).order_by(Message.id.desc()).first()
+    if not latest_message:
+        return jsonify({'updated': 0}), 200
+
+    read_state = ConversationReadState.query.filter_by(
+        conversation_id=conversation.id,
+        viewer_user_id=current_user.id
+    ).first()
+    if not read_state:
+        read_state = ConversationReadState(
+            conversation_id=conversation.id,
+            viewer_user_id=current_user.id,
+            last_read_message_id=latest_message.id
+        )
+        db.session.add(read_state)
+    else:
+        read_state.last_read_message_id = latest_message.id
+
+    db.session.commit()
+    return jsonify({'updated': 1}), 200
