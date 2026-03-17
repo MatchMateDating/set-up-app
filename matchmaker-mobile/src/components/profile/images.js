@@ -4,7 +4,14 @@ import { API_BASE_URL } from '../../env';
 import { Ionicons } from '@expo/vector-icons';
 import { getImageUrl } from './utils/profileUtils';
 
-const ImageGallery = ({ images = [], editing, onDeleteImage, onPlaceholderClick, layout = 'grid' }) => {
+const ImageGallery = ({
+  images = [],
+  editing,
+  onDeleteImage,
+  onPlaceholderClick,
+  layout = 'grid',
+  accentColor = '#6c5ce7',
+}) => {
   const maxImages = 9;
   const gridColumns = 3;
   const gridGap = 10;
@@ -54,11 +61,9 @@ const ImageGallery = ({ images = [], editing, onDeleteImage, onPlaceholderClick,
             ? styles.topRowImageWrapper
             : isHeroStack
               ? [
-                styles.heroImageWrapper,
-                index === 0
-                  ? [styles.heroMainWrapper, heroMainSizeStyle]
-                  : heroThumbSizeStyle,
-              ]
+                  styles.heroImageWrapper,
+                  index === 0 ? [styles.heroMainWrapper, heroMainSizeStyle] : heroThumbSizeStyle,
+                ]
               : styles.listWrapper,
         topRowItemSizeStyle,
       ]}
@@ -141,8 +146,8 @@ const ImageGallery = ({ images = [], editing, onDeleteImage, onPlaceholderClick,
         </View>
         {editing && (
           <View pointerEvents="none" style={styles.scrollHint}>
-            <Text style={styles.scrollHintText}>scroll to add</Text>
-            <Ionicons name="arrow-forward" size={24} color="#6c5ce7" />
+            <Text style={[styles.scrollHintText, { color: accentColor }]}>scroll to add</Text>
+            <Ionicons name="arrow-forward" size={24} color={accentColor} />
           </View>
         )}
       </View>
@@ -152,14 +157,14 @@ const ImageGallery = ({ images = [], editing, onDeleteImage, onPlaceholderClick,
         onLayout={
           isHeroStack || isGrid
             ? (event) => {
-              const nextWidth = Math.floor(event.nativeEvent.layout.width);
-              if (isGrid && nextWidth > 0 && nextWidth !== gridViewportWidth) {
-                setGridViewportWidth(nextWidth);
+                const nextWidth = Math.floor(event.nativeEvent.layout.width);
+                if (isGrid && nextWidth > 0 && nextWidth !== gridViewportWidth) {
+                  setGridViewportWidth(nextWidth);
+                }
+                if (isHeroStack && nextWidth > 0 && nextWidth !== heroStackViewportWidth) {
+                  setHeroStackViewportWidth(nextWidth);
+                }
               }
-              if (isHeroStack && nextWidth > 0 && nextWidth !== heroStackViewportWidth) {
-                setHeroStackViewportWidth(nextWidth);
-              }
-            }
             : undefined
         }
       >

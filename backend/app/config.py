@@ -1,4 +1,5 @@
 import os
+from datetime import timedelta
 
 class Config:
     # Database Configuration
@@ -21,6 +22,16 @@ class Config:
     # Use default values if SECRET_KEY is not set or is empty
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-secret-key'
     JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY') or 'super-secret-key'
+    # Access token lifetime when user does NOT check "remember me". Used when expires_delta=None.
+    # Override: JWT_ACCESS_TOKEN_EXPIRES_HOURS (e.g. 24) or JWT_ACCESS_TOKEN_EXPIRES_DAYS (e.g. 1).
+    jwt_hours = os.environ.get('JWT_ACCESS_TOKEN_EXPIRES_HOURS')
+    jwt_days = os.environ.get('JWT_ACCESS_TOKEN_EXPIRES_DAYS')
+    if jwt_hours and jwt_hours.isdigit():
+        JWT_ACCESS_TOKEN_EXPIRES = timedelta(hours=int(jwt_hours))
+    elif jwt_days and jwt_days.isdigit():
+        JWT_ACCESS_TOKEN_EXPIRES = timedelta(days=int(jwt_days))
+    else:
+        JWT_ACCESS_TOKEN_EXPIRES = timedelta(hours=24)
     
     # Environment
     FLASK_ENV = os.getenv('FLASK_ENV', 'development')

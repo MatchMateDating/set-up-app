@@ -35,6 +35,7 @@ const CompleteProfile = () => {
     preferredAgeMin: '',
     preferredGenders: [],
     matchRadius: '',
+    matchWithAll: false,
     fontFamily: 'Arial',
     profileStyle: 'classic',
     imageLayout: 'grid',
@@ -214,7 +215,7 @@ const CompleteProfile = () => {
         preferredAgeMax: formData.preferredAgeMax,
         preferredAgeMin: formData.preferredAgeMin,
         preferredGenders: formData.preferredGenders,
-        match_radius: formData.matchRadius,
+        match_radius: formData.matchWithAll ? 9999 : (Number(formData.matchRadius) || 50),
       };
 
       const res = await fetch(`${API_BASE_URL}/profile/update`, {
@@ -288,10 +289,13 @@ const CompleteProfile = () => {
         const data = await res.json();
         const user = data.user || {};
         setUser(user);
+        const matchWithAll = (user.match_radius >= 9999);
         setFormData((prev) => ({
           ...prev,
           first_name: user.first_name || prev.first_name,
           last_name: user.last_name || prev.last_name,
+          matchWithAll,
+          matchRadius: matchWithAll ? 500 : (user.match_radius ?? prev.matchRadius || 50),
         }));
         // If the stored font differs from the theme default, treat it as manually chosen
         const storedFont = '';
@@ -544,19 +548,32 @@ const CompleteProfile = () => {
 
               {/* Match Radius */}
               <div className="form-field">
-                <label>Match Radius</label>
-                <div className="radius-slider">
+                <label>Match Radius ({formData.matchWithAll ? '500+' : (formData.matchRadius || 50)} mi)</label>
+                <div className={`radius-slider${formData.matchWithAll ? ' radius-slider--disabled' : ''}`}>
                   <input
                     type="range"
                     name="matchRadius"
                     min="1"
                     max="500"
                     step="1"
-                    value={formData.matchRadius || 50}
+                    value={formData.matchWithAll ? 500 : (formData.matchRadius || 50)}
                     onChange={handleInputChange}
+                    disabled={formData.matchWithAll}
                   />
-                  <span>{formData.matchRadius || 50} mi</span>
+                  <span>{formData.matchWithAll ? '500+' : (formData.matchRadius || 50)} mi</span>
                 </div>
+                <label className="checkbox-label" style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={formData.matchWithAll || false}
+                    onChange={(e) => setFormData((prev) => ({
+                      ...prev,
+                      matchWithAll: e.target.checked,
+                      matchRadius: e.target.checked ? 500 : 50,
+                    }))}
+                  />
+                  <span>No distance limit</span>
+                </label>
               </div>
 
               {/* Buttons */}

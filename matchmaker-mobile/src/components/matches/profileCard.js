@@ -9,17 +9,30 @@ import { UserContext } from '../../context/UserContext';
 const ProfileCard = ({
   profile,
   userInfo,
+  preferredViewerUnit,
   onSkip
 }) => {
   const { user } = useContext(UserContext);
-  const viewerUnit = user?.unit;
+  const viewerUnit = preferredViewerUnit || userInfo?.unit || user?.unit;
+  const hasMatchmakerMediation = Boolean(
+    profile?.matched_by_matcher ||
+    profile?.matched_by_matcher_user_1 ||
+    profile?.matched_by_matcher_user_2
+  );
+
+  const canSkipProfile = ['matchmaker', 'user', 'dater'].includes(userInfo?.role);
 
   return (
     <View style={styles.profileBox}>
+      {canSkipProfile && onSkip && (
+        <TouchableOpacity style={styles.skipButton} onPress={onSkip}>
+          <Ionicons name="close-circle" size={40} color="#e53e3e" />
+        </TouchableOpacity>
+      )}
       {profile.note && (
         <View style={styles.noteBox}>
           <Text style={styles.noteLabel}>
-            {profile.matched_by_matcher ? 'Matchmaker Note: ' : 'Note: '}
+            {hasMatchmakerMediation ? 'Matchmaker Note: ' : 'Note: '}
           </Text>
           <Text style={styles.noteText}>{profile.note}</Text>
         </View>
@@ -52,6 +65,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 3,
+  },
+  skipButton: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    zIndex: 5,
   },
   noteBox: {
     backgroundColor: '#fafafa',

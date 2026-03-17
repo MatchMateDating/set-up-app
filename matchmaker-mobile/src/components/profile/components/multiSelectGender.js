@@ -4,7 +4,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 
 const GENDER_OPTIONS = ["female", "male", "nonbinary"];
 
-const MultiSelectGender = ({ selected, onChange }) => {
+const MultiSelectGender = ({ selected, onChange, accentColor = '#6c5ce7' }) => {
   const toggleValue = (value) => {
     if (selected.includes(value)) {
       onChange(selected.filter((item) => item !== value));
@@ -21,7 +21,10 @@ const MultiSelectGender = ({ selected, onChange }) => {
           onPress={() => toggleValue(option)}
           style={[
             styles.option,
-            selected.includes(option) && styles.optionSelected
+            selected.includes(option) && [
+              styles.optionSelected,
+              { backgroundColor: accentColor, borderColor: accentColor },
+            ]
           ]}
         >
           <Text style={[

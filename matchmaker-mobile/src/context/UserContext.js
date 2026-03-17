@@ -7,6 +7,7 @@ export const UserContext = createContext(null);
 export const UserProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [isProfileEditing, setIsProfileEditing] = useState(false);
 
   // Load user once on app start
   useEffect(() => {
@@ -53,7 +54,7 @@ export const UserProvider = ({ children }) => {
   }, [user]);
 
   return (
-    <UserContext.Provider value={{ user, setUser, loading }}>
+    <UserContext.Provider value={{ user, setUser, loading, isProfileEditing, setIsProfileEditing }}>
       {children}
     </UserContext.Provider>
   );

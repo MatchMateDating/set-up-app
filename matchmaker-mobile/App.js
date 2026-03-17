@@ -5,6 +5,7 @@ import { UserProvider } from './src/context/UserContext';
 import { NotificationProvider } from './src/context/NotificationContext';
 import AppNavigator from './src/navigation/AppNavigator';
 import ErrorBoundary from './src/components/ErrorBoundary';
+import { KeyboardProvider } from 'react-native-keyboard-controller';
 
 // This component handles notification responses (taps)
 function NotificationHandler({ navigationRef }) {
@@ -15,8 +16,14 @@ function NotificationHandler({ navigationRef }) {
     try {
       // Handle notifications received while app is in foreground
       notificationListener.current = Notifications.addNotificationReceivedListener((notification) => {
-        // You can handle foreground notifications here if needed
-        console.log('Notification received:', notification);
+        // Log only stable fields to avoid deprecated proxy access warnings.
+        const { title, body, data } = notification.request.content;
+        console.log('Notification received:', {
+          id: notification.request.identifier,
+          title,
+          body,
+          data,
+        });
       });
 
       // Handle notification taps
@@ -45,12 +52,8 @@ function NotificationHandler({ navigationRef }) {
 
     return () => {
       try {
-        if (notificationListener.current) {
-          Notifications.removeNotificationSubscription(notificationListener.current);
-        }
-        if (responseListener.current) {
-          Notifications.removeNotificationSubscription(responseListener.current);
-        }
+        notificationListener.current?.remove?.();
+        responseListener.current?.remove?.();
       } catch (error) {
         console.error('Error cleaning up notification listeners:', error);
       }
@@ -64,15 +67,17 @@ export default function App() {
   const navigationRef = React.useRef();
 
   return (
-    <ErrorBoundary>
-      <UserProvider>
-        <NotificationProvider>
-          <NavigationContainer ref={navigationRef}>
-            <NotificationHandler navigationRef={navigationRef} />
-            <AppNavigator />
-          </NavigationContainer>
-        </NotificationProvider>
-      </UserProvider>
-    </ErrorBoundary>
+    <KeyboardProvider>
+        <ErrorBoundary>
+          <UserProvider>
+            <NotificationProvider>
+              <NavigationContainer ref={navigationRef}>
+                <NotificationHandler navigationRef={navigationRef} />
+                <AppNavigator />
+              </NavigationContainer>
+            </NotificationProvider>
+          </UserProvider>
+        </ErrorBoundary>
+    </KeyboardProvider>
   );
 }

@@ -96,6 +96,11 @@ input[type="range"] {
   text-align: right;
 }
 
+.radius-slider--disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
 .preferences-actions {
   display: flex;
   justify-content: flex-end;

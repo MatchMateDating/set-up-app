@@ -20,6 +20,7 @@ from app.services.storage_service import (
     delete_image_from_cloud,
     extract_key_from_url
 )
+from app.routes.auth_routes import send_verification_email, is_email
 
 
 profile_bp = Blueprint('profile', __name__)
@@ -131,6 +132,161 @@ def update_profile(current_user):
 
     except Exception as e:
         print('here server')
+        return jsonify({
+            'error': 'Unexpected server error',
+            'details': str(e)
+        }), 500
+
+
+@profile_bp.route('/request_email_change', methods=['POST'])
+@token_required
+def request_email_change(current_user):
+    try:
+        data = request.get_json() or {}
+        new_email = (data.get('new_email') or '').strip().lower()
+
+        if not new_email:
+            return jsonify({'error': 'new_email is required'}), 400
+
+        if not is_email(new_email):
+            return jsonify({'error': 'Please enter a valid email'}), 400
+
+        current_email = (current_user.email or '').strip().lower()
+        if new_email == current_email:
+            return jsonify({'error': 'New email must be different from current email'}), 400
+
+        linked_account = User.query.get(current_user.linked_account_id) if current_user.linked_account_id else None
+        allowed_ids = {current_user.id}
+        if linked_account:
+            allowed_ids.add(linked_account.id)
+
+        existing_users = User.query.filter_by(email=new_email).all()
+        conflicting_user = next((u for u in existing_users if u.id not in allowed_ids), None)
+        if conflicting_user:
+            return jsonify({'error': 'Email is already in use'}), 400
+
+        verification_token = current_user.generate_verification_token()
+        current_user.email_verification_token = verification_token
+        db.session.commit()
+
+        verification_sent = send_verification_email(
+            new_email,
+            verification_token,
+            current_user.first_name
+        )
+
+        if not verification_sent:
+            return jsonify({'error': 'Failed to send verification email'}), 500
+
+        return jsonify({
+            'message': 'Verification code sent to your new email',
+            'verification_sent': True
+        }), 200
+
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        return jsonify({
+            'error': 'Database error',
+            'details': str(e)
+        }), 500
+    except Exception as e:
+        return jsonify({
+            'error': 'Unexpected server error',
+            'details': str(e)
+        }), 500
+
+
+@profile_bp.route('/verify_email_change', methods=['POST'])
+@token_required
+def verify_email_change(current_user):
+    try:
+        data = request.get_json() or {}
+        new_email = (data.get('new_email') or '').strip().lower()
+        code = (data.get('code') or '').strip()
+
+        if not new_email or not code:
+            return jsonify({'error': 'new_email and code are required'}), 400
+
+        if not is_email(new_email):
+            return jsonify({'error': 'Please enter a valid email'}), 400
+
+        if not current_user.email_verification_token:
+            return jsonify({'error': 'No pending email verification request'}), 400
+
+        if code != current_user.email_verification_token:
+            return jsonify({'error': 'Invalid verification code'}), 400
+
+        linked_account = User.query.get(current_user.linked_account_id) if current_user.linked_account_id else None
+        allowed_ids = {current_user.id}
+        if linked_account:
+            allowed_ids.add(linked_account.id)
+
+        existing_users = User.query.filter_by(email=new_email).all()
+        conflicting_user = next((u for u in existing_users if u.id not in allowed_ids), None)
+        if conflicting_user:
+            return jsonify({'error': 'Email is already in use'}), 400
+
+        current_user.email = new_email
+        current_user.email_verified = True
+        current_user.email_verification_token = None
+
+        if linked_account:
+            linked_account.email = new_email
+            linked_account.email_verified = True
+            linked_account.email_verification_token = None
+
+        db.session.commit()
+        return jsonify({
+            'message': 'Email updated successfully',
+            'user': current_user.to_dict()
+        }), 200
+
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        return jsonify({
+            'error': 'Database error',
+            'details': str(e)
+        }), 500
+    except Exception as e:
+        return jsonify({
+            'error': 'Unexpected server error',
+            'details': str(e)
+        }), 500
+
+
+@profile_bp.route('/change_password', methods=['PUT'])
+@token_required
+def change_password(current_user):
+    try:
+        data = request.get_json() or {}
+        old_password = data.get('old_password')
+        new_password = data.get('new_password')
+
+        if not old_password or not new_password:
+            return jsonify({'error': 'old_password and new_password are required'}), 400
+
+        if not current_user.check_password(old_password):
+            return jsonify({'error': 'Current password is incorrect'}), 400
+
+        if len(new_password) < 8:
+            return jsonify({'error': 'New password must be at least 8 characters long'}), 400
+
+        current_user.set_password(new_password)
+
+        linked_account = User.query.get(current_user.linked_account_id) if current_user.linked_account_id else None
+        if linked_account:
+            linked_account.set_password(new_password)
+
+        db.session.commit()
+        return jsonify({'message': 'Password updated successfully'}), 200
+
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        return jsonify({
+            'error': 'Database error',
+            'details': str(e)
+        }), 500
+    except Exception as e:
         return jsonify({
             'error': 'Unexpected server error',
             'details': str(e)
@@ -297,7 +453,7 @@ def create_linked_matchmaker(current_user):
         if not data:
             return jsonify({'error': 'Request body must be JSON'}), 400
         
-        referral_code = data.get('referral_code')
+        referral_code = (data.get('referral_code') or '').strip()
         
         if not referral_code:
             return jsonify({'error': 'Referral code is required'}), 400
@@ -310,6 +466,10 @@ def create_linked_matchmaker(current_user):
         # Ensure the referrer is a dater (user role)
         if referrer.role != 'user':
             return jsonify({'error': 'Referral code must be from a dater account'}), 400
+
+        # Prevent self-referrals when creating a linked matchmaker account.
+        if referrer.id == current_user.id:
+            return jsonify({'error': 'You cannot use your own referral code'}), 400
         
         # Check if already has a linked matchmaker account
         if current_user.linked_account_id:
@@ -414,6 +574,161 @@ def switch_account(current_user):
             'details': str(e)
         }), 500
 
+
+def _delete_user_related_data(user):
+    """Delete user data dependencies before removing the user row."""
+    user_id = user.id
+
+    # 1. Delete matches where user is involved + related conversations/messages
+    matches_as_user1 = Match.query.filter_by(user_id_1=user_id).all()
+    matches_as_user2 = Match.query.filter_by(user_id_2=user_id).all()
+    all_matches = matches_as_user1 + matches_as_user2
+    for match in all_matches:
+        conversations = Conversation.query.filter_by(match_id=match.id).all()
+        for conversation in conversations:
+            Message.query.filter_by(conversation_id=conversation.id).delete()
+            db.session.delete(conversation)
+        db.session.delete(match)
+
+    # 2. Delete standalone/direct messages
+    Message.query.filter(
+        (Message.sender_id == user_id) | (Message.receiver_id == user_id)
+    ).delete()
+
+    # 3. Delete quiz results
+    QuizResult.query.filter_by(user_id=user_id).delete()
+
+    # 4. Delete user skips
+    UserSkip.query.filter(
+        (UserSkip.user_id == user_id) | (UserSkip.skipped_user_id == user_id)
+    ).delete()
+
+    # 5. Delete user blocks
+    UserBlock.query.filter(
+        (UserBlock.blocker_id == user_id) | (UserBlock.blocked_id == user_id)
+    ).delete()
+
+    # 6. Handle ReferredUsers relations
+    if user.role == 'matchmaker':
+        ReferredUsers.query.filter_by(matchmaker_id=user_id).delete()
+    else:
+        referral_rows = ReferredUsers.query.filter(
+            (ReferredUsers.linked_dater_1_id == user_id) |
+            (ReferredUsers.linked_dater_2_id == user_id) |
+            (ReferredUsers.linked_dater_3_id == user_id) |
+            (ReferredUsers.linked_dater_4_id == user_id) |
+            (ReferredUsers.linked_dater_5_id == user_id) |
+            (ReferredUsers.linked_dater_6_id == user_id) |
+            (ReferredUsers.linked_dater_7_id == user_id) |
+            (ReferredUsers.linked_dater_8_id == user_id) |
+            (ReferredUsers.linked_dater_9_id == user_id) |
+            (ReferredUsers.linked_dater_10_id == user_id)
+        ).all()
+        for ref_row in referral_rows:
+            for i in range(1, 11):
+                field_name = f'linked_dater_{i}_id'
+                if getattr(ref_row, field_name) == user_id:
+                    setattr(ref_row, field_name, None)
+
+    # 7. Clear links pointing to this user
+    linked_users = User.query.filter_by(linked_account_id=user_id).all()
+    for linked_user in linked_users:
+        linked_user.linked_account_id = None
+
+    # 8. Clear referred_by links
+    referred_users = User.query.filter_by(referred_by_id=user_id).all()
+    for referred_user in referred_users:
+        referred_user.referred_by_id = None
+
+    # 9. Delete images + push tokens
+    use_cloud_storage = current_app.config.get('USE_CLOUD_STORAGE', False)
+    user_images = Image.query.filter_by(user_id=user_id).all()
+    for image in user_images:
+        if use_cloud_storage:
+            storage_key = extract_key_from_url(image.image_url)
+            if storage_key:
+                delete_image_from_cloud(storage_key)
+        else:
+            try:
+                file_path = os.path.join(current_app.root_path, image.image_url.lstrip('/'))
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+            except Exception as e:
+                current_app.logger.error(f"Error deleting file from filesystem: {e}")
+
+    Image.query.filter_by(user_id=user_id).delete()
+    PushToken.query.filter_by(user_id=user_id).delete()
+
+
+@profile_bp.route('/delete_account_by_role', methods=['DELETE'])
+@token_required
+def delete_account_by_role(current_user):
+    """
+    Delete either the dater or matchmaker account when both linked accounts exist.
+    Keeps the other account active.
+    """
+    try:
+        data = request.get_json() or {}
+        target_role = data.get('role')
+
+        if target_role not in ['user', 'matchmaker']:
+            return jsonify({'error': "role must be 'user' or 'matchmaker'"}), 400
+
+        if not current_user.linked_account_id:
+            return jsonify({'error': 'No linked account found'}), 400
+
+        linked_account = User.query.get(current_user.linked_account_id)
+        if not linked_account:
+            return jsonify({'error': 'Linked account not found'}), 404
+
+        available_roles = {current_user.role, linked_account.role}
+        if target_role not in available_roles:
+            return jsonify({'error': f'No {target_role} account found to delete'}), 400
+
+        if current_user.role == target_role:
+            target_user = current_user
+            remaining_user = linked_account
+            deleting_current_account = True
+        else:
+            target_user = linked_account
+            remaining_user = current_user
+            deleting_current_account = False
+
+        _delete_user_related_data(target_user)
+
+        # Preserve the remaining account and fully unlink it.
+        remaining_user.linked_account_id = None
+        db.session.delete(target_user)
+        db.session.commit()
+
+        response = {
+            'message': f"{'Dater' if target_role == 'user' else 'Matchmaker'} account deleted successfully",
+            'user': remaining_user.to_dict(),
+            'deleted_role': target_role,
+        }
+
+        if deleting_current_account:
+            from flask_jwt_extended import create_access_token
+            response['token'] = create_access_token(identity=str(remaining_user.id))
+            response['switched'] = True
+        else:
+            response['switched'] = False
+
+        return jsonify(response), 200
+
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        return jsonify({
+            'error': 'Database error during account deletion',
+            'details': str(e)
+        }), 500
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            'error': 'Unexpected server error',
+            'details': str(e)
+        }), 500
+
 @profile_bp.route('/delete_account', methods=['DELETE'])
 @token_required
 def delete_account(current_user):
@@ -427,102 +742,13 @@ def delete_account(current_user):
         
         # Delete all user-related data
         
-        # 1. Delete matches where user is involved
-        matches_as_user1 = Match.query.filter_by(user_id_1=user_id).all()
-        matches_as_user2 = Match.query.filter_by(user_id_2=user_id).all()
-        all_matches = matches_as_user1 + matches_as_user2
-        
-        for match in all_matches:
-            # Delete conversations associated with matches
-            conversations = Conversation.query.filter_by(match_id=match.id).all()
-            for conversation in conversations:
-                # Delete messages in conversations
-                Message.query.filter_by(conversation_id=conversation.id).delete()
-                db.session.delete(conversation)
-            db.session.delete(match)
-        
-        # 2. Delete messages where user is sender or receiver (standalone messages)
-        Message.query.filter(
-            (Message.sender_id == user_id) | (Message.receiver_id == user_id)
-        ).delete()
-        
-        # 3. Delete quiz results
-        QuizResult.query.filter_by(user_id=user_id).delete()
-        
-        # 4. Delete user skips (where user skipped others or was skipped)
-        UserSkip.query.filter(
-            (UserSkip.user_id == user_id) | (UserSkip.skipped_user_id == user_id)
-        ).delete()
-        
-        # 5. Delete user blocks (where user blocked others or was blocked)
-        UserBlock.query.filter(
-            (UserBlock.blocker_id == user_id) | (UserBlock.blocked_id == user_id)
-        ).delete()
-        
-        # 6. Handle ReferredUsers (matchmaker relationships)
-        if current_user.role == 'matchmaker':
-            # Delete the ReferredUsers row if user is a matchmaker
-            ReferredUsers.query.filter_by(matchmaker_id=user_id).delete()
-        else:
-            # If user is a linked dater, remove them from matchmaker's ReferredUsers
-            referral_rows = ReferredUsers.query.filter(
-                (ReferredUsers.linked_dater_1_id == user_id) |
-                (ReferredUsers.linked_dater_2_id == user_id) |
-                (ReferredUsers.linked_dater_3_id == user_id) |
-                (ReferredUsers.linked_dater_4_id == user_id) |
-                (ReferredUsers.linked_dater_5_id == user_id) |
-                (ReferredUsers.linked_dater_6_id == user_id) |
-                (ReferredUsers.linked_dater_7_id == user_id) |
-                (ReferredUsers.linked_dater_8_id == user_id) |
-                (ReferredUsers.linked_dater_9_id == user_id) |
-                (ReferredUsers.linked_dater_10_id == user_id)
-            ).all()
-            
-            for ref_row in referral_rows:
-                # Clear the linked dater field that matches this user
-                for i in range(1, 11):
-                    field_name = f'linked_dater_{i}_id'
-                    if getattr(ref_row, field_name) == user_id:
-                        setattr(ref_row, field_name, None)
-        
+        _delete_user_related_data(current_user)
+
         # 7. Handle linked accounts
         if current_user.linked_account_id:
             linked_account = User.query.get(current_user.linked_account_id)
             if linked_account:
                 linked_account.linked_account_id = None
-        
-        # Clear linked_account_id from any user that links to this user
-        linked_users = User.query.filter_by(linked_account_id=user_id).all()
-        for linked_user in linked_users:
-            linked_user.linked_account_id = None
-        
-        # 8. Clear referred_by_id from any users this user referred
-        referred_users = User.query.filter_by(referred_by_id=user_id).all()
-        for referred_user in referred_users:
-            referred_user.referred_by_id = None
-        
-        # 9. Delete images (both database records and cloud storage files)
-        use_cloud_storage = current_app.config.get('USE_CLOUD_STORAGE', False)
-        user_images = Image.query.filter_by(user_id=user_id).all()
-        
-        for image in user_images:
-            if use_cloud_storage:
-                # Delete from cloud storage
-                storage_key = extract_key_from_url(image.image_url)
-                if storage_key:
-                    delete_image_from_cloud(storage_key)
-            else:
-                # Delete from local filesystem
-                try:
-                    file_path = os.path.join(current_app.root_path, image.image_url.lstrip('/'))
-                    if os.path.exists(file_path):
-                        os.remove(file_path)
-                except Exception as e:
-                    current_app.logger.error(f"Error deleting file from filesystem: {e}")
-        
-        # Delete image database records
-        Image.query.filter_by(user_id=user_id).delete()
-        PushToken.query.filter_by(user_id=user_id).delete()
         
         # 10. Finally, delete the user account itself
         db.session.delete(current_user)

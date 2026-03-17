@@ -1,8 +1,12 @@
 from flask import Blueprint, jsonify, request
 from app.models.userDB import User
 from app.models.matchDB import Match
+from app.models.conversationDB import Conversation
+from app.models.messageDB import Message
 from app.models.skipDB import UserSkip
 from app.models.blockDB import UserBlock
+from app.models.conversationDB import Conversation
+from app.models.messageDB import Message
 from app import db
 from app.routes.shared import token_required
 from app.services.ai_embeddings import get_conversation_similarity
@@ -11,6 +15,9 @@ from math import radians, sin, cos, sqrt, atan2
 from app.services.notification_service import send_match_notification
 
 match_bp = Blueprint('match', __name__)
+
+# Sentinel for "no distance limit" (matches anyone who fits other criteria, regardless of distance)
+MATCH_ALL_RADIUS = 9999  # miles
 
 def haversine_distance(lat1, lon1, lat2, lon2):
     """Return distance between two coordinates in miles."""
@@ -174,12 +181,15 @@ def get_users_to_match(current_user):
                                           user.latitude, user.longitude)
             if distance is None:
                 continue
-            # user must be within acting_user's radius AND vice versa
+            # user must be within acting_user's radius AND vice versa (unless either has "no distance limit")
             acting_radius = acting_user.match_radius if acting_user.match_radius else 0
             user_radius = user.match_radius if user.match_radius else 0
             if acting_radius == 0 or user_radius == 0:
                 continue
-            if distance > acting_radius or distance > user_radius:
+            # treat radius >= MATCH_ALL_RADIUS as "no distance limit" for that user
+            if (acting_radius < MATCH_ALL_RADIUS and distance > acting_radius) or (
+                user_radius < MATCH_ALL_RADIUS and distance > user_radius
+            ):
                 continue
         # Check if user's age preferences match acting_user's age
         if acting_user.preferredAgeMin and acting_user.preferredAgeMax and user.preferredAgeMin and user.preferredAgeMax:
@@ -594,6 +604,20 @@ def get_mutual_matches(current_user):
             user1_matchmaker_involved = bool(match.matched_by_user_id_1_matcher)
             user2_matchmaker_involved = bool(match.matched_by_user_id_2_matcher)
 
+            # For single-matchmaker pending approvals, only show to the dater who does
+            # NOT have a matchmaker (the direct dater participant). Hide from the
+            # matchmaker-backed dater until approval is complete.
+            single_matchmaker_involved = user1_matchmaker_involved != user2_matchmaker_involved
+            if single_matchmaker_involved:
+                current_user_is_user1 = match.user_id_1 == current_user.id
+                current_user_is_user2 = match.user_id_2 == current_user.id
+                current_user_has_matchmaker = (
+                    (current_user_is_user1 and user1_matchmaker_involved) or
+                    (current_user_is_user2 and user2_matchmaker_involved)
+                )
+                if current_user_has_matchmaker:
+                    continue
+
             pending_approval_users.append({
                 'match_id': match.id,
                 'match_user': user_dict,
@@ -633,6 +657,11 @@ def unmatch(current_user, match_id):
         if match.matched_by_user_id_1_matcher != current_user.id and match.matched_by_user_id_2_matcher != current_user.id:
             return jsonify({'message': 'You are not authorized to unmatch this match'}), 403
 
+    # Delete conversations (and their messages) that reference this match before deleting the match
+    conversations = Conversation.query.filter_by(match_id=match_id).all()
+    for conversation in conversations:
+        Message.query.filter_by(conversation_id=conversation.id).delete()
+        db.session.delete(conversation)
     db.session.delete(match)
     db.session.commit()
 
@@ -775,35 +804,47 @@ def send_note(current_user):
     if not recipient:
         return jsonify({'message': 'Recipient not found'}), 404
 
+    # Determine acting dater and sender user for liked_by relationship.
+    if current_user.role == 'user':
+        acting_dater_id = current_user.id
+        sender_user = current_user
+    else:
+        acting_dater_id = current_user.referred_by_id
+        if not acting_dater_id:
+            return jsonify({'message': 'Matchmaker has no linked dater'}), 400
+        sender_user = User.query.get(acting_dater_id)
+        if not sender_user:
+            return jsonify({'message': 'Linked dater not found'}), 404
+
+    if acting_dater_id == recipient_id:
+        return jsonify({'message': 'Cannot send a note to yourself'}), 400
+
     match = Match.query.filter(
-        ((Match.user_id_1 == current_user.id) & (Match.user_id_2 == recipient_id)) |
-        ((Match.user_id_1 == recipient_id) & (Match.user_id_2 == current_user.id))
+        ((Match.user_id_1 == acting_dater_id) & (Match.user_id_2 == recipient_id)) |
+        ((Match.user_id_1 == recipient_id) & (Match.user_id_2 == acting_dater_id))
     ).first()
 
     if match:
         match.note = note_text
-        match.status = 'pending'
+        # Notes should always create/update a normal (non-blind) match.
+        match.blind_match = ''
+        if current_user.role == 'matchmaker':
+            if match.user_id_1 == acting_dater_id:
+                match.matched_by_user_id_1_matcher = current_user.id
+            elif match.user_id_2 == acting_dater_id:
+                match.matched_by_user_id_2_matcher = current_user.id
+        if sender_user not in match.liked_by:
+            match.liked_by.append(sender_user)
     else:
-        # determine acting dater for creating the match
-        if current_user.role == 'user':
-            acting_dater_id = current_user.id
-        else:
-            linked_dater_id = current_user.referred_by_id
-            linked = User.query.get(linked_dater_id)
-            if not linked:
-                return jsonify({'message': 'Matchmaker has no linked dater'}), 400
-            acting_dater_id = linked.id
-
         match = Match(
             user_id_1=acting_dater_id,
             user_id_2=recipient_id,
             status='pending',
-            note=note_text
+            note=note_text,
+            blind_match=''
         )
-        if current_user.role == 'user':
-            match.liked_by.append(current_user)
-        else:
-            match.liked_by.append(current_user.referred_by_id)
+        match.liked_by.append(sender_user)
+        if current_user.role == 'matchmaker':
             # record which matchmaker created this entry on the correct side
             if match.user_id_1 == current_user.referred_by_id:
                 match.matched_by_user_id_1_matcher = current_user.id
@@ -811,6 +852,31 @@ def send_note(current_user):
                 match.matched_by_user_id_2_matcher = current_user.id
 
         db.session.add(match)
+        db.session.flush()
+
+    # Recompute status after recording this note sender in liked_by.
+    liked_ids = {u.id for u in match.liked_by}
+    both_sides_liked = match.user_id_1 in liked_ids and match.user_id_2 in liked_ids
+    matchmaker_involved = bool(match.matched_by_user_id_1_matcher or match.matched_by_user_id_2_matcher)
+    if both_sides_liked:
+        match.status = 'pending_approval' if matchmaker_involved else 'matched'
+    else:
+        match.status = 'pending'
+
+    # Persist each note as a conversation message so both notes remain visible.
+    conversation = Conversation.query.filter_by(match_id=match.id).first()
+    if not conversation:
+        conversation = Conversation(match_id=match.id)
+        db.session.add(conversation)
+        db.session.flush()
+
+    note_message = Message(
+        conversation_id=conversation.id,
+        sender_id=current_user.id,
+        receiver_id=recipient_id,
+        text=note_text
+    )
+    db.session.add(note_message)
 
     db.session.commit()
     return jsonify({'message': 'Note sent successfully', 'match': match.to_dict()}), 201

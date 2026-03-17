@@ -17,13 +17,18 @@ import {
   Keyboard,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useKeyboardHandler } from 'react-native-keyboard-controller';
+import Animated, { useSharedValue, useAnimatedStyle } from 'react-native-reanimated';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { API_BASE_URL } from '../../env';
 import { useUserInfo } from './hooks/useUserInfo';
 import { games } from '../puzzles/puzzlesPage';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 import { getImageUrl } from '../profile/utils/profileUtils';
+import { getRoleAccentColor } from '../layout/components/RoleHeaderBanner';
+import { runOnJS } from 'react-native-reanimated';
 
 function formatMessageTimestamp(isoString) {
   if (!isoString) return '';
@@ -47,6 +52,7 @@ function formatMessageTimestamp(isoString) {
 const MatchConvo = () => {
   const route = useRoute();
   const navigation = useNavigation();
+  const containerRef = useRef(null);
   const { matchId, isBlind } = route.params || {};
   const { userInfo } = useUserInfo(API_BASE_URL);
   const [messages, setMessages] = useState([]);
@@ -56,10 +62,15 @@ const MatchConvo = () => {
   const [selectedPuzzleLink, setSelectedPuzzleLink] = useState('');
   const [senderNames, setSenderNames] = useState({});
   const [senderRoles, setSenderRoles] = useState({});
+  const [senderReferrerIds, setSenderReferrerIds] = useState({});
   const [matchUser, setMatchUser] = useState(null);
   const [puzzleSheetOpen, setPuzzleSheetOpen] = useState(false);
   const [matchInfo, setMatchInfo] = useState(null);
   const [menuVisible, setMenuVisible] = useState(false);
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+  const [approvedByMeLocally, setApprovedByMeLocally] = useState(false);
+  const insets = useSafeAreaInsets();
+  const keyboardHeightAnim = useSharedValue(0);
 
   const scrollViewRef = useRef(null);
 
@@ -106,6 +117,7 @@ const MatchConvo = () => {
         const uniqueIds = [...new Set(messages.map((m) => m.sender_id))];
         const names = {};
         const roles = {};
+        const referrerIds = {};
         for (const id of uniqueIds) {
           try {
             const res = await fetch(`${API_BASE_URL}/profile/${id}`, {
@@ -115,6 +127,7 @@ const MatchConvo = () => {
               const data = await res.json();
               names[id] = data.user?.first_name || data.first_name;
               roles[id] = data.user?.role || data.role;
+              referrerIds[id] = data.user?.referrer_id ?? data.referrer_id ?? null;
             }
           } catch (err) {
             console.error('Error fetching sender name:', err);
@@ -122,6 +135,7 @@ const MatchConvo = () => {
         }
         setSenderNames(names);
         setSenderRoles(roles);
+        setSenderReferrerIds(referrerIds);
       } catch (err) {
         console.error('Error fetching names:', err);
       }
@@ -156,26 +170,42 @@ const MatchConvo = () => {
   }, [matchId]);
 
   useEffect(() => {
-    const showSub = Keyboard.addListener('keyboardDidShow', () => {
-      scrollViewRef.current?.scrollToEnd({ animated: true });
-    });
-    const hideSub = Keyboard.addListener('keyboardDidHide', () => {
-      scrollViewRef.current?.scrollToEnd({ animated: true });
-    });
-  
+      if (!loading) {
+        requestAnimationFrame(() => {
+          scrollViewRef.current?.scrollToEnd({ animated: false });
+        });
+      }
+  }, [loading, messages, selectedPuzzleLink]);
+
+  const scrollToEnd = () => {
+    setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 50);
+  };
+
+  useKeyboardHandler({
+    onMove: (e) => {
+      'worklet';
+      keyboardHeightAnim.value = e.height;
+    },
+    onEnd: (e) => {
+      'worklet';
+      keyboardHeightAnim.value = e.height;
+      runOnJS(scrollToEnd)();
+    },
+  }, []);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener('keyboardDidShow', () => setIsKeyboardVisible(true));
+    const hideSub = Keyboard.addListener('keyboardDidHide', () => setIsKeyboardVisible(false));
+
     return () => {
       showSub.remove();
       hideSub.remove();
     };
   }, []);
 
-  useEffect(() => {
-  if (!loading) {
-    requestAnimationFrame(() => {
-      scrollViewRef.current?.scrollToEnd({ animated: false });
-    });
-  }
-}, [loading, messages, selectedPuzzleLink]);
+  const animatedStyle = useAnimatedStyle(() => ({
+    marginBottom: Platform.OS === 'android' ? keyboardHeightAnim.value : 0,
+  }));
 
   const sendMessage = async () => {
     if (!newMessageText.trim() && !selectedPuzzleLink) return;
@@ -231,9 +261,17 @@ const MatchConvo = () => {
     if (isMine(msg)) return '';
     const senderRole = senderRoles[msg.sender_id];
     const senderName = senderNames[msg.sender_id] || 'Loading...';
+    if (senderRole === undefined && userInfo?.role === 'matchmaker') {
+      // During profile lookup, prefer a stable label for matchmaker-mediated chats.
+      return 'Matchmaker';
+    }
     if (senderRole === 'matchmaker') {
-      if (userInfo?.role === 'user') return 'Matchmaker';
-      return senderName;
+      if (userInfo?.role === 'user') {
+        const senderLinkedDaterId = senderReferrerIds[msg.sender_id];
+        const isUsersMatchmaker = Number(senderLinkedDaterId) === Number(userInfo?.id);
+        return isUsersMatchmaker ? 'Matchmaker(you)' : 'Matchmaker(them)';
+      }
+      return 'Matchmaker';
     }
     return senderName;
   };
@@ -276,6 +314,7 @@ const MatchConvo = () => {
 
       if (res.ok) {
         const data = await res.json();
+        setApprovedByMeLocally(true);
         if (data.waiting_for_other) {
           Alert.alert('Success', 'Your approval has been recorded. Waiting for the other matchmaker to approve.');
         } else {
@@ -312,16 +351,50 @@ const MatchConvo = () => {
   const canSendMore = messageCount < 10;
   const waitingForOtherApproval = matchInfo?.waiting_for_other_approval || false;
   const approvedByOtherMatchmaker = matchInfo?.approved_by_other_matchmaker || false;
-  
-  // Determine if we should show "(speaking with matchmaker)" text - only when both matchmakers are involved and other hasn't approved
-  const showSpeakingWithMatchmaker = isPendingApproval && userInfo?.role === 'matchmaker' && matchInfo?.both_matchmakers_involved && !approvedByOtherMatchmaker;
+  const hasBlindValueFromMatchInfo = typeof matchInfo?.blind_match === 'string';
+  const isBlindFromMatchInfo = hasBlindValueFromMatchInfo && matchInfo?.blind_match === 'Blind';
+  const effectiveIsBlind = hasBlindValueFromMatchInfo ? isBlindFromMatchInfo : !!isBlind;
+  const accentColor = getRoleAccentColor(userInfo?.role || 'matchmaker');
+
+  // Matchmakers see this when both are involved and one approval is still outstanding.
+  const showSpeakingWithMatchmakerForMatchmaker =
+    isPendingApproval &&
+    userInfo?.role === 'matchmaker' &&
+    matchInfo?.both_matchmakers_involved &&
+    !approvedByOtherMatchmaker;
+
+  // Daters see this for pending approvals (these are matchmaker-mediated flows).
+  const showSpeakingWithMatchmakerForDater =
+    isPendingApproval &&
+    userInfo?.role === 'user';
+
+  const showSpeakingWithMatchmaker =
+    showSpeakingWithMatchmakerForMatchmaker || showSpeakingWithMatchmakerForDater;
   // Show "(approved by other matchmaker)" when the other matchmaker has approved but we haven't
   const showApprovedByOther = isPendingApproval && userInfo?.role === 'matchmaker' && approvedByOtherMatchmaker;
+  const hasLeftPendingApproval = !!matchInfo?.status && matchInfo.status !== 'pending_approval';
+  const isApprovedByMatchmaker =
+    userInfo?.role === 'matchmaker' &&
+    (
+      hasLeftPendingApproval ||
+      matchInfo?.status === 'matched' ||
+      waitingForOtherApproval ||
+      approvedByMeLocally
+    );
+  const showHeaderUnmatchAction =
+    userInfo?.role === 'matchmaker' &&
+    isPendingApproval &&
+    !isApprovedByMatchmaker;
+  const showHeaderBlindToggle = userInfo?.role === 'matchmaker' && !!matchInfo;
+  // REPLACE WITH:
+  const androidActionsBottomPadding =
+    Platform.OS === 'android' ? (isKeyboardVisible ? 8 : 16 + insets.bottom) : 16;
+  const androidSheetBottomPadding = 16 + insets.bottom;
 
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#6c5ce7" />
+        <ActivityIndicator size="large" color={accentColor} />
         <Text style={styles.loadingText}>Loading conversation...</Text>
       </View>
     );
@@ -456,6 +529,21 @@ const MatchConvo = () => {
     await handleBlock();
   };
 
+  const handleRevealFromMenu = async () => {
+    setMenuVisible(false);
+    await handleReveal();
+  };
+
+  const handleHideFromMenu = async () => {
+    setMenuVisible(false);
+    await handleHide();
+  };
+
+  const handleUnmatchConfirmFromMenu = async () => {
+    setMenuVisible(false);
+    await handleUnmatch();
+  };
+
   const handleUnmatch = async () => {
     try {
       const token = await AsyncStorage.getItem('token');
@@ -511,31 +599,111 @@ const MatchConvo = () => {
     }
   };
 
+  const handleReveal = async () => {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) {
+        Alert.alert('Error', 'Please log in');
+        navigation.navigate('Login');
+        return;
+      }
+
+      const res = await fetch(`${API_BASE_URL}/match/reveal/${matchId}`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (res.status === 401) {
+        const data = await res.json();
+        if (data.error_code === 'TOKEN_EXPIRED') {
+          await AsyncStorage.removeItem('token');
+          Alert.alert('Session expired', 'Please log in again.');
+          navigation.navigate('Login');
+          return;
+        }
+      }
+
+      if (!res.ok) {
+        const data = await res.json();
+        Alert.alert('Error', data.message || 'Failed to reveal match');
+        return;
+      }
+
+      setMatchInfo((prev) => (prev ? { ...prev, blind_match: 'Revealed' } : prev));
+      Alert.alert('Success', 'Match revealed');
+    } catch (err) {
+      console.error('Error revealing match:', err);
+      Alert.alert('Error', 'Something went wrong revealing the match');
+    }
+  };
+
+  const handleHide = async () => {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) {
+        Alert.alert('Error', 'Please log in');
+        navigation.navigate('Login');
+        return;
+      }
+
+      const res = await fetch(`${API_BASE_URL}/match/hide/${matchId}`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (res.status === 401) {
+        const data = await res.json();
+        if (data.error_code === 'TOKEN_EXPIRED') {
+          await AsyncStorage.removeItem('token');
+          Alert.alert('Session expired', 'Please log in again.');
+          navigation.navigate('Login');
+          return;
+        }
+      }
+
+      if (!res.ok) {
+        const data = await res.json();
+        Alert.alert('Error', data.message || 'Failed to hide match');
+        return;
+      }
+
+      setMatchInfo((prev) => (prev ? { ...prev, blind_match: 'Blind' } : prev));
+      Alert.alert('Success', 'Match hidden');
+    } catch (err) {
+      console.error('Error hiding match:', err);
+      Alert.alert('Error', 'Something went wrong hiding the match');
+    }
+  };
+
   return (
-    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+    <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+      <Animated.View style={[{ flex: 1 }, animatedStyle]}>
       <View style={styles.header}>
         <View style={styles.headerTopRow}>
           <TouchableOpacity style={styles.backButton} onPress={() => navigation.navigate('Main', { screen: 'Conversations' })}>
-            <Ionicons name="arrow-back" size={24} color="#6c5ce7" />
-            <Text style={styles.backButtonText}>Back</Text>
+            <Ionicons name="arrow-back" size={24} color={accentColor} />
+            <Text style={[styles.backButtonText, { color: accentColor }]}>Back</Text>
           </TouchableOpacity>
 
-          {userInfo?.role === 'matchmaker' && isPendingApproval && (
+          {userInfo?.role === 'matchmaker' && (
             <View style={styles.headerActions}>
-              <TouchableOpacity
-                style={styles.headerUnmatchButton}
-                onPress={handleUnmatch}
-              >
-                <Text style={styles.headerUnmatchButtonText}>Unmatch</Text>
-              </TouchableOpacity>
-              {!waitingForOtherApproval && (
+              {isPendingApproval && !waitingForOtherApproval && (
                 <TouchableOpacity
-                  style={styles.headerApproveButton}
+                  style={[styles.headerApproveButton, { backgroundColor: accentColor }]}
                   onPress={handleApprove}
                 >
                   <Text style={styles.headerApproveButtonText}>Approve</Text>
                 </TouchableOpacity>
               )}
+              <TouchableOpacity
+                style={styles.menuButton}
+                onPress={() => setMenuVisible(true)}
+              >
+                <Ionicons name="ellipsis-vertical" size={24} color={accentColor} />
+              </TouchableOpacity>
             </View>
           )}
           {userInfo?.role === 'user' && (
@@ -544,7 +712,7 @@ const MatchConvo = () => {
                 style={styles.menuButton}
                 onPress={() => setMenuVisible(true)}
               >
-                <Ionicons name="ellipsis-vertical" size={24} color="#6c5ce7" />
+                <Ionicons name="ellipsis-vertical" size={24} color={accentColor} />
               </TouchableOpacity>
             </View>
           )}
@@ -553,28 +721,28 @@ const MatchConvo = () => {
         {matchUser && (
           <TouchableOpacity
             style={styles.matchAvatarSection}
-            disabled={isBlind && userInfo?.role !== 'matchmaker'}
+            disabled={effectiveIsBlind && userInfo?.role !== 'matchmaker'}
             activeOpacity={0.7}
             onPress={() => navigation.navigate('ProfilePage', { userId: matchUser.id, matchProfile: true })}
           >
             {matchUser.first_image ? (
               <Image
                 source={{ uri: getImageUrl(matchUser.first_image, API_BASE_URL) }}
-                style={styles.matchAvatarImg}
-                blurRadius={isBlind && userInfo?.role !== 'matchmaker' ? 40 : 0}
+                style={[styles.matchAvatarImg, { borderColor: accentColor }]}
+                blurRadius={effectiveIsBlind && userInfo?.role !== 'matchmaker' ? 40 : 0}
               />
             ) : (
-              <View style={styles.matchPlaceholder}>
+              <View style={[styles.matchPlaceholder, { backgroundColor: accentColor }]}>
                 <Text style={styles.placeholderText}>{matchUser.first_name?.[0] || '?'}</Text>
               </View>
             )}
             <View style={styles.titleContainer}>
               <Text style={styles.convoTitle}>{matchUser.first_name || `Match ${matchId}`}</Text>
               {showSpeakingWithMatchmaker && (
-                <Text style={styles.speakingWithMatchmakerText}>(speaking with matchmaker)</Text>
+                <Text style={[styles.speakingWithMatchmakerText, { color: accentColor }]}>(speaking with matchmaker)</Text>
               )}
               {showApprovedByOther && (
-                <Text style={styles.speakingWithMatchmakerText}>(approved by other matchmaker)</Text>
+                <Text style={[styles.speakingWithMatchmakerText, { color: accentColor }]}>(approved by other matchmaker)</Text>
               )}
             </View>
           </TouchableOpacity>
@@ -622,8 +790,8 @@ const MatchConvo = () => {
             const senderLabel = getSenderLabel(msg);
 
             return (
-              <View key={msg.id} style={[styles.messageBubble, mine ? styles.mine : styles.theirs]}>
-                {!mine && <Text style={styles.senderLabel}>{senderLabel}</Text>}
+              <View key={msg.id} style={[styles.messageBubble, mine ? [styles.mine, { backgroundColor: accentColor }] : styles.theirs]}>
+                {!mine && <Text style={[styles.senderLabel, { color: accentColor }]}>{senderLabel}</Text>}
                 {msg.text && <Text style={[styles.messageText, mine && { color: '#fff' }]}>{msg.text}</Text>}
                 {msg.puzzle_type && (
                   <TouchableOpacity style={styles.puzzleBubble} onPress={() => {
@@ -631,11 +799,11 @@ const MatchConvo = () => {
                     AsyncStorage.setItem('activeMatchId', matchId.toString());
                     navigation.navigate(msg.puzzle_link, { matchId: matchId.toString() });
                   }}>
-                    <Ionicons name="game-controller-outline" size={20} color="#6c5ce7" />
-                    <Text style={styles.puzzleText}>Play {msg.puzzle_type}</Text>
+                    <Ionicons name="game-controller-outline" size={20} color={accentColor} />
+                    <Text style={[styles.puzzleText, { color: accentColor }]}>Play {msg.puzzle_type}</Text>
                   </TouchableOpacity>
                 )}
-                <Text style={styles.timestamp}>
+                <Text style={[styles.timestamp, mine && userInfo?.role === 'user' && styles.timestampMineDater]}>
                   {formatMessageTimestamp(msg.timestamp)}
                 </Text>
               </View>
@@ -646,8 +814,8 @@ const MatchConvo = () => {
 
       {selectedPuzzleLink ? (
         <View style={styles.selectedPuzzlePreview}>
-          <Ionicons name="game-controller-outline" size={20} color="#6c5ce7" />
-          <Text style={styles.selectedPuzzleText}>{selectedPuzzleType}</Text>
+          <Ionicons name="game-controller-outline" size={20} color={accentColor} />
+          <Text style={[styles.selectedPuzzleText, { color: accentColor }]}>{selectedPuzzleType}</Text>
           <TouchableOpacity onPress={() => { setSelectedPuzzleLink(''); setSelectedPuzzleType(games[0].name); }}>
             <Ionicons name="close" size={20} color="#666" />
           </TouchableOpacity>
@@ -678,10 +846,11 @@ const MatchConvo = () => {
         />
       )}
 
-      <View style={styles.sendActions}>
+      <View style={[styles.sendActions, { paddingBottom: androidActionsBottomPadding }]}>
         <TouchableOpacity
           style={[
             styles.sendButton,
+            { backgroundColor: accentColor },
             ((!newMessageText.trim() && !selectedPuzzleLink) || (userInfo?.role === 'matchmaker' && isPendingApproval && (!canSendMore || waitingForOtherApproval))) && styles.sendButtonDisabled
           ]}
           onPress={sendMessage}
@@ -691,15 +860,16 @@ const MatchConvo = () => {
           <Text style={styles.sendButtonText}>Send</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.sendPuzzleButton} onPress={() => setPuzzleSheetOpen(true)}>
-          <Ionicons name="game-controller-outline" size={20} color="#6c5ce7" />
-          <Text style={styles.sendPuzzleButtonText}>Puzzle</Text>
+        <TouchableOpacity style={[styles.sendPuzzleButton, { borderColor: accentColor }]} onPress={() => setPuzzleSheetOpen(true)}>
+          <Ionicons name="game-controller-outline" size={20} color={accentColor} />
+          <Text style={[styles.sendPuzzleButtonText, { color: accentColor }]}>Puzzle</Text>
         </TouchableOpacity>
       </View>
+      </Animated.View>
 
       <Modal visible={puzzleSheetOpen} transparent animationType="slide" onRequestClose={() => setPuzzleSheetOpen(false)}>
         <Pressable style={styles.overlay} onPress={() => setPuzzleSheetOpen(false)} />
-        <View style={styles.sheet}>
+        <View style={[styles.sheet, { paddingBottom: androidSheetBottomPadding }]}>
           <Text style={styles.sheetTitle}>Choose a Puzzle</Text>
           <FlatList
             data={games}
@@ -716,8 +886,8 @@ const MatchConvo = () => {
                     setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 20);
                   }}
                 >
-                  <Text style={[styles.sheetItemText, isSelected && styles.sheetItemTextSelected]}>{item.name}</Text>
-                  {isSelected && <Ionicons name="checkmark" size={20} color="#6c5ce7" />}
+                  <Text style={[styles.sheetItemText, isSelected && styles.sheetItemTextSelected, isSelected && { color: accentColor }]}>{item.name}</Text>
+                  {isSelected && <Ionicons name="checkmark" size={20} color={accentColor} />}
                 </TouchableOpacity>
               );
             }}
@@ -725,23 +895,39 @@ const MatchConvo = () => {
         </View>
       </Modal>
 
-      {/* Menu Modal for daters */}
-      {userInfo?.role === 'user' && (
+      {/* Overflow menu modal */}
+      {(userInfo?.role === 'user' || userInfo?.role === 'matchmaker') && (
         <Modal visible={menuVisible} transparent animationType="fade" onRequestClose={() => setMenuVisible(false)}>
           <Pressable style={styles.menuOverlay} onPress={() => setMenuVisible(false)}>
             <View style={styles.menuContainer}>
-              <TouchableOpacity
-                style={styles.menuItem}
-                onPress={handleUnmatchFromMenu}
-              >
-                <Ionicons name="close-circle" size={20} color="#e53e3e" />
-                <Text style={styles.menuItemText}>Unmatch</Text>
-              </TouchableOpacity>
+              {userInfo?.role === 'matchmaker' && showHeaderBlindToggle && (
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={effectiveIsBlind ? handleRevealFromMenu : handleHideFromMenu}
+                >
+                  <Text style={styles.menuItemText}>{effectiveIsBlind ? 'Reveal' : 'Hide'}</Text>
+                </TouchableOpacity>
+              )}
+              {userInfo?.role === 'matchmaker' && showHeaderUnmatchAction && (
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={handleUnmatchConfirmFromMenu}
+                >
+                  <Text style={[styles.menuItemText, styles.menuItemTextDanger]}>Unmatch</Text>
+                </TouchableOpacity>
+              )}
+              {userInfo?.role === 'user' && (
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={handleUnmatchFromMenu}
+                >
+                  <Text style={[styles.menuItemText, styles.menuItemTextDanger]}>Unmatch</Text>
+                </TouchableOpacity>
+              )}
               <TouchableOpacity
                 style={[styles.menuItem, styles.menuItemLast]}
                 onPress={handleBlockFromMenu}
               >
-                <Ionicons name="ban-outline" size={20} color="#e53e3e" />
                 <Text style={[styles.menuItemText, styles.menuItemTextDanger]}>Block</Text>
               </TouchableOpacity>
             </View>
@@ -759,18 +945,6 @@ const styles = StyleSheet.create({
   backButton: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   backButtonText: { color: '#6c5ce7', fontSize: 16, fontWeight: '600' },
   headerActions: { flexDirection: 'row', gap: 8, alignItems: 'center' },
-  headerUnmatchButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#6c5ce7',
-  },
-  headerUnmatchButtonText: {
-    color: '#6c5ce7',
-    fontSize: 14,
-    fontWeight: '600',
-  },
   headerApproveButton: {
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -859,6 +1033,7 @@ const styles = StyleSheet.create({
   puzzleBubble: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8, padding: 8, backgroundColor: '#fafafa', borderRadius: 8 },
   puzzleText: { fontSize: 14, color: '#6c5ce7', fontWeight: '600' },
   timestamp: { fontSize: 11, color: '#999', marginTop: 4 },
+  timestampMineDater: { color: '#d1d5db' },
   selectedPuzzlePreview: {
     flexDirection: 'row',
     alignItems: 'center',

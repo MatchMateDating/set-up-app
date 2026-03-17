@@ -16,6 +16,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import { API_BASE_URL } from '../../env';
 import { UserContext } from '../../context/UserContext';
+import { useNotifications } from '../../context/NotificationContext';
 import { startLocationWatcher } from './utils/startLocationWatcher';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -30,6 +31,7 @@ const LoginScreen = () => {
   const passwordRef = useRef(null);
   const passwordRevealTimeoutRef = useRef(null);
   const { setUser } = useContext(UserContext);
+  const { enableNotifications } = useNotifications();
 
   const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 
@@ -111,7 +113,8 @@ const LoginScreen = () => {
     try {
       const res = await axios.post(`${API_BASE_URL}/auth/login`, { 
         identifier: identifier,
-        password 
+        password,
+        staySignedIn
       });
       await AsyncStorage.setItem('staySignedIn', staySignedIn ? 'true' : 'false');
       // Store token in AsyncStorage
@@ -125,8 +128,56 @@ const LoginScreen = () => {
       // Start location watcher for nearby matching (runs in background)
       startLocationWatcher(API_BASE_URL, res.data.token);
 
+      const loggedInUser = res.data.user;
+      const navigatePostLogin = () => {
+        if (loggedInUser && loggedInUser.role === 'user' && loggedInUser.profile_completion_step) {
+          navigation.navigate('CompleteProfile');
+        } else {
+          navigation.navigate('Main', {
+            screen: 'Matches',
+          });
+        }
+      };
+
+      const shouldPromptFirstSessionNotifications = Boolean(
+        res.data.is_first_active_session &&
+        loggedInUser &&
+        loggedInUser.role === 'matchmaker' &&
+        !loggedInUser.notifications_enabled
+      );
+
+      if (shouldPromptFirstSessionNotifications) {
+        Alert.alert(
+          'Enable Notifications?',
+          'Would you like to receive push notifications for new messages and matches?',
+          [
+            {
+              text: 'Not Now',
+              style: 'cancel',
+              onPress: () => {
+                navigatePostLogin();
+              },
+            },
+            {
+              text: 'Enable',
+              onPress: async () => {
+                try {
+                  await enableNotifications();
+                } catch (notificationErr) {
+                  // User can enable notifications later in settings.
+                } finally {
+                  navigatePostLogin();
+                }
+              },
+            },
+          ],
+          { cancelable: false }
+        );
+        return;
+      }
+
       // Check if user needs to complete profile
-      if (res.data.user && res.data.user.role === 'user' && res.data.user.profile_completion_step) {
+      if (loggedInUser && loggedInUser.role === 'user' && loggedInUser.profile_completion_step) {
         navigation.navigate('CompleteProfile');
       } else {
         navigation.navigate('Main', {

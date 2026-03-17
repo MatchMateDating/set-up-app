@@ -1,10 +1,10 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 
-const ToggleConversationsDater = ({ showDaterMatches, setShowDaterMatches }) => (
+const ToggleConversationsDater = ({ showDaterMatches, setShowDaterMatches, accentColor = '#6c5ce7' }) => (
   <View style={styles.container}>
     <TouchableOpacity
-      style={[styles.button, showDaterMatches && styles.buttonActive]}
+      style={[styles.button, showDaterMatches && { backgroundColor: accentColor }]}
       onPress={() => setShowDaterMatches(true)}
     >
       <Text style={[styles.buttonText, showDaterMatches && styles.buttonTextActive]}>
@@ -12,7 +12,7 @@ const ToggleConversationsDater = ({ showDaterMatches, setShowDaterMatches }) => 
       </Text>
     </TouchableOpacity>
     <TouchableOpacity
-      style={[styles.button, !showDaterMatches && styles.buttonActive]}
+      style={[styles.button, !showDaterMatches && { backgroundColor: accentColor }]}
       onPress={() => setShowDaterMatches(false)}
     >
       <Text style={[styles.buttonText, !showDaterMatches && styles.buttonTextActive]}>
@@ -35,9 +35,6 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 20,
     borderRadius: 5,
-  },
-  buttonActive: {
-    backgroundColor: '#6c5ce7',
   },
   buttonText: {
     color: '#fff',

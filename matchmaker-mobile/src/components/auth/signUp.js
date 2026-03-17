@@ -186,11 +186,6 @@ const SignUpScreen = () => {
       return;
     }
 
-    if (role === 'matchmaker' && !referralCode.trim()) {
-      Alert.alert('Error', 'Referral code is required for matchmakers.');
-      return;
-    }
-
     if (!agreeToTexts) {
       Alert.alert('Error', 'Please agree to receive non promotional emails to continue.');
       return;
@@ -213,10 +208,14 @@ const SignUpScreen = () => {
         password,
         role,
         email: normalizedEmail,
+        staySignedIn,
       };
 
-      if (role === 'matchmaker') {
-        payload.referral_code = referralCode.trim();
+      const trimmedReferralCode = referralCode.trim();
+      const shouldPromptLinkedDater = role === 'matchmaker' && !trimmedReferralCode;
+
+      if (role === 'matchmaker' && trimmedReferralCode) {
+        payload.referral_code = trimmedReferralCode;
       }
 
       const res = await axios.post(`${API_BASE_URL}/auth/register`, payload);
@@ -243,6 +242,19 @@ const SignUpScreen = () => {
             index: 0,
             routes: [{ name: 'CompleteProfile' }],
           });
+        } else if (shouldPromptLinkedDater) {
+          navigation.reset({
+            index: 0,
+            routes: [
+              {
+                name: 'Main',
+                params: {
+                  screen: 'Settings',
+                  params: { showLinkedDatersOnboarding: true },
+                },
+              },
+            ],
+          });
         } else {
           navigation.reset({
             index: 0,
@@ -259,7 +271,7 @@ const SignUpScreen = () => {
           email: normalizedEmail,
           password,
           role,
-          referral_code: role === 'matchmaker' ? referralCode.trim() : null,
+          referral_code: role === 'matchmaker' && trimmedReferralCode ? trimmedReferralCode : null,
           staySignedIn,
         };
 
@@ -419,11 +431,6 @@ const SignUpScreen = () => {
             >
               • 1 special character
             </Text>
-            {shouldSkipPasswordRules && (
-              <Text style={styles.passwordRuleTestBypass}>
-                Test email detected: password rules are optional for test mode.
-              </Text>
-            )}
           </View>
         )}
 
@@ -470,7 +477,7 @@ const SignUpScreen = () => {
           <TextInput
             ref={referralRef}
             style={styles.input}
-            placeholder="Enter Dater's Referral Code"
+            placeholder="Enter Dater's Referral Code (Optional)"
             placeholderTextColor="#6b7280"
             value={referralCode}
             onChangeText={setReferralCode}
@@ -753,12 +760,6 @@ const styles = StyleSheet.create({
   },
   passwordRulePassed: {
     color: '#16a34a',
-  },
-  passwordRuleTestBypass: {
-    marginTop: 6,
-    fontSize: 12,
-    color: '#6c5ce7',
-    fontWeight: '600',
   },
   submitBtn: {
     backgroundColor: '#6c5ce7',

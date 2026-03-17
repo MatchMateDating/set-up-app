@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify
 from app.models import db, User
+from app.models.userDB import ReferredUsers
 from flask_jwt_extended import create_access_token
 from flask import current_app
 from datetime import datetime, timedelta
@@ -125,12 +126,57 @@ def is_strong_password(password):
         return False
     return True
 
+
+def link_dater_to_matchmaker(matchmaker, dater):
+    """Link a dater to a matchmaker's referral row if possible."""
+    referral_row = ReferredUsers.query.filter_by(matchmaker_id=matchmaker.id).first()
+    if not referral_row:
+        referral_row = ReferredUsers(matchmaker_id=matchmaker.id)
+        db.session.add(referral_row)
+        db.session.flush()
+
+    for i in range(1, 11):
+        existing = getattr(referral_row, f"linked_dater_{i}_id")
+        if existing == dater.id:
+            return {"linked": True, "already_linked": True, "slot": i}
+
+    for i in range(1, 11):
+        col = f"linked_dater_{i}_id"
+        if getattr(referral_row, col) is None:
+            setattr(referral_row, col, dater.id)
+            return {"linked": True, "already_linked": False, "slot": i}
+
+    return {"linked": False, "already_linked": False, "slot": None}
+
+
+def resolve_existing_user_for_email(email):
+    """Pick existing account by role preference for web matchmaker signup."""
+    users = User.query.filter_by(email=email).all()
+    if not users:
+        return None, None, None
+
+    matchmaker = next((u for u in users if u.role == 'matchmaker'), None)
+    dater = next((u for u in users if u.role == 'user'), None)
+    selected = matchmaker or dater or users[0]
+    return selected, matchmaker, dater
+
+def get_remember_me_flag(payload):
+    """Return whether caller requested a persistent session."""
+    payload = payload or {}
+    return (
+        payload.get('remember_me') is True or
+        payload.get('rememberMe') is True or
+        payload.get('stay_signed_in') is True or
+        payload.get('staySignedIn') is True
+    )
+
 @auth_bp.route('/register', methods=['POST'])
 def register():
     """Send verification code without creating user account"""
     print('registering')
-    data = request.get_json()
+    data = request.get_json() or {}
     print(f"Received data: {data}")
+    remember_me = get_remember_me_flag(data)
 
     # Require either email OR phone_number (not both, at least one)
     email = data.get('email')
@@ -173,16 +219,15 @@ def register():
         # For test emails, create user immediately without verification
         print(f"TEST MODE: Auto-creating account for test email: {email}")
         
-        # Handle referral code for matchmakers
+        # Handle referral code for matchmakers (optional).
         referred_by = None
         if role == 'matchmaker':
-            referral_code = data.get('referral_code')
-            if not referral_code:
-                return jsonify({'msg': 'Referral code required for matchmaker'}), 400
-            referrer = User.query.filter_by(referral_code=referral_code).first()
-            if not referrer:
-                return jsonify({'msg': 'Invalid referral code'}), 400
-            referred_by = referrer.id
+            referral_code = (data.get('referral_code') or '').strip()
+            if referral_code:
+                referrer = User.query.filter_by(referral_code=referral_code).first()
+                if not referrer:
+                    return jsonify({'msg': 'Invalid referral code'}), 400
+                referred_by = referrer.id
 
         # Create the user immediately
         user = User(
@@ -204,14 +249,16 @@ def register():
         db.session.add(user)
         db.session.commit()
 
-        # Create access token
-        token = create_access_token(identity=str(user.id))
+        # Create access token (persistent only when remember-me is requested)
+        token_expiry = False if remember_me else timedelta(days=1)
+        token = create_access_token(identity=str(user.id), expires_delta=token_expiry)
         
         return jsonify({
             'message': 'User created successfully (TEST MODE - auto-verified)',
             'user': user.to_dict(),
             'token': token,
-            'test_mode': True
+            'test_mode': True,
+            'remember_me': remember_me
         }), 200
 
     # Normal flow: Generate verification token (temporary - not stored in DB)
@@ -243,27 +290,89 @@ def register_matchmaker_web():
     email = (data.get('email') or '').strip().lower()
     password = data.get('password') or ''
     referral_code = (data.get('referral_code') or '').strip()
+    has_account = data.get('has_account')
 
     if not email:
         return jsonify({'msg': 'Email is required'}), 400
     if not is_email(email):
         return jsonify({'msg': 'Please enter a valid email address'}), 400
-    if not password:
-        return jsonify({'msg': 'Please enter a password'}), 400
-    if not is_strong_password(password):
-        return jsonify({
-            'msg': 'Password must be at least 8 characters and include uppercase, lowercase, and a special character'
-        }), 400
     if not referral_code:
         return jsonify({'msg': 'Referral code is required'}), 400
 
-    existing_user = User.query.filter_by(email=email).first()
-    if existing_user:
-        return jsonify({'msg': 'A user with this email already exists, please log in'}), 400
-
     referrer = User.query.filter_by(referral_code=referral_code).first()
-    if not referrer:
+    if not referrer or referrer.role != 'user':
         return jsonify({'msg': 'Invalid referral code'}), 400
+
+    existing_user, existing_matchmaker, existing_dater = resolve_existing_user_for_email(email)
+    has_existing = existing_user is not None
+
+    if has_account is True:
+        if not has_existing:
+            return jsonify({
+                'msg': 'No account found with that email. Continue with new account signup.',
+                'account_found': False
+            }), 404
+
+        if existing_matchmaker:
+            result = link_dater_to_matchmaker(existing_matchmaker, referrer)
+            if not result['linked']:
+                return jsonify({'msg': 'Maximum of 10 linked daters reached'}), 400
+            db.session.commit()
+            return jsonify({
+                'message': 'Referral code applied to your existing matchmaker account.',
+                'action': 'linked_existing_matchmaker',
+                'already_linked': result['already_linked'],
+                'user_id': existing_matchmaker.id,
+                'referrer_first_name': (referrer.first_name or '').strip()
+            }), 200
+
+        if existing_dater:
+            new_matchmaker = User(
+                email=existing_dater.email,
+                phone_number=existing_dater.phone_number,
+                role='matchmaker',
+                first_name=existing_dater.first_name,
+                last_name=existing_dater.last_name,
+                referred_by_id=referrer.id
+            )
+            new_matchmaker.password_hash = existing_dater.password_hash
+            new_matchmaker.email_verified = existing_dater.email_verified
+            new_matchmaker.phone_verified = existing_dater.phone_verified
+            # Invite-based web signup should not count as an active session.
+            new_matchmaker.last_active_at = None
+
+            db.session.add(new_matchmaker)
+            db.session.flush()
+
+            new_matchmaker.linked_account_id = existing_dater.id
+            existing_dater.linked_account_id = new_matchmaker.id
+            db.session.commit()
+
+            return jsonify({
+                'message': 'A new matchmaker account was created from your existing dater account.',
+                'action': 'created_matchmaker_from_dater',
+                'user_id': new_matchmaker.id,
+                'linked_dater_id': existing_dater.id,
+                'referrer_first_name': (referrer.first_name or '').strip()
+            }), 201
+
+        return jsonify({
+            'msg': f"Account exists but role '{existing_user.role}' is not supported for this signup flow."
+        }), 400
+
+    if has_existing:
+        return jsonify({
+            'msg': 'An account with this email already exists. Choose "I already have an account" to continue.',
+            'account_found': True
+        }), 400
+
+    if not password:
+        return jsonify({'msg': 'Please enter a password'}), 400
+    is_test_signup = is_test_email(email)
+    if not is_test_signup and not is_strong_password(password):
+        return jsonify({
+            'msg': 'Password must be at least 8 characters and include uppercase, lowercase, and a special character'
+        }), 400
 
     user = User(
         email=email,
@@ -273,22 +382,56 @@ def register_matchmaker_web():
         referred_by_id=referrer.id
     )
     user.set_password(password)
-    user.email_verified = bool(is_test_email(email))
-    user.last_active_at = datetime.utcnow()
+    user.email_verified = bool(is_test_signup)
+    # Invite-based web signup should not count as an active session.
+    user.last_active_at = None
 
     db.session.add(user)
     db.session.commit()
 
     return jsonify({
         'message': 'Account created successfully. Please finish setup in the app.',
+        'action': 'created_new_matchmaker',
         'user_id': user.id
     }), 201
 
+
+@auth_bp.route('/matchmaker-web/check-account', methods=['POST'])
+def check_matchmaker_web_account():
+    """Check whether an email exists and what account role it has."""
+    data = request.get_json() or {}
+    email = (data.get('email') or '').strip().lower()
+
+    if not email:
+        return jsonify({'msg': 'Email is required'}), 400
+    if not is_email(email):
+        return jsonify({'msg': 'Please enter a valid email address'}), 400
+
+    selected, matchmaker, dater = resolve_existing_user_for_email(email)
+    if not selected:
+        return jsonify({
+            'exists': False,
+            'role': None
+        }), 200
+
+    if matchmaker:
+        role = 'matchmaker'
+    elif dater:
+        role = 'user'
+    else:
+        role = selected.role
+
+    return jsonify({
+        'exists': True,
+        'role': role
+    }), 200
+
 @auth_bp.route('/login', methods=['POST'])
 def login():
-    data = request.json
+    data = request.json or {}
     identifier = data.get('email') or data.get('phone_number') or data.get('identifier')
     password = data.get('password')
+    remember_me = get_remember_me_flag(data)
     
     if not identifier or not password:
         return jsonify({'error': 'Email/phone number and password are required'}), 400
@@ -326,16 +469,21 @@ def login():
     # Sort by last_active_at (most recent first), with None values treated as oldest
     matching_users.sort(key=lambda u: u.last_active_at if u.last_active_at else datetime.min, reverse=True)
     user = matching_users[0]
+    is_first_active_session = user.last_active_at is None
     
     # Update last_active_at to current time
     user.last_active_at = datetime.utcnow()
     db.session.commit()
     
-    token = create_access_token(identity=str(user.id))
+    # Keep users signed in until they explicitly sign out when remember-me is enabled.
+    token_expiry = False if remember_me else timedelta(days=1)
+    token = create_access_token(identity=str(user.id), expires_delta=token_expiry)
     response_data = {
         'message': 'Login successful', 
         'user': user.to_dict(),
-        'token': token
+        'token': token,
+        'remember_me': remember_me,
+        'is_first_active_session': is_first_active_session
     }
     
     # Add warning if verification is needed (but still allow login)
@@ -391,17 +539,15 @@ def verify_email():
         if existing_user:
             return jsonify({'msg': 'Phone number already registered'}), 400
 
-    # Handle referral code for matchmakers
+    # Handle referral code for matchmakers (optional).
     referred_by = None
     if role == 'matchmaker':
-        if not referral_code:
-            return jsonify({'msg': 'Referral code required for matchmaker'}), 400
-
-        referrer = User.query.filter_by(referral_code=referral_code).first()
-        if not referrer:
-            return jsonify({'msg': 'Invalid referral code'}), 400
-
-        referred_by = referrer.id
+        normalized_referral_code = (referral_code or '').strip()
+        if normalized_referral_code:
+            referrer = User.query.filter_by(referral_code=normalized_referral_code).first()
+            if not referrer:
+                return jsonify({'msg': 'Invalid referral code'}), 400
+            referred_by = referrer.id
 
     # Create the user now that verification is successful
     user = User(
@@ -434,13 +580,16 @@ def verify_email():
     db.session.commit()
 
     # Create access token for verified user
-    access_token = create_access_token(identity=str(user.id))
+    remember_me = get_remember_me_flag(signup_data)
+    token_expiry = False if remember_me else timedelta(days=1)
+    access_token = create_access_token(identity=str(user.id), expires_delta=token_expiry)
 
     method_text = 'Email' if verification_method == 'email' else 'Phone number'
     return jsonify({
         'message': f'{method_text} verified successfully. Account created.',
         'user': user.to_dict(),
-        'token': access_token
+        'token': access_token,
+        'remember_me': remember_me
     }), 200
 
 @auth_bp.route('/resend-verification', methods=['POST'])

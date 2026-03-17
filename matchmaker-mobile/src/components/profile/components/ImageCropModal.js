@@ -46,14 +46,21 @@ const snapRotation = (deg, threshold) => {
   return Math.abs(deg - nearest90) <= threshold ? nearest90 : deg;
 };
 
-const CROP_LEFT = (SCREEN_WIDTH - CROP_SIZE) / 2;
-
 const ImageCropModal = ({ visible, imageUri, onCropComplete, onCancel }) => {
   const [processing, setProcessing] = useState(false);
   const [imageSize, setImageSize] = useState(null);
   const [cropAreaHeight, setCropAreaHeight] = useState(0);
   const [flipH, setFlipH] = useState(false);
   const insets = useSafeAreaInsets();
+
+  // Use the smaller of width/height so the crop box fits and is never smaller than the available space
+  const effectiveCropSize = useMemo(
+    () => (cropAreaHeight > 0 ? Math.min(SCREEN_WIDTH, cropAreaHeight) : CROP_SIZE),
+    [cropAreaHeight]
+  );
+  const effectiveCropSizeRef = useRef(effectiveCropSize);
+  effectiveCropSizeRef.current = effectiveCropSize;
+  const cropLeft = (SCREEN_WIDTH - effectiveCropSize) / 2;
 
   // Animated values for display
   const pan = useRef(new Animated.ValueXY(0, 0)).current;
@@ -115,16 +122,16 @@ const ImageCropModal = ({ visible, imageUri, onCropComplete, onCancel }) => {
   // Once dimensions are known, set the initial scale so the image
   // fully covers the crop window (important for landscape images).
   useEffect(() => {
-    if (imageSize) {
+    if (imageSize && effectiveCropSize > 0) {
       const fittedH = imageSize.height * (SCREEN_WIDTH / imageSize.width);
-      const cover = Math.max(CROP_SIZE / SCREEN_WIDTH, CROP_SIZE / fittedH);
+      const cover = Math.max(effectiveCropSize / SCREEN_WIDTH, effectiveCropSize / fittedH);
       const initScale = Math.max(1, cover);
       scaleAnim.setValue(initScale);
       scaleRef.current = initScale;
       pan.setValue({ x: 0, y: 0 });
       panRef.current = { x: 0, y: 0 };
     }
-  }, [imageSize]);
+  }, [imageSize, effectiveCropSize]);
 
   // Fit image so its width = SCREEN_WIDTH at scale 1 (based on original dimensions)
   const fitted = useMemo(() => {
@@ -139,10 +146,10 @@ const ImageCropModal = ({ visible, imageUri, onCropComplete, onCancel }) => {
   // Minimum scale that ensures the image covers the crop window in both
   // dimensions.  For portrait images this is ≤ 1; for landscape it can be > 1.
   const minCoverScale = useMemo(() => {
-    if (!imageSize) return 1;
+    if (!imageSize || effectiveCropSize <= 0) return 1;
     const fittedH = imageSize.height * (SCREEN_WIDTH / imageSize.width);
-    return Math.max(CROP_SIZE / SCREEN_WIDTH, CROP_SIZE / fittedH);
-  }, [imageSize]);
+    return Math.max(effectiveCropSize / SCREEN_WIDTH, effectiveCropSize / fittedH);
+  }, [imageSize, effectiveCropSize]);
 
   const minCoverScaleRef = useRef(1);
   minCoverScaleRef.current = minCoverScale;
@@ -157,13 +164,14 @@ const ImageCropModal = ({ visible, imageUri, onCropComplete, onCancel }) => {
   // Takes rotation into account (the bounding box changes when rotated).
   const clampPan = useCallback((tx, ty, s, rotDeg) => {
     const f = fittedRef.current;
+    const cropSize = effectiveCropSizeRef.current;
     const rotRad = (rotDeg * Math.PI) / 180;
     const cosR = Math.abs(Math.cos(rotRad));
     const sinR = Math.abs(Math.sin(rotRad));
     const effectiveW = (f.width * cosR + f.height * sinR) * s;
     const effectiveH = (f.width * sinR + f.height * cosR) * s;
-    const maxTx = Math.max(0, (effectiveW - CROP_SIZE) / 2);
-    const maxTy = Math.max(0, (effectiveH - CROP_SIZE) / 2);
+    const maxTx = Math.max(0, (effectiveW - cropSize) / 2);
+    const maxTy = Math.max(0, (effectiveH - cropSize) / 2);
     return {
       x: Math.min(maxTx, Math.max(-maxTx, tx)),
       y: Math.min(maxTy, Math.max(-maxTy, ty)),
@@ -346,11 +354,12 @@ const ImageCropModal = ({ visible, imageUri, onCropComplete, onCancel }) => {
       }
 
       // Clamp pan within bounds
+      const cropSize = effectiveCropSizeRef.current;
       const f = fittedRef.current;
       const imgW = f.width * currentScale;
       const imgH = f.height * currentScale;
-      const maxTx = imgW > CROP_SIZE ? (imgW - CROP_SIZE) / 2 : 0;
-      const maxTy = imgH > CROP_SIZE ? (imgH - CROP_SIZE) / 2 : 0;
+      const maxTx = imgW > cropSize ? (imgW - cropSize) / 2 : 0;
+      const maxTy = imgH > cropSize ? (imgH - cropSize) / 2 : 0;
       currentPanX = Math.min(maxTx, Math.max(-maxTx, currentPanX));
       currentPanY = Math.min(maxTy, Math.max(-maxTy, currentPanY));
 
@@ -375,8 +384,8 @@ const ImageCropModal = ({ visible, imageUri, onCropComplete, onCancel }) => {
       const fitScale = SCREEN_WIDTH / imageSize.width;
       const totalScale = fitScale * currentScale;
 
-      const cropW = CROP_SIZE / totalScale;
-      const cropH = CROP_SIZE / totalScale;
+      const cropW = cropSize / totalScale;
+      const cropH = cropSize / totalScale;
       const centerX = rotatedW / 2 - currentPanX / totalScale;
       const centerY = rotatedH / 2 - currentPanY / totalScale;
 
@@ -484,17 +493,17 @@ const ImageCropModal = ({ visible, imageUri, onCropComplete, onCancel }) => {
 
               {/* Dark overlay — 4 absolutely positioned rects, no gaps */}
               {cropAreaHeight > 0 && (() => {
-                const cropTop = Math.round((cropAreaHeight - CROP_SIZE) / 2);
+                const cropTop = Math.round((cropAreaHeight - effectiveCropSize) / 2);
                 return (
                   <View style={StyleSheet.absoluteFill} pointerEvents="none">
                     {/* Top */}
                     <View style={{ position: 'absolute', top: 0, left: 0, right: 0, height: cropTop, backgroundColor: OVERLAY_COLOR }} />
                     {/* Bottom */}
-                    <View style={{ position: 'absolute', top: cropTop + CROP_SIZE, left: 0, right: 0, bottom: 0, backgroundColor: OVERLAY_COLOR }} />
+                    <View style={{ position: 'absolute', top: cropTop + effectiveCropSize, left: 0, right: 0, bottom: 0, backgroundColor: OVERLAY_COLOR }} />
                     {/* Left */}
-                    <View style={{ position: 'absolute', top: cropTop, left: 0, width: CROP_LEFT, height: CROP_SIZE, backgroundColor: OVERLAY_COLOR }} />
+                    <View style={{ position: 'absolute', top: cropTop, left: 0, width: cropLeft, height: effectiveCropSize, backgroundColor: OVERLAY_COLOR }} />
                     {/* Right */}
-                    <View style={{ position: 'absolute', top: cropTop, right: 0, width: CROP_LEFT, height: CROP_SIZE, backgroundColor: OVERLAY_COLOR }} />
+                    <View style={{ position: 'absolute', top: cropTop, right: 0, width: cropLeft, height: effectiveCropSize, backgroundColor: OVERLAY_COLOR }} />
                   </View>
                 );
               })()}

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useContext, useEffect, useState, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, Alert, ScrollView, Image, TouchableOpacity } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
@@ -9,14 +9,16 @@ import AvatarSelectorModal from './avatarSelectorModal';
 import { avatarMap } from './avatarSelectorModal';
 import { Ionicons } from '@expo/vector-icons';
 import { EditToolbar } from './components/editToolbar';
-import DaterDropdown from '../layout/daterDropdown';
 import ImageCropModal from './components/ImageCropModal';
+import { getRoleAccentColor, getRoleBackgroundTint } from '../layout/components/RoleHeaderBanner';
 
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { UserContext } from '../../context/UserContext';
 
 const ProfilePage = () => {
   const route = useRoute();
   const { userId, matchProfile } = route.params || {};
+  const { user: contextUser, setIsProfileEditing } = useContext(UserContext);
   const [user, setUser] = useState(null);
   const [referrer, setReferrer] = useState(null);
   const [editing, setEditing] = useState(false);
@@ -28,15 +30,22 @@ const ProfilePage = () => {
   const [hasInitializedDater, setHasInitializedDater] = useState(false);
   const navigation = useNavigation();
   const scrollViewRef = useRef(null);
+  const parentScrollOffsetYRef = useRef(0);
   const [cropModalVisible, setCropModalVisible] = useState(false);
   const [selectedImageUri, setSelectedImageUri] = useState(null);
+  const [pendingCropUris, setPendingCropUris] = useState([]);
   const cropCompleteRef = useRef(null);
   const [cropKey, setCropKey] = useState(0);
+  const selectedDaterId = user?.referrer_id || user?.referred_by_id || null;
+  const linkedDatersSignature = JSON.stringify(user?.linked_daters || []);
 
-  const handleRequestCrop = useCallback((uri, onComplete) => {
-    setSelectedImageUri(uri);
+  const handleRequestCrop = useCallback((uris, onComplete) => {
+    const list = Array.isArray(uris) ? uris : [uris];
+    if (!list.length) return;
+    setPendingCropUris(list);
+    setSelectedImageUri(list[0]);
     setCropModalVisible(true);
-    setCropKey(prev => prev + 1);
+    setCropKey((prev) => prev + 1);
     cropCompleteRef.current = onComplete;
   }, []);
 
@@ -107,6 +116,31 @@ const ProfilePage = () => {
   }, []);
 
   useEffect(() => {
+    if (matchProfile || !contextUser) {
+      return;
+    }
+
+    setUser((prevUser) => {
+      if (!prevUser) {
+        return contextUser;
+      }
+
+      const sameUser = prevUser.id === contextUser.id;
+      const sameSelectedDater =
+        prevUser.referrer_id === contextUser.referrer_id &&
+        prevUser.referred_by_id === contextUser.referred_by_id;
+      const sameLinkedDaters =
+        JSON.stringify(prevUser.linked_daters || []) === JSON.stringify(contextUser.linked_daters || []);
+
+      if (sameUser && sameSelectedDater && sameLinkedDaters) {
+        return prevUser;
+      }
+
+      return { ...prevUser, ...contextUser };
+    });
+  }, [contextUser, matchProfile]);
+
+  useEffect(() => {
     const unsub = subscribeToLocationUpdated(() => {
       if (!matchProfile) fetchProfile();
     });
@@ -115,8 +149,8 @@ const ProfilePage = () => {
 
   useEffect(() => {
     if (user?.role === 'matchmaker') {
-      if (user.referred_by_id) {
-        fetchReferrer(user.referred_by_id);
+      if (selectedDaterId) {
+        fetchReferrer(selectedDaterId);
         // Mark as initialized once we have a referred_by_id
         // This prevents auto-setting first dater when switching daters
         if (!hasInitializedDater) {
@@ -128,10 +162,10 @@ const ProfilePage = () => {
         fetchLinkedDatersAndSetFirst();
       }
     }
-  }, [user?.referred_by_id, matchProfile, hasInitializedDater]);
+  }, [user?.id, user?.role, selectedDaterId, linkedDatersSignature, matchProfile, hasInitializedDater]);
 
   const fetchLinkedDatersAndSetFirst = async () => {
-    if (!user || user.role !== 'matchmaker' || user.referred_by_id) return;
+    if (!user || user.role !== 'matchmaker' || selectedDaterId) return;
     
     try {
       const token = await AsyncStorage.getItem('token');
@@ -170,6 +204,7 @@ const ProfilePage = () => {
         });
 
         if (setRes.ok) {
+          setHasInitializedDater(true);
           // Refresh profile to get updated user with referred_by_id
           await fetchProfile();
         }
@@ -183,7 +218,7 @@ const ProfilePage = () => {
   useFocusEffect(
     React.useCallback(() => {
       if (!matchProfile) {
-        // Small delay to ensure backend has updated after dater selection
+        // Refresh in place to avoid a UI flash/glitch when swiping tabs.
         const timer = setTimeout(() => {
           fetchProfile();
         }, 100);
@@ -213,15 +248,25 @@ const ProfilePage = () => {
     }
   };
 
-  const handleDaterChange = async (daterId) => {
-    setHasInitializedDater(true);
-    await fetchProfile();
-  };
+  useEffect(() => {
+    if (!matchProfile) {
+      setIsProfileEditing(Boolean(editing));
+    }
+  }, [editing, matchProfile, setIsProfileEditing]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      return () => {
+        setIsProfileEditing(false);
+      };
+    }, [setIsProfileEditing])
+  );
 
   if (loading) {
+    const loadingColor = getRoleAccentColor(user?.role || 'matchmaker');
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#6c5ce7" />
+        <ActivityIndicator size="large" color={loadingColor} />
         <Text style={styles.loadingText}>Loading user profile...</Text>
       </View>
     );
@@ -235,12 +280,25 @@ const ProfilePage = () => {
     );
   }
 
+  const accentColor = getRoleAccentColor(user.role);
+  const backgroundTint = getRoleBackgroundTint(user.role);
+  const overlayTopPadding = !matchProfile
+    ? (editing ? (user.role === 'matchmaker' ? 28 : 20) : (user.role === 'matchmaker' ? 96 : 56))
+    : 0;
+
   return (
-    <SafeAreaView style={[styles.container, editing && styles.containerWithToolbar]}>
+    <SafeAreaView
+      style={[
+        styles.container,
+        editing && styles.containerWithToolbar,
+        { backgroundColor: backgroundTint },
+        { paddingTop: overlayTopPadding },
+      ]}
+    >
       {matchProfile && !editing && (
         <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color="#6c5ce7" />
-          <Text style={styles.backButtonText}>Back</Text>
+          <Ionicons name="arrow-back" size={24} color={accentColor} />
+          <Text style={[styles.backButtonText, { color: accentColor }]}>Back</Text>
         </TouchableOpacity>
       )}
       
@@ -253,17 +311,14 @@ const ProfilePage = () => {
         />
       )}
 
-      {user?.role === 'matchmaker' && !matchProfile && (
-        <View style={styles.daterDropdownWrapper}>
-          <DaterDropdown
-            API_BASE_URL={API_BASE_URL}
-            userInfo={user}
-            onDaterChange={handleDaterChange}
-          />
-        </View>
-      )}
-      
-      <ScrollView ref={scrollViewRef} contentContainerStyle={styles.content}>
+      <ScrollView
+        ref={scrollViewRef}
+        contentContainerStyle={styles.content}
+        scrollEventThrottle={16}
+        onScroll={(event) => {
+          parentScrollOffsetYRef.current = event.nativeEvent.contentOffset.y;
+        }}
+      >
         {user.role === 'user' && (
           <Profile
             user={user}
@@ -273,6 +328,7 @@ const ProfilePage = () => {
             onSave={handleSave}
             onEditingFormData={handleEditingFormData}
             parentScrollRef={scrollViewRef}
+            parentScrollOffsetYRef={parentScrollOffsetYRef}
             onRequestCrop={handleRequestCrop}
           />
         )}
@@ -293,7 +349,7 @@ const ProfilePage = () => {
               </View>
             </View>
             <View style={styles.embeddedProfile}>
-              <Text style={styles.subHeader}>Dater's Profile</Text>
+              <Text style={[styles.subHeader, { color: accentColor }]}>Dater's Profile</Text>
               <Profile user={referrer} framed={true} editing={false} />
             </View>
           </>
@@ -316,16 +372,26 @@ const ProfilePage = () => {
         visible={cropModalVisible}
         imageUri={selectedImageUri}
         onCropComplete={(croppedImage) => {
-          setCropModalVisible(false);
-          setSelectedImageUri(null);
           if (cropCompleteRef.current) {
             cropCompleteRef.current(croppedImage);
-            cropCompleteRef.current = null;
           }
+          setPendingCropUris((prev) => {
+            const next = prev.slice(1);
+            if (next.length === 0) {
+              setCropModalVisible(false);
+              setSelectedImageUri(null);
+              cropCompleteRef.current = null;
+              return [];
+            }
+            setSelectedImageUri(next[0]);
+            setCropKey((k) => k + 1);
+            return next;
+          });
         }}
         onCancel={() => {
           setCropModalVisible(false);
           setSelectedImageUri(null);
+          setPendingCropUris([]);
           cropCompleteRef.current = null;
         }}
       />

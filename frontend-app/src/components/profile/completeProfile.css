@@ -50,6 +50,11 @@
   gap: 12px;
 }
 
+.radius-slider--disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
 .preferences-actions {
   display: flex;
   justify-content: flex-end;

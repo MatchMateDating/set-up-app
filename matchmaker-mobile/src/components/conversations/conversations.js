@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -9,22 +9,73 @@ import ToggleConversationsMatcher from './toggleConversationsMatcher';
 import { useMatches } from './hooks/useMatches';
 import { useUserInfo } from './hooks/useUserInfo';
 import { useNotificationPolling } from './hooks/useNotificationPolling';
-import DaterDropdown from '../layout/daterDropdown';
-import MatcherHeader from '../layout/components/matcherHeader';
+import { getRoleAccentColor, getRoleBackgroundTint } from '../layout/components/RoleHeaderBanner';
+import { UserContext } from '../../context/UserContext';
 
 const Conversations = () => {
+  const { user: contextUser } = useContext(UserContext);
   const [showDaterMatches, setShowDaterMatches] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [roleHint, setRoleHint] = useState(null);
   const { userInfo, setUserInfo, referrerInfo, setReferrerInfo, loading: userLoading } = useUserInfo(API_BASE_URL);
   const { matches, setMatches, loading: matchesLoading, fetchMatches } = useMatches(API_BASE_URL);
   const matchedList = Array.isArray(matches) ? matches : (matches?.matched || []);
   const pendingApprovalList = Array.isArray(matches) ? [] : (matches?.pending_approval || []);
   const navigation = useNavigation();
   const [referrer, setReferrer] = useState(null);
+  const selectedDaterId = userInfo?.referrer_id || userInfo?.referred_by_id || null;
   
   // Initialize notification polling
   useNotificationPolling();
 
-  const loading = userLoading || matchesLoading;
+  useEffect(() => {
+    const loadRoleHint = async () => {
+      try {
+        const storedUser = await AsyncStorage.getItem('user');
+        if (!storedUser) return;
+        const parsedUser = JSON.parse(storedUser);
+        if (parsedUser?.role) {
+          setRoleHint(parsedUser.role);
+        }
+      } catch (err) {
+        console.error('Error loading role hint:', err);
+      }
+    };
+    loadRoleHint();
+  }, []);
+
+  useEffect(() => {
+    if (userInfo?.role) {
+      setRoleHint(userInfo.role);
+    }
+  }, [userInfo?.role]);
+
+  useEffect(() => {
+    if (!contextUser) {
+      return;
+    }
+
+    setUserInfo((prevUserInfo) => {
+      if (!prevUserInfo) {
+        return contextUser;
+      }
+
+      const sameUser = prevUserInfo.id === contextUser.id;
+      const sameSelectedDater =
+        prevUserInfo.referrer_id === contextUser.referrer_id &&
+        prevUserInfo.referred_by_id === contextUser.referred_by_id;
+      const sameLinkedDaters =
+        JSON.stringify(prevUserInfo.linked_daters || []) === JSON.stringify(contextUser.linked_daters || []);
+
+      if (sameUser && sameSelectedDater && sameLinkedDaters) {
+        return prevUserInfo;
+      }
+
+      return { ...prevUserInfo, ...contextUser };
+    });
+  }, [contextUser, setUserInfo]);
+
+  const loading = userLoading || matchesLoading || refreshing;
 
   const fetchProfile = async () => {
     try {
@@ -67,12 +118,34 @@ const Conversations = () => {
     fetchMatches();
   }, []);
 
+  useEffect(() => {
+    if (!userInfo || userInfo.role !== 'matchmaker') {
+      return;
+    }
+
+    setRefreshing(true);
+    const timer = setTimeout(() => {
+      Promise.all([fetchProfile(), fetchMatches()]).finally(() => {
+        setRefreshing(false);
+      });
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, [selectedDaterId]);
+
   // Refresh profile and matches when page comes into focus
   useFocusEffect(
     React.useCallback(() => {
+      // Prevent stale account data flash while switching roles/daters.
+      setRefreshing(true);
+      setUserInfo(null);
+      setReferrer(null);
+      setMatches({ matched: [], pending_approval: [] });
       const timer = setTimeout(() => {
-        fetchProfile();
-        fetchMatches();
+        Promise.all([fetchProfile(), fetchMatches()])
+          .finally(() => {
+            setRefreshing(false);
+          });
       }, 100);
       return () => clearTimeout(timer);
     }, [])
@@ -92,9 +165,11 @@ const Conversations = () => {
         return match.both_matchmakers_involved || match.linked_dater !== null;
       }
     });
-    
-    // Pending approval matches go in dater section
-    return { matched: filteredMatched, pending_approval: pendingApprovalList };
+
+    // Backend decides which pending approvals are visible to this dater.
+    const filteredPendingApprovals = showDaterMatches ? pendingApprovalList : [];
+
+    return { matched: filteredMatched, pending_approval: filteredPendingApprovals };
   };
 
   const unmatch = async (matchId) => {
@@ -248,21 +323,29 @@ const Conversations = () => {
     }
   };
 
-  const handleDaterChange = async (daterId) => {
-    await fetchProfile();
-    fetchMatches();
-  };
-
   if (loading) {
+    const loadingRole = userInfo?.role || roleHint || 'user';
+    const loadingColor = getRoleAccentColor(loadingRole);
+    const loadingBackgroundTint = getRoleBackgroundTint(loadingRole);
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#6c5ce7" />
+      <View style={[styles.loadingContainer, { backgroundColor: loadingBackgroundTint }]}>
+        <ActivityIndicator size="large" color={loadingColor} />
         <Text style={styles.loadingText}>Loading conversations...</Text>
       </View>
     );
   }
 
   const filteredMatches = getFilteredMatches();
+  const accentColor = getRoleAccentColor(userInfo?.role || 'matchmaker');
+  const backgroundTint = getRoleBackgroundTint(userInfo?.role || 'matchmaker');
+  const overlayTopPadding = userInfo?.role === 'matchmaker' ? 140 : 56;
+  const isPendingEmptyState =
+    userInfo?.role === 'matchmaker' &&
+    showDaterMatches &&
+    filteredMatches.pending_approval.length === 0;
+  const isDaterEmptyState =
+    userInfo?.role === 'user' &&
+    (filteredMatches.matched.length + filteredMatches.pending_approval.length) === 0;
   
   // Update unmatch to handle new structure
   const handleUnmatch = async (matchId) => {
@@ -271,20 +354,19 @@ const Conversations = () => {
   };
 
   return (
-    <View style={styles.container}>
-      {userInfo?.role === 'matchmaker' && (
-        <MatcherHeader>
-          <DaterDropdown
-            userInfo={userInfo}
-            onDaterChange={handleDaterChange}
-          />
-        </MatcherHeader>
-      )}
-      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <View style={[styles.container, { backgroundColor: backgroundTint, paddingTop: overlayTopPadding }]}>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={[
+          styles.content,
+          (isPendingEmptyState || isDaterEmptyState) && styles.contentGrow,
+        ]}
+      >
         {userInfo && userInfo.role === 'user' && (matchedList.length > 0 || pendingApprovalList.length > 0) && (
           <ToggleConversationsDater
             showDaterMatches={showDaterMatches}
             setShowDaterMatches={setShowDaterMatches}
+            accentColor={accentColor}
           />
         )}
 
@@ -292,29 +374,25 @@ const Conversations = () => {
           <ToggleConversationsMatcher
             showDaterMatches={showDaterMatches}
             setShowDaterMatches={setShowDaterMatches}
+            accentColor={accentColor}
           />
         )}
         
         {/* Pending Approval Section - for matchmakers */}
         {userInfo?.role === 'matchmaker' && showDaterMatches && (
-          <View style={styles.sectionContainer}>
-            <Text style={styles.sectionTitle}>Pending</Text>
-            <View style={styles.matchList}>
+          <View style={[styles.sectionContainer, isPendingEmptyState && styles.sectionContainerFill]}>
+            <View style={[styles.matchList, isPendingEmptyState && styles.matchListFill]}>
               {filteredMatches.pending_approval.length > 0 ? (
                 filteredMatches.pending_approval.map((matchObj, index) => (
                   <MatchCard
                     key={`pending-${index}`}
                     matchObj={matchObj}
                     userInfo={userInfo}
-                    navigation={navigation}
-                    unmatch={handleUnmatch}
-                    reveal={reveal}
-                    hide={hide}
                   />
                 ))
               ) : (
-                <View style={styles.emptyContainer}>
-                  <Text style={styles.emptyText}>No pending matches yet!</Text>
+                <View style={styles.loadingContainerInline}>
+                  <Text style={styles.loadingText}>No pending matches yet!</Text>
                 </View>
               )}
             </View>
@@ -324,7 +402,6 @@ const Conversations = () => {
         {/* Approved/Matched Section - for matchmakers */}
         {userInfo?.role === 'matchmaker' && !showDaterMatches && (
           <View style={styles.sectionContainer}>
-            <Text style={styles.sectionTitle}>Approved</Text>
             <View style={styles.matchList}>
               {filteredMatches.matched.length > 0 ? (
                 filteredMatches.matched.map((matchObj, index) => (
@@ -332,10 +409,6 @@ const Conversations = () => {
                     key={`matched-${index}`}
                     matchObj={matchObj}
                     userInfo={userInfo}
-                    navigation={navigation}
-                    unmatch={handleUnmatch}
-                    reveal={reveal}
-                    hide={hide}
                   />
                 ))
               ) : (
@@ -349,44 +422,21 @@ const Conversations = () => {
         
         {/* Matched Section - for daters */}
         {userInfo?.role === 'user' && (
-          <View style={styles.sectionContainer}>
-            <View style={styles.matchList}>
-              {filteredMatches.matched.length > 0 ? (
-                filteredMatches.matched.map((matchObj, index) => (
+          <View style={[styles.sectionContainer, isDaterEmptyState && styles.sectionContainerFill]}>
+            <View style={[styles.matchList, isDaterEmptyState && styles.matchListFill]}>
+              {(filteredMatches.matched.length + filteredMatches.pending_approval.length) > 0 ? (
+                [...filteredMatches.matched, ...filteredMatches.pending_approval].map((matchObj, index) => (
                   <MatchCard
                     key={`matched-${index}`}
                     matchObj={matchObj}
                     userInfo={userInfo}
-                    navigation={navigation}
-                    unmatch={handleUnmatch}
-                    reveal={reveal}
-                    hide={hide}
                   />
                 ))
-              ) : filteredMatches.pending_approval.length === 0 ? (
-                <View style={styles.emptyContainer}>
-                  <Text style={styles.emptyText}>No matches yet!</Text>
+              ) : (
+                <View style={styles.loadingContainerInline}>
+                  <Text style={styles.loadingText}>No matches yet!</Text>
                 </View>
-              ) : null}
-            </View>
-          </View>
-        )}
-        
-        {/* Pending Approval Section - for daters (in dater section) */}
-        {userInfo?.role === 'user' && showDaterMatches && filteredMatches.pending_approval.length > 0 && (
-          <View style={styles.sectionContainer}>
-            <View style={styles.matchList}>
-              {filteredMatches.pending_approval.map((matchObj, index) => (
-                <MatchCard
-                  key={`pending-${index}`}
-                  matchObj={matchObj}
-                  userInfo={userInfo}
-                  navigation={navigation}
-                  unmatch={handleUnmatch}
-                  reveal={reveal}
-                  hide={hide}
-                />
-              ))}
+              )}
             </View>
           </View>
         )}
@@ -399,11 +449,19 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fafafa',
+    paddingTop: 24,
+  },
+  scrollView: {
+    flex: 1,
+    backgroundColor: 'transparent',
   },
   content: {
     paddingTop: 20,
     paddingBottom: 20,
     paddingHorizontal: 16,
+  },
+  contentGrow: {
+    flexGrow: 1,
   },
   loadingContainer: {
     flex: 1,
@@ -429,6 +487,19 @@ const styles = StyleSheet.create({
   },
   sectionContainer: {
     marginBottom: 24,
+  },
+  sectionContainerFill: {
+    flex: 1,
+    marginBottom: 0,
+  },
+  matchListFill: {
+    flex: 1,
+  },
+  loadingContainerInline: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'transparent',
   },
   sectionTitle: {
     fontSize: 20,
