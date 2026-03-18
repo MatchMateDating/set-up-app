@@ -45,6 +45,13 @@ const Profile = ({
   });
 
   const [images, setImages] = useState([]);
+  const [imageError, setImageError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState({
+    first_name: '',
+    last_name: '',
+    birthdate: '',
+    height: '',
+  });
   const [heightUnit, setHeightUnit] = useState('ft');
   const navigation = useNavigation();
   const scrollViewRef = useRef(null);
@@ -54,6 +61,7 @@ const Profile = ({
     if (user) {
       if (user.images) {
         setImages(user.images);
+        if (user.images.length > 0) setImageError('');
       }
 
       const baseFormData = {
@@ -176,6 +184,7 @@ const Profile = ({
 
       const newImage = await response.json();
       setImages((prevImages) => [...prevImages, newImage]);
+      setImageError('');
     } catch (err) {
       console.error(err);
       Alert.alert('Error', 'Failed to upload image');
@@ -185,8 +194,38 @@ const Profile = ({
   const handleInputChange = useCallback((e) => {
     const name = e.target?.name || e.name;
     const value = e.target?.value !== undefined ? e.target.value : e.value;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  }, []);
+    setFormData((prev) => {
+      const next = { ...prev, [name]: value };
+
+      setFieldErrors((prevErrors) => {
+        const updated = { ...prevErrors };
+
+        if (name === 'first_name' && value?.trim()) updated.first_name = '';
+        if (name === 'last_name' && value?.trim()) updated.last_name = '';
+        if (name === 'birthdate' && value) updated.birthdate = '';
+
+        const feet = parseInt(next.heightFeet, 10) || 0;
+        const inches = parseInt(next.heightInches, 10) || 0;
+        const meters = parseInt(next.heightMeters, 10) || 0;
+        const centimeters = parseInt(next.heightCentimeters, 10) || 0;
+        const hasHeight =
+          heightUnit === 'ft'
+            ? !(feet === 0 && inches === 0)
+            : !(meters === 0 && centimeters === 0);
+
+        if (
+          ['heightFeet', 'heightInches', 'heightMeters', 'heightCentimeters'].includes(name) &&
+          hasHeight
+        ) {
+          updated.height = '';
+        }
+
+        return updated;
+      });
+
+      return next;
+    });
+  }, [heightUnit]);
 
   const handleUnitToggle = () => {
     if (heightUnit === 'ft') {
@@ -198,10 +237,42 @@ const Profile = ({
       setFormData((prev) => ({ ...prev, heightFeet: feet, heightInches: inches }));
       setHeightUnit('ft');
     }
+    setFieldErrors((prev) => ({ ...prev, height: '' }));
   };
 
   const handleFormSubmit = async () => {
     try {
+      const nextErrors = {
+        first_name: '',
+        last_name: '',
+        birthdate: '',
+        height: '',
+      };
+
+      if (!formData.first_name?.trim()) nextErrors.first_name = 'First name is required.';
+      if (!formData.last_name?.trim()) nextErrors.last_name = 'Last name is required.';
+      if (!formData.birthdate) nextErrors.birthdate = 'Please select your birthdate.';
+
+      const feet = parseInt(formData.heightFeet, 10) || 0;
+      const inches = parseInt(formData.heightInches, 10) || 0;
+      const meters = parseInt(formData.heightMeters, 10) || 0;
+      const centimeters = parseInt(formData.heightCentimeters, 10) || 0;
+      const hasHeight =
+        heightUnit === 'ft'
+          ? !(feet === 0 && inches === 0)
+          : !(meters === 0 && centimeters === 0);
+      if (!hasHeight) nextErrors.height = 'Please select your height.';
+
+      setFieldErrors(nextErrors);
+      if (Object.values(nextErrors).some(Boolean)) return;
+
+      const hasAtLeastOneImage = images.some((img) => Boolean(img?.image_url || img?.uri));
+      if (!hasAtLeastOneImage) {
+        setImageError('Please upload at least one image.');
+        return;
+      }
+      setImageError('');
+
       const token = await AsyncStorage.getItem('token');
       if (!token) {
         Alert.alert('Error', 'Please log in');
@@ -299,6 +370,13 @@ const Profile = ({
   };
 
   const handleCancel = () => {
+    setImageError('');
+    setFieldErrors({
+      first_name: '',
+      last_name: '',
+      birthdate: '',
+      height: '',
+    });
     setEditing(false);
   };
 
@@ -396,6 +474,8 @@ const Profile = ({
             images={images}
             onDeleteImage={handleDeleteImage}
             onPlaceholderClick={handlePlaceholderClick}
+            imageError={imageError}
+            fieldErrors={fieldErrors}
             profileStyle={formData.profileStyle}
             scrollToBottom={(target, calendarBottomYInWindow) => {
                 const ref = parentScrollRef || scrollViewRef;

@@ -15,11 +15,12 @@ import {
   Pressable,
   FlatList,
   Keyboard,
+  InteractionManager,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useKeyboardHandler } from 'react-native-keyboard-controller';
 import Animated, { useSharedValue, useAnimatedStyle } from 'react-native-reanimated';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation, useRoute, useIsFocused } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { API_BASE_URL } from '../../env';
 import { useUserInfo } from './hooks/useUserInfo';
@@ -49,9 +50,38 @@ function formatMessageTimestamp(isoString) {
   return d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ', ' + d.toLocaleTimeString([], timeOpt);
 }
 
+function normalizeMessages(rawMessages) {
+  if (!Array.isArray(rawMessages)) return [];
+
+  return rawMessages.map((msg, index) => ({
+    ...msg,
+    id: msg?.id ?? msg?.message_id ?? `${msg?.sender_id || 'unknown'}-${msg?.timestamp || index}-${index}`,
+    text: typeof msg?.text === 'string' ? msg.text : (msg?.message || ''),
+  }));
+}
+
+function haveMessagesChanged(prevMessages, nextMessages) {
+  if (prevMessages.length !== nextMessages.length) return true;
+  for (let i = 0; i < nextMessages.length; i += 1) {
+    const prev = prevMessages[i];
+    const next = nextMessages[i];
+    if (
+      prev?.id !== next?.id ||
+      prev?.text !== next?.text ||
+      prev?.timestamp !== next?.timestamp ||
+      prev?.puzzle_link !== next?.puzzle_link ||
+      prev?.puzzle_type !== next?.puzzle_type
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
 const MatchConvo = () => {
   const route = useRoute();
   const navigation = useNavigation();
+  const isFocused = useIsFocused();
   const containerRef = useRef(null);
   const { matchId, isBlind } = route.params || {};
   const { userInfo } = useUserInfo(API_BASE_URL);
@@ -73,6 +103,19 @@ const MatchConvo = () => {
   const keyboardHeightAnim = useSharedValue(0);
 
   const scrollViewRef = useRef(null);
+  const markConversationAsRead = async () => {
+    if (!matchId || !isFocused) return;
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) return;
+      await fetch(`${API_BASE_URL}/conversation/${matchId}/read`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    } catch (err) {
+      console.error('Error marking conversation as read:', err);
+    }
+  };
 
   useEffect(() => {
     const fetchConversation = async () => {
@@ -96,7 +139,9 @@ const MatchConvo = () => {
         if (res.ok) {
           let data = await res.json();
           if (data.length > 0) data = data[0].messages;
-          setMessages(data || []);
+          const normalizedMessages = normalizeMessages(data || []);
+          setMessages(normalizedMessages);
+          await markConversationAsRead();
         }
       } catch (err) {
         console.error(err);
@@ -106,7 +151,7 @@ const MatchConvo = () => {
       }
     };
     if (matchId) fetchConversation();
-  }, [matchId]);
+  }, [matchId, isFocused]);
 
   useEffect(() => {
     const fetchNames = async () => {
@@ -170,15 +215,54 @@ const MatchConvo = () => {
   }, [matchId]);
 
   useEffect(() => {
-      if (!loading) {
-        requestAnimationFrame(() => {
-          scrollViewRef.current?.scrollToEnd({ animated: false });
+    const pollConversation = async () => {
+      try {
+        const token = await AsyncStorage.getItem('token');
+        if (!token || !matchId) return;
+
+        const res = await fetch(`${API_BASE_URL}/conversation/${matchId}`, {
+          headers: { Authorization: `Bearer ${token}` },
         });
+        if (!res.ok) return;
+
+        const data = await res.json();
+        const latestMessages = normalizeMessages(
+          Array.isArray(data) && data.length > 0 ? data[0].messages : []
+        );
+
+        setMessages((prevMessages) => (
+          haveMessagesChanged(prevMessages, latestMessages) ? latestMessages : prevMessages
+        ));
+        if (isFocused) {
+          await markConversationAsRead();
+        }
+      } catch (err) {
+        console.error('Error polling conversation:', err);
+      }
+    };
+
+    if (!matchId || !isFocused) return undefined;
+
+    const intervalId = setInterval(pollConversation, 3000);
+
+    return () => clearInterval(intervalId);
+  }, [matchId, isFocused]);
+
+  const scrollToBottom = (animated = true) => {
+    // Retry a few times to handle intermittent keyboard/layout timing.
+    requestAnimationFrame(() => scrollViewRef.current?.scrollToEnd({ animated }));
+    setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated }), 40);
+    setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated }), 140);
+  };
+
+  useEffect(() => {
+      if (!loading) {
+        scrollToBottom(false);
       }
   }, [loading, messages, selectedPuzzleLink]);
 
   const scrollToEnd = () => {
-    setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 50);
+    scrollToBottom(true);
   };
 
   useKeyboardHandler({
@@ -229,9 +313,12 @@ const MatchConvo = () => {
 
       if (res.ok || res.status === 201) {
         const data = await res.json();
-        setMessages(data.messages || []);
+        setMessages(normalizeMessages(data.messages || []));
         setNewMessageText('');
         setSelectedPuzzleLink('');
+        InteractionManager.runAfterInteractions(() => {
+          scrollToBottom(true);
+        });
         // Refresh match info to get updated message count
         if (matchId) {
           const token = await AsyncStorage.getItem('token');
@@ -780,17 +867,18 @@ const MatchConvo = () => {
           ...styles.messagesContent,
           paddingBottom: selectedPuzzleLink ? 1 : 0, // extra space if a puzzle is selected
         }}
-        onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: false })}
+        onContentSizeChange={() => scrollToBottom(false)}
       >
         {messages.length === 0 ? (
           <Text style={styles.emptyText}>No messages yet. Say hi!</Text>
         ) : (
-          messages.map((msg) => {
+          messages.map((msg, index) => {
             const mine = isMine(msg);
             const senderLabel = getSenderLabel(msg);
+            const messageKey = msg.id ?? `${msg.sender_id || 'unknown'}-${msg.timestamp || index}-${index}`;
 
             return (
-              <View key={msg.id} style={[styles.messageBubble, mine ? [styles.mine, { backgroundColor: accentColor }] : styles.theirs]}>
+              <View key={messageKey} style={[styles.messageBubble, mine ? [styles.mine, { backgroundColor: accentColor }] : styles.theirs]}>
                 {!mine && <Text style={[styles.senderLabel, { color: accentColor }]}>{senderLabel}</Text>}
                 {msg.text && <Text style={[styles.messageText, mine && { color: '#fff' }]}>{msg.text}</Text>}
                 {msg.puzzle_type && (

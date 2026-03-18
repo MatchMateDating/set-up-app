@@ -30,6 +30,8 @@ const ProfileInfoCard = ({
   images,
   onDeleteImage,
   onPlaceholderClick,
+  imageError,
+  fieldErrors,
   onSubmit,
   onCancel,
   scrollToBottom,
@@ -134,6 +136,9 @@ const ProfileInfoCard = ({
                 layout={formData.imageLayout}
                 accentColor={editAccentColor}
               />
+              {editing && Boolean(imageError) && (
+                <Text style={styles.validationError}>{imageError}</Text>
+              )}
             </>
           )}
 
@@ -152,6 +157,9 @@ const ProfileInfoCard = ({
                 value={formData.first_name}
                 onChangeText={(v) => update('first_name', v)}
               />
+              {Boolean(fieldErrors?.first_name) && (
+                <Text style={styles.validationError}>{fieldErrors.first_name}</Text>
+              )}
             </>
           )}
 
@@ -163,6 +171,9 @@ const ProfileInfoCard = ({
                 value={formData.last_name}
                 onChangeText={(v) => update('last_name', v)}
               />
+              {Boolean(fieldErrors?.last_name) && (
+                <Text style={styles.validationError}>{fieldErrors.last_name}</Text>
+              )}
             </>
           )}
 
@@ -213,6 +224,9 @@ const ProfileInfoCard = ({
                   {formData.birthdate || 'Select birthdate'}
                 </Text>
               </TouchableOpacity>
+              {Boolean(fieldErrors?.birthdate) && (
+                <Text style={styles.validationError}>{fieldErrors.birthdate}</Text>
+              )}
 
               {showDatePicker && (
                 <View style={styles.calendarContainer}>
@@ -357,6 +371,9 @@ const ProfileInfoCard = ({
                   Switch to {heightUnit === 'ft' ? 'meters' : 'feet'}
                 </Text>
               </TouchableOpacity>
+              {Boolean(fieldErrors?.height) && (
+                <Text style={styles.validationError}>{fieldErrors.height}</Text>
+              )}
             </>
           ) : null}
 
@@ -402,6 +419,9 @@ const ProfileInfoCard = ({
                 layout={formData.imageLayout}
                 accentColor={editAccentColor}
               />
+              {editing && Boolean(imageError) && (
+                <Text style={styles.validationError}>{imageError}</Text>
+              )}
             </>
           )}
 
@@ -626,5 +646,11 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(255, 255, 255, 0.95)',
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 1.5,
+  },
+  validationError: {
+    marginTop: 6,
+    fontSize: 13,
+    color: '#DC2626',
+    fontWeight: '600',
   },
 });

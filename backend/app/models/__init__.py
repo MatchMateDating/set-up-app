@@ -4,6 +4,7 @@ from .imageDB import Image
 from .matchDB import Match
 from .conversationDB import Conversation
 from .messageDB import Message
+from .conversationReadStateDB import ConversationReadState
 from .quizDB import QuizResult
 from .skipDB import UserSkip
 from .blockDB import UserBlock
