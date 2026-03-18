@@ -161,6 +161,7 @@ cp env.template .env
 
 export FLASK_APP=app:create_app
 export FLASK_ENV=development
+set DATABASE_URL=
 flask db init
 flask db migrate
 flask db upgrade
@@ -238,6 +239,22 @@ Main endpoints:
 - `/match/` - Matching functionality
 - `/conversation/` - Messaging
 - `/quiz/` - Quiz/puzzle results
+
+## Update Database
+Create a new environment variable for `DATABASE_URL` using the `DATABASE_PUBLIC_URL` from railway
+run 
+```console
+python -c "import psycopg; conn=psycopg.connect('DATABASE_URL'); 
+cur=conn.cursor(); 
+cur.execute('ALTER TABLE message ADD COLUMN IF NOT EXISTS read BOOLEAN NOT NULL DEFAULT FALSE;'); 
+cur.execute('CREATE TABLE IF NOT EXISTS conversation_read_state (id SERIAL PRIMARY KEY, conversation_id INTEGER NOT NULL REFERENCES conversation(id), viewer_user_id INTEGER NOT NULL REFERENCES users(id), last_read_message_id INTEGER REFERENCES message(id), updated_at TIMESTAMP NOT NULL DEFAULT NOW(), CONSTRAINT uq_conversation_viewer_read_state UNIQUE (conversation_id, viewer_user_id));'); 
+cur.execute('CREATE INDEX IF NOT 
+EXISTS ix_conversation_read_state_viewer_user_id ON conversation_read_state (viewer_user_id);'); 
+conn.commit(); 
+cur.close(); 
+conn.close(); 
+print('Done')"
+```
 
 ## Troubleshooting
 
