@@ -10,7 +10,9 @@ const ProfileCard = ({
   profile,
   userInfo,
   preferredViewerUnit,
-  onSkip
+  onSkip,
+  // Optional; ignored (no “Linked dater” UI). Keeps older bundles / callers stable.
+  isLinkedDater = false,
 }) => {
   const { user } = useContext(UserContext);
   const viewerUnit = preferredViewerUnit || userInfo?.unit || user?.unit;

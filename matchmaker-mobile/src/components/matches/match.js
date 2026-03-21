@@ -53,16 +53,27 @@ const Match = () => {
     heightMinCm: DEFAULT_HEIGHT_MIN_CM,
     heightMaxCm: DEFAULT_HEIGHT_MAX_CM,
     requireBio: false,
+    internalMatchmakingOnly: false,
   });
   const [filterDraft, setFilterDraft] = useState({
     heightMinCm: DEFAULT_HEIGHT_MIN_CM,
     heightMaxCm: DEFAULT_HEIGHT_MAX_CM,
     requireBio: false,
+    internalMatchmakingOnly: false,
   });
   const navigation = useNavigation();
   const selectedDaterId = userInfo?.referrer_id || userInfo?.referred_by_id || null;
 
   const sliderWidth = Math.min(Dimensions.get('window').width - 56, 300);
+
+  const linkedDaterIdSet = useMemo(() => {
+    const ids = userInfo?.linked_daters;
+    if (!Array.isArray(ids)) return new Set();
+    return new Set(ids.map((id) => Number(id)));
+  }, [userInfo?.linked_daters]);
+
+  const showInternalMatchmakingFilter =
+    userInfo?.role === 'matchmaker' && linkedDaterIdSet.size >= 2;
 
   const heightBoundsCm = useMemo(() => {
     const cms = profiles
@@ -107,13 +118,26 @@ const Match = () => {
     matchFilters.heightMinCm > heightBoundsCm.minCm ||
     matchFilters.heightMaxCm < heightBoundsCm.maxCm;
 
-  const activeFilterCount = (isHeightFilterActive ? 1 : 0) + (matchFilters.requireBio ? 1 : 0);
+  const internalMatchmakingFilterActive =
+    matchFilters.internalMatchmakingOnly &&
+    userInfo?.role === 'matchmaker' &&
+    linkedDaterIdSet.size >= 2;
+
+  const activeFilterCount =
+    (isHeightFilterActive ? 1 : 0) +
+    (matchFilters.requireBio ? 1 : 0) +
+    (internalMatchmakingFilterActive ? 1 : 0);
 
   const filterProfilesList = useCallback(
     (list) => {
       const hActive =
         matchFilters.heightMinCm > heightBoundsCm.minCm ||
         matchFilters.heightMaxCm < heightBoundsCm.maxCm;
+      const internalActive =
+        matchFilters.internalMatchmakingOnly &&
+        userInfo?.role === 'matchmaker' &&
+        linkedDaterIdSet.size >= 2;
+
       return list.filter((p) => {
         if (hActive) {
           const cm = heightStringToCm(p.height, p.unit);
@@ -123,10 +147,19 @@ const Match = () => {
         if (matchFilters.requireBio) {
           if (!p.bio || !String(p.bio).trim()) return false;
         }
+        if (internalActive && !linkedDaterIdSet.has(Number(p.id))) {
+          return false;
+        }
         return true;
       });
     },
-    [matchFilters, heightBoundsCm.minCm, heightBoundsCm.maxCm]
+    [
+      matchFilters,
+      heightBoundsCm.minCm,
+      heightBoundsCm.maxCm,
+      userInfo?.role,
+      linkedDaterIdSet,
+    ]
   );
 
   const adjustCurrentIndexAfterRemoval = useCallback(
@@ -707,7 +740,8 @@ const Match = () => {
     const changed =
       matchFilters.heightMinCm !== filterDraft.heightMinCm ||
       matchFilters.heightMaxCm !== filterDraft.heightMaxCm ||
-      matchFilters.requireBio !== filterDraft.requireBio;
+      matchFilters.requireBio !== filterDraft.requireBio ||
+      matchFilters.internalMatchmakingOnly !== filterDraft.internalMatchmakingOnly;
     if (changed) {
       setCurrentIndex(0);
     }
@@ -913,6 +947,44 @@ const Match = () => {
                   Only show profiles with about me filled out
                 </Text>
               </TouchableOpacity>
+
+              {showInternalMatchmakingFilter ? (
+                <>
+                  <Text style={[styles.filterSectionLabel, { marginTop: 24 }]}>
+                    Internal matchmaking
+                  </Text>
+                  <Text style={styles.filterSectionSub}>
+                    Limit the deck to people on your roster (other linked daters you work with).
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.filterCheckboxRow}
+                    onPress={() =>
+                      setFilterDraft((d) => ({
+                        ...d,
+                        internalMatchmakingOnly: !d.internalMatchmakingOnly,
+                      }))
+                    }
+                    activeOpacity={0.7}
+                  >
+                    <View
+                      style={[
+                        styles.filterCheckbox,
+                        filterDraft.internalMatchmakingOnly && {
+                          backgroundColor: accentColor,
+                          borderColor: accentColor,
+                        },
+                      ]}
+                    >
+                      {filterDraft.internalMatchmakingOnly ? (
+                        <Ionicons name="checkmark" size={16} color="#ffffff" />
+                      ) : null}
+                    </View>
+                    <Text style={styles.filterCheckboxLabel}>
+                      Only show my linked daters
+                    </Text>
+                  </TouchableOpacity>
+                </>
+              ) : null}
             </ScrollView>
             <View
               style={[
