@@ -14,6 +14,7 @@ import {
   Platform,
   TouchableWithoutFeedback,
   Switch,
+  Image,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Clipboard from 'expo-clipboard';
@@ -23,6 +24,7 @@ import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/nativ
 import { API_BASE_URL, FRONTEND_URL } from '../../env';
 import FormField from '../profile/components/formField';
 import MultiSelectGender from '../profile/components/multiSelectGender';
+import { getImageUrl } from '../profile/utils/profileUtils';
 import { useNotifications } from '../../context/NotificationContext';
 import { getRoleAccentColor, getRoleBackgroundTint } from '../layout/components/RoleHeaderBanner';
 import { UserContext } from '../../context/UserContext';
@@ -47,6 +49,54 @@ const buildDaterInviteSignupUrl = (inviteToken) => {
   const baseUrl = `${frontendUrl}/dater-signup.html`;
   const sep = baseUrl.includes('?') ? '&' : '?';
   return `${baseUrl}${sep}invite_token=${encodeURIComponent(String(inviteToken))}`;
+};
+
+const MM_LINKED_PURPLE = '#5A4FCF';
+const MM_LINKED_LIGHT_PURPLE = '#EFEEFF';
+const MM_LINKED_BEIGE = '#F5F5F0';
+const MM_LINKED_REMOVE_BG = '#FDECEC';
+
+const LINKED_DATER_AVATAR_PALETTES = [
+  { bg: '#EFEEFF', fg: '#5A4FCF' },
+  { bg: '#E8F5E9', fg: '#2E7D32' },
+  { bg: '#E3F2FD', fg: '#1565C0' },
+  { bg: '#FFF3E0', fg: '#E65100' },
+];
+
+const formatLinkedDaterIdPreview = (id) => {
+  if (id == null || id === '') return '';
+  const str = String(id);
+  if (str.length >= 10) return `${str.slice(0, 8)}-${str.slice(8, 9)}`;
+  return str;
+};
+
+const linkedDaterInitial = (name) => {
+  const t = String(name || '').trim();
+  if (!t) return '?';
+  return t.charAt(0).toUpperCase();
+};
+
+const LinkedDaterRowAvatar = ({ name, firstImage, palette }) => {
+  const [imageFailed, setImageFailed] = useState(false);
+  const uri =
+    firstImage && !imageFailed ? getImageUrl(firstImage, API_BASE_URL) : null;
+
+  return (
+    <View style={[styles.mmLinkedAvatar, { backgroundColor: palette.bg }]}>
+      {uri ? (
+        <Image
+          source={{ uri }}
+          style={styles.mmLinkedAvatarImage}
+          resizeMode="cover"
+          onError={() => setImageFailed(true)}
+        />
+      ) : (
+        <Text style={[styles.mmLinkedAvatarLetter, { color: palette.fg }]}>
+          {linkedDaterInitial(name)}
+        </Text>
+      )}
+    </View>
+  );
 };
 
 const SettingsSections = () => {
@@ -1402,79 +1452,94 @@ const SettingsSections = () => {
 
     return (
       <View style={styles.matchmakerReferralStack}>
-        <View style={styles.daterInviteOutlineCard}>
-          <Text style={styles.outlineSectionTitle}>Invite a dater</Text>
-          <Text style={styles.inviteDaterHint}>
-            Share your personal signup link. When they join (or link an existing dater account), they appear in your
-            linked daters list.
-          </Text>
-          <View style={[styles.referralCodeBox, styles.daterInviteLinkBox, { borderColor: accentColor }]}>
-            <Text
-              style={[styles.daterInviteLinkPreview, { color: accentColor }]}
-              selectable
-              numberOfLines={4}
-            >
-              {cachedDaterInviteUrl ||
-                (daterInviteLinkLoading ? 'Preparing your link…' : 'Your invite link will load here')}
-            </Text>
-          </View>
-          <View style={styles.actionButtonGroup}>
+        <View style={styles.mmLinkedCard}>
+          <Text style={styles.mmInviteTitle}>Invite a dater</Text>
+          <Text style={styles.mmInviteSubtitle}>Share your personal signup link</Text>
+
+          <View style={styles.mmQuickActionsRow}>
             <TouchableOpacity
-              style={[styles.iconActionBtn, daterInviteLinkLoading && styles.iconActionBtnDisabled]}
+              style={[
+                styles.mmQuickAction,
+                styles.mmQuickActionPrimary,
+                daterInviteLinkLoading && styles.iconActionBtnDisabled,
+              ]}
               onPress={handleCopyDaterInviteLink}
               disabled={daterInviteLinkLoading}
+              activeOpacity={0.85}
             >
-              <Ionicons name="copy-outline" size={20} color={accentColor} />
-              <Text style={[styles.iconActionText, { color: accentColor }]}>Copy</Text>
+              <Ionicons name="copy-outline" size={22} color={MM_LINKED_PURPLE} />
+              <Text style={styles.mmQuickActionLabelPrimary}>Copy link</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.iconActionBtn, daterInviteLinkLoading && styles.iconActionBtnDisabled]}
+              style={[
+                styles.mmQuickAction,
+                styles.mmQuickActionMuted,
+                daterInviteLinkLoading && styles.iconActionBtnDisabled,
+              ]}
               onPress={handleTextDaterInviteLink}
               disabled={daterInviteLinkLoading}
+              activeOpacity={0.85}
             >
-              <Ionicons name="chatbubble-outline" size={20} color={accentColor} />
-              <Text style={[styles.iconActionText, { color: accentColor }]}>Text</Text>
+              <Ionicons name="chatbubble-outline" size={22} color="#4B5563" />
+              <Text style={styles.mmQuickActionLabelMuted}>Text</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.iconActionBtn} onPress={handleOpenDaterInviteEmailModal}>
-              <Ionicons name="mail-outline" size={20} color={accentColor} />
-              <Text style={[styles.iconActionText, { color: accentColor }]}>Email</Text>
+            <TouchableOpacity
+              style={[styles.mmQuickAction, styles.mmQuickActionMuted]}
+              onPress={handleOpenDaterInviteEmailModal}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="mail-outline" size={22} color="#4B5563" />
+              <Text style={styles.mmQuickActionLabelMuted}>Email</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.mmSectionDivider} />
+
+          <Text style={styles.mmReferralByCodeTitle}>Or add by referral code</Text>
+          <View style={styles.mmReferralInputRow}>
+            <TextInput
+              style={styles.mmReferralInput}
+              value={referralCode}
+              onChangeText={setReferralCode}
+              placeholder="Enter referral code"
+              placeholderTextColor="#9CA3AF"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <TouchableOpacity style={styles.mmAddReferralBtn} onPress={handleLinkReferral} activeOpacity={0.9}>
+              <Text style={styles.mmAddReferralBtnText}>Add</Text>
             </TouchableOpacity>
           </View>
         </View>
 
-        <View style={styles.linkedDatersOutlineCard}>
-          <Text style={styles.outlineSectionTitle}>Manage linked daters</Text>
-          <Text style={styles.cardDescription}>
-            Add an existing dater by entering their referral code.
-          </Text>
-          <View style={styles.referralInputRow}>
-            <TextInput
-              style={[styles.input, styles.referralInput]}
-              value={referralCode}
-              onChangeText={setReferralCode}
-              placeholder="Enter referral code"
-            />
-            <TouchableOpacity style={[styles.saveBtn, { backgroundColor: accentColor }]} onPress={handleLinkReferral}>
-              <Text style={styles.saveBtnText}>Add</Text>
-            </TouchableOpacity>
-          </View>
+        <View style={styles.mmLinkedCard}>
+          <Text style={styles.mmLinkedListTitle}>Linked daters</Text>
+          <View style={styles.mmSectionDivider} />
           {savedReferrals.length > 0 ? (
-            savedReferrals.map((ref, idx) => (
-              <View key={`${ref.referral_code}-${idx}`} style={styles.referralItem}>
-                <View style={styles.referralInfo}>
-                  <Text style={styles.referralName}>{ref.name}</Text>
-                  <Text style={styles.referralTag}>{ref.referral_code}</Text>
-                </View>
-                <TouchableOpacity
-                  style={styles.linkedDaterDeleteBtn}
-                  onPress={() => handleDeleteLinkedDater(ref)}
+            savedReferrals.map((ref, idx) => {
+              const palette = LINKED_DATER_AVATAR_PALETTES[idx % LINKED_DATER_AVATAR_PALETTES.length];
+              return (
+                <View
+                  key={`${ref.id || ref.referral_code}-${idx}`}
+                  style={[styles.mmLinkedRow, idx > 0 && styles.mmLinkedRowBorder]}
                 >
-                  <Ionicons name="trash-outline" size={16} color="#DC2626" />
-                </TouchableOpacity>
-              </View>
-            ))
+                  <LinkedDaterRowAvatar name={ref.name} firstImage={ref.first_image} palette={palette} />
+                  <View style={styles.mmLinkedRowText}>
+                    <Text style={styles.mmLinkedName}>{ref.name || 'Dater'}</Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.mmLinkedRemove}
+                    onPress={() => handleDeleteLinkedDater(ref)}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    activeOpacity={0.85}
+                  >
+                    <Ionicons name="close" size={14} color="#B91C1C" />
+                  </TouchableOpacity>
+                </View>
+              );
+            })
           ) : (
-            <Text style={styles.emptyState}>No linked daters yet.</Text>
+            <Text style={styles.mmLinkedEmpty}>No linked daters yet.</Text>
           )}
         </View>
       </View>
@@ -2099,54 +2164,163 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  matchmakerReferralStack: {},
-  daterInviteOutlineCard: {
+  matchmakerReferralStack: {
+    gap: 14,
+  },
+  mmLinkedCard: {
     backgroundColor: '#fff',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderRadius: 16,
     padding: 18,
-    marginBottom: 14,
+    marginBottom: 0,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
-    shadowRadius: 4,
+    shadowRadius: 8,
     elevation: 2,
   },
-  linkedDatersOutlineCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    padding: 18,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  outlineSectionTitle: {
+  mmInviteTitle: {
     fontSize: 18,
     fontWeight: '700',
     color: '#111827',
-    marginBottom: 8,
+    marginBottom: 6,
   },
-  daterInviteLinkBox: {
-    marginBottom: 14,
+  mmInviteSubtitle: {
+    fontSize: 14,
+    color: '#374151',
+    marginBottom: 16,
+    lineHeight: 20,
   },
-  daterInviteLinkPreview: {
+  mmQuickActionsRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  mmQuickAction: {
+    flex: 1,
+    minHeight: 78,
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mmQuickActionPrimary: {
+    backgroundColor: MM_LINKED_LIGHT_PURPLE,
+  },
+  mmQuickActionMuted: {
+    backgroundColor: MM_LINKED_BEIGE,
+  },
+  mmQuickActionLabelPrimary: {
+    marginTop: 6,
+    fontSize: 12,
     fontWeight: '600',
-    fontSize: 13,
-    lineHeight: 18,
+    color: MM_LINKED_PURPLE,
+    textAlign: 'center',
+  },
+  mmQuickActionLabelMuted: {
+    marginTop: 6,
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#4B5563',
+    textAlign: 'center',
+  },
+  mmSectionDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: '#E5E7EB',
+    marginVertical: 18,
+  },
+  mmReferralByCodeTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 10,
+  },
+  mmReferralInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  mmReferralInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: '#111827',
+    backgroundColor: '#fff',
+  },
+  mmAddReferralBtn: {
+    backgroundColor: MM_LINKED_PURPLE,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    minWidth: 72,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mmAddReferralBtnText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  mmLinkedListTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 0,
+  },
+  mmLinkedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+  },
+  mmLinkedRowBorder: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#E5E7EB',
+  },
+  mmLinkedAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+    overflow: 'hidden',
+  },
+  mmLinkedAvatarImage: {
+    width: 44,
+    height: 44,
+  },
+  mmLinkedAvatarLetter: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  mmLinkedRowText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  mmLinkedName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  mmLinkedRemove: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: MM_LINKED_REMOVE_BG,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mmLinkedEmpty: {
+    color: '#9CA3AF',
+    fontSize: 14,
+    paddingVertical: 8,
+    fontStyle: 'italic',
   },
   iconActionBtnDisabled: {
     opacity: 0.55,
-  },
-  inviteDaterHint: {
-    color: '#6B7280',
-    fontSize: 13,
-    lineHeight: 19,
-    marginBottom: 14,
   },
   cancelBtn: {
     paddingVertical: 12,
