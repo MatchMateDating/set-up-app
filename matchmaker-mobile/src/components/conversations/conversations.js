@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Alert, useWindowDimensions } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { API_BASE_URL } from '../../env';
@@ -12,7 +12,17 @@ import { useNotificationPolling } from './hooks/useNotificationPolling';
 import { getRoleAccentColor, getRoleBackgroundTint } from '../layout/components/RoleHeaderBanner';
 import { UserContext } from '../../context/UserContext';
 
+const MATCH_CARD_COLUMNS = 3;
+const CONTENT_HORIZONTAL_PADDING = 16;
+const MATCH_CARD_COLUMN_GAP = 10;
+
 const Conversations = () => {
+  const { width: windowWidth } = useWindowDimensions();
+  const listInnerWidth = windowWidth - CONTENT_HORIZONTAL_PADDING * 2;
+  const matchCardWidth = Math.floor(
+    (listInnerWidth - MATCH_CARD_COLUMN_GAP * (MATCH_CARD_COLUMNS - 1)) / MATCH_CARD_COLUMNS
+  );
+
   const READ_STATE_STORAGE_PREFIX = 'conversationLastRead';
   const ACTIVE_CONVERSATION_STORAGE_KEY = 'activeConversationMatchId';
   const { user: contextUser } = useContext(UserContext);
@@ -543,10 +553,11 @@ const Conversations = () => {
                     matchObj={matchObj}
                     userInfo={userInfo}
                     unreadCount={matchObj.unread_count || 0}
+                    cardWidth={matchCardWidth}
                   />
                 ))
               ) : (
-                <View style={styles.loadingContainerInline}>
+                <View style={[styles.loadingContainerInline, styles.matchListFullWidth]}>
                   <Text style={styles.loadingText}>No pending matches yet!</Text>
                 </View>
               )}
@@ -565,10 +576,11 @@ const Conversations = () => {
                     matchObj={matchObj}
                     userInfo={userInfo}
                     unreadCount={matchObj.unread_count || 0}
+                    cardWidth={matchCardWidth}
                   />
                 ))
               ) : (
-                <View style={styles.emptyContainer}>
+                <View style={[styles.emptyContainer, styles.matchListFullWidth]}>
                   <Text style={styles.emptyText}>No matches yet!</Text>
                 </View>
               )}
@@ -587,10 +599,11 @@ const Conversations = () => {
                     matchObj={matchObj}
                     userInfo={userInfo}
                     unreadCount={matchObj.unread_count || 0}
+                    cardWidth={matchCardWidth}
                   />
                 ))
               ) : (
-                <View style={styles.loadingContainerInline}>
+                <View style={[styles.loadingContainerInline, styles.matchListFullWidth]}>
                   <Text style={styles.loadingText}>No matches yet!</Text>
                 </View>
               )}
@@ -632,7 +645,15 @@ const styles = StyleSheet.create({
     color: '#6b7280',
   },
   matchList: {
-    gap: 16,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    columnGap: MATCH_CARD_COLUMN_GAP,
+    rowGap: 16,
+    width: '100%',
+  },
+  matchListFullWidth: {
+    width: '100%',
+    flexBasis: '100%',
   },
   emptyContainer: {
     padding: 40,

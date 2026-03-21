@@ -4,8 +4,15 @@ import { API_BASE_URL } from '../../env';
 import { useNavigation } from '@react-navigation/native';
 import { getImageUrl } from '../profile/utils/profileUtils';
 
-const MatchCard = ({ matchObj, userInfo, unreadCount = 0, onOpenConversation }) => {
+const MatchCard = ({ matchObj, userInfo, unreadCount = 0, onOpenConversation, cardWidth }) => {
   const navigation = useNavigation();
+  const resolvedCardWidth = cardWidth ?? 150;
+  const imageSize = Math.min(85, Math.max(48, Math.floor(resolvedCardWidth - 28)));
+  const imageRadius = imageSize / 2;
+  const vennW = Math.min(110, Math.floor(resolvedCardWidth - 8));
+  const vennH = Math.max(56, Math.floor(vennW * (85 / 110)));
+  const vennCircle = Math.min(70, Math.floor(imageSize * 0.82));
+  const vennCircleRadius = vennCircle / 2;
   const isDater = userInfo?.role === 'user';
   const roleBadgeBackground = isDater ? '#fde7f3' : '#efe8ff';
   const roleBadgeText = isDater ? '#b83280' : '#5b3fa3';
@@ -39,25 +46,45 @@ const MatchCard = ({ matchObj, userInfo, unreadCount = 0, onOpenConversation }) 
     if (!matchObj.linked_dater) return null;
 
     return (
-      <View style={styles.vennContainer}>
+      <View style={[styles.vennContainer, { width: vennW, height: vennH }]}>
         {/* Linked dater (right, behind) */}
         {matchObj.linked_dater.first_image ? (
           <Image
             source={{ uri: getImageUrl(matchObj.linked_dater.first_image, API_BASE_URL) }}
-            style={[styles.vennImage, styles.vennRight]}
+            style={[
+              styles.vennImage,
+              styles.vennRight,
+              { width: vennCircle, height: vennCircle, borderRadius: vennCircleRadius },
+            ]}
           />
         ) : (
-          <View style={[styles.matchPlaceholder, styles.vennRight]} />
+          <View
+            style={[
+              styles.matchPlaceholder,
+              styles.vennRight,
+              { width: vennCircle, height: vennCircle, borderRadius: vennCircleRadius },
+            ]}
+          />
         )}
 
         {/* Match user (left, on top) */}
         {matchObj.match_user.first_image ? (
           <Image
             source={{ uri: getImageUrl(matchObj.match_user.first_image, API_BASE_URL) }}
-            style={[styles.vennImage, styles.vennLeft]}
+            style={[
+              styles.vennImage,
+              styles.vennLeft,
+              { width: vennCircle, height: vennCircle, borderRadius: vennCircleRadius },
+            ]}
           />
         ) : (
-          <View style={[styles.matchPlaceholder, styles.vennLeft]} />
+          <View
+            style={[
+              styles.matchPlaceholder,
+              styles.vennLeft,
+              { width: vennCircle, height: vennCircle, borderRadius: vennCircleRadius },
+            ]}
+          />
         )}
       </View>
     );
@@ -65,7 +92,7 @@ const MatchCard = ({ matchObj, userInfo, unreadCount = 0, onOpenConversation }) 
 
   return (
     <TouchableOpacity
-      style={styles.matchCard}
+      style={[styles.matchCard, { width: resolvedCardWidth }]}
       onPress={() => {
         onOpenConversation?.(matchObj.match_id);
         navigation.navigate('MatchConvo', { matchId: matchObj.match_id, isBlind: isBlind });
@@ -87,19 +114,30 @@ const MatchCard = ({ matchObj, userInfo, unreadCount = 0, onOpenConversation }) 
                   {isBlind ? (
                     <Image
                       source={{ uri: getImageUrl(matchObj.match_user.first_image, API_BASE_URL) }}
-                      style={styles.matchImage}
+                      style={[
+                        styles.matchImage,
+                        { width: imageSize, height: imageSize, borderRadius: imageRadius },
+                      ]}
                       resizeMode="cover"
                       blurRadius={isBlind ? 40 : 0}
                     />
                   ):(
                     <Image
                       source={{ uri: getImageUrl(matchObj.match_user.first_image, API_BASE_URL) }}
-                      style={styles.matchImage}
+                      style={[
+                        styles.matchImage,
+                        { width: imageSize, height: imageSize, borderRadius: imageRadius },
+                      ]}
                       resizeMode="cover"
                     />)}
                 </View>
               ) : (
-                <View style={styles.matchPlaceholder}>
+                <View
+                  style={[
+                    styles.matchPlaceholder,
+                    { width: imageSize, height: imageSize, borderRadius: imageRadius },
+                  ]}
+                >
                   <Text style={styles.placeholderText}>No Image</Text>
                 </View>
               )}
@@ -157,7 +195,6 @@ const styles = StyleSheet.create({
   matchCard: {
     flexDirection: 'column',
     alignItems: 'center',
-    width: 150,
     backgroundColor: '#fff',
     borderRadius: 16,
     padding: 12,
@@ -168,7 +205,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 8,
     elevation: 3,
-    marginBottom: 16,
     position: 'relative',
   },
   unreadBadge: {
@@ -190,15 +226,10 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   vennContainer: {
-    width: 110,
-    height: 85,
     position: 'relative',
     marginBottom: 6,
   },
   vennImage: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
     borderWidth: 2,
     borderColor: '#fff',
     position: 'absolute',
@@ -222,17 +253,11 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   matchImage: {
-    width: 85,
-    height: 85,
-    borderRadius: 42.5,
     borderWidth: 2,
     borderColor: '#eee',
   },
   matchPlaceholder: {
-    width: 85,
-    height: 85,
     backgroundColor: '#f2f2f2',
-    borderRadius: 42.5,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -254,6 +279,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#333',
     marginBottom: 4,
+    textAlign: 'center',
   },
   pillsRow: {
     marginTop: 2,
