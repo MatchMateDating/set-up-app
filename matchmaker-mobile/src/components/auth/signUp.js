@@ -149,7 +149,7 @@ const SignUpScreen = () => {
     }, 10000);
   };
 
-  const handleSignUpClick = () => {
+  const handleSignUpClick = async () => {
     const normalizedEmail = identifier.trim();
 
     if (!normalizedEmail) {
@@ -189,6 +189,21 @@ const SignUpScreen = () => {
     if (!agreeToTexts) {
       Alert.alert('Error', 'Please agree to receive non promotional emails to continue.');
       return;
+    }
+
+    if (role === 'matchmaker') {
+      const trimmedReferral = referralCode.trim();
+      if (trimmedReferral) {
+        try {
+          await axios.post(`${API_BASE_URL}/auth/validate-matchmaker-referral`, {
+            referral_code: trimmedReferral,
+          });
+        } catch (err) {
+          const errorMsg = err.response?.data?.msg || 'Invalid referral code';
+          Alert.alert('Error', errorMsg);
+          return;
+        }
+      }
     }
 
     setShowTermsModal(true);

@@ -16,6 +16,7 @@ import {
   Switch,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Clipboard from 'expo-clipboard';
 import { Ionicons } from '@expo/vector-icons';
 import MultiSlider from '@ptomasroos/react-native-multi-slider';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
@@ -41,6 +42,13 @@ const getPasswordChecks = (value) => ({
   hasSpecial: /[^A-Za-z0-9]/.test(value || ''),
 });
 
+const buildDaterInviteSignupUrl = (inviteToken) => {
+  const frontendUrl = (FRONTEND_URL || 'https://matchmatedating.com').replace(/\/+$/, '');
+  const baseUrl = `${frontendUrl}/dater-signup.html`;
+  const sep = baseUrl.includes('?') ? '&' : '?';
+  return `${baseUrl}${sep}invite_token=${encodeURIComponent(String(inviteToken))}`;
+};
+
 const SettingsSections = () => {
   const navigation = useNavigation();
   const route = useRoute();
@@ -61,6 +69,10 @@ const SettingsSections = () => {
   const [showEmailInviteModal, setShowEmailInviteModal] = useState(false);
   const [emailInviteInput, setEmailInviteInput] = useState('');
   const [showLinkedDatersOnboarding, setShowLinkedDatersOnboarding] = useState(false);
+  const [cachedDaterInviteUrl, setCachedDaterInviteUrl] = useState('');
+  const [daterInviteLinkLoading, setDaterInviteLinkLoading] = useState(false);
+  const [showDaterInviteEmailModal, setShowDaterInviteEmailModal] = useState(false);
+  const [daterInviteEmailInput, setDaterInviteEmailInput] = useState('');
 
   const [currentEmail, setCurrentEmail] = useState('');
   const [newEmail, setNewEmail] = useState('');
@@ -217,6 +229,36 @@ const SettingsSections = () => {
   useEffect(() => {
     fetchUserProfile();
   }, [fetchUserProfile]);
+
+  useEffect(() => {
+    if (activeSection !== SECTION_KEYS.REFERRAL || role !== 'matchmaker') {
+      return undefined;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = await AsyncStorage.getItem('token');
+        if (!token || cancelled) return;
+        const res = await fetch(`${API_BASE_URL}/referral/dater_invite_token`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        const inviteToken = data.invite_token;
+        if (!inviteToken || cancelled) return;
+        if (!cancelled) setCachedDaterInviteUrl(buildDaterInviteSignupUrl(inviteToken));
+      } catch (err) {
+        console.error('Dater invite link prefetch:', err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeSection, role]);
 
   useFocusEffect(
     useCallback(() => {
@@ -635,6 +677,142 @@ const SettingsSections = () => {
     } catch (err) {
       console.error('Error sharing:', err);
       Alert.alert('Error', 'Failed to share referral code');
+    }
+  };
+
+  const fetchFreshDaterInviteUrl = async () => {
+    const token = await AsyncStorage.getItem('token');
+    if (!token) {
+      Alert.alert('Error', 'Please log in');
+      navigation.navigate('Login');
+      return null;
+    }
+
+    const res = await fetch(`${API_BASE_URL}/referral/dater_invite_token`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (res.status === 401) {
+      const data = await res.json().catch(() => ({}));
+      if (data.error_code === 'TOKEN_EXPIRED') {
+        await AsyncStorage.removeItem('token');
+        Alert.alert('Session expired', 'Please log in again.');
+        navigation.navigate('Login');
+        return null;
+      }
+    }
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      Alert.alert('Error', data.error || 'Could not create invite link');
+      return null;
+    }
+
+    const data = await res.json();
+    const inviteToken = data.invite_token;
+    if (!inviteToken) {
+      Alert.alert('Error', 'Could not create invite link');
+      return null;
+    }
+
+    return buildDaterInviteSignupUrl(inviteToken);
+  };
+
+  const ensureDaterInviteUrl = async () => {
+    if (cachedDaterInviteUrl) return cachedDaterInviteUrl;
+    setDaterInviteLinkLoading(true);
+    try {
+      const url = await fetchFreshDaterInviteUrl();
+      if (url) setCachedDaterInviteUrl(url);
+      return url;
+    } finally {
+      setDaterInviteLinkLoading(false);
+    }
+  };
+
+  const handleCopyDaterInviteLink = async () => {
+    if (daterInviteLinkLoading) return;
+    try {
+      const url = await ensureDaterInviteUrl();
+      if (!url) return;
+      await Clipboard.setStringAsync(url);
+      Alert.alert('Copied', 'Invite link copied to clipboard.');
+    } catch (err) {
+      console.error('Error copying dater invite:', err);
+      Alert.alert('Error', 'Failed to copy invite link');
+    }
+  };
+
+  const handleTextDaterInviteLink = async () => {
+    if (daterInviteLinkLoading) return;
+    try {
+      const url = await ensureDaterInviteUrl();
+      if (!url) return;
+      await Share.share({
+        message: `Join MatchMate as a dater I'm matching for:\n${url}`,
+        title: 'Join MatchMate',
+      });
+    } catch (err) {
+      console.error('Error sharing dater invite:', err);
+      Alert.alert('Error', 'Failed to share invite link');
+    }
+  };
+
+  const handleOpenDaterInviteEmailModal = () => {
+    setShowDaterInviteEmailModal(true);
+  };
+
+  const sendDaterInviteEmail = async () => {
+    Keyboard.dismiss();
+
+    if (!daterInviteEmailInput.trim()) {
+      Alert.alert('Error', 'Please enter an email address');
+      return;
+    }
+
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) {
+        Alert.alert('Error', 'Please log in');
+        navigation.navigate('Login');
+        return;
+      }
+
+      const res = await fetch(`${API_BASE_URL}/invite/dater-signup-email`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ email: daterInviteEmailInput.trim() }),
+      });
+
+      if (res.status === 401) {
+        const data = await res.json().catch(() => ({}));
+        if (data.error_code === 'TOKEN_EXPIRED') {
+          await AsyncStorage.removeItem('token');
+          Alert.alert('Session expired', 'Please log in again.');
+          navigation.navigate('Login');
+          return;
+        }
+      }
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        Alert.alert('Error', data.error || 'Failed to send invite');
+        return;
+      }
+
+      Alert.alert('Success', 'Email invite sent');
+      setDaterInviteEmailInput('');
+      setShowDaterInviteEmailModal(false);
+    } catch (err) {
+      console.error('Error sending dater invite email:', err);
+      Alert.alert('Error', 'Failed to send invite');
     }
   };
 
@@ -1223,40 +1401,82 @@ const SettingsSections = () => {
     }
 
     return (
-      <View style={styles.card}>
-        <Text style={styles.cardHeader}>Manage Linked Daters</Text>
-        <Text style={styles.cardDescription}>
-          Link new daters by entering their referral code.
-        </Text>
-        <View style={styles.referralInputRow}>
-          <TextInput
-            style={[styles.input, styles.referralInput]}
-            value={referralCode}
-            onChangeText={setReferralCode}
-            placeholder="Enter referral code"
-          />
-          <TouchableOpacity style={[styles.saveBtn, { backgroundColor: accentColor }]} onPress={handleLinkReferral}>
-            <Text style={styles.saveBtnText}>Add</Text>
-          </TouchableOpacity>
+      <View style={styles.matchmakerReferralStack}>
+        <View style={styles.daterInviteOutlineCard}>
+          <Text style={styles.outlineSectionTitle}>Invite a dater</Text>
+          <Text style={styles.inviteDaterHint}>
+            Share your personal signup link. When they join (or link an existing dater account), they appear in your
+            linked daters list.
+          </Text>
+          <View style={[styles.referralCodeBox, styles.daterInviteLinkBox, { borderColor: accentColor }]}>
+            <Text
+              style={[styles.daterInviteLinkPreview, { color: accentColor }]}
+              selectable
+              numberOfLines={4}
+            >
+              {cachedDaterInviteUrl ||
+                (daterInviteLinkLoading ? 'Preparing your link…' : 'Your invite link will load here')}
+            </Text>
+          </View>
+          <View style={styles.actionButtonGroup}>
+            <TouchableOpacity
+              style={[styles.iconActionBtn, daterInviteLinkLoading && styles.iconActionBtnDisabled]}
+              onPress={handleCopyDaterInviteLink}
+              disabled={daterInviteLinkLoading}
+            >
+              <Ionicons name="copy-outline" size={20} color={accentColor} />
+              <Text style={[styles.iconActionText, { color: accentColor }]}>Copy</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.iconActionBtn, daterInviteLinkLoading && styles.iconActionBtnDisabled]}
+              onPress={handleTextDaterInviteLink}
+              disabled={daterInviteLinkLoading}
+            >
+              <Ionicons name="chatbubble-outline" size={20} color={accentColor} />
+              <Text style={[styles.iconActionText, { color: accentColor }]}>Text</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.iconActionBtn} onPress={handleOpenDaterInviteEmailModal}>
+              <Ionicons name="mail-outline" size={20} color={accentColor} />
+              <Text style={[styles.iconActionText, { color: accentColor }]}>Email</Text>
+            </TouchableOpacity>
+          </View>
         </View>
-        {savedReferrals.length > 0 ? (
-          savedReferrals.map((ref, idx) => (
-            <View key={`${ref.referral_code}-${idx}`} style={styles.referralItem}>
-              <View style={styles.referralInfo}>
-                <Text style={styles.referralName}>{ref.name}</Text>
-                <Text style={styles.referralTag}>{ref.referral_code}</Text>
+
+        <View style={styles.linkedDatersOutlineCard}>
+          <Text style={styles.outlineSectionTitle}>Manage linked daters</Text>
+          <Text style={styles.cardDescription}>
+            Add an existing dater by entering their referral code.
+          </Text>
+          <View style={styles.referralInputRow}>
+            <TextInput
+              style={[styles.input, styles.referralInput]}
+              value={referralCode}
+              onChangeText={setReferralCode}
+              placeholder="Enter referral code"
+            />
+            <TouchableOpacity style={[styles.saveBtn, { backgroundColor: accentColor }]} onPress={handleLinkReferral}>
+              <Text style={styles.saveBtnText}>Add</Text>
+            </TouchableOpacity>
+          </View>
+          {savedReferrals.length > 0 ? (
+            savedReferrals.map((ref, idx) => (
+              <View key={`${ref.referral_code}-${idx}`} style={styles.referralItem}>
+                <View style={styles.referralInfo}>
+                  <Text style={styles.referralName}>{ref.name}</Text>
+                  <Text style={styles.referralTag}>{ref.referral_code}</Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.linkedDaterDeleteBtn}
+                  onPress={() => handleDeleteLinkedDater(ref)}
+                >
+                  <Ionicons name="trash-outline" size={16} color="#DC2626" />
+                </TouchableOpacity>
               </View>
-              <TouchableOpacity
-                style={styles.linkedDaterDeleteBtn}
-                onPress={() => handleDeleteLinkedDater(ref)}
-              >
-                <Ionicons name="trash-outline" size={16} color="#DC2626" />
-              </TouchableOpacity>
-            </View>
-          ))
-        ) : (
-          <Text style={styles.emptyState}>No linked daters yet.</Text>
-        )}
+            ))
+          ) : (
+            <Text style={styles.emptyState}>No linked daters yet.</Text>
+          )}
+        </View>
       </View>
     );
   };
@@ -1561,6 +1781,52 @@ const SettingsSections = () => {
       </Modal>
 
       <Modal
+        visible={showDaterInviteEmailModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowDaterInviteEmailModal(false)}
+      >
+        <KeyboardAvoidingView
+          style={styles.modalBackdrop}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+        >
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Email dater invite</Text>
+              <Text style={styles.modalDescription}>
+                We’ll email them a link to sign up as a dater linked to you.
+              </Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter email address"
+                placeholderTextColor="#111827"
+                value={daterInviteEmailInput}
+                onChangeText={setDaterInviteEmailInput}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={styles.cancelBtn}
+                  onPress={() => {
+                    setShowDaterInviteEmailModal(false);
+                    setDaterInviteEmailInput('');
+                  }}
+                >
+                  <Text style={styles.cancelBtnText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: accentColor }]} onPress={sendDaterInviteEmail}>
+                  <Text style={styles.primaryBtnText}>Send</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal
         visible={showEmailInviteModal}
         transparent
         animationType="slide"
@@ -1832,6 +2098,55 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  matchmakerReferralStack: {},
+  daterInviteOutlineCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    padding: 18,
+    marginBottom: 14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  linkedDatersOutlineCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    padding: 18,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  outlineSectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 8,
+  },
+  daterInviteLinkBox: {
+    marginBottom: 14,
+  },
+  daterInviteLinkPreview: {
+    fontWeight: '600',
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  iconActionBtnDisabled: {
+    opacity: 0.55,
+  },
+  inviteDaterHint: {
+    color: '#6B7280',
+    fontSize: 13,
+    lineHeight: 19,
+    marginBottom: 14,
   },
   cancelBtn: {
     paddingVertical: 12,

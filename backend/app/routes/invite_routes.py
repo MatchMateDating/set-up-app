@@ -1,11 +1,18 @@
 from flask import Blueprint, request, jsonify
 import resend
 import os
+import re
 import base64
 from pathlib import Path
 from urllib.parse import quote
+from flask_jwt_extended import jwt_required, get_jwt_identity
+
+from app.models.userDB import User
+from app.dater_invite_tokens import encode_matchmaker_dater_invite
 
 invite_bp = Blueprint('invite', __name__)
+
+_EMAIL_RE = re.compile(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
 
 # Initialize Resend
 resend.api_key = os.getenv("RESEND_API_KEY")
@@ -76,6 +83,67 @@ def invite_email():
         return jsonify({"success": True, "message": "Email sent"})
     except Exception as e:
         print("Resend Error:", str(e))
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@invite_bp.route("/dater-signup-email", methods=["POST"])
+@jwt_required()
+def invite_dater_signup_email():
+    """Matchmaker sends hosted dater signup link to an email address."""
+    data = request.get_json() or {}
+    to_email = (data.get("email") or "").strip().lower()
+    if not to_email or not _EMAIL_RE.match(to_email):
+        return jsonify({"error": "A valid email address is required"}), 400
+
+    current_user_id = get_jwt_identity()
+    try:
+        mm_id = int(current_user_id)
+    except (TypeError, ValueError):
+        return jsonify({"error": "Unauthorized"}), 401
+
+    matchmaker = User.query.get(mm_id)
+    if not matchmaker or matchmaker.role != "matchmaker":
+        return jsonify({"error": "Only matchmakers can send dater invite emails"}), 403
+
+    invite_token = encode_matchmaker_dater_invite(matchmaker.id)
+    frontend_url = (os.getenv("FRONTEND_URL") or "https://matchmatedating.com").rstrip("/")
+    base_signup_url = f"{frontend_url}/dater-signup.html"
+    separator = "&" if "?" in base_signup_url else "?"
+    signup_url = f"{base_signup_url}{separator}invite_token={quote(invite_token)}"
+    mm_name = (matchmaker.first_name or "").strip() or "Your matchmaker"
+
+    try:
+        response = resend.Emails.send({
+            "from": SENDER_EMAIL,
+            "to": [to_email],
+            "subject": "You've Been Invited to MatchMate",
+            "html": f"""
+              <div style="background:#f8f8fc;padding:28px 14px;font-family:Arial,sans-serif;color:#1a1a2e;">
+                <div style="max-width:560px;margin:0 auto;background:#ffffff;border:1px solid #e7e7ef;border-radius:14px;padding:28px;">
+                  <h2 style="margin:0 0 8px;text-align:center;font-size:24px;line-height:1.2;">Join MatchMate as a Dater</h2>
+                  <p style="margin:0 0 18px;text-align:center;color:#61617a;font-size:15px;line-height:1.5;">
+                    {mm_name} invited you to sign up so they can help you find matches.
+                  </p>
+
+                  <div style="text-align:center;margin:0 0 18px;">
+                    <a
+                      href="{signup_url}"
+                      style="display:inline-block;background:#6c5ce7;color:#ffffff;text-decoration:none;padding:12px 20px;border-radius:10px;font-weight:600;font-size:15px;"
+                    >
+                      Create Dater Account
+                    </a>
+                  </div>
+
+                  <p style="margin:0 0 8px;font-size:12px;color:#7a7a92;">If the button doesn't work, use this link:</p>
+                  <p style="margin:0;word-break:break-all;font-size:12px;color:#6c5ce7;">{signup_url}</p>
+                </div>
+              </div>
+            """,
+        })
+        print("Resend dater invite:", response)
+        return jsonify({"success": True, "message": "Email sent"})
+    except Exception as e:
+        print("Resend dater invite error:", str(e))
         return jsonify({"success": False, "error": str(e)}), 500
 
 
