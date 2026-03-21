@@ -35,6 +35,7 @@ const SECTION_KEYS = {
   REFERRAL: 'referral',
   DATING_PREFERENCES: 'datingPreferences',
   NOTIFICATIONS: 'notifications',
+  DELETE_ACCOUNT: 'deleteAccount',
 };
 
 const getPasswordChecks = (value) => ({
@@ -113,6 +114,7 @@ const SettingsSections = () => {
   const [showReferralModal, setShowReferralModal] = useState(false);
   const [referralInput, setReferralInput] = useState('');
   const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
+  const [deleteModalForBothRoles, setDeleteModalForBothRoles] = useState(false);
   const [showEmailVerificationModal, setShowEmailVerificationModal] = useState(false);
   const [emailVerificationCode, setEmailVerificationCode] = useState('');
   const [pendingEmail, setPendingEmail] = useState('');
@@ -173,7 +175,7 @@ const SettingsSections = () => {
       {
         key: SECTION_KEYS.MANAGE_ACCOUNTS,
         label: 'Manage Accounts',
-        description: 'Add, switch, or remove linked account types.',
+        description: 'Add or switch between linked account types.',
         icon: 'people-outline',
       },
       {
@@ -190,6 +192,14 @@ const SettingsSections = () => {
         description: 'Control push notification preferences.',
         icon: 'notifications-outline',
       },
+      {
+        key: SECTION_KEYS.DELETE_ACCOUNT,
+        label: 'Delete Account',
+        description: user?.linked_account
+          ? 'Remove an account type or delete all data permanently.'
+          : 'Permanently delete your account and data.',
+        icon: 'trash-outline',
+      },
     ];
 
     if (role === 'user') {
@@ -201,7 +211,7 @@ const SettingsSections = () => {
       });
     }
     return base;
-  }, [role]);
+  }, [role, user?.linked_account]);
 
   const fetchUserProfile = useCallback(async () => {
     try {
@@ -1090,10 +1100,13 @@ const SettingsSections = () => {
     }
   };
 
-  const handleDeleteAccount = () => {
+  const openFullAccountDeletion = (forBothLinkedRoles) => {
+    setDeleteModalForBothRoles(Boolean(forBothLinkedRoles));
     Alert.alert(
-      'Delete Account',
-      'Are you sure you want to delete your account? This action cannot be undone.',
+      forBothLinkedRoles ? 'Delete Both Accounts' : 'Delete Account',
+      forBothLinkedRoles
+        ? 'Are you sure you want to permanently delete both your Dater and Matchmaker accounts? This cannot be undone.'
+        : 'Are you sure you want to delete your account? This action cannot be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Continue', style: 'destructive', onPress: () => setShowDeleteAccountModal(true) },
@@ -1128,6 +1141,7 @@ const SettingsSections = () => {
       await AsyncStorage.removeItem('user');
       await AsyncStorage.removeItem('staySignedIn');
       setShowDeleteAccountModal(false);
+      setDeleteModalForBothRoles(false);
       Alert.alert('Account Deleted', 'Your account has been permanently deleted.', [
         {
           text: 'OK',
@@ -1143,6 +1157,48 @@ const SettingsSections = () => {
       Alert.alert('Error', 'Failed to delete account');
     }
   };
+
+  const renderDeleteAccountSection = () => (
+    <View style={styles.card}>
+      <Text style={styles.cardHeader}>Delete Account</Text>
+      <Text style={styles.cardDescription}>
+        {user?.linked_account
+          ? 'Remove one account type only, or delete both linked accounts and all data permanently.'
+          : 'Permanently delete your account and all associated data.'}
+      </Text>
+      {user?.linked_account ? (
+        <View style={styles.deleteAccountActions}>
+          <TouchableOpacity
+            style={[styles.deleteBothAccountsBtn, styles.deleteAccountBtnInGroup]}
+            onPress={() => openFullAccountDeletion(true)}
+          >
+            <Text style={styles.deleteBothAccountsBtnText}>Delete Both Accounts</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.dangerOutlineBtn, styles.deleteAccountBtnInGroup]}
+            onPress={() => handleDeleteAccountByRole('user')}
+          >
+            <Text style={styles.dangerOutlineBtnText}>Delete Dater Account</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.dangerOutlineBtn, styles.deleteAccountBtnInGroup]}
+            onPress={() => handleDeleteAccountByRole('matchmaker')}
+          >
+            <Text style={styles.dangerOutlineBtnText}>Delete Matchmaker Account</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <View style={styles.deleteAccountActions}>
+          <TouchableOpacity
+            style={[styles.deleteBothAccountsBtn, styles.deleteAccountBtnInGroup]}
+            onPress={() => openFullAccountDeletion(false)}
+          >
+            <Text style={styles.deleteBothAccountsBtnText}>Delete Account</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+    </View>
+  );
 
   const renderSectionList = () => (
     <View>
@@ -1189,10 +1245,6 @@ const SettingsSections = () => {
 
       <TouchableOpacity style={styles.signOutBtn} onPress={handleSignOut}>
         <Text style={styles.signOutBtnText}>Sign Out</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity style={styles.deleteAccountBtn} onPress={handleDeleteAccount}>
-        <Text style={styles.deleteAccountBtnText}>Delete Account</Text>
       </TouchableOpacity>
     </View>
   );
@@ -1403,20 +1455,6 @@ const SettingsSections = () => {
             <Text style={styles.primaryBtnText}>
               Switch to {user.linked_account.role === 'matchmaker' ? 'Matchmaker' : 'Dater'} Account
             </Text>
-          </TouchableOpacity>
-
-          <Text style={styles.secondarySectionTitle}>Delete Account Type</Text>
-          <TouchableOpacity
-            style={styles.dangerOutlineBtn}
-            onPress={() => handleDeleteAccountByRole('user')}
-          >
-            <Text style={styles.dangerOutlineBtnText}>Delete Dater Account</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.dangerOutlineBtn}
-            onPress={() => handleDeleteAccountByRole('matchmaker')}
-          >
-            <Text style={styles.dangerOutlineBtnText}>Delete Matchmaker Account</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -1713,6 +1751,8 @@ const SettingsSections = () => {
         return renderDatingPreferences();
       case SECTION_KEYS.NOTIFICATIONS:
         return renderNotifications();
+      case SECTION_KEYS.DELETE_ACCOUNT:
+        return renderDeleteAccountSection();
       default:
         return renderSectionList();
     }
@@ -1787,20 +1827,35 @@ const SettingsSections = () => {
         visible={showDeleteAccountModal}
         transparent
         animationType="fade"
-        onRequestClose={() => setShowDeleteAccountModal(false)}
+        onRequestClose={() => {
+          setShowDeleteAccountModal(false);
+          setDeleteModalForBothRoles(false);
+        }}
       >
         <View style={styles.modalBackdrop}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Confirm Account Deletion</Text>
+            <Text style={styles.modalTitle}>
+              {deleteModalForBothRoles ? 'Delete Both Accounts' : 'Confirm Account Deletion'}
+            </Text>
             <Text style={styles.modalDescription}>
-              This action cannot be undone. All your data will be permanently deleted.
+              {deleteModalForBothRoles
+                ? 'This will permanently remove your Dater and Matchmaker profiles and all associated data. This cannot be undone.'
+                : 'This action cannot be undone. All your data will be permanently deleted.'}
             </Text>
             <View style={styles.modalButtons}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowDeleteAccountModal(false)}>
+              <TouchableOpacity
+                style={styles.cancelBtn}
+                onPress={() => {
+                  setShowDeleteAccountModal(false);
+                  setDeleteModalForBothRoles(false);
+                }}
+              >
                 <Text style={styles.cancelBtnText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.deleteBtn} onPress={confirmDeleteAccount}>
-                <Text style={styles.deleteBtnText}>Delete Account</Text>
+                <Text style={styles.deleteBtnText}>
+                  {deleteModalForBothRoles ? 'Delete Both' : 'Delete Account'}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -2552,17 +2607,23 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 16,
   },
-  deleteAccountBtn: {
+  deleteAccountActions: {
     marginTop: 16,
+    gap: 12,
+  },
+  deleteAccountBtnInGroup: {
+    marginTop: 0,
+    marginBottom: 0,
+  },
+  deleteBothAccountsBtn: {
     borderRadius: 8,
     paddingVertical: 12,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#DC2626',
+    backgroundColor: '#DC2626',
   },
-  deleteAccountBtnText: {
-    color: '#DC2626',
-    fontWeight: '600',
+  deleteBothAccountsBtnText: {
+    color: '#fff',
+    fontWeight: '700',
     fontSize: 14,
   },
   modalBackdrop: {
