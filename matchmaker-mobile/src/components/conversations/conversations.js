@@ -16,6 +16,16 @@ const MATCH_CARD_COLUMNS = 3;
 const CONTENT_HORIZONTAL_PADDING = 16;
 const MATCH_CARD_COLUMN_GAP = 10;
 
+/** Latest activity = max Message.timestamp in the thread (aligns with messageDB.timestamp). */
+function getLatestMessageActivityMs(messages) {
+  let max = 0;
+  for (const message of messages) {
+    const t = new Date(message?.timestamp).getTime();
+    if (Number.isFinite(t) && t > max) max = t;
+  }
+  return max;
+}
+
 const Conversations = () => {
   const { width: windowWidth } = useWindowDimensions();
   const listInnerWidth = windowWidth - CONTENT_HORIZONTAL_PADDING * 2;
@@ -30,6 +40,7 @@ const Conversations = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [roleHint, setRoleHint] = useState(null);
   const [unreadCounts, setUnreadCounts] = useState({});
+  const [lastActivityMsByMatchId, setLastActivityMsByMatchId] = useState({});
   const { userInfo, setUserInfo, referrerInfo, setReferrerInfo, loading: userLoading } = useUserInfo(API_BASE_URL);
   const { matches, setMatches, loading: matchesLoading, fetchMatches } = useMatches(API_BASE_URL);
   const matchedList = Array.isArray(matches) ? matches : (matches?.matched || []);
@@ -114,11 +125,13 @@ const Conversations = () => {
         : [...(matches?.matched || []), ...(matches?.pending_approval || [])];
       if (allMatches.length === 0) {
         setUnreadCounts({});
+        setLastActivityMsByMatchId({});
         return;
       }
 
       const activeConversationMatchId = await AsyncStorage.getItem(ACTIVE_CONVERSATION_STORAGE_KEY);
       const nextUnreadCounts = {};
+      const activityUpdates = {};
 
       for (const match of allMatches) {
         const matchId = match.match_id;
@@ -137,6 +150,7 @@ const Conversations = () => {
           Array.isArray(conversationData) && conversationData.length > 0
             ? (conversationData[0].messages || [])
             : [];
+        activityUpdates[matchId] = getLatestMessageActivityMs(conversationMessages);
         const latestMessage = conversationMessages[conversationMessages.length - 1];
         const latestTimestamp = latestMessage?.timestamp || new Date().toISOString();
         const latestMessageId = latestMessage?.id ?? latestMessage?.message_id ?? null;
@@ -212,6 +226,18 @@ const Conversations = () => {
       }
 
       setUnreadCounts(nextUnreadCounts);
+      setLastActivityMsByMatchId((prev) => {
+        const matchIds = new Set(
+          allMatches.map((m) => m.match_id).filter((id) => id != null)
+        );
+        const next = {};
+        for (const id of matchIds) {
+          next[id] = Object.prototype.hasOwnProperty.call(activityUpdates, id)
+            ? activityUpdates[id]
+            : prev[id] ?? 0;
+        }
+        return next;
+      });
     } catch (err) {
       console.error('Error refreshing unread counts:', err);
     }
@@ -315,25 +341,40 @@ const Conversations = () => {
     return () => clearInterval(unreadPollInterval);
   }, [matches, currentConversationUserId, selectedDaterId]);
 
+  const sortMatchesByRecentActivity = (list) => {
+    if (!Array.isArray(list) || list.length === 0) return list;
+    return [...list].sort((a, b) => {
+      const tb = lastActivityMsByMatchId[b.match_id] ?? 0;
+      const ta = lastActivityMsByMatchId[a.match_id] ?? 0;
+      if (tb !== ta) return tb - ta;
+      const idb = Number(b.match_id) || 0;
+      const ida = Number(a.match_id) || 0;
+      return idb - ida;
+    });
+  };
+
   const getFilteredMatches = () => {
     if (!userInfo || userInfo.role !== 'user') {
-      // For matchmakers, return both matched and pending_approval
-      return { matched: matchedList, pending_approval: pendingApprovalList };
+      return {
+        matched: sortMatchesByRecentActivity(matchedList),
+        pending_approval: sortMatchesByRecentActivity(pendingApprovalList),
+      };
     }
 
-    // For daters, filter matched list
-    const filteredMatched = matchedList.filter(match => {
+    const filteredMatched = matchedList.filter((match) => {
       if (showDaterMatches) {
         return !match.both_matchmakers_involved && match.linked_dater === null;
-      } else {
-        return match.both_matchmakers_involved || match.linked_dater !== null;
       }
+      return match.both_matchmakers_involved || match.linked_dater !== null;
     });
 
-    // Backend decides which pending approvals are visible to this dater.
     const filteredPendingApprovals = showDaterMatches ? pendingApprovalList : [];
+    const combined = [...filteredMatched, ...filteredPendingApprovals];
 
-    return { matched: filteredMatched, pending_approval: filteredPendingApprovals };
+    return {
+      matched: sortMatchesByRecentActivity(combined),
+      pending_approval: [],
+    };
   };
 
   const unmatch = async (matchId) => {
@@ -508,8 +549,7 @@ const Conversations = () => {
     showDaterMatches &&
     filteredMatches.pending_approval.length === 0;
   const isDaterEmptyState =
-    userInfo?.role === 'user' &&
-    (filteredMatches.matched.length + filteredMatches.pending_approval.length) === 0;
+    userInfo?.role === 'user' && filteredMatches.matched.length === 0;
   
   // Update unmatch to handle new structure
   const handleUnmatch = async (matchId) => {
@@ -547,9 +587,9 @@ const Conversations = () => {
           <View style={[styles.sectionContainer, isPendingEmptyState && styles.sectionContainerFill]}>
             <View style={[styles.matchList, isPendingEmptyState && styles.matchListFill]}>
               {filteredMatches.pending_approval.length > 0 ? (
-                filteredMatches.pending_approval.map((matchObj, index) => (
+                filteredMatches.pending_approval.map((matchObj) => (
                   <MatchCard
-                    key={`pending-${index}`}
+                    key={`pending-${matchObj.match_id}`}
                     matchObj={matchObj}
                     userInfo={userInfo}
                     unreadCount={matchObj.unread_count || 0}
@@ -570,9 +610,9 @@ const Conversations = () => {
           <View style={styles.sectionContainer}>
             <View style={styles.matchList}>
               {filteredMatches.matched.length > 0 ? (
-                filteredMatches.matched.map((matchObj, index) => (
+                filteredMatches.matched.map((matchObj) => (
                   <MatchCard
-                    key={`matched-${index}`}
+                    key={`matched-${matchObj.match_id}`}
                     matchObj={matchObj}
                     userInfo={userInfo}
                     unreadCount={matchObj.unread_count || 0}
@@ -592,10 +632,10 @@ const Conversations = () => {
         {userInfo?.role === 'user' && (
           <View style={[styles.sectionContainer, isDaterEmptyState && styles.sectionContainerFill]}>
             <View style={[styles.matchList, isDaterEmptyState && styles.matchListFill]}>
-              {(filteredMatches.matched.length + filteredMatches.pending_approval.length) > 0 ? (
-                [...filteredMatches.matched, ...filteredMatches.pending_approval].map((matchObj, index) => (
+              {filteredMatches.matched.length > 0 ? (
+                filteredMatches.matched.map((matchObj) => (
                   <MatchCard
-                    key={`matched-${index}`}
+                    key={`matched-${matchObj.match_id}`}
                     matchObj={matchObj}
                     userInfo={userInfo}
                     unreadCount={matchObj.unread_count || 0}
