@@ -44,7 +44,11 @@ const EmailVerificationScreen = () => {
           [
             {
               text: 'OK',
-              onPress: () => navigation.navigate('SignUp'),
+              onPress: () =>
+                navigation.reset({
+                  index: 0,
+                  routes: [{ name: 'SignUp' }],
+                }),
             },
           ]
         );
@@ -68,7 +72,10 @@ const EmailVerificationScreen = () => {
 
       if (!signupDataStr || !storedToken) {
         Alert.alert('Error', 'Signup data not found. Please sign up again.');
-        navigation.navigate('SignUp');
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'SignUp' }],
+        });
         return;
       }
 
@@ -103,17 +110,29 @@ const EmailVerificationScreen = () => {
           {
             text: 'OK',
             onPress: () => {
-              // Navigate based on role
               if (res.data.user.role === 'user') {
-                // User will go to CompleteProfile (step will be loaded from user data)
-                navigation.navigate('CompleteProfile');
+                navigation.reset({
+                  index: 0,
+                  routes: [{ name: 'CompleteProfile' }],
+                });
               } else if (shouldPromptLinkedDater) {
-                navigation.navigate('Main', {
-                  screen: 'Settings',
-                  params: { showLinkedDatersOnboarding: true },
+                navigation.reset({
+                  index: 0,
+                  routes: [
+                    {
+                      name: 'Main',
+                      params: {
+                        screen: 'Settings',
+                        params: { showLinkedDatersOnboarding: true },
+                      },
+                    },
+                  ],
                 });
               } else {
-                navigation.navigate('Main');
+                navigation.reset({
+                  index: 0,
+                  routes: [{ name: 'Main' }],
+                });
               }
             },
           },
@@ -144,7 +163,10 @@ const EmailVerificationScreen = () => {
 
       if (!signupDataStr) {
         Alert.alert('Error', 'Signup data not found. Please sign up again.');
-        navigation.navigate('SignUp');
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'SignUp' }],
+        });
         return;
       }
 
@@ -183,7 +205,10 @@ const EmailVerificationScreen = () => {
   };
 
   const goToLogin = () => {
-    navigation.navigate('Login');
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'Login' }],
+    });
   };
 
   return (

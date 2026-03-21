@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useCallback } from 'react';
 import {
   View,
   Text,
@@ -45,6 +45,20 @@ import ImageCropModal from './components/ImageCropModal';
 
 const CompleteProfile = () => {
   const navigation = useNavigation();
+  const resetToMainMatches = useCallback(() => {
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'Main', params: { screen: 'Matches' } }],
+    });
+  }, [navigation]);
+
+  const resetToLogin = useCallback(() => {
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'Login' }],
+    });
+  }, [navigation]);
+
   const { setUser: setContextUser } = useContext(UserContext);
   const { enableNotifications } = useNotifications();
   const scrollRef = React.useRef(null);
@@ -608,9 +622,7 @@ const CompleteProfile = () => {
             text: 'Not Now',
             style: 'cancel',
             onPress: () => {
-              navigation.navigate('Main', {
-                screen: 'Matches',
-              });
+              resetToMainMatches();
             },
           },
           {
@@ -618,10 +630,7 @@ const CompleteProfile = () => {
             onPress: async () => {
               // User wants to enable - request permissions
               await requestNotificationPermissions();
-              // Navigate after handling notifications
-              navigation.navigate('Main', {
-                screen: 'Matches',
-              });
+              resetToMainMatches();
             },
           },
         ],
@@ -722,7 +731,7 @@ const CompleteProfile = () => {
       const token = await AsyncStorage.getItem('token');
       if (!token) {
         Alert.alert('Error', 'Please log in');
-        navigation.navigate('Login');
+        resetToLogin();
         return;
       }
 
@@ -736,7 +745,7 @@ const CompleteProfile = () => {
         if (data.error_code === 'TOKEN_EXPIRED') {
           await AsyncStorage.removeItem('token');
           Alert.alert('Session expired', 'Please log in again.');
-          navigation.navigate('Login');
+          resetToLogin();
           return;
         }
       }
@@ -781,7 +790,7 @@ const CompleteProfile = () => {
       const token = await AsyncStorage.getItem('token');
       if (!token) {
         Alert.alert('Error', 'Please log in');
-        navigation.navigate('Login');
+        resetToLogin();
         return;
       }
 
@@ -806,7 +815,7 @@ const CompleteProfile = () => {
         if (data.error_code === 'TOKEN_EXPIRED') {
           await AsyncStorage.removeItem('token');
           Alert.alert('Session expired', 'Please log in again.');
-          navigation.navigate('Login');
+          resetToLogin();
           return;
         }
       }

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useContext, useEffect } from 'react';
+import React, { useState, useRef, useContext, useEffect, useCallback } from 'react';
 import {
     View,
     Text,
@@ -33,6 +33,20 @@ const LoginScreen = () => {
   const { setUser } = useContext(UserContext);
   const { enableNotifications } = useNotifications();
 
+  const resetToCompleteProfile = useCallback(() => {
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'CompleteProfile' }],
+    });
+  }, [navigation]);
+
+  const resetToMainMatches = useCallback(() => {
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'Main', params: { screen: 'Matches' } }],
+    });
+  }, [navigation]);
+
   const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 
   const handleEmailChange = (value) => {
@@ -59,9 +73,9 @@ const LoginScreen = () => {
             const parsedUser = JSON.parse(storedUser);
             setUser(parsedUser);
             if (parsedUser.role === 'user' && parsedUser.profile_completion_step) {
-              navigation.navigate('CompleteProfile');
+              resetToCompleteProfile();
             } else {
-              navigation.navigate('Main', { screen: 'Matches' });
+              resetToMainMatches();
             }
           }
         }
@@ -77,7 +91,7 @@ const LoginScreen = () => {
         clearTimeout(passwordRevealTimeoutRef.current);
       }
     };
-  }, [navigation, setUser]);
+  }, [navigation, setUser, resetToCompleteProfile, resetToMainMatches]);
 
   const clearPasswordRevealTimer = () => {
     if (passwordRevealTimeoutRef.current) {
@@ -131,11 +145,9 @@ const LoginScreen = () => {
       const loggedInUser = res.data.user;
       const navigatePostLogin = () => {
         if (loggedInUser && loggedInUser.role === 'user' && loggedInUser.profile_completion_step) {
-          navigation.navigate('CompleteProfile');
+          resetToCompleteProfile();
         } else {
-          navigation.navigate('Main', {
-            screen: 'Matches',
-          });
+          resetToMainMatches();
         }
       };
 
@@ -178,11 +190,9 @@ const LoginScreen = () => {
 
       // Check if user needs to complete profile
       if (loggedInUser && loggedInUser.role === 'user' && loggedInUser.profile_completion_step) {
-        navigation.navigate('CompleteProfile');
+        resetToCompleteProfile();
       } else {
-        navigation.navigate('Main', {
-          screen: 'Matches',
-        });
+        resetToMainMatches();
       }
     } catch (err) {
       const errorMessage = err.response?.data?.error || err.response?.data?.msg || 'Login failed';
