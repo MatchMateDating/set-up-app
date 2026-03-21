@@ -162,6 +162,9 @@ const SettingsSections = () => {
   const isPasswordStrong = Object.values(passwordChecks).every(Boolean);
   const overlayTopPadding = role === 'matchmaker' ? 120 : 56;
   const accentColor = getRoleAccentColor(role || 'matchmaker');
+  const datingPreferencesAccent = getRoleAccentColor('user');
+  const settingsBackAccent =
+    activeSection === SECTION_KEYS.DATING_PREFERENCES ? datingPreferencesAccent : accentColor;
   const backgroundTint = getRoleBackgroundTint(role || 'matchmaker');
 
   const sectionItems = useMemo(() => {
@@ -1595,7 +1598,7 @@ const SettingsSections = () => {
               setEditingPreferences(true);
             }}
           >
-            <Ionicons name="create-outline" size={24} color={accentColor} />
+            <Ionicons name="create-outline" size={24} color={datingPreferencesAccent} />
           </TouchableOpacity>
         ) : null}
       </View>
@@ -1624,9 +1627,9 @@ const SettingsSections = () => {
                   handleInputChangeWrapper('preferredAgeMin', values[0].toString());
                   handleInputChangeWrapper('preferredAgeMax', values[1].toString());
                 }}
-                selectedStyle={{ backgroundColor: accentColor }}
+                selectedStyle={{ backgroundColor: datingPreferencesAccent }}
                 unselectedStyle={{ backgroundColor: '#E5E7EB' }}
-                markerStyle={[styles.sliderMarker, { backgroundColor: accentColor }]}
+                markerStyle={[styles.sliderMarker, { backgroundColor: datingPreferencesAccent }]}
                 trackStyle={styles.sliderTrack}
               />
             </View>
@@ -1643,6 +1646,7 @@ const SettingsSections = () => {
             <MultiSelectGender
               selected={formData.preferredGenders || []}
               onChange={(newList) => handleInputChangeWrapper('preferredGenders', newList)}
+              accentColor={datingPreferencesAccent}
             />
           ) : null
         }
@@ -1669,9 +1673,9 @@ const SettingsSections = () => {
                       handleInputChangeWrapper('matchRadius', values[0]);
                     }
                   }}
-                  selectedStyle={{ backgroundColor: accentColor }}
+                  selectedStyle={{ backgroundColor: datingPreferencesAccent }}
                   unselectedStyle={{ backgroundColor: '#E5E7EB' }}
-                  markerStyle={[styles.sliderMarker, { backgroundColor: accentColor }]}
+                  markerStyle={[styles.sliderMarker, { backgroundColor: datingPreferencesAccent }]}
                   trackStyle={styles.sliderTrack}
                 />
               </View>
@@ -1697,7 +1701,10 @@ const SettingsSections = () => {
 
       {editingPreferences ? (
         <View style={styles.formActions}>
-          <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: accentColor }]} onPress={handleSavePreferences}>
+          <TouchableOpacity
+            style={[styles.primaryBtn, { backgroundColor: datingPreferencesAccent }]}
+            onPress={handleSavePreferences}
+          >
             <Text style={styles.primaryBtnText}>Save</Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -1773,8 +1780,8 @@ const SettingsSections = () => {
           <View style={[styles.content, { paddingTop: overlayTopPadding }]}>
             {activeSection ? (
               <TouchableOpacity style={styles.backRow} onPress={() => setActiveSection(null)}>
-                <Ionicons name="chevron-back-outline" size={20} color={accentColor} />
-                <Text style={[styles.backText, { color: accentColor }]}>Back to Settings</Text>
+                <Ionicons name="chevron-back-outline" size={20} color={settingsBackAccent} />
+                <Text style={[styles.backText, { color: settingsBackAccent }]}>Back to Settings</Text>
               </TouchableOpacity>
             ) : null}
             {renderActiveSection()}
@@ -2535,7 +2542,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   sliderMarker: {
-    backgroundColor: '#6c5ce7',
+    backgroundColor: '#ef4d73',
     height: 22,
     width: 22,
     borderRadius: 11,
@@ -2554,13 +2561,13 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderWidth: 2,
-    borderColor: '#6c5ce7',
+    borderColor: '#ef4d73',
     borderRadius: 6,
     justifyContent: 'center',
     alignItems: 'center',
   },
   checkboxChecked: {
-    backgroundColor: '#6c5ce7',
+    backgroundColor: '#ef4d73',
   },
   checkmark: {
     color: '#fff',

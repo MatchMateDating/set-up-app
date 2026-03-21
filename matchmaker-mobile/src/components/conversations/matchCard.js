@@ -3,8 +3,19 @@ import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { API_BASE_URL } from '../../env';
 import { useNavigation } from '@react-navigation/native';
 import { getImageUrl } from '../profile/utils/profileUtils';
+import { getRoleAccentColor, getRoleContainerColor } from '../layout/components/RoleHeaderBanner';
 
-const MatchCard = ({ matchObj, userInfo, unreadCount = 0, onOpenConversation, cardWidth }) => {
+/** Dark rose for pill copy; pairs with getRoleAccentColor('user') / #ffe6ee surfaces. */
+const DATER_CONVERSATIONS_PILL_TEXT = '#be123c';
+
+const MatchCard = ({
+  matchObj,
+  userInfo,
+  unreadCount = 0,
+  onOpenConversation,
+  cardWidth,
+  daterConversationsTheme = false,
+}) => {
   const navigation = useNavigation();
   const resolvedCardWidth = cardWidth ?? 150;
   const imageSize = Math.min(85, Math.max(48, Math.floor(resolvedCardWidth - 28)));
@@ -14,8 +25,17 @@ const MatchCard = ({ matchObj, userInfo, unreadCount = 0, onOpenConversation, ca
   const vennCircle = Math.min(70, Math.floor(imageSize * 0.82));
   const vennCircleRadius = vennCircle / 2;
   const isDater = userInfo?.role === 'user';
-  const roleBadgeBackground = isDater ? '#fde7f3' : '#efe8ff';
-  const roleBadgeText = isDater ? '#b83280' : '#5b3fa3';
+  const useDaterConversationsPalette = daterConversationsTheme && isDater;
+  const roleBadgeBackground = useDaterConversationsPalette
+    ? getRoleContainerColor('user')
+    : isDater
+      ? '#fde7f3'
+      : '#efe8ff';
+  const roleBadgeText = useDaterConversationsPalette
+    ? DATER_CONVERSATIONS_PILL_TEXT
+    : isDater
+      ? '#b83280'
+      : '#5b3fa3';
   const bothMm = !!(
     matchObj.both_matchmakers_involved ||
     (matchObj.user_1_matchmaker_involved && matchObj.user_2_matchmaker_involved)
@@ -25,7 +45,11 @@ const MatchCard = ({ matchObj, userInfo, unreadCount = 0, onOpenConversation, ca
   const isPendingApproval = matchObj.status === 'pending_approval' || matchObj.message_count !== undefined;
   const isWaitingForOtherApproval = !!matchObj.waiting_for_other_approval;
   const hasUnreadMessages = unreadCount > 0;
-  const unreadBadgeColor = isDater ? '#ec4899' : '#6c5ce7';
+  const unreadBadgeColor = useDaterConversationsPalette
+    ? getRoleAccentColor('user')
+    : isDater
+      ? '#ec4899'
+      : '#6c5ce7';
   const unreadBadgeText = unreadCount > 99 ? '99+' : `${unreadCount}`;
   const showBothMmsPill = bothMm;
   const showMmLikedYouPill =
@@ -90,9 +114,16 @@ const MatchCard = ({ matchObj, userInfo, unreadCount = 0, onOpenConversation, ca
     );
   };
 
+  const cardBorderColor = useDaterConversationsPalette ? 'rgba(239, 77, 115, 0.22)' : '#eaeaea';
+  const avatarBorderColor = useDaterConversationsPalette ? 'rgba(239, 77, 115, 0.35)' : '#eee';
+  const placeholderBg = useDaterConversationsPalette ? 'rgba(239, 77, 115, 0.08)' : '#f2f2f2';
+
   return (
     <TouchableOpacity
-      style={[styles.matchCard, { width: resolvedCardWidth }]}
+      style={[
+        styles.matchCard,
+        { width: resolvedCardWidth, borderColor: cardBorderColor },
+      ]}
       onPress={() => {
         onOpenConversation?.(matchObj.match_id);
         navigation.navigate('MatchConvo', { matchId: matchObj.match_id, isBlind: isBlind });
@@ -116,7 +147,12 @@ const MatchCard = ({ matchObj, userInfo, unreadCount = 0, onOpenConversation, ca
                       source={{ uri: getImageUrl(matchObj.match_user.first_image, API_BASE_URL) }}
                       style={[
                         styles.matchImage,
-                        { width: imageSize, height: imageSize, borderRadius: imageRadius },
+                        {
+                          width: imageSize,
+                          height: imageSize,
+                          borderRadius: imageRadius,
+                          borderColor: avatarBorderColor,
+                        },
                       ]}
                       resizeMode="cover"
                       blurRadius={isBlind ? 40 : 0}
@@ -126,7 +162,12 @@ const MatchCard = ({ matchObj, userInfo, unreadCount = 0, onOpenConversation, ca
                       source={{ uri: getImageUrl(matchObj.match_user.first_image, API_BASE_URL) }}
                       style={[
                         styles.matchImage,
-                        { width: imageSize, height: imageSize, borderRadius: imageRadius },
+                        {
+                          width: imageSize,
+                          height: imageSize,
+                          borderRadius: imageRadius,
+                          borderColor: avatarBorderColor,
+                        },
                       ]}
                       resizeMode="cover"
                     />)}
@@ -135,7 +176,14 @@ const MatchCard = ({ matchObj, userInfo, unreadCount = 0, onOpenConversation, ca
                 <View
                   style={[
                     styles.matchPlaceholder,
-                    { width: imageSize, height: imageSize, borderRadius: imageRadius },
+                    {
+                      width: imageSize,
+                      height: imageSize,
+                      borderRadius: imageRadius,
+                      backgroundColor: placeholderBg,
+                      borderWidth: useDaterConversationsPalette ? StyleSheet.hairlineWidth : 0,
+                      borderColor: useDaterConversationsPalette ? avatarBorderColor : 'transparent',
+                    },
                   ]}
                 >
                   <Text style={styles.placeholderText}>No Image</Text>

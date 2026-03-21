@@ -679,6 +679,7 @@ const Conversations = () => {
                     userInfo={userInfo}
                     unreadCount={matchObj.unread_count || 0}
                     cardWidth={matchCardWidth}
+                    daterConversationsTheme={userInfo?.role === 'user'}
                   />
                 ))
               ) : (
@@ -702,6 +703,7 @@ const Conversations = () => {
                     userInfo={userInfo}
                     unreadCount={matchObj.unread_count || 0}
                     cardWidth={matchCardWidth}
+                    daterConversationsTheme={userInfo?.role === 'user'}
                   />
                 ))
               ) : (
@@ -725,6 +727,7 @@ const Conversations = () => {
                     userInfo={userInfo}
                     unreadCount={matchObj.unread_count || 0}
                     cardWidth={matchCardWidth}
+                    daterConversationsTheme={userInfo?.role === 'user'}
                   />
                 ))
               ) : (
