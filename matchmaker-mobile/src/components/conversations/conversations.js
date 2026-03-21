@@ -1,7 +1,20 @@
 import React, { useContext, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Alert, useWindowDimensions } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  ActivityIndicator,
+  Alert,
+  useWindowDimensions,
+  TouchableOpacity,
+  Modal,
+  Pressable,
+} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { API_BASE_URL } from '../../env';
 import MatchCard from './matchCard';
 import ToggleConversationsDater from './toggleConversationsDater';
@@ -16,6 +29,21 @@ const MATCH_CARD_COLUMNS = 3;
 const CONTENT_HORIZONTAL_PADDING = 16;
 const MATCH_CARD_COLUMN_GAP = 10;
 
+/** True when the counterparty's side had a matchmaker, for list filtering (prefers API field). */
+function isOtherPersonMatchmakerInvolved(match) {
+  if (typeof match?.other_matchmaker_involved === 'boolean') {
+    return match.other_matchmaker_involved;
+  }
+  const bothMm = !!(
+    match?.both_matchmakers_involved ||
+    (match?.user_1_matchmaker_involved && match?.user_2_matchmaker_involved)
+  );
+  const oneMm =
+    !!match?.user_1_matchmaker_involved || !!match?.user_2_matchmaker_involved;
+  if (bothMm) return true;
+  return oneMm && !match?.linked_dater;
+}
+
 /** Latest activity = max Message.timestamp in the thread (aligns with messageDB.timestamp). */
 function getLatestMessageActivityMs(messages) {
   let max = 0;
@@ -27,6 +55,7 @@ function getLatestMessageActivityMs(messages) {
 }
 
 const Conversations = () => {
+  const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
   const listInnerWidth = windowWidth - CONTENT_HORIZONTAL_PADDING * 2;
   const matchCardWidth = Math.floor(
@@ -47,6 +76,15 @@ const Conversations = () => {
   const pendingApprovalList = Array.isArray(matches) ? [] : (matches?.pending_approval || []);
   const navigation = useNavigation();
   const [referrer, setReferrer] = useState(null);
+  const [showConversationFilter, setShowConversationFilter] = useState(false);
+  const [conversationFilters, setConversationFilters] = useState({
+    requireOtherMatchmaker: false,
+    blindOnly: false,
+  });
+  const [conversationFilterDraft, setConversationFilterDraft] = useState({
+    requireOtherMatchmaker: false,
+    blindOnly: false,
+  });
   const selectedDaterId = userInfo?.referrer_id || userInfo?.referred_by_id || null;
   const currentConversationUserId = userInfo?.referred_by_id ?? userInfo?.id ?? null;
   const getConversationReadStateKey = (matchId) =>
@@ -353,11 +391,28 @@ const Conversations = () => {
     });
   };
 
+  const applyConversationAttributeFilters = (list) => {
+    if (!Array.isArray(list) || list.length === 0) return list;
+    return list.filter((match) => {
+      if (conversationFilters.requireOtherMatchmaker && !isOtherPersonMatchmakerInvolved(match)) {
+        return false;
+      }
+      if (conversationFilters.blindOnly && match.blind_match !== 'Blind') {
+        return false;
+      }
+      return true;
+    });
+  };
+
   const getFilteredMatches = () => {
     if (!userInfo || userInfo.role !== 'user') {
       return {
-        matched: sortMatchesByRecentActivity(matchedList),
-        pending_approval: sortMatchesByRecentActivity(pendingApprovalList),
+        matched: sortMatchesByRecentActivity(
+          applyConversationAttributeFilters(matchedList)
+        ),
+        pending_approval: sortMatchesByRecentActivity(
+          applyConversationAttributeFilters(pendingApprovalList)
+        ),
       };
     }
 
@@ -372,9 +427,19 @@ const Conversations = () => {
     const combined = [...filteredMatched, ...filteredPendingApprovals];
 
     return {
-      matched: sortMatchesByRecentActivity(combined),
+      matched: sortMatchesByRecentActivity(applyConversationAttributeFilters(combined)),
       pending_approval: [],
     };
+  };
+
+  const dismissConversationFilter = () => {
+    setConversationFilterDraft({ ...conversationFilters });
+    setShowConversationFilter(false);
+  };
+
+  const saveConversationFilters = () => {
+    setConversationFilters({ ...conversationFilterDraft });
+    setShowConversationFilter(false);
   };
 
   const unmatch = async (matchId) => {
@@ -541,9 +606,14 @@ const Conversations = () => {
   }
 
   const filteredMatches = getFilteredMatches();
+  const activeConversationFilterCount =
+    (conversationFilters.requireOtherMatchmaker ? 1 : 0) +
+    (conversationFilters.blindOnly ? 1 : 0);
   const accentColor = getRoleAccentColor(userInfo?.role || 'matchmaker');
   const backgroundTint = getRoleBackgroundTint(userInfo?.role || 'matchmaker');
   const overlayTopPadding = userInfo?.role === 'matchmaker' ? 140 : 56;
+  const filterButtonTop =
+    userInfo?.role === 'matchmaker' ? insets.top + 6 : overlayTopPadding + 8;
   const isPendingEmptyState =
     userInfo?.role === 'matchmaker' &&
     showDaterMatches &&
@@ -559,6 +629,21 @@ const Conversations = () => {
 
   return (
     <View style={[styles.container, { backgroundColor: backgroundTint, paddingTop: overlayTopPadding }]}>
+      <TouchableOpacity
+        style={[styles.filterButton, { top: filterButtonTop }]}
+        onPress={() => {
+          setConversationFilterDraft({ ...conversationFilters });
+          setShowConversationFilter(true);
+        }}
+        accessibilityLabel="Open conversation filters"
+      >
+        <Ionicons name="options-outline" size={24} color="#1f2937" />
+        {activeConversationFilterCount > 0 ? (
+          <View style={[styles.filterBadge, { backgroundColor: accentColor }]}>
+            <Text style={styles.filterBadgeText}>{activeConversationFilterCount}</Text>
+          </View>
+        ) : null}
+      </TouchableOpacity>
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={[
@@ -651,6 +736,106 @@ const Conversations = () => {
           </View>
         )}
       </ScrollView>
+
+      <Modal
+        visible={showConversationFilter}
+        transparent
+        animationType="none"
+        onRequestClose={dismissConversationFilter}
+      >
+        <View style={styles.filterModalRoot}>
+          <Pressable
+            style={styles.filterBackdrop}
+            onPress={dismissConversationFilter}
+            accessibilityLabel="Close conversation filters"
+          />
+          <View style={styles.filterDrawer}>
+            <View style={styles.filterDrawerHeader}>
+              <Text style={styles.filterDrawerTitle}>Filters</Text>
+              <TouchableOpacity onPress={dismissConversationFilter} hitSlop={12}>
+                <Ionicons name="close" size={26} color="#374151" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView
+              style={styles.filterScroll}
+              contentContainerStyle={styles.filterScrollContent}
+              keyboardShouldPersistTaps="handled"
+            >
+              <Text style={styles.filterSectionLabel}>Conversation type</Text>
+              <Text style={styles.filterSectionSub}>
+                Narrow the list; leave unchecked to show everyone.
+              </Text>
+
+              <TouchableOpacity
+                style={styles.filterCheckboxRow}
+                onPress={() =>
+                  setConversationFilterDraft((d) => ({
+                    ...d,
+                    requireOtherMatchmaker: !d.requireOtherMatchmaker,
+                  }))
+                }
+                activeOpacity={0.7}
+              >
+                <View
+                  style={[
+                    styles.filterCheckbox,
+                    conversationFilterDraft.requireOtherMatchmaker && {
+                      backgroundColor: accentColor,
+                      borderColor: accentColor,
+                    },
+                  ]}
+                >
+                  {conversationFilterDraft.requireOtherMatchmaker ? (
+                    <Ionicons name="checkmark" size={16} color="#ffffff" />
+                  ) : null}
+                </View>
+                <Text style={styles.filterCheckboxLabel}>
+                  Other person's matchmaker was involved
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.filterCheckboxRow, { marginTop: 16 }]}
+                onPress={() =>
+                  setConversationFilterDraft((d) => ({
+                    ...d,
+                    blindOnly: !d.blindOnly,
+                  }))
+                }
+                activeOpacity={0.7}
+              >
+                <View
+                  style={[
+                    styles.filterCheckbox,
+                    conversationFilterDraft.blindOnly && {
+                      backgroundColor: accentColor,
+                      borderColor: accentColor,
+                    },
+                  ]}
+                >
+                  {conversationFilterDraft.blindOnly ? (
+                    <Ionicons name="checkmark" size={16} color="#ffffff" />
+                  ) : null}
+                </View>
+                <Text style={styles.filterCheckboxLabel}>Blind match only</Text>
+              </TouchableOpacity>
+            </ScrollView>
+            <View
+              style={[
+                styles.filterDrawerFooter,
+                { paddingBottom: 28 + insets.bottom },
+              ]}
+            >
+              <TouchableOpacity
+                style={[styles.filterSaveButton, { backgroundColor: accentColor }]}
+                onPress={saveConversationFilters}
+              >
+                <Text style={styles.filterSaveButtonText}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -664,6 +849,133 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
     backgroundColor: 'transparent',
+    paddingTop: 50,
+  },
+  filterButton: {
+    position: 'absolute',
+    left: 16,
+    zIndex: 50,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: '#ffffff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  filterBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterBadgeText: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  filterModalRoot: {
+    flex: 1,
+  },
+  filterBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+  },
+  filterDrawer: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    width: '86%',
+    maxWidth: 360,
+    backgroundColor: '#ffffff',
+    shadowColor: '#000',
+    shadowOffset: { width: -4, height: 0 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 16,
+  },
+  filterDrawerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 56,
+    paddingBottom: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#e5e7eb',
+  },
+  filterDrawerTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#111827',
+  },
+  filterScroll: {
+    flex: 1,
+  },
+  filterScrollContent: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 24,
+  },
+  filterSectionLabel: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1f2937',
+    marginBottom: 6,
+  },
+  filterSectionSub: {
+    fontSize: 13,
+    color: '#6b7280',
+    marginBottom: 12,
+    lineHeight: 18,
+  },
+  filterCheckboxRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  filterCheckbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: '#d1d5db',
+    marginRight: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#ffffff',
+  },
+  filterCheckboxLabel: {
+    flex: 1,
+    fontSize: 15,
+    color: '#374151',
+    fontWeight: '500',
+  },
+  filterDrawerFooter: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#e5e7eb',
+  },
+  filterSaveButton: {
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  filterSaveButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '700',
   },
   content: {
     paddingTop: 20,
