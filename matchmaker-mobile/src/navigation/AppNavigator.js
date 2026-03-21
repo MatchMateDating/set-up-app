@@ -147,6 +147,6 @@ const styles = StyleSheet.create({
   },
   dropdownOverlay: {
     paddingHorizontal: 16,
-    marginTop: 4,
+    marginTop: 12,
   },
 });

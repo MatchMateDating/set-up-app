@@ -1,19 +1,43 @@
-import React, { useContext, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Alert, TouchableOpacity, Modal, Image } from 'react-native';
+import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  ActivityIndicator,
+  Alert,
+  TouchableOpacity,
+  Modal,
+  Image,
+  Dimensions,
+  Pressable,
+} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import MultiSlider from '@ptomasroos/react-native-multi-slider';
 import { API_BASE_URL } from '../../env';
 import SendNoteModal from './sendNoteModal';
 import ProfileCard from './profileCard';
 import { useProfiles } from './hooks/useProfiles';
 import { useUserInfo } from './hooks/useUserInfo';
 import { startLocationWatcher, stopLocationWatcher } from '../auth/utils/startLocationWatcher';
-import { getImageUrl } from '../profile/utils/profileUtils';
+import { getImageUrl, heightStringToCm, convertHeightForViewer } from '../profile/utils/profileUtils';
 import { getRoleAccentColor, getRoleBackgroundTint } from '../layout/components/RoleHeaderBanner';
 import { UserContext } from '../../context/UserContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+const DEFAULT_HEIGHT_MIN_CM = 137;
+const DEFAULT_HEIGHT_MAX_CM = 213;
+
+const formatCmAsHeightLabel = (cm, viewerUnit) => {
+  const m = Math.floor(cm / 100);
+  const centimeters = Math.round(cm - m * 100);
+  return convertHeightForViewer(`${m}m ${centimeters}cm`, 'metric', viewerUnit);
+};
 
 const Match = () => {
+  const insets = useSafeAreaInsets();
   const { profiles, setProfiles, loading } = useProfiles(API_BASE_URL);
   const { userInfo, setUserInfo } = useUserInfo(API_BASE_URL);
   const { user: contextUser } = useContext(UserContext);
@@ -24,8 +48,119 @@ const Match = () => {
   const [matchModalData, setMatchModalData] = useState(null);
   const [referrer, setReferrer] = useState(null);
   const [roleHint, setRoleHint] = useState(null);
+  const [showFilterSidebar, setShowFilterSidebar] = useState(false);
+  const [matchFilters, setMatchFilters] = useState({
+    heightMinCm: DEFAULT_HEIGHT_MIN_CM,
+    heightMaxCm: DEFAULT_HEIGHT_MAX_CM,
+    requireBio: false,
+  });
+  const [filterDraft, setFilterDraft] = useState({
+    heightMinCm: DEFAULT_HEIGHT_MIN_CM,
+    heightMaxCm: DEFAULT_HEIGHT_MAX_CM,
+    requireBio: false,
+  });
   const navigation = useNavigation();
   const selectedDaterId = userInfo?.referrer_id || userInfo?.referred_by_id || null;
+
+  const sliderWidth = Math.min(Dimensions.get('window').width - 56, 300);
+
+  const heightBoundsCm = useMemo(() => {
+    const cms = profiles
+      .map((p) => heightStringToCm(p.height, p.unit))
+      .filter((c) => c != null && !Number.isNaN(c));
+    if (cms.length === 0) {
+      return { minCm: DEFAULT_HEIGHT_MIN_CM, maxCm: DEFAULT_HEIGHT_MAX_CM };
+    }
+    const rawMin = Math.min(...cms);
+    const rawMax = Math.max(...cms);
+    let minCm = Math.floor(rawMin);
+    let maxCm = Math.ceil(rawMax);
+    if (maxCm <= minCm) {
+      maxCm = minCm + 1;
+    }
+    return { minCm, maxCm };
+  }, [profiles]);
+
+  useEffect(() => {
+    const { minCm, maxCm } = heightBoundsCm;
+    const clampPair = (lo, hi) => {
+      let a = Math.min(Math.max(lo, minCm), maxCm);
+      let b = Math.min(Math.max(hi, minCm), maxCm);
+      if (a > b) {
+        return [minCm, maxCm];
+      }
+      return [a, b];
+    };
+    setMatchFilters((prev) => {
+      const [a, b] = clampPair(prev.heightMinCm, prev.heightMaxCm);
+      if (a === prev.heightMinCm && b === prev.heightMaxCm) return prev;
+      return { ...prev, heightMinCm: a, heightMaxCm: b };
+    });
+    setFilterDraft((prev) => {
+      const [a, b] = clampPair(prev.heightMinCm, prev.heightMaxCm);
+      if (a === prev.heightMinCm && b === prev.heightMaxCm) return prev;
+      return { ...prev, heightMinCm: a, heightMaxCm: b };
+    });
+  }, [heightBoundsCm.minCm, heightBoundsCm.maxCm]);
+
+  const isHeightFilterActive =
+    matchFilters.heightMinCm > heightBoundsCm.minCm ||
+    matchFilters.heightMaxCm < heightBoundsCm.maxCm;
+
+  const activeFilterCount = (isHeightFilterActive ? 1 : 0) + (matchFilters.requireBio ? 1 : 0);
+
+  const filterProfilesList = useCallback(
+    (list) => {
+      const hActive =
+        matchFilters.heightMinCm > heightBoundsCm.minCm ||
+        matchFilters.heightMaxCm < heightBoundsCm.maxCm;
+      return list.filter((p) => {
+        if (hActive) {
+          const cm = heightStringToCm(p.height, p.unit);
+          if (cm == null || Number.isNaN(cm)) return false;
+          if (cm < matchFilters.heightMinCm || cm > matchFilters.heightMaxCm) return false;
+        }
+        if (matchFilters.requireBio) {
+          if (!p.bio || !String(p.bio).trim()) return false;
+        }
+        return true;
+      });
+    },
+    [matchFilters, heightBoundsCm.minCm, heightBoundsCm.maxCm]
+  );
+
+  const adjustCurrentIndexAfterRemoval = useCallback(
+    (prevProfiles, removedUserId, prevIndex, nextProfiles) => {
+      const beforeFiltered = filterProfilesList(prevProfiles);
+      const removedFilteredIdx = beforeFiltered.findIndex((p) => p.id === removedUserId);
+      const afterFiltered = filterProfilesList(nextProfiles);
+      const nextLen = afterFiltered.length;
+      if (nextLen === 0) return 0;
+      if (removedFilteredIdx === -1) {
+        return Math.min(prevIndex, nextLen - 1);
+      }
+      if (removedFilteredIdx < prevIndex) {
+        return Math.max(0, prevIndex - 1);
+      }
+      if (removedFilteredIdx === prevIndex) {
+        return Math.min(prevIndex, nextLen - 1);
+      }
+      return Math.min(prevIndex, nextLen - 1);
+    },
+    [filterProfilesList]
+  );
+
+  const filteredProfiles = useMemo(
+    () => filterProfilesList(profiles),
+    [profiles, filterProfilesList]
+  );
+
+  useEffect(() => {
+    setCurrentIndex((i) => {
+      if (filteredProfiles.length === 0) return 0;
+      return Math.min(i, filteredProfiles.length - 1);
+    });
+  }, [filteredProfiles.length]);
 
   useEffect(() => {
     const loadRoleHint = async () => {
@@ -218,24 +353,12 @@ const Match = () => {
 
   const skipUser = async (skippedUserId) => {
     // Immediately remove the skipped user from local state (optimistic update)
-    setProfiles(prevProfiles => {
-      const filtered = prevProfiles.filter(profile => profile.id !== skippedUserId);
-      
-      // Adjust index: if we removed the current item, stay at current index (which is now the next item)
-      setCurrentIndex(prevIndex => {
-        const removedIndex = prevProfiles.findIndex(p => p.id === skippedUserId);
-        if (removedIndex < prevIndex) {
-          // Removed item was before current, decrement index
-          return Math.max(0, prevIndex - 1);
-        } else if (removedIndex === prevIndex) {
-          // Removed current item, stay at same index (next item moves into current position)
-          return Math.min(prevIndex, filtered.length - 1);
-        }
-        // Removed item was after current, no change needed
-        return prevIndex;
-      });
-      
-      return filtered;
+    setProfiles((prevProfiles) => {
+      const nextProfiles = prevProfiles.filter((profile) => profile.id !== skippedUserId);
+      setCurrentIndex((prevIndex) =>
+        adjustCurrentIndexAfterRemoval(prevProfiles, skippedUserId, prevIndex, nextProfiles)
+      );
+      return nextProfiles;
     });
 
     // Call the skip API in the background (fire and forget)
@@ -270,8 +393,8 @@ const Match = () => {
   };
 
   const nextProfile = () => {
-    if (profiles.length > 0 && currentIndex < profiles.length) {
-      const currentProfile = profiles[currentIndex];
+    if (filteredProfiles.length > 0 && currentIndex < filteredProfiles.length) {
+      const currentProfile = filteredProfiles[currentIndex];
       
       // Skip the current profile (removes from local state immediately, calls API in background)
       skipUser(currentProfile.id);
@@ -316,20 +439,12 @@ const Match = () => {
         const likedProfile = profiles.find(p => p.id === likedUserId);
 
         // Remove the liked user from local state immediately
-        setProfiles(prevProfiles => {
-          const filtered = prevProfiles.filter(profile => profile.id !== likedUserId);
-          
-          setCurrentIndex(prevIndex => {
-            const removedIndex = prevProfiles.findIndex(p => p.id === likedUserId);
-            if (removedIndex < prevIndex) {
-              return Math.max(0, prevIndex - 1);
-            } else if (removedIndex === prevIndex) {
-              return Math.min(prevIndex, filtered.length - 1);
-            }
-            return prevIndex;
-          });
-          
-          return filtered;
+        setProfiles((prevProfiles) => {
+          const nextProfiles = prevProfiles.filter((profile) => profile.id !== likedUserId);
+          setCurrentIndex((prevIndex) =>
+            adjustCurrentIndexAfterRemoval(prevProfiles, likedUserId, prevIndex, nextProfiles)
+          );
+          return nextProfiles;
         });
 
         if (data.match?.status === 'matched' || data.match?.status === 'pending_approval') {
@@ -381,20 +496,12 @@ const Match = () => {
         const likedProfile = profiles.find(p => p.id === likedUserId);
 
         // Remove the matched user from local state immediately
-        setProfiles(prevProfiles => {
-          const filtered = prevProfiles.filter(profile => profile.id !== likedUserId);
-          
-          setCurrentIndex(prevIndex => {
-            const removedIndex = prevProfiles.findIndex(p => p.id === likedUserId);
-            if (removedIndex < prevIndex) {
-              return Math.max(0, prevIndex - 1);
-            } else if (removedIndex === prevIndex) {
-              return Math.min(prevIndex, filtered.length - 1);
-            }
-            return prevIndex;
-          });
-          
-          return filtered;
+        setProfiles((prevProfiles) => {
+          const nextProfiles = prevProfiles.filter((profile) => profile.id !== likedUserId);
+          setCurrentIndex((prevIndex) =>
+            adjustCurrentIndexAfterRemoval(prevProfiles, likedUserId, prevIndex, nextProfiles)
+          );
+          return nextProfiles;
         });
 
         if (data.match?.status === 'pending_approval') {
@@ -414,16 +521,16 @@ const Match = () => {
   };
 
   const handleLike = () => {
-    if (profiles.length > 0 && currentIndex < profiles.length) {
-      const likedUser = profiles[currentIndex];
+    if (filteredProfiles.length > 0 && currentIndex < filteredProfiles.length) {
+      const likedUser = filteredProfiles[currentIndex];
       likeUser(likedUser.id);
       // likeUser now handles profile removal and index adjustment, no need to call nextProfile
     }
   };
 
   const handleBlindMatch = () => {
-    if (profiles.length > 0 && currentIndex < profiles.length) {
-      const likedUser = profiles[currentIndex];
+    if (filteredProfiles.length > 0 && currentIndex < filteredProfiles.length) {
+      const likedUser = filteredProfiles[currentIndex];
       blindMatch(likedUser.id);
     }
   };
@@ -466,21 +573,12 @@ const Match = () => {
 
                 if (res.ok) {
                   // Remove the blocked user from local state immediately
-                  setProfiles(prevProfiles => {
-                    const filtered = prevProfiles.filter(profile => profile.id !== blockedUserId);
-                    
-                    // Adjust index: if we removed the current item, stay at current index (which is now the next item)
-                    setCurrentIndex(prevIndex => {
-                      const removedIndex = prevProfiles.findIndex(p => p.id === blockedUserId);
-                      if (removedIndex < prevIndex) {
-                        return Math.max(0, prevIndex - 1);
-                      } else if (removedIndex === prevIndex) {
-                        return Math.min(prevIndex, filtered.length - 1);
-                      }
-                      return prevIndex;
-                    });
-                    
-                    return filtered;
+                  setProfiles((prevProfiles) => {
+                    const nextProfiles = prevProfiles.filter((profile) => profile.id !== blockedUserId);
+                    setCurrentIndex((prevIndex) =>
+                      adjustCurrentIndexAfterRemoval(prevProfiles, blockedUserId, prevIndex, nextProfiles)
+                    );
+                    return nextProfiles;
                   });
                   
                   Alert.alert('Success', 'User blocked successfully');
@@ -504,7 +602,10 @@ const Match = () => {
 
   const handleSendNote = async (note) => {
     try {
-      const likedUser = profiles[currentIndex];
+      const likedUser =
+        filteredProfiles.length > 0 && currentIndex < filteredProfiles.length
+          ? filteredProfiles[currentIndex]
+          : null;
       if (!likedUser) {
         Alert.alert('Error', 'No profile selected');
         return;
@@ -550,24 +651,12 @@ const Match = () => {
       const data = await res.json();
       setShowNoteModal(false);
       // Remove the user from profiles after sending note (note creates a pending match)
-      setProfiles(prevProfiles => {
-        const filtered = prevProfiles.filter(profile => profile.id !== likedUser.id);
-        
-        // Adjust index: if we removed the current item, stay at current index (which is now the next item)
-        setCurrentIndex(prevIndex => {
-          const removedIndex = prevProfiles.findIndex(p => p.id === likedUser.id);
-          if (removedIndex < prevIndex) {
-            // Removed item was before current, decrement index
-            return Math.max(0, prevIndex - 1);
-          } else if (removedIndex === prevIndex) {
-            // Removed current item, stay at same index (next item moves into current position)
-            return Math.min(prevIndex, filtered.length - 1);
-          }
-          // Removed item was after current, no change needed
-          return prevIndex;
-        });
-        
-        return filtered;
+      setProfiles((prevProfiles) => {
+        const nextProfiles = prevProfiles.filter((profile) => profile.id !== likedUser.id);
+        setCurrentIndex((prevIndex) =>
+          adjustCurrentIndexAfterRemoval(prevProfiles, likedUser.id, prevIndex, nextProfiles)
+        );
+        return nextProfiles;
       });
 
       if (data.match?.status === 'matched' || data.match?.status === 'pending_approval') {
@@ -598,14 +687,56 @@ const Match = () => {
     );
   }
 
-  const currentProfile = profiles.length > 0 && currentIndex < profiles.length ? profiles[currentIndex] : null;
+  const currentProfile =
+    filteredProfiles.length > 0 && currentIndex < filteredProfiles.length
+      ? filteredProfiles[currentIndex]
+      : null;
   const accentColor = getRoleAccentColor(userInfo?.role || 'matchmaker');
   const backgroundTint = getRoleBackgroundTint(userInfo?.role || 'matchmaker');
   const overlayTopPadding = userInfo?.role === 'matchmaker' ? 150 : 56;
   const isProfilesEmptyState = !currentProfile;
+  const hasProfilesButFilteredOut = profiles.length > 0 && filteredProfiles.length === 0;
+  const heightLabelUnit = userInfo?.unit || contextUser?.unit || 'Imperial';
+
+  const dismissFilterSidebar = () => {
+    setFilterDraft({ ...matchFilters });
+    setShowFilterSidebar(false);
+  };
+
+  const saveMatchFilters = () => {
+    const changed =
+      matchFilters.heightMinCm !== filterDraft.heightMinCm ||
+      matchFilters.heightMaxCm !== filterDraft.heightMaxCm ||
+      matchFilters.requireBio !== filterDraft.requireBio;
+    if (changed) {
+      setCurrentIndex(0);
+    }
+    setMatchFilters({ ...filterDraft });
+    setShowFilterSidebar(false);
+  };
+
+  const filterButtonTop =
+    userInfo?.role === 'matchmaker'
+      ? insets.top + 6
+      : overlayTopPadding + 8;
 
   return (
     <View style={[styles.container, { backgroundColor: backgroundTint, paddingTop: overlayTopPadding }]}>
+      <TouchableOpacity
+        style={[styles.filterButton, { top: filterButtonTop }]}
+        onPress={() => {
+          setFilterDraft({ ...matchFilters });
+          setShowFilterSidebar(true);
+        }}
+        accessibilityLabel="Open match filters"
+      >
+        <Ionicons name="options-outline" size={24} color="#1f2937" />
+        {activeFilterCount > 0 ? (
+          <View style={[styles.filterBadge, { backgroundColor: accentColor }]}>
+            <Text style={styles.filterBadgeText}>{activeFilterCount}</Text>
+          </View>
+        ) : null}
+      </TouchableOpacity>
       <ScrollView
         style={[
           styles.scrollView,
@@ -634,7 +765,11 @@ const Match = () => {
           </>
         ) : (
           <View style={styles.loadingContainerInline}>
-            <Text style={styles.loadingText}>No profiles to match with currently, come back later!</Text>
+            <Text style={styles.loadingText}>
+              {hasProfilesButFilteredOut
+                ? 'No profiles match your filters. Adjust filters to see more people.'
+                : 'No profiles to match with currently, come back later!'}
+            </Text>
           </View>
         )}
       </ScrollView>
@@ -691,6 +826,110 @@ const Match = () => {
           </View>
         </View>
       )}
+
+      <Modal
+        visible={showFilterSidebar}
+        transparent
+        animationType="none"
+        onRequestClose={dismissFilterSidebar}
+      >
+        <View style={styles.filterModalRoot}>
+          <Pressable
+            style={styles.filterBackdrop}
+            onPress={dismissFilterSidebar}
+            accessibilityLabel="Close filters"
+          />
+          <View style={styles.filterDrawer}>
+            <View style={styles.filterDrawerHeader}>
+              <Text style={styles.filterDrawerTitle}>Filters</Text>
+              <TouchableOpacity onPress={dismissFilterSidebar} hitSlop={12}>
+                <Ionicons name="close" size={26} color="#374151" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView
+              style={styles.filterScroll}
+              contentContainerStyle={styles.filterScrollContent}
+              keyboardShouldPersistTaps="handled"
+            >
+              <Text style={styles.filterSectionLabel}>Height</Text>
+              <Text style={styles.filterSectionHint}>
+                {formatCmAsHeightLabel(filterDraft.heightMinCm, heightLabelUnit)} –{' '}
+                {formatCmAsHeightLabel(filterDraft.heightMaxCm, heightLabelUnit)}
+              </Text>
+              <Text style={styles.filterSectionSub}>
+                Full range includes everyone; narrowing the bar filters by height.
+              </Text>
+              <View style={styles.filterSliderWrap}>
+                <MultiSlider
+                  values={[filterDraft.heightMinCm, filterDraft.heightMaxCm]}
+                  min={heightBoundsCm.minCm}
+                  max={heightBoundsCm.maxCm}
+                  step={1}
+                  sliderLength={sliderWidth}
+                  onValuesChange={(values) => {
+                    setFilterDraft((d) => ({
+                      ...d,
+                      heightMinCm: values[0],
+                      heightMaxCm: values[1],
+                    }));
+                  }}
+                  selectedStyle={{ backgroundColor: accentColor }}
+                  unselectedStyle={{ backgroundColor: '#E5E7EB' }}
+                  markerStyle={{
+                    backgroundColor: accentColor,
+                    height: 22,
+                    width: 22,
+                    borderRadius: 11,
+                    borderWidth: 0,
+                  }}
+                  trackStyle={{ height: 6, borderRadius: 3 }}
+                  containerStyle={{ height: 44, justifyContent: 'center' }}
+                  snapped
+                />
+              </View>
+
+              <Text style={[styles.filterSectionLabel, { marginTop: 24 }]}>About me</Text>
+              <TouchableOpacity
+                style={styles.filterCheckboxRow}
+                onPress={() =>
+                  setFilterDraft((d) => ({ ...d, requireBio: !d.requireBio }))
+                }
+                activeOpacity={0.7}
+              >
+                <View
+                  style={[
+                    styles.filterCheckbox,
+                    filterDraft.requireBio && {
+                      backgroundColor: accentColor,
+                      borderColor: accentColor,
+                    },
+                  ]}
+                >
+                  {filterDraft.requireBio ? (
+                    <Ionicons name="checkmark" size={16} color="#ffffff" />
+                  ) : null}
+                </View>
+                <Text style={styles.filterCheckboxLabel}>
+                  Only show profiles with about me filled out
+                </Text>
+              </TouchableOpacity>
+            </ScrollView>
+            <View
+              style={[
+                styles.filterDrawerFooter,
+                { paddingBottom: 28 + insets.bottom },
+              ]}
+            >
+              <TouchableOpacity
+                style={[styles.filterSaveButton, { backgroundColor: accentColor }]}
+                onPress={saveMatchFilters}
+              >
+                <Text style={styles.filterSaveButtonText}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <Modal
         visible={showMatchModal}
@@ -938,6 +1177,142 @@ const styles = StyleSheet.create({
     color: '#6b7280',
     fontSize: 15,
     fontWeight: '600',
+  },
+  filterButton: {
+    position: 'absolute',
+    left: 16,
+    zIndex: 50,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: '#ffffff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  filterBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterBadgeText: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  filterModalRoot: {
+    flex: 1,
+  },
+  filterBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+  },
+  filterDrawer: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    width: '86%',
+    maxWidth: 360,
+    backgroundColor: '#ffffff',
+    shadowColor: '#000',
+    shadowOffset: { width: -4, height: 0 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 16,
+  },
+  filterDrawerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 56,
+    paddingBottom: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#e5e7eb',
+  },
+  filterDrawerTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#111827',
+  },
+  filterScroll: {
+    flex: 1,
+  },
+  filterScrollContent: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 24,
+  },
+  filterSectionLabel: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1f2937',
+    marginBottom: 6,
+  },
+  filterSectionHint: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#4b5563',
+    marginBottom: 6,
+  },
+  filterSectionSub: {
+    fontSize: 13,
+    color: '#6b7280',
+    marginBottom: 12,
+    lineHeight: 18,
+  },
+  filterSliderWrap: {
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  filterCheckboxRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  filterCheckbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: '#d1d5db',
+    marginRight: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#ffffff',
+  },
+  filterCheckboxLabel: {
+    flex: 1,
+    fontSize: 15,
+    color: '#374151',
+    fontWeight: '500',
+  },
+  filterDrawerFooter: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#e5e7eb',
+  },
+  filterSaveButton: {
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  filterSaveButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '700',
   },
 });
 
