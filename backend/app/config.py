@@ -4,15 +4,21 @@ from datetime import timedelta
 class Config:
     # Database Configuration
     # Supports both SQLite (local dev) and PostgreSQL (production)
+    DATABASE_URL = os.getenv('DATABASE_URL') or None
     DB_USERNAME = os.getenv('DB_USERNAME') or None
     DB_PASSWORD = os.getenv('DB_PASSWORD') or None
     DB_HOST = os.getenv('DB_HOST') or None
     DB_PORT = os.getenv('DB_PORT', '5432')
     DB_NAME = os.getenv('DB_NAME', 'postgres')
     
-    # Use PostgreSQL if credentials are provided, otherwise fall back to SQLite
-    # Check for None or empty strings
-    if DB_USERNAME and DB_PASSWORD and DB_HOST and DB_HOST.strip():
+    # Priority:
+    # 1) DATABASE_URL (Railway/hosted platforms)
+    # 2) DB_* credentials
+    # 3) local SQLite fallback
+    if DATABASE_URL and DATABASE_URL.strip():
+        # Some providers still use postgres://; SQLAlchemy expects postgresql://
+        SQLALCHEMY_DATABASE_URI = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
+    elif DB_USERNAME and DB_PASSWORD and DB_HOST and DB_HOST.strip():
         SQLALCHEMY_DATABASE_URI = f'postgresql://{DB_USERNAME}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}'
     else:
         # For running the DB locally with SQLite
