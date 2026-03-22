@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Image, StyleSheet, TouchableOpacity, ScrollView, Text } from 'react-native';
+import { View, Image, StyleSheet, TouchableOpacity, ScrollView, Text, Pressable } from 'react-native';
 import { API_BASE_URL } from '../../env';
 import { Ionicons } from '@expo/vector-icons';
 import { getImageUrl } from './utils/profileUtils';
@@ -9,6 +9,7 @@ const ImageGallery = ({
   editing,
   onDeleteImage,
   onPlaceholderClick,
+  onImagePress,
   layout = 'grid',
   accentColor = '#6c5ce7',
 }) => {
@@ -51,46 +52,61 @@ const ImageGallery = ({
   ];
   const topRowItemSizeStyle = isTopRow ? { width: topRowSize, height: topRowSize } : null;
 
-  const renderImage = (img, index) => (
-    <View
-      key={img.id || index}
-      style={[
-        isGrid
-          ? [styles.gridImageWrapper, gridThumbSizeStyle]
-          : isTopRow
-            ? styles.topRowImageWrapper
-            : isHeroStack
-              ? [
-                  styles.heroImageWrapper,
-                  index === 0 ? [styles.heroMainWrapper, heroMainSizeStyle] : heroThumbSizeStyle,
-                ]
-              : styles.listWrapper,
-        topRowItemSizeStyle,
-      ]}
-    >
-      <Image
-        source={{ uri: getImageUrl(img.image_url, API_BASE_URL) }}
-        style={
+  const renderImage = (img, index) => {
+    const uri = getImageUrl(img.image_url, API_BASE_URL);
+    const imageStyle =
+      isGrid
+        ? styles.gridImage
+        : isTopRow
+          ? styles.topRowImage
+          : isHeroStack
+            ? [styles.heroImage, index === 0 && styles.heroMainImage]
+            : styles.fullImage;
+    const imageEl = (
+      <Image source={{ uri }} style={imageStyle} resizeMode="cover" />
+    );
+    const canPreview = Boolean(onImagePress) && !editing;
+
+    return (
+      <View
+        key={img.id || index}
+        style={[
           isGrid
-            ? styles.gridImage
+            ? [styles.gridImageWrapper, gridThumbSizeStyle]
             : isTopRow
-              ? styles.topRowImage
+              ? styles.topRowImageWrapper
               : isHeroStack
-                ? [styles.heroImage, index === 0 && styles.heroMainImage]
-                : styles.fullImage
-        }
-        resizeMode="cover"
-      />
-      {editing && (
-        <TouchableOpacity
-          style={styles.deleteButton}
-          onPress={() => onDeleteImage(img.id)}
-        >
-          <Ionicons name="close-circle" size={24} color="#fff" />
-        </TouchableOpacity>
-      )}
-    </View>
-  );
+                ? [
+                    styles.heroImageWrapper,
+                    index === 0 ? [styles.heroMainWrapper, heroMainSizeStyle] : heroThumbSizeStyle,
+                  ]
+                : styles.listWrapper,
+          topRowItemSizeStyle,
+        ]}
+      >
+        {canPreview ? (
+          <Pressable
+            style={styles.imagePressable}
+            onPress={() => onImagePress(uri)}
+            accessibilityRole="button"
+            accessibilityLabel="Enlarge photo"
+          >
+            {imageEl}
+          </Pressable>
+        ) : (
+          imageEl
+        )}
+        {editing && (
+          <TouchableOpacity
+            style={styles.deleteButton}
+            onPress={() => onDeleteImage(img.id)}
+          >
+            <Ionicons name="close-circle" size={24} color="#fff" />
+          </TouchableOpacity>
+        )}
+      </View>
+    );
+  };
 
   const renderPlaceholder = () => {
     if (!editing || images.length >= maxImages) return null;
@@ -178,6 +194,10 @@ const ImageGallery = ({
 const styles = StyleSheet.create({
   imageGallery: {
     marginTop: 12,
+  },
+  imagePressable: {
+    width: '100%',
+    height: '100%',
   },
   listPlaceholder: {
     width: '100%',

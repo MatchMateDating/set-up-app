@@ -44,6 +44,7 @@ const ProfileCard = ({
         user={profile}
         framed={true}
         viewerUnit={viewerUnit}
+        enableImageLightbox
       />
 
       {userInfo?.role === 'matchmaker' && profile.ai_score !== undefined && (
