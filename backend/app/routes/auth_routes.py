@@ -521,6 +521,14 @@ def _resolve_dater_invite_matchmaker(invite_token):
     return None, matchmaker
 
 
+_SELF_MATCHMAKE_MSG = "You can't matchmake for yourself."
+
+
+def _dater_invite_email_is_inviter_own(email, matchmaker):
+    mm_email = (matchmaker.email or '').strip().lower()
+    return bool(mm_email and email == mm_email)
+
+
 @auth_bp.route('/dater-web/check-account', methods=['POST'])
 def check_dater_web_account():
     """Check whether an email exists for hosted dater invite signup."""
@@ -528,7 +536,7 @@ def check_dater_web_account():
     email = (data.get('email') or '').strip().lower()
     invite_token = data.get('invite_token')
 
-    err, _ = _resolve_dater_invite_matchmaker(invite_token)
+    err, inviter = _resolve_dater_invite_matchmaker(invite_token)
     if err:
         return jsonify({'msg': err}), 400
 
@@ -536,6 +544,9 @@ def check_dater_web_account():
         return jsonify({'msg': 'Email is required'}), 400
     if not is_email(email):
         return jsonify({'msg': 'Please enter a valid email address'}), 400
+
+    if _dater_invite_email_is_inviter_own(email, inviter):
+        return jsonify({'msg': _SELF_MATCHMAKE_MSG}), 400
 
     selected, matchmaker, dater = resolve_existing_user_for_email(email)
     if not selected:
@@ -568,6 +579,9 @@ def register_dater_web():
         return jsonify({'msg': 'Email is required'}), 400
     if not is_email(email):
         return jsonify({'msg': 'Please enter a valid email address'}), 400
+
+    if _dater_invite_email_is_inviter_own(email, matchmaker):
+        return jsonify({'msg': _SELF_MATCHMAKE_MSG}), 400
 
     mm_first = (matchmaker.first_name or '').strip()
 
