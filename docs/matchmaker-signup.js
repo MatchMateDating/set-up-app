@@ -243,15 +243,17 @@
     activeBtn.textContent = isSubmitting ? label : activeBtn.getAttribute("data-default-label");
   }
 
-  async function checkExistingAccountRole(email) {
+  async function checkExistingAccountRole(email, referralCode) {
+    var payload = { email: email };
+    if (referralCode) {
+      payload.referral_code = referralCode;
+    }
     var response = await fetch(apiBaseUrl + "/auth/matchmaker-web/check-account", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        email: email,
-      }),
+      body: JSON.stringify(payload),
     });
 
     var data = {};
@@ -277,7 +279,7 @@
     setSubmitting(true, "Checking Account...");
     var accountCheck;
     try {
-      accountCheck = await checkExistingAccountRole(existingEmail);
+      accountCheck = await checkExistingAccountRole(existingEmail, existingReferralCode);
     } catch (err) {
       setStatus(err.message || "Could not verify account. Please try again.", "error");
       setSubmitting(false);

@@ -150,6 +150,19 @@ def link_dater_to_matchmaker(matchmaker, dater):
     return {"linked": False, "already_linked": False, "slot": None}
 
 
+def matchmaker_already_linked_dater_error(matchmaker, dater):
+    """Return an error message if dater is already in matchmaker's linked roster."""
+    if not matchmaker or not dater:
+        return None
+    referral_row = ReferredUsers.query.filter_by(matchmaker_id=matchmaker.id).first()
+    if not referral_row:
+        return None
+    for i in range(1, 11):
+        if getattr(referral_row, f'linked_dater_{i}_id') == dater.id:
+            return 'This dater is already linked to your matchmaker account.'
+    return None
+
+
 def resolve_matchmaker_referral(referral_code):
     """Non-empty referral must match a user. Returns (error_msg, referred_by_id)."""
     normalized = (referral_code or '').strip()
@@ -159,6 +172,21 @@ def resolve_matchmaker_referral(referral_code):
     if not referrer:
         return 'Invalid referral code', None
     return None, referrer.id
+
+
+def self_matchmaker_referral_error(referral_code, signup_email):
+    """If referral belongs to a dater, block when signup email is that dater's email."""
+    normalized = (referral_code or '').strip()
+    signup_email = (signup_email or '').strip().lower()
+    if not normalized or not signup_email:
+        return None
+    referrer = User.query.filter_by(referral_code=normalized).first()
+    if not referrer or referrer.role != 'user':
+        return None
+    ref_email = (referrer.email or '').strip().lower()
+    if ref_email and ref_email == signup_email:
+        return "You can't be a matchmaker for yourself."
+    return None
 
 
 def resolve_existing_user_for_email(email):
@@ -248,6 +276,9 @@ def register():
             err, referred_by = resolve_matchmaker_referral(data.get('referral_code'))
             if err:
                 return jsonify({'msg': err}), 400
+            self_err = self_matchmaker_referral_error(data.get('referral_code'), email)
+            if self_err:
+                return jsonify({'msg': self_err}), 400
 
         # Create the user immediately
         user = User(
@@ -285,6 +316,10 @@ def register():
         err, _ = resolve_matchmaker_referral(data.get('referral_code'))
         if err:
             return jsonify({'msg': err}), 400
+        if email:
+            self_err = self_matchmaker_referral_error(data.get('referral_code'), email)
+            if self_err:
+                return jsonify({'msg': self_err}), 400
 
     # Normal flow: Generate verification token (temporary - not stored in DB)
     verification_token = User.generate_verification_token_static()
@@ -328,6 +363,10 @@ def register_matchmaker_web():
     if not referrer or referrer.role != 'user':
         return jsonify({'msg': 'Invalid referral code'}), 400
 
+    self_err = self_matchmaker_referral_error(referral_code, email)
+    if self_err:
+        return jsonify({'msg': self_err}), 400
+
     existing_user, existing_matchmaker, existing_dater = resolve_existing_user_for_email(email)
     has_existing = existing_user is not None
 
@@ -339,6 +378,9 @@ def register_matchmaker_web():
             }), 404
 
         if existing_matchmaker:
+            dup_err = matchmaker_already_linked_dater_error(existing_matchmaker, referrer)
+            if dup_err:
+                return jsonify({'msg': dup_err}), 400
             result = link_dater_to_matchmaker(existing_matchmaker, referrer)
             if not result['linked']:
                 return jsonify({'msg': 'Maximum of 10 linked daters reached'}), 400
@@ -426,13 +468,26 @@ def check_matchmaker_web_account():
     """Check whether an email exists and what account role it has."""
     data = request.get_json() or {}
     email = (data.get('email') or '').strip().lower()
+    referral_code = (data.get('referral_code') or '').strip()
 
     if not email:
         return jsonify({'msg': 'Email is required'}), 400
     if not is_email(email):
         return jsonify({'msg': 'Please enter a valid email address'}), 400
 
+    self_err = self_matchmaker_referral_error(referral_code, email)
+    if self_err:
+        return jsonify({'msg': self_err}), 400
+
     selected, matchmaker, dater = resolve_existing_user_for_email(email)
+
+    if referral_code and matchmaker:
+        ref_user = User.query.filter_by(referral_code=referral_code).first()
+        if ref_user and ref_user.role == 'user':
+            dup_err = matchmaker_already_linked_dater_error(matchmaker, ref_user)
+            if dup_err:
+                return jsonify({'msg': dup_err}), 400
+
     if not selected:
         return jsonify({
             'exists': False,
