@@ -15,6 +15,7 @@ import {
   TouchableWithoutFeedback,
   Switch,
   Image,
+  BackHandler,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Clipboard from 'expo-clipboard';
@@ -327,6 +328,43 @@ const SettingsSections = () => {
     useCallback(() => {
       fetchUserProfile();
     }, [fetchUserProfile])
+  );
+
+  // Subsections are in-screen state; tab navigator would otherwise treat back / swipe as "leave Settings"
+  // (e.g. Android back → first tab, horizontal swipe → adjacent tab). Match the in-screen "Back to Settings" row.
+  useEffect(() => {
+    if (activeSection) {
+      navigation.setOptions({ swipeEnabled: false });
+    } else {
+      navigation.setOptions({ swipeEnabled: true });
+    }
+    return () => {
+      navigation.setOptions({ swipeEnabled: true });
+    };
+  }, [navigation, activeSection]);
+
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        navigation.setOptions({ swipeEnabled: true });
+        setActiveSection(null);
+        setEditingPreferences(false);
+      };
+    }, [navigation])
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!activeSection) {
+        return undefined;
+      }
+      const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+        setActiveSection(null);
+        setEditingPreferences(false);
+        return true;
+      });
+      return () => sub.remove();
+    }, [activeSection])
   );
 
   useEffect(() => {
