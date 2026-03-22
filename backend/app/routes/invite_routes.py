@@ -2,8 +2,7 @@ from flask import Blueprint, request, jsonify
 import resend
 import os
 import re
-import base64
-from pathlib import Path
+from html import escape
 from urllib.parse import quote
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
@@ -19,20 +18,6 @@ resend.api_key = os.getenv("RESEND_API_KEY")
 SENDER_EMAIL = "donotreply@matchmatedating.com"
 
 
-def get_matchmate_logo_data_uri():
-    """Return inline base64 data URI for the MatchMate logo."""
-    try:
-        # backend/app/routes/invite_routes.py -> repo root is parents[3]
-        repo_root = Path(__file__).resolve().parents[3]
-        logo_path = repo_root / "matchmaker-mobile" / "assets" / "matchmate_logo.png"
-        if not logo_path.exists():
-            return None
-        encoded = base64.b64encode(logo_path.read_bytes()).decode("ascii")
-        return f"data:image/png;base64,{encoded}"
-    except Exception:
-        return None
-
-
 @invite_bp.route("/email", methods=["POST"])
 def invite_email():
     data = request.json
@@ -43,41 +28,40 @@ def invite_email():
     separator = '&' if '?' in base_signup_url else '?'
     signup_url = f"{base_signup_url}{separator}referral_code={quote(str(referral_code or ''))}"
     print("Signup URL:", signup_url)
-    logo_data_uri = get_matchmate_logo_data_uri()
     referral_code_display = str(referral_code or "").strip() or "N/A"
+    ref_esc = escape(referral_code_display)
+    url_esc = escape(signup_url, quote=True)
+    subject = "Complete your MatchMate matchmaker signup"
+    text_body = (
+        f"Hello,\n\n"
+        f"Someone invited you to join MatchMate as a matchmaker. When you sign up, use this referral code:\n"
+        f"{referral_code_display}\n\n"
+        f"Open this link to create your account:\n{signup_url}\n\n"
+        f"If you did not expect this email, you can ignore it.\n\n"
+        f"Best regards,\nThe MatchMate Team"
+    )
+    html_body = f"""<html>
+            <head></head>
+            <body>
+              <h2>Hello,</h2>
+              <p>Someone invited you to join MatchMate as a matchmaker. When you sign up, use this referral code:</p>
+              <p><strong>Referral code: {ref_esc}</strong></p>
+              <p>Use the link below to finish signing up:</p>
+              <p><a href="{url_esc}" style="background-color: #6B46C1; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">Create your matchmaker account</a></p>
+              <p>Or copy and paste this link into your browser:</p>
+              <p>{url_esc}</p>
+              <p>If you did not expect this email, you can ignore it.</p>
+              <p>Best regards,<br>The MatchMate Team</p>
+            </body>
+            </html>"""
 
     try:
         response = resend.Emails.send({
             "from": SENDER_EMAIL,
             "to": [email],
-            "subject": "You've Been Invited to MatchMate",
-            "html": f"""
-              <div style="background:#f8f8fc;padding:28px 14px;font-family:Arial,sans-serif;color:#1a1a2e;">
-                <div style="max-width:560px;margin:0 auto;background:#ffffff;border:1px solid #e7e7ef;border-radius:14px;padding:28px;">
-                  <h2 style="margin:0 0 8px;text-align:center;font-size:24px;line-height:1.2;">Become a Matchmaker on MatchMate</h2>
-                  <p style="margin:0 0 18px;text-align:center;color:#61617a;font-size:15px;line-height:1.5;">
-                    Someone invited you to help them find better matches.
-                  </p>
-
-                  <p style="margin:0 0 8px;font-size:14px;color:#4a4a68;">Your referral code:</p>
-                  <div style="margin:0 0 20px;padding:12px 14px;border:1px dashed #6c5ce7;border-radius:10px;background:#fafaff;text-align:center;">
-                    <span style="font-size:18px;font-weight:700;letter-spacing:1px;color:#6c5ce7;">{referral_code_display}</span>
-                  </div>
-
-                  <div style="text-align:center;margin:0 0 18px;">
-                    <a
-                      href="{signup_url}"
-                      style="display:inline-block;background:#6c5ce7;color:#ffffff;text-decoration:none;padding:12px 20px;border-radius:10px;font-weight:600;font-size:15px;"
-                    >
-                      Create Matchmaker Account
-                    </a>
-                  </div>
-
-                  <p style="margin:0 0 8px;font-size:12px;color:#7a7a92;">If the button doesn't work, use this link:</p>
-                  <p style="margin:0;word-break:break-all;font-size:12px;color:#6c5ce7;">{signup_url}</p>
-                </div>
-              </div>
-            """,
+            "subject": subject,
+            "html": html_body,
+            "text": text_body,
         })
         print("Resend Response:", response)
         return jsonify({"success": True, "message": "Email sent"})
@@ -111,34 +95,37 @@ def invite_dater_signup_email():
     separator = "&" if "?" in base_signup_url else "?"
     signup_url = f"{base_signup_url}{separator}invite_token={quote(invite_token)}"
     mm_name = (matchmaker.first_name or "").strip() or "Your matchmaker"
+    mm_esc = escape(mm_name)
+    url_esc = escape(signup_url, quote=True)
+    subject = "Complete your MatchMate dater signup"
+    text_body = (
+        f"Hello,\n\n"
+        f"{mm_name} sent you a link to create your MatchMate dater account so they can help you find matches.\n\n"
+        f"Open this link to sign up:\n{signup_url}\n\n"
+        f"If you did not expect this email, you can ignore it.\n\n"
+        f"Best regards,\nThe MatchMate Team"
+    )
+    html_body = f"""<html>
+            <head></head>
+            <body>
+              <h2>Hello,</h2>
+              <p>{mm_esc} sent you a link to create your MatchMate dater account so they can help you find matches.</p>
+              <p>Use the link below to finish signing up:</p>
+              <p><a href="{url_esc}" style="background-color: #6B46C1; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">Create your dater account</a></p>
+              <p>Or copy and paste this link into your browser:</p>
+              <p>{url_esc}</p>
+              <p>If you did not expect this email, you can ignore it.</p>
+              <p>Best regards,<br>The MatchMate Team</p>
+            </body>
+            </html>"""
 
     try:
         response = resend.Emails.send({
             "from": SENDER_EMAIL,
             "to": [to_email],
-            "subject": "You've Been Invited to MatchMate",
-            "html": f"""
-              <div style="background:#f8f8fc;padding:28px 14px;font-family:Arial,sans-serif;color:#1a1a2e;">
-                <div style="max-width:560px;margin:0 auto;background:#ffffff;border:1px solid #e7e7ef;border-radius:14px;padding:28px;">
-                  <h2 style="margin:0 0 8px;text-align:center;font-size:24px;line-height:1.2;">Join MatchMate as a Dater</h2>
-                  <p style="margin:0 0 18px;text-align:center;color:#61617a;font-size:15px;line-height:1.5;">
-                    {mm_name} invited you to sign up so they can help you find matches.
-                  </p>
-
-                  <div style="text-align:center;margin:0 0 18px;">
-                    <a
-                      href="{signup_url}"
-                      style="display:inline-block;background:#6c5ce7;color:#ffffff;text-decoration:none;padding:12px 20px;border-radius:10px;font-weight:600;font-size:15px;"
-                    >
-                      Create Dater Account
-                    </a>
-                  </div>
-
-                  <p style="margin:0 0 8px;font-size:12px;color:#7a7a92;">If the button doesn't work, use this link:</p>
-                  <p style="margin:0;word-break:break-all;font-size:12px;color:#6c5ce7;">{signup_url}</p>
-                </div>
-              </div>
-            """,
+            "subject": subject,
+            "html": html_body,
+            "text": text_body,
         })
         print("Resend dater invite:", response)
         return jsonify({"success": True, "message": "Email sent"})
