@@ -1,5 +1,6 @@
 import React, { useContext } from 'react';
 import { View, StyleSheet } from 'react-native';
+import { useIsFocused, useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
@@ -25,13 +26,17 @@ import { getRoleAccentColor } from '../components/layout/components/RoleHeaderBa
 import DaterDropdown from '../components/layout/daterDropdown';
 import { UserContext } from '../context/UserContext';
 import { API_BASE_URL } from '../env';
+import { MainTabsShell } from './mainTabsBackBehavior';
 
 const Stack = createNativeStackNavigator();
 const Tab = createMaterialTopTabNavigator();
 
 function MainTabs() {
+  const stackNavigation = useNavigation();
+  const isMainFocused = useIsFocused();
   const insets = useSafeAreaInsets();
   const bottomInset = Math.max(insets.bottom, 8);
+  const tabBarOuterHeight = 56 + bottomInset;
   const { user, setUser, isProfileEditing } = useContext(UserContext);
   const role = user?.role || 'matchmaker';
   const accentColor = getRoleAccentColor(role);
@@ -56,59 +61,65 @@ function MainTabs() {
   };
 
   return (
-    <View style={styles.mainTabsContainer}>
-      <View pointerEvents="box-none" style={[styles.topOverlay, { top: insets.top + 4 }]}>
-        {!isProfileEditing && (
-          <View pointerEvents="none" style={styles.roleBadgeOverlay}>
-            <RoleHeaderBanner role={role} />
-          </View>
-        )}
-        {role === 'matchmaker' && (
-          <View style={styles.dropdownOverlay}>
-            <DaterDropdown userInfo={user} onDaterChange={handleOverlayDaterChange} />
-          </View>
-        )}
+    <MainTabsShell
+      stackNavigation={stackNavigation}
+      isMainFocused={isMainFocused}
+      tabBarOuterHeight={tabBarOuterHeight}
+    >
+      <View style={styles.mainTabsContainer}>
+        <View pointerEvents="box-none" style={[styles.topOverlay, { top: insets.top + 4 }]}>
+          {!isProfileEditing && (
+            <View pointerEvents="none" style={styles.roleBadgeOverlay}>
+              <RoleHeaderBanner role={role} />
+            </View>
+          )}
+          {role === 'matchmaker' && (
+            <View style={styles.dropdownOverlay}>
+              <DaterDropdown userInfo={user} onDaterChange={handleOverlayDaterChange} />
+            </View>
+          )}
+        </View>
+        <Tab.Navigator
+          tabBarPosition="bottom"
+          screenOptions={({ route }) => ({
+            swipeEnabled: true,
+            animationEnabled: true,
+            tabBarIcon: ({ focused, color }) => {
+              let iconName;
+
+              if (route.name === 'Profile') {
+                iconName = focused ? 'person' : 'person-outline';
+              } else if (route.name === 'Matches') {
+                iconName = focused ? 'heart' : 'heart-outline';
+              } else if (route.name === 'Conversations') {
+                iconName = focused ? 'chatbubbles' : 'chatbubbles-outline';
+              } else if (route.name === 'Settings') {
+                iconName = focused ? 'settings' : 'settings-outline';
+              }
+
+              return <Ionicons name={iconName} size={20} color={color} />;
+            },
+            tabBarShowIcon: true,
+            tabBarShowLabel: false,
+            tabBarIndicatorStyle: { height: 0 },
+            tabBarItemStyle: { justifyContent: 'center', alignItems: 'center' },
+            tabBarStyle: {
+              height: 56 + bottomInset,
+              paddingBottom: bottomInset,
+            },
+            tabBarPressColor: role === 'user' ? 'rgba(239, 77, 115, 0.12)' : 'rgba(108, 92, 231, 0.12)',
+            tabBarActiveTintColor: accentColor,
+            tabBarInactiveTintColor: 'gray',
+            headerShown: false,
+          })}
+        >
+          <Tab.Screen name="Profile" component={ProfilePage} />
+          <Tab.Screen name="Matches" component={Match} />
+          <Tab.Screen name="Conversations" component={Conversations} />
+          <Tab.Screen name="Settings" component={Settings} />
+        </Tab.Navigator>
       </View>
-      <Tab.Navigator
-        tabBarPosition="bottom"
-        screenOptions={({ route }) => ({
-          swipeEnabled: true,
-          animationEnabled: true,
-          tabBarIcon: ({ focused, color }) => {
-            let iconName;
-
-            if (route.name === 'Profile') {
-              iconName = focused ? 'person' : 'person-outline';
-            } else if (route.name === 'Matches') {
-              iconName = focused ? 'heart' : 'heart-outline';
-            } else if (route.name === 'Conversations') {
-              iconName = focused ? 'chatbubbles' : 'chatbubbles-outline';
-            } else if (route.name === 'Settings') {
-              iconName = focused ? 'settings' : 'settings-outline';
-            }
-
-            return <Ionicons name={iconName} size={20} color={color} />;
-          },
-          tabBarShowIcon: true,
-          tabBarShowLabel: false,
-          tabBarIndicatorStyle: { height: 0 },
-          tabBarItemStyle: { justifyContent: 'center', alignItems: 'center' },
-          tabBarStyle: {
-            height: 56 + bottomInset,
-            paddingBottom: bottomInset,
-          },
-          tabBarPressColor: role === 'user' ? 'rgba(239, 77, 115, 0.12)' : 'rgba(108, 92, 231, 0.12)',
-          tabBarActiveTintColor: accentColor,
-          tabBarInactiveTintColor: 'gray',
-          headerShown: false,
-        })}
-      >
-        <Tab.Screen name="Profile" component={ProfilePage} />
-        <Tab.Screen name="Matches" component={Match} />
-        <Tab.Screen name="Conversations" component={Conversations} />
-        <Tab.Screen name="Settings" component={Settings} />
-      </Tab.Navigator>
-    </View>
+    </MainTabsShell>
   );
 }
 
