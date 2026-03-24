@@ -80,8 +80,8 @@ const CompleteProfile = () => {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [tempBirthdate, setTempBirthdate] = useState(null);
   const [cropModalVisible, setCropModalVisible] = useState(false);
-  const [selectedImageUri, setSelectedImageUri] = useState(null);
-  const [pendingCropUris, setPendingCropUris] = useState([]); // queue of URIs to crop (multi-select order)
+  /** Queue of items to crop (multi-select order); width/height from picker when available for Android orientation accuracy */
+  const [pendingCropQueue, setPendingCropQueue] = useState([]);
   const [cropKey, setCropKey] = useState(0);
   const radiusUnit = heightUnit === 'ft' ? 'mi' : 'km';
   const milesToKm = (mi) => Math.round(mi * 1.60934);
@@ -775,9 +775,12 @@ const CompleteProfile = () => {
     });
 
     if (!result.canceled && result.assets?.length) {
-      const uris = result.assets.map((a) => a.uri);
-      setPendingCropUris(uris);
-      setSelectedImageUri(uris[0]);
+      const items = result.assets.map((a) => ({
+        uri: a.uri,
+        width: typeof a.width === 'number' && a.width > 0 ? a.width : undefined,
+        height: typeof a.height === 'number' && a.height > 0 ? a.height : undefined,
+      }));
+      setPendingCropQueue(items);
       setCropModalVisible(true);
       setCropKey((prev) => prev + 1);
     }
@@ -826,14 +829,12 @@ const CompleteProfile = () => {
       setImages((prevImages) => [...prevImages, newImage]);
 
       // Advance to next image in queue, or close modal
-      setPendingCropUris((prev) => {
+      setPendingCropQueue((prev) => {
         const next = prev.slice(1);
         if (next.length === 0) {
           setCropModalVisible(false);
-          setSelectedImageUri(null);
           return [];
         }
-        setSelectedImageUri(next[0]);
         setCropKey((k) => k + 1);
         return next;
       });
@@ -1325,12 +1326,13 @@ const CompleteProfile = () => {
       <ImageCropModal
         key={cropKey}
         visible={cropModalVisible}
-        imageUri={selectedImageUri}
+        imageUri={pendingCropQueue[0]?.uri ?? null}
+        sourceWidth={pendingCropQueue[0]?.width}
+        sourceHeight={pendingCropQueue[0]?.height}
         onCropComplete={handleCropComplete}
         onCancel={() => {
           setCropModalVisible(false);
-          setSelectedImageUri(null);
-          setPendingCropUris([]);
+          setPendingCropQueue([]);
         }}
       />
     </KeyboardAvoidingView>

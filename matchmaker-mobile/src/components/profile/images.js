@@ -62,8 +62,11 @@ const ImageGallery = ({
           : isHeroStack
             ? [styles.heroImage, index === 0 && styles.heroMainImage]
             : styles.fullImage;
+    // Vertical list uses a fixed non-square frame; cover would re-crop square uploads. Square layouts stay cover.
+    const resizeMode =
+      isGrid || isTopRow || isHeroStack ? 'cover' : 'contain';
     const imageEl = (
-      <Image source={{ uri }} style={imageStyle} resizeMode="cover" />
+      <Image source={{ uri }} style={imageStyle} resizeMode={resizeMode} />
     );
     const canPreview = Boolean(onImagePress) && !editing;
 
@@ -284,6 +287,9 @@ const styles = StyleSheet.create({
     maxWidth: 250,
     height: 200,
     alignSelf: 'center',
+    backgroundColor: '#f2f2f2',
+    borderRadius: 8,
+    overflow: 'hidden',
   },
   gridImage: {
     width: '100%',
