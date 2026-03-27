@@ -1,8 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BackHandler, Platform, StyleSheet, Text, View } from 'react-native';
+import RNExitApp from 'react-native-exit-app';
 import { CommonActions, useNavigationState } from '@react-navigation/native';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { runOnJS } from 'react-native-reanimated';
+import { mainTabBackDelegateRef } from './mainTabsBackDelegates';
 
 function selectMainTabRouteName(state) {
   if (!state?.routes?.length) return null;
@@ -43,6 +45,17 @@ export function MainTabsShell({ stackNavigation, isMainFocused, tabBarOuterHeigh
     }
   }, [tabRouteName]);
 
+  useEffect(() => {
+    if (!exitToastVisible) {
+      return undefined;
+    }
+    const t = setTimeout(() => {
+      pendingExitRef.current = false;
+      setExitToastVisible(false);
+    }, 5000);
+    return () => clearTimeout(t);
+  }, [exitToastVisible]);
+
   const navigateToTab = useCallback(
     (screen) => {
       stackNavigation.dispatch(
@@ -62,6 +75,10 @@ export function MainTabsShell({ stackNavigation, isMainFocused, tabBarOuterHeigh
     }
     const name = tabNameRef.current;
     if (name === 'Settings') {
+      const delegate = mainTabBackDelegateRef.current;
+      if (typeof delegate === 'function' && delegate()) {
+        return true;
+      }
       navigateToTab('Conversations');
       return true;
     }
@@ -79,6 +96,8 @@ export function MainTabsShell({ stackNavigation, isMainFocused, tabBarOuterHeigh
         setExitToastVisible(false);
         if (Platform.OS === 'android') {
           BackHandler.exitApp();
+        } else {
+          RNExitApp.exitApp();
         }
         return true;
       }
@@ -123,7 +142,9 @@ export function MainTabsShell({ stackNavigation, isMainFocused, tabBarOuterHeigh
         {exitToastVisible ? (
           <View pointerEvents="none" style={[styles.exitToastWrap, { bottom: tabBarOuterHeight + 10 }]}>
             <View style={styles.exitToastPill}>
-              <Text style={styles.exitToastText}>Tap again to exit</Text>
+              <Text style={styles.exitToastText}>
+                {Platform.OS === 'ios' ? 'Swipe again to exit' : 'Tap again to exit'}
+              </Text>
             </View>
           </View>
         ) : null}

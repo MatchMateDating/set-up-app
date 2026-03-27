@@ -29,6 +29,7 @@ import { getImageUrl } from '../profile/utils/profileUtils';
 import { useNotifications } from '../../context/NotificationContext';
 import { getRoleAccentColor, getRoleBackgroundTint } from '../layout/components/RoleHeaderBanner';
 import { UserContext } from '../../context/UserContext';
+import { mainTabBackDelegateRef } from '../../navigation/mainTabsBackDelegates';
 
 const SECTION_KEYS = {
   PERSONAL: 'personal',
@@ -342,6 +343,21 @@ const SettingsSections = () => {
       navigation.setOptions({ swipeEnabled: true });
     };
   }, [navigation, activeSection]);
+
+  // iOS left-edge swipe + Android back: first dismiss an open subsection (same as "Back to Settings").
+  useEffect(() => {
+    mainTabBackDelegateRef.current = () => {
+      if (activeSection) {
+        setActiveSection(null);
+        setEditingPreferences(false);
+        return true;
+      }
+      return false;
+    };
+    return () => {
+      mainTabBackDelegateRef.current = null;
+    };
+  }, [activeSection]);
 
   useFocusEffect(
     useCallback(() => {
