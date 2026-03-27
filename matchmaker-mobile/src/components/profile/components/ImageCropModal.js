@@ -137,17 +137,12 @@ const ImageCropModal = ({
     setFlipH(false);
   }, []);
 
-  // Android: decode + save through ImageManipulator so RN Image preview and crop() use the same pixels.
-  // Otherwise EXIF can make on-screen aspect match the screen while crop rects target the wrong storage layout.
+  // Decode + save through ImageManipulator so preview and crop() use the same pixels/orientation.
+  // This avoids EXIF/layout mismatches that can cause crops to land in the wrong area.
   useEffect(() => {
     if (!visible || !imageUri) {
       setCropPipelineUri(null);
       setImageSize(null);
-      sizedByManipulatorRef.current = false;
-      return undefined;
-    }
-
-    if (Platform.OS !== 'android') {
       sizedByManipulatorRef.current = false;
       return undefined;
     }
@@ -177,7 +172,7 @@ const ImageCropModal = ({
           setCropPipelineUri(imageUri);
         }
       } catch (err) {
-        console.warn('ImageCropModal: Android pipeline decode failed', err);
+        console.warn('ImageCropModal: pipeline decode failed', err);
         if (!cancelled) {
           setCropPipelineUri(imageUri);
         }
@@ -190,8 +185,8 @@ const ImageCropModal = ({
     return () => { cancelled = true; };
   }, [visible, imageUri, resetGestureBaseline]);
 
-  // iOS / Android fallback: dimensions from picker + getSize; onLoad can refine (unless manipulator already set size).
-  const dimensionSourceUri = Platform.OS === 'android' ? cropPipelineUri : imageUri;
+  // Fallback: dimensions from picker + getSize; onLoad can refine (unless manipulator already set size).
+  const dimensionSourceUri = cropPipelineUri;
 
   useEffect(() => {
     if (!visible || !dimensionSourceUri) return undefined;
@@ -204,13 +199,14 @@ const ImageCropModal = ({
       typeof sourceHeight === 'number' &&
       sourceWidth > 0 &&
       sourceHeight > 0;
+    const shouldUsePickerDims = Platform.OS === 'android' && hasPickerDims;
 
-    if (hasPickerDims) {
+    if (shouldUsePickerDims) {
       setImageSize({ width: sourceWidth, height: sourceHeight });
     }
 
     let cancelled = false;
-    if (!hasPickerDims) {
+    if (!shouldUsePickerDims) {
       RNImage.getSize(
         dimensionSourceUri,
         (width, height) => {
@@ -243,10 +239,11 @@ const ImageCropModal = ({
 
   // Fit image so its width = crop container width at scale 1 (based on original dimensions)
   const fitted = useMemo(() => {
-    if (!imageSize) return { width: layoutWidth, height: layoutWidth };
-    const ratio = layoutWidth / imageSize.width;
-    return { width: layoutWidth, height: imageSize.height * ratio };
-  }, [imageSize, layoutWidth]);
+    const baseWidth = Platform.OS === 'ios' ? windowWidth : layoutWidth;
+    if (!imageSize) return { width: baseWidth, height: baseWidth };
+    const ratio = baseWidth / imageSize.width;
+    return { width: baseWidth, height: imageSize.height * ratio };
+  }, [imageSize, layoutWidth, windowWidth]);
 
   const fittedRef = useRef(fitted);
   fittedRef.current = fitted;
@@ -423,7 +420,7 @@ const ImageCropModal = ({
 
   const handleCrop = async () => {
     if (!imageSize || processing) return;
-    if (Platform.OS === 'android' && !cropPipelineUri) return;
+    if (!cropPipelineUri) return;
     setProcessing(true);
 
     let manipContext = null;
@@ -465,11 +462,22 @@ const ImageCropModal = ({
         currentPanY = 0;
       }
 
-      // Clamp pan within bounds (same as gestures — must include rotation bounding box)
+      // Clamp pan within bounds.
       const cropSize = effectiveCropSizeRef.current;
-      const panClamped = clampPan(currentPanX, currentPanY, currentScale, currentRotation);
-      currentPanX = panClamped.x;
-      currentPanY = panClamped.y;
+      if (Platform.OS === 'ios') {
+        // Keep iOS aligned with the legacy crop path (pre-branch behavior).
+        const f = fittedRef.current;
+        const imgW = f.width * currentScale;
+        const imgH = f.height * currentScale;
+        const maxTx = imgW > cropSize ? (imgW - cropSize) / 2 : 0;
+        const maxTy = imgH > cropSize ? (imgH - cropSize) / 2 : 0;
+        currentPanX = Math.min(maxTx, Math.max(-maxTx, currentPanX));
+        currentPanY = Math.min(maxTy, Math.max(-maxTy, currentPanY));
+      } else {
+        const panClamped = clampPan(currentPanX, currentPanY, currentScale, currentRotation);
+        currentPanX = panClamped.x;
+        currentPanY = panClamped.y;
+      }
 
       // Sync the display to match the values we'll actually crop with
       scaleAnim.setValue(currentScale);
@@ -489,8 +497,13 @@ const ImageCropModal = ({
       const rotatedW = imageSize.width * cosR + imageSize.height * sinR;
       const rotatedH = imageSize.width * sinR + imageSize.height * cosR;
 
-      const lw = Math.max(1, layoutWidthRef.current);
-      const fitScale = lw / imageSize.width;
+      const fitScaleBase = Platform.OS === 'ios'
+        ? Math.max(1, windowWidth)
+        : (() => {
+            const f = fittedRef.current;
+            return f && typeof f.width === 'number' && f.width > 0 ? f.width : Math.max(1, layoutWidthRef.current);
+          })();
+      const fitScale = fitScaleBase / imageSize.width;
       const totalScale = fitScale * currentScale;
 
       const cropW = cropSize / totalScale;
@@ -508,7 +521,7 @@ const ImageCropModal = ({
       width = Math.max(1, width);
       height = Math.max(1, height);
 
-      const sourceForCrop = Platform.OS === 'android' ? (cropPipelineUri || imageUri) : imageUri;
+      const sourceForCrop = cropPipelineUri;
       manipContext = ImageManipulator.manipulate(sourceForCrop);
 
       if (absRot !== 0) {
@@ -539,8 +552,8 @@ const ImageCropModal = ({
 
   if (!visible) return null;
 
-  const pipelineUri = Platform.OS === 'android' ? cropPipelineUri : imageUri;
-  const showCropper = Boolean(pipelineUri && imageSize);
+  const pipelineUri = cropPipelineUri;
+  const showCropper = Boolean(cropPipelineUri && imageSize);
 
   const cropCenterX = layoutWidth / 2;
   const cropCenterY =
@@ -595,40 +608,61 @@ const ImageCropModal = ({
                 onResponderRelease={handleRelease}
                 onResponderTerminate={handleRelease}
               >
-                {/*
-                  Layout: box center = crop hole center (same as overlay math). Do not use a translate
-                  sandwich — RN’s multiply order differs from CSS assumptions and shifts the pivot
-                  (top-left / bottom-right). Use explicit transformOrigin at the box center (px) so
-                  rotate/scale stay anchored to the middle of the crop area.
-                */}
-                <Animated.View
-                  collapsable={Platform.OS === 'android' ? false : undefined}
-                  style={{
-                    position: 'absolute',
-                    left: cropCenterX - fitted.width / 2,
-                    ...(cropCenterY != null
-                      ? { top: cropCenterY - fitted.height / 2 }
-                      : { top: '50%', marginTop: -fitted.height / 2 }),
-                    width: fitted.width,
-                    height: fitted.height,
-                    overflow: 'visible',
-                    transformOrigin: [originX, originY, 0],
-                    transform: [
-                      { translateX: pan.x },
-                      { translateY: pan.y },
-                      { scale: scaleAnim },
-                      { rotate: rotateStr },
-                      { scaleX: flipH ? -1 : 1 },
-                    ],
-                  }}
-                >
-                  <RNImage
-                    source={{ uri: pipelineUri }}
-                    style={{ width: '100%', height: '100%' }}
-                    resizeMode="cover"
-                    onLoad={handleImageLoad}
-                  />
-                </Animated.View>
+                {Platform.OS === 'android' ? (
+                  <>
+                    {/*
+                      Android-only path: anchor transform to crop center and use the manipulator
+                      pipeline URI to keep preview/crop pixel space aligned.
+                    */}
+                    <Animated.View
+                      collapsable={false}
+                      style={{
+                        position: 'absolute',
+                        left: cropCenterX - fitted.width / 2,
+                        ...(cropCenterY != null
+                          ? { top: cropCenterY - fitted.height / 2 }
+                          : { top: '50%', marginTop: -fitted.height / 2 }),
+                        width: fitted.width,
+                        height: fitted.height,
+                        overflow: 'visible',
+                        transformOrigin: [originX, originY, 0],
+                        transform: [
+                          { translateX: pan.x },
+                          { translateY: pan.y },
+                          { scale: scaleAnim },
+                          { rotate: rotateStr },
+                          { scaleX: flipH ? -1 : 1 },
+                        ],
+                      }}
+                    >
+                      <RNImage
+                        source={{ uri: pipelineUri }}
+                        style={{ width: '100%', height: '100%' }}
+                        resizeMode="cover"
+                        onLoad={handleImageLoad}
+                      />
+                    </Animated.View>
+                  </>
+                ) : (
+                  <View style={styles.imageCentered}>
+                    <Animated.Image
+                      source={{ uri: pipelineUri }}
+                      style={{
+                        width: fitted.width,
+                        height: fitted.height,
+                        transform: [
+                          { translateX: pan.x },
+                          { translateY: pan.y },
+                          { scale: scaleAnim },
+                          { rotate: rotateStr },
+                          { scaleX: flipH ? -1 : 1 },
+                        ],
+                      }}
+                      resizeMode="cover"
+                      onLoad={handleImageLoad}
+                    />
+                  </View>
+                )}
               </View>
 
               {/* Dark overlay — 4 absolutely positioned rects, no gaps */}
@@ -714,6 +748,12 @@ const styles = StyleSheet.create({
   cropContainer: {
     flex: 1,
     backgroundColor: '#000',
+    overflow: 'visible',
+  },
+  imageCentered: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
     overflow: 'visible',
   },
   footer: {

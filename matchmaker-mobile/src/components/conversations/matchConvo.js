@@ -16,11 +16,12 @@ import {
   FlatList,
   Keyboard,
   InteractionManager,
+  PanResponder,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useKeyboardHandler } from 'react-native-keyboard-controller';
 import Animated, { useSharedValue, useAnimatedStyle } from 'react-native-reanimated';
-import { useNavigation, useRoute, useIsFocused } from '@react-navigation/native';
+import { CommonActions, useNavigation, useRoute, useIsFocused } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { API_BASE_URL } from '../../env';
 import { useUserInfo } from './hooks/useUserInfo';
@@ -477,6 +478,34 @@ const MatchConvo = () => {
   const androidActionsBottomPadding =
     Platform.OS === 'android' ? (isKeyboardVisible ? 8 : 16 + insets.bottom) : 16;
   const androidSheetBottomPadding = 16 + insets.bottom;
+  const goBackToConversations = () => {
+    if (Platform.OS === 'ios') {
+      navigation.dispatch(
+        CommonActions.reset({
+          index: 0,
+          routes: [{ name: 'Main', params: { screen: 'Conversations' } }],
+        })
+      );
+      return;
+    }
+    navigation.navigate('Main', { screen: 'Conversations' });
+  };
+  const iosEdgePanResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: (evt) => Platform.OS === 'ios' && evt.nativeEvent.pageX <= 28,
+      onMoveShouldSetPanResponder: (_, gestureState) =>
+        Platform.OS === 'ios' &&
+        gestureState.dx > 12 &&
+        Math.abs(gestureState.dy) < 24,
+      onPanResponderRelease: (_, gestureState) => {
+        if (gestureState.dx > 56 && Math.abs(gestureState.dy) < 48) {
+          goBackToConversations();
+        }
+      },
+      onPanResponderTerminate: () => {},
+      onShouldBlockNativeResponder: () => false,
+    })
+  ).current;
 
   if (loading) {
     return (
@@ -770,7 +799,7 @@ const MatchConvo = () => {
       <Animated.View style={[{ flex: 1 }, animatedStyle]}>
       <View style={styles.header}>
         <View style={styles.headerTopRow}>
-          <TouchableOpacity style={styles.backButton} onPress={() => navigation.navigate('Main', { screen: 'Conversations' })}>
+          <TouchableOpacity style={styles.backButton} onPress={goBackToConversations}>
             <Ionicons name="arrow-back" size={24} color={accentColor} />
             <Text style={[styles.backButtonText, { color: accentColor }]}>Back</Text>
           </TouchableOpacity>
@@ -1022,6 +1051,13 @@ const MatchConvo = () => {
           </Pressable>
         </Modal>
       )}
+      {Platform.OS === 'ios' ? (
+        <View
+          pointerEvents="box-only"
+          style={styles.leftEdgeSwipeHitArea}
+          {...iosEdgePanResponder.panHandlers}
+        />
+      ) : null}
     </KeyboardAvoidingView>
   );
 };
@@ -1149,6 +1185,15 @@ const styles = StyleSheet.create({
   sheetItemTextSelected: { fontWeight: '700', color: '#6c5ce7' },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fafafa' },
   loadingText: { marginTop: 12, fontSize: 16, color: '#6b7280' },
+  leftEdgeSwipeHitArea: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 28,
+    zIndex: 1200,
+    backgroundColor: 'transparent',
+  },
 });
 
 export default MatchConvo;

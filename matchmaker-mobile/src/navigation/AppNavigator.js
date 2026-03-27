@@ -1,5 +1,5 @@
 import React, { useContext } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, Platform } from 'react-native';
 import { useIsFocused, useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -134,7 +134,14 @@ export default function AppNavigator() {
       <Stack.Screen name="Main" component={MainTabs} />
       <Stack.Screen name="ProfilePage" component={ProfilePage} />
       <Stack.Screen name="Preferences" component={Preferences} />
-      <Stack.Screen name="MatchConvo" component={MatchConvo} />
+      <Stack.Screen
+        name="MatchConvo"
+        component={MatchConvo}
+        options={{
+          // We handle iOS swipe-back manually in MatchConvo so it always returns to Conversations.
+          gestureEnabled: Platform.OS !== 'ios',
+        }}
+      />
       <Stack.Screen name="PuzzlesHub" component={PuzzlesHub} />
       <Stack.Screen name="SpiritAnimalQuiz" component={SpiritAnimalQuiz} />
       <Stack.Screen name="ZodiacQuiz" component={ZodiacQuiz} />

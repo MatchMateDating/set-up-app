@@ -2,9 +2,26 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { BackHandler, Platform, StyleSheet, Text, View } from 'react-native';
 import RNExitApp from 'react-native-exit-app';
 import { CommonActions, useNavigationState } from '@react-navigation/native';
-import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
-import { runOnJS } from 'react-native-reanimated';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { mainTabBackDelegateRef } from './mainTabsBackDelegates';
+
+function safeExitApp() {
+  // On some runtimes (web/tests/mislinked native module), BackHandler can be missing/null.
+  // Never crash the app when trying to exit.
+  try {
+    if (Platform.OS === 'android') {
+      if (BackHandler && typeof BackHandler.exitApp === 'function') {
+        BackHandler.exitApp();
+        return;
+      }
+      if (RNExitApp && typeof RNExitApp.exitApp === 'function') {
+        RNExitApp.exitApp();
+      }
+    }
+  } catch (_) {
+    // no-op
+  }
+}
 
 function selectMainTabRouteName(state) {
   if (!state?.routes?.length) return null;
@@ -94,11 +111,7 @@ export function MainTabsShell({ stackNavigation, isMainFocused, tabBarOuterHeigh
       if (pendingExitRef.current) {
         pendingExitRef.current = false;
         setExitToastVisible(false);
-        if (Platform.OS === 'android') {
-          BackHandler.exitApp();
-        } else {
-          RNExitApp.exitApp();
-        }
+        safeExitApp();
         return true;
       }
       pendingExitRef.current = true;
@@ -121,20 +134,6 @@ export function MainTabsShell({ stackNavigation, isMainFocused, tabBarOuterHeigh
     return () => sub.remove();
   }, [isMainFocused, runBack]);
 
-  const edgeGesture = useMemo(
-    () =>
-      Gesture.Pan()
-        .enabled(Platform.OS === 'ios')
-        .activeOffsetX(14)
-        .failOffsetY([-56, 56])
-        .onEnd((e) => {
-          if (e.translationX > 56) {
-            runOnJS(runBack)();
-          }
-        }),
-    [runBack]
-  );
-
   return (
     <GestureHandlerRootView style={styles.flex}>
       <View style={styles.flex}>
@@ -147,11 +146,6 @@ export function MainTabsShell({ stackNavigation, isMainFocused, tabBarOuterHeigh
               </Text>
             </View>
           </View>
-        ) : null}
-        {Platform.OS === 'ios' && isMainFocused ? (
-          <GestureDetector gesture={edgeGesture}>
-            <View style={[styles.leftEdgeHitArea, { bottom: tabBarOuterHeight }]} />
-          </GestureDetector>
         ) : null}
       </View>
     </GestureHandlerRootView>
@@ -184,13 +178,5 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     textAlign: 'center',
-  },
-  leftEdgeHitArea: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    width: 28,
-    zIndex: 1500,
-    backgroundColor: 'transparent',
   },
 });

@@ -17,6 +17,7 @@ import {
   Image,
   BackHandler,
 } from 'react-native';
+import { PanGestureHandler, State } from 'react-native-gesture-handler';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Clipboard from 'expo-clipboard';
 import { Ionicons } from '@expo/vector-icons';
@@ -1843,6 +1844,22 @@ const SettingsSections = () => {
         </ScrollView>
       </TouchableWithoutFeedback>
 
+      {Platform.OS === 'ios' && activeSection ? (
+        <PanGestureHandler
+          enabled
+          activeOffsetX={[-9999, 14]}
+          failOffsetY={[-32, 32]}
+          onHandlerStateChange={({ nativeEvent }) => {
+            if (nativeEvent.state === State.END && nativeEvent.translationX > 56) {
+              setActiveSection(null);
+              setEditingPreferences(false);
+            }
+          }}
+        >
+          <View pointerEvents="box-only" style={styles.leftEdgeSwipeHitArea} />
+        </PanGestureHandler>
+      ) : null}
+
       <Modal
         visible={showReferralModal}
         transparent
@@ -2733,6 +2750,15 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '700',
     fontSize: 14,
+  },
+  leftEdgeSwipeHitArea: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 28,
+    zIndex: 1000,
+    backgroundColor: 'transparent',
   },
 });
 
