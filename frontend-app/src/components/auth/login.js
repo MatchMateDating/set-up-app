@@ -22,7 +22,7 @@ function Login() {
             localStorage.setItem('user', JSON.stringify(res.data.user));
             alert('Login successful!');
 
-            navigate('/match');
+            navigate('/match', { replace: true });
         } catch (err) {
             alert(err.response?.data?.msg || 'Login failed');
         }

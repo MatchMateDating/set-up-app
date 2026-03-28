@@ -12,10 +12,14 @@ class Config:
     DB_NAME = os.getenv('DB_NAME', 'postgres')
     
     # Priority:
-    # 1) DATABASE_URL (Railway/hosted platforms)
-    # 2) DB_* credentials
-    # 3) local SQLite fallback
-    if DATABASE_URL and DATABASE_URL.strip():
+    # 1) USE_LOCAL_SQLITE — force SQLite (e.g. DATABASE_URL set globally by Railway CLI on Windows)
+    # 2) DATABASE_URL (Railway/hosted platforms)
+    # 3) DB_* credentials
+    # 4) local SQLite fallback
+    _use_local_sqlite = os.getenv("USE_LOCAL_SQLITE", "").lower() in ("1", "true", "yes")
+    if _use_local_sqlite:
+        SQLALCHEMY_DATABASE_URI = "sqlite:///../instance/users.db"
+    elif DATABASE_URL and DATABASE_URL.strip():
         # Some providers still use postgres://; SQLAlchemy expects postgresql://
         SQLALCHEMY_DATABASE_URI = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
     elif DB_USERNAME and DB_PASSWORD and DB_HOST and DB_HOST.strip():

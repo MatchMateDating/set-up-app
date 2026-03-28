@@ -734,30 +734,29 @@ def delete_account_by_role(current_user):
 def delete_account(current_user):
     """
     Delete user account and all associated data (GDPR/CCPA Right to be Forgotten).
-    No password required - user is already authenticated via JWT token.
+    If this user is linked to a second role (same email, dater + matchmaker), deletes both
+    accounts and both sides' related data. No password required — JWT only.
     """
     try:
-        # No password required - user is already authenticated via JWT token
-        user_id = current_user.id
-        
-        # Delete all user-related data
-        
-        _delete_user_related_data(current_user)
-
-        # 7. Handle linked accounts
+        linked_account = None
         if current_user.linked_account_id:
             linked_account = User.query.get(current_user.linked_account_id)
-            if linked_account:
-                linked_account.linked_account_id = None
-        
-        # 10. Finally, delete the user account itself
+
+        # Clean dependencies for both users (order matters: each pass clears cross-links via
+        # _delete_user_related_data step 7 before we remove the rows).
+        _delete_user_related_data(current_user)
+        if linked_account:
+            _delete_user_related_data(linked_account)
+
         db.session.delete(current_user)
+        if linked_account:
+            db.session.delete(linked_account)
         db.session.commit()
-        
+
         return jsonify({
             'message': 'Account and all associated data deleted successfully'
         }), 200
-        
+
     except SQLAlchemyError as e:
         db.session.rollback()
         return jsonify({

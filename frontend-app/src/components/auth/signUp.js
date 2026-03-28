@@ -41,9 +41,9 @@ function SignUp() {
                 startLocationWatcher(API_BASE_URL, res.data.token);
                 console.log("Token stored successfully!");
                 if (role === 'user') {
-                    navigate('/complete-profile');
+                    navigate('/complete-profile', { replace: true });
                 } else {
-                    navigate('/profile');  // Replace with where you want matchmakers to go
+                    navigate('/profile', { replace: true });
                 }
             } else {
                 console.error("Registration successful, but no token received.");

@@ -74,15 +74,34 @@
     (function () {
       var params = new URLSearchParams(window.location.search);
       var flow = (params.get("flow") || "").trim().toLowerCase();
-      if (flow !== "existing") return;
-
-      var referrerFirstName = (params.get("referrer_first_name") || "").trim();
-      var referrerNameText = referrerFirstName || "your dater";
+      var inviterType = (params.get("inviter_type") || "").trim().toLowerCase();
 
       var doneTitle = document.getElementById("doneTitle");
       var doneSubtitle = document.getElementById("doneSubtitle");
       var doneStep2 = document.getElementById("doneStep2");
       var doneStep3 = document.getElementById("doneStep3");
+
+      if (inviterType === "matchmaker") {
+        var mmName = (params.get("referrer_first_name") || "").trim();
+        var mmText = mmName || "your matchmaker";
+        if (flow === "existing") {
+          if (doneTitle) doneTitle.textContent = "Linked to " + mmText;
+          if (doneSubtitle) doneSubtitle.textContent = "You're all set.";
+          if (doneStep2) doneStep2.textContent = "2. Log in with the email you just used.";
+          if (doneStep3) doneStep3.textContent = "3. Complete your profile in the app.";
+        } else {
+          if (doneSubtitle) doneSubtitle.textContent = mmName
+            ? "You're connected to " + mmName + ". Finish setup in the MatchMate app."
+            : "Finish setup in the MatchMate app.";
+          if (doneStep3) doneStep3.textContent = "3. Complete your profile so your matchmaker can help you find matches.";
+        }
+        return;
+      }
+
+      if (flow !== "existing") return;
+
+      var referrerFirstName = (params.get("referrer_first_name") || "").trim();
+      var referrerNameText = referrerFirstName || "your dater";
 
       if (doneTitle) doneTitle.textContent = "Referral Code added";
       if (doneSubtitle) doneSubtitle.textContent = "You're all set.";

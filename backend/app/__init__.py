@@ -1,17 +1,21 @@
 # app/__init__.py
 
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+# Load backend/.env before Config: class-level settings are read at import time.
+_backend_root = Path(__file__).resolve().parent.parent
+load_dotenv(_backend_root / ".env", override=True)
+
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
 from flask_jwt_extended import JWTManager
 from flask_cors import CORS
 from flask_migrate import Migrate
-from dotenv import load_dotenv
 import os
 from .config import Config
-
-# Load environment variables from .env file
-load_dotenv()
 
 # Unset empty environment variables to allow defaults to be used
 # This prevents empty strings from overriding default values in config

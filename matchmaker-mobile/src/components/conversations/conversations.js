@@ -1,7 +1,20 @@
 import React, { useContext, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Alert } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  ActivityIndicator,
+  Alert,
+  useWindowDimensions,
+  TouchableOpacity,
+  Modal,
+  Pressable,
+} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { API_BASE_URL } from '../../env';
 import MatchCard from './matchCard';
 import ToggleConversationsDater from './toggleConversationsDater';
@@ -12,7 +25,43 @@ import { useNotificationPolling } from './hooks/useNotificationPolling';
 import { getRoleAccentColor, getRoleBackgroundTint } from '../layout/components/RoleHeaderBanner';
 import { UserContext } from '../../context/UserContext';
 
+const MATCH_CARD_COLUMNS = 3;
+const CONTENT_HORIZONTAL_PADDING = 16;
+const MATCH_CARD_COLUMN_GAP = 10;
+
+/** True when the counterparty's side had a matchmaker, for list filtering (prefers API field). */
+function isOtherPersonMatchmakerInvolved(match) {
+  if (typeof match?.other_matchmaker_involved === 'boolean') {
+    return match.other_matchmaker_involved;
+  }
+  const bothMm = !!(
+    match?.both_matchmakers_involved ||
+    (match?.user_1_matchmaker_involved && match?.user_2_matchmaker_involved)
+  );
+  const oneMm =
+    !!match?.user_1_matchmaker_involved || !!match?.user_2_matchmaker_involved;
+  if (bothMm) return true;
+  return oneMm && !match?.linked_dater;
+}
+
+/** Latest activity = max Message.timestamp in the thread (aligns with messageDB.timestamp). */
+function getLatestMessageActivityMs(messages) {
+  let max = 0;
+  for (const message of messages) {
+    const t = new Date(message?.timestamp).getTime();
+    if (Number.isFinite(t) && t > max) max = t;
+  }
+  return max;
+}
+
 const Conversations = () => {
+  const insets = useSafeAreaInsets();
+  const { width: windowWidth } = useWindowDimensions();
+  const listInnerWidth = windowWidth - CONTENT_HORIZONTAL_PADDING * 2;
+  const matchCardWidth = Math.floor(
+    (listInnerWidth - MATCH_CARD_COLUMN_GAP * (MATCH_CARD_COLUMNS - 1)) / MATCH_CARD_COLUMNS
+  );
+
   const READ_STATE_STORAGE_PREFIX = 'conversationLastRead';
   const ACTIVE_CONVERSATION_STORAGE_KEY = 'activeConversationMatchId';
   const { user: contextUser } = useContext(UserContext);
@@ -20,12 +69,22 @@ const Conversations = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [roleHint, setRoleHint] = useState(null);
   const [unreadCounts, setUnreadCounts] = useState({});
+  const [lastActivityMsByMatchId, setLastActivityMsByMatchId] = useState({});
   const { userInfo, setUserInfo, referrerInfo, setReferrerInfo, loading: userLoading } = useUserInfo(API_BASE_URL);
   const { matches, setMatches, loading: matchesLoading, fetchMatches } = useMatches(API_BASE_URL);
   const matchedList = Array.isArray(matches) ? matches : (matches?.matched || []);
   const pendingApprovalList = Array.isArray(matches) ? [] : (matches?.pending_approval || []);
   const navigation = useNavigation();
   const [referrer, setReferrer] = useState(null);
+  const [showConversationFilter, setShowConversationFilter] = useState(false);
+  const [conversationFilters, setConversationFilters] = useState({
+    requireOtherMatchmaker: false,
+    blindOnly: false,
+  });
+  const [conversationFilterDraft, setConversationFilterDraft] = useState({
+    requireOtherMatchmaker: false,
+    blindOnly: false,
+  });
   const selectedDaterId = userInfo?.referrer_id || userInfo?.referred_by_id || null;
   const currentConversationUserId = userInfo?.referred_by_id ?? userInfo?.id ?? null;
   const getConversationReadStateKey = (matchId) =>
@@ -104,11 +163,13 @@ const Conversations = () => {
         : [...(matches?.matched || []), ...(matches?.pending_approval || [])];
       if (allMatches.length === 0) {
         setUnreadCounts({});
+        setLastActivityMsByMatchId({});
         return;
       }
 
       const activeConversationMatchId = await AsyncStorage.getItem(ACTIVE_CONVERSATION_STORAGE_KEY);
       const nextUnreadCounts = {};
+      const activityUpdates = {};
 
       for (const match of allMatches) {
         const matchId = match.match_id;
@@ -127,6 +188,7 @@ const Conversations = () => {
           Array.isArray(conversationData) && conversationData.length > 0
             ? (conversationData[0].messages || [])
             : [];
+        activityUpdates[matchId] = getLatestMessageActivityMs(conversationMessages);
         const latestMessage = conversationMessages[conversationMessages.length - 1];
         const latestTimestamp = latestMessage?.timestamp || new Date().toISOString();
         const latestMessageId = latestMessage?.id ?? latestMessage?.message_id ?? null;
@@ -202,6 +264,18 @@ const Conversations = () => {
       }
 
       setUnreadCounts(nextUnreadCounts);
+      setLastActivityMsByMatchId((prev) => {
+        const matchIds = new Set(
+          allMatches.map((m) => m.match_id).filter((id) => id != null)
+        );
+        const next = {};
+        for (const id of matchIds) {
+          next[id] = Object.prototype.hasOwnProperty.call(activityUpdates, id)
+            ? activityUpdates[id]
+            : prev[id] ?? 0;
+        }
+        return next;
+      });
     } catch (err) {
       console.error('Error refreshing unread counts:', err);
     }
@@ -305,25 +379,67 @@ const Conversations = () => {
     return () => clearInterval(unreadPollInterval);
   }, [matches, currentConversationUserId, selectedDaterId]);
 
+  const sortMatchesByRecentActivity = (list) => {
+    if (!Array.isArray(list) || list.length === 0) return list;
+    return [...list].sort((a, b) => {
+      const tb = lastActivityMsByMatchId[b.match_id] ?? 0;
+      const ta = lastActivityMsByMatchId[a.match_id] ?? 0;
+      if (tb !== ta) return tb - ta;
+      const idb = Number(b.match_id) || 0;
+      const ida = Number(a.match_id) || 0;
+      return idb - ida;
+    });
+  };
+
+  const applyConversationAttributeFilters = (list) => {
+    if (!Array.isArray(list) || list.length === 0) return list;
+    return list.filter((match) => {
+      if (conversationFilters.requireOtherMatchmaker && !isOtherPersonMatchmakerInvolved(match)) {
+        return false;
+      }
+      if (conversationFilters.blindOnly && match.blind_match !== 'Blind') {
+        return false;
+      }
+      return true;
+    });
+  };
+
   const getFilteredMatches = () => {
     if (!userInfo || userInfo.role !== 'user') {
-      // For matchmakers, return both matched and pending_approval
-      return { matched: matchedList, pending_approval: pendingApprovalList };
+      return {
+        matched: sortMatchesByRecentActivity(
+          applyConversationAttributeFilters(matchedList)
+        ),
+        pending_approval: sortMatchesByRecentActivity(
+          applyConversationAttributeFilters(pendingApprovalList)
+        ),
+      };
     }
 
-    // For daters, filter matched list
-    const filteredMatched = matchedList.filter(match => {
+    const filteredMatched = matchedList.filter((match) => {
       if (showDaterMatches) {
         return !match.both_matchmakers_involved && match.linked_dater === null;
-      } else {
-        return match.both_matchmakers_involved || match.linked_dater !== null;
       }
+      return match.both_matchmakers_involved || match.linked_dater !== null;
     });
 
-    // Backend decides which pending approvals are visible to this dater.
     const filteredPendingApprovals = showDaterMatches ? pendingApprovalList : [];
+    const combined = [...filteredMatched, ...filteredPendingApprovals];
 
-    return { matched: filteredMatched, pending_approval: filteredPendingApprovals };
+    return {
+      matched: sortMatchesByRecentActivity(applyConversationAttributeFilters(combined)),
+      pending_approval: [],
+    };
+  };
+
+  const dismissConversationFilter = () => {
+    setConversationFilterDraft({ ...conversationFilters });
+    setShowConversationFilter(false);
+  };
+
+  const saveConversationFilters = () => {
+    setConversationFilters({ ...conversationFilterDraft });
+    setShowConversationFilter(false);
   };
 
   const unmatch = async (matchId) => {
@@ -490,16 +606,20 @@ const Conversations = () => {
   }
 
   const filteredMatches = getFilteredMatches();
+  const activeConversationFilterCount =
+    (conversationFilters.requireOtherMatchmaker ? 1 : 0) +
+    (conversationFilters.blindOnly ? 1 : 0);
   const accentColor = getRoleAccentColor(userInfo?.role || 'matchmaker');
   const backgroundTint = getRoleBackgroundTint(userInfo?.role || 'matchmaker');
   const overlayTopPadding = userInfo?.role === 'matchmaker' ? 140 : 56;
+  const filterButtonTop =
+    userInfo?.role === 'matchmaker' ? insets.top + 6 : overlayTopPadding + 8;
   const isPendingEmptyState =
     userInfo?.role === 'matchmaker' &&
     showDaterMatches &&
     filteredMatches.pending_approval.length === 0;
   const isDaterEmptyState =
-    userInfo?.role === 'user' &&
-    (filteredMatches.matched.length + filteredMatches.pending_approval.length) === 0;
+    userInfo?.role === 'user' && filteredMatches.matched.length === 0;
   
   // Update unmatch to handle new structure
   const handleUnmatch = async (matchId) => {
@@ -509,6 +629,21 @@ const Conversations = () => {
 
   return (
     <View style={[styles.container, { backgroundColor: backgroundTint, paddingTop: overlayTopPadding }]}>
+      <TouchableOpacity
+        style={[styles.filterButton, { top: filterButtonTop }]}
+        onPress={() => {
+          setConversationFilterDraft({ ...conversationFilters });
+          setShowConversationFilter(true);
+        }}
+        accessibilityLabel="Open conversation filters"
+      >
+        <Ionicons name="options-outline" size={24} color="#1f2937" />
+        {activeConversationFilterCount > 0 ? (
+          <View style={[styles.filterBadge, { backgroundColor: accentColor }]}>
+            <Text style={styles.filterBadgeText}>{activeConversationFilterCount}</Text>
+          </View>
+        ) : null}
+      </TouchableOpacity>
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={[
@@ -537,16 +672,18 @@ const Conversations = () => {
           <View style={[styles.sectionContainer, isPendingEmptyState && styles.sectionContainerFill]}>
             <View style={[styles.matchList, isPendingEmptyState && styles.matchListFill]}>
               {filteredMatches.pending_approval.length > 0 ? (
-                filteredMatches.pending_approval.map((matchObj, index) => (
+                filteredMatches.pending_approval.map((matchObj) => (
                   <MatchCard
-                    key={`pending-${index}`}
+                    key={`pending-${matchObj.match_id}`}
                     matchObj={matchObj}
                     userInfo={userInfo}
                     unreadCount={matchObj.unread_count || 0}
+                    cardWidth={matchCardWidth}
+                    daterConversationsTheme={userInfo?.role === 'user'}
                   />
                 ))
               ) : (
-                <View style={styles.loadingContainerInline}>
+                <View style={[styles.loadingContainerInline, styles.matchListFullWidth]}>
                   <Text style={styles.loadingText}>No pending matches yet!</Text>
                 </View>
               )}
@@ -559,16 +696,18 @@ const Conversations = () => {
           <View style={styles.sectionContainer}>
             <View style={styles.matchList}>
               {filteredMatches.matched.length > 0 ? (
-                filteredMatches.matched.map((matchObj, index) => (
+                filteredMatches.matched.map((matchObj) => (
                   <MatchCard
-                    key={`matched-${index}`}
+                    key={`matched-${matchObj.match_id}`}
                     matchObj={matchObj}
                     userInfo={userInfo}
                     unreadCount={matchObj.unread_count || 0}
+                    cardWidth={matchCardWidth}
+                    daterConversationsTheme={userInfo?.role === 'user'}
                   />
                 ))
               ) : (
-                <View style={styles.emptyContainer}>
+                <View style={[styles.emptyContainer, styles.matchListFullWidth]}>
                   <Text style={styles.emptyText}>No matches yet!</Text>
                 </View>
               )}
@@ -580,17 +719,19 @@ const Conversations = () => {
         {userInfo?.role === 'user' && (
           <View style={[styles.sectionContainer, isDaterEmptyState && styles.sectionContainerFill]}>
             <View style={[styles.matchList, isDaterEmptyState && styles.matchListFill]}>
-              {(filteredMatches.matched.length + filteredMatches.pending_approval.length) > 0 ? (
-                [...filteredMatches.matched, ...filteredMatches.pending_approval].map((matchObj, index) => (
+              {filteredMatches.matched.length > 0 ? (
+                filteredMatches.matched.map((matchObj) => (
                   <MatchCard
-                    key={`matched-${index}`}
+                    key={`matched-${matchObj.match_id}`}
                     matchObj={matchObj}
                     userInfo={userInfo}
                     unreadCount={matchObj.unread_count || 0}
+                    cardWidth={matchCardWidth}
+                    daterConversationsTheme={userInfo?.role === 'user'}
                   />
                 ))
               ) : (
-                <View style={styles.loadingContainerInline}>
+                <View style={[styles.loadingContainerInline, styles.matchListFullWidth]}>
                   <Text style={styles.loadingText}>No matches yet!</Text>
                 </View>
               )}
@@ -598,6 +739,106 @@ const Conversations = () => {
           </View>
         )}
       </ScrollView>
+
+      <Modal
+        visible={showConversationFilter}
+        transparent
+        animationType="none"
+        onRequestClose={dismissConversationFilter}
+      >
+        <View style={styles.filterModalRoot}>
+          <Pressable
+            style={styles.filterBackdrop}
+            onPress={dismissConversationFilter}
+            accessibilityLabel="Close conversation filters"
+          />
+          <View style={styles.filterDrawer}>
+            <View style={styles.filterDrawerHeader}>
+              <Text style={styles.filterDrawerTitle}>Filters</Text>
+              <TouchableOpacity onPress={dismissConversationFilter} hitSlop={12}>
+                <Ionicons name="close" size={26} color="#374151" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView
+              style={styles.filterScroll}
+              contentContainerStyle={styles.filterScrollContent}
+              keyboardShouldPersistTaps="handled"
+            >
+              <Text style={styles.filterSectionLabel}>Conversation type</Text>
+              <Text style={styles.filterSectionSub}>
+                Narrow the list; leave unchecked to show everyone.
+              </Text>
+
+              <TouchableOpacity
+                style={styles.filterCheckboxRow}
+                onPress={() =>
+                  setConversationFilterDraft((d) => ({
+                    ...d,
+                    requireOtherMatchmaker: !d.requireOtherMatchmaker,
+                  }))
+                }
+                activeOpacity={0.7}
+              >
+                <View
+                  style={[
+                    styles.filterCheckbox,
+                    conversationFilterDraft.requireOtherMatchmaker && {
+                      backgroundColor: accentColor,
+                      borderColor: accentColor,
+                    },
+                  ]}
+                >
+                  {conversationFilterDraft.requireOtherMatchmaker ? (
+                    <Ionicons name="checkmark" size={16} color="#ffffff" />
+                  ) : null}
+                </View>
+                <Text style={styles.filterCheckboxLabel}>
+                  Other person's matchmaker was involved
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.filterCheckboxRow, { marginTop: 16 }]}
+                onPress={() =>
+                  setConversationFilterDraft((d) => ({
+                    ...d,
+                    blindOnly: !d.blindOnly,
+                  }))
+                }
+                activeOpacity={0.7}
+              >
+                <View
+                  style={[
+                    styles.filterCheckbox,
+                    conversationFilterDraft.blindOnly && {
+                      backgroundColor: accentColor,
+                      borderColor: accentColor,
+                    },
+                  ]}
+                >
+                  {conversationFilterDraft.blindOnly ? (
+                    <Ionicons name="checkmark" size={16} color="#ffffff" />
+                  ) : null}
+                </View>
+                <Text style={styles.filterCheckboxLabel}>Blind match only</Text>
+              </TouchableOpacity>
+            </ScrollView>
+            <View
+              style={[
+                styles.filterDrawerFooter,
+                { paddingBottom: 28 + insets.bottom },
+              ]}
+            >
+              <TouchableOpacity
+                style={[styles.filterSaveButton, { backgroundColor: accentColor }]}
+                onPress={saveConversationFilters}
+              >
+                <Text style={styles.filterSaveButtonText}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -611,6 +852,133 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
     backgroundColor: 'transparent',
+    paddingTop: 50,
+  },
+  filterButton: {
+    position: 'absolute',
+    left: 16,
+    zIndex: 50,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: '#ffffff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  filterBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterBadgeText: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  filterModalRoot: {
+    flex: 1,
+  },
+  filterBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+  },
+  filterDrawer: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    width: '86%',
+    maxWidth: 360,
+    backgroundColor: '#ffffff',
+    shadowColor: '#000',
+    shadowOffset: { width: -4, height: 0 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 16,
+  },
+  filterDrawerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 56,
+    paddingBottom: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#e5e7eb',
+  },
+  filterDrawerTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#111827',
+  },
+  filterScroll: {
+    flex: 1,
+  },
+  filterScrollContent: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 24,
+  },
+  filterSectionLabel: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1f2937',
+    marginBottom: 6,
+  },
+  filterSectionSub: {
+    fontSize: 13,
+    color: '#6b7280',
+    marginBottom: 12,
+    lineHeight: 18,
+  },
+  filterCheckboxRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  filterCheckbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: '#d1d5db',
+    marginRight: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#ffffff',
+  },
+  filterCheckboxLabel: {
+    flex: 1,
+    fontSize: 15,
+    color: '#374151',
+    fontWeight: '500',
+  },
+  filterDrawerFooter: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#e5e7eb',
+  },
+  filterSaveButton: {
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  filterSaveButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '700',
   },
   content: {
     paddingTop: 20,
@@ -632,7 +1000,15 @@ const styles = StyleSheet.create({
     color: '#6b7280',
   },
   matchList: {
-    gap: 16,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    columnGap: MATCH_CARD_COLUMN_GAP,
+    rowGap: 16,
+    width: '100%',
+  },
+  matchListFullWidth: {
+    width: '100%',
+    flexBasis: '100%',
   },
   emptyContainer: {
     padding: 40,

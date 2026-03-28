@@ -2,18 +2,16 @@
   var REVEAL_TIMEOUT_MS = 10000;
   var PROD_API_BASE_URL = "https://set-up-app-production.up.railway.app";
 
-  var form = document.getElementById("matchmakerSignupForm");
+  var form = document.getElementById("daterSignupForm");
   var signupSubtitle = document.getElementById("signupSubtitle");
   var stepEmail = document.getElementById("stepEmail");
   var stepNewAccount = document.getElementById("stepNewAccount");
   var backToEmailStepBtn = document.getElementById("backToEmailStepBtn");
   var existingEmailInput = document.getElementById("existingEmail");
-  var existingReferralInput = document.getElementById("existingReferralCode");
   var existingSubmitBtn = document.getElementById("existingSubmitBtn");
   var emailInput = document.getElementById("email");
   var passwordInput = document.getElementById("password");
   var confirmInput = document.getElementById("confirmPassword");
-  var referralInput = document.getElementById("referralCode");
   var togglePasswordBtn = document.getElementById("togglePasswordBtn");
   var toggleConfirmBtn = document.getElementById("toggleConfirmBtn");
   var submitBtn = document.getElementById("submitBtn");
@@ -32,19 +30,14 @@
   var hashText = (window.location.hash || "").replace(/^#/, "");
   var hashQueryText = hashText.indexOf("?") >= 0 ? hashText.split("?")[1] : "";
   var hashParams = new URLSearchParams(hashQueryText);
-  var referralFromQuery = (
-    params.get("referral_code") ||
-    params.get("referralCode") ||
-    params.get("referral") ||
-    params.get("code") ||
-    params.get("ref") ||
-    hashParams.get("referral_code") ||
-    hashParams.get("referralCode") ||
-    hashParams.get("referral") ||
-    hashParams.get("code") ||
-    hashParams.get("ref") ||
+  var inviteToken = (
+    params.get("invite_token") ||
+    params.get("inviteToken") ||
+    hashParams.get("invite_token") ||
+    hashParams.get("inviteToken") ||
     ""
   ).trim();
+
   var apiFromQuery = (params.get("api") || "").trim();
   var configuredApiBaseUrl = (window.SIGNUP_API_BASE_URL || window.RESET_API_BASE_URL || "").trim();
   var host = (window.location.hostname || "").trim();
@@ -79,7 +72,7 @@
     if (stepName === "email") {
       signupSubtitle.textContent = "Enter your email to get started.";
     } else {
-      signupSubtitle.textContent = "Create your account to help your dater find better matches.";
+      signupSubtitle.textContent = "Create your password to finish signup.";
     }
     clearStatus();
   }
@@ -192,16 +185,11 @@
       setStatus("Passwords do not match.", "error");
       return false;
     }
-    if (!referralInput.value.trim()) {
-      setStatus("Referral code is required.", "error");
-      return false;
-    }
     return true;
   }
 
   function validateExistingForm() {
     var emailValue = getStepEmailValue();
-    var referralValue = getStepReferralValue();
     if (!emailValue) {
       setStatus("Please enter your email.", "error");
       return false;
@@ -210,22 +198,12 @@
       setStatus("Please enter a valid email address.", "error");
       return false;
     }
-    if (!referralValue) {
-      setStatus("Referral code is required.", "error");
-      return false;
-    }
     return true;
   }
 
   function getStepEmailValue() {
     var liveInput = form.querySelector("#stepEmail #existingEmail");
     var value = liveInput && typeof liveInput.value === "string" ? liveInput.value : existingEmailInput.value;
-    return (value || "").trim();
-  }
-
-  function getStepReferralValue() {
-    var liveInput = form.querySelector("#stepEmail #existingReferralCode");
-    var value = liveInput && typeof liveInput.value === "string" ? liveInput.value : existingReferralInput.value;
     return (value || "").trim();
   }
 
@@ -243,17 +221,22 @@
     activeBtn.textContent = isSubmitting ? label : activeBtn.getAttribute("data-default-label");
   }
 
-  async function checkExistingAccountRole(email, referralCode) {
-    var payload = { email: email };
-    if (referralCode) {
-      payload.referral_code = referralCode;
-    }
-    var response = await fetch(apiBaseUrl + "/auth/matchmaker-web/check-account", {
+  function requireInviteToken() {
+    if (inviteToken) return true;
+    setStatus("This link is missing an invite. Ask your matchmaker to send the invite again.", "error");
+    return false;
+  }
+
+  async function checkExistingAccountRole(email) {
+    var response = await fetch(apiBaseUrl + "/auth/dater-web/check-account", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        email: email,
+        invite_token: inviteToken,
+      }),
     });
 
     var data = {};
@@ -270,16 +253,29 @@
     return data;
   }
 
+  function buildFinishUrl(flowExisting, matchmakerFirstName) {
+    var finishParams = new URLSearchParams();
+    if (flowExisting) {
+      finishParams.set("flow", "existing");
+    }
+    finishParams.set("inviter_type", "matchmaker");
+    var name = (matchmakerFirstName || "").trim();
+    if (name) {
+      finishParams.set("referrer_first_name", name);
+    }
+    return "signup-finish-in-app.html?" + finishParams.toString();
+  }
+
   async function submitExistingAccountFlow() {
+    if (!requireInviteToken()) return;
     if (!validateExistingForm()) return;
 
     var existingEmail = getStepEmailValue().toLowerCase();
-    var existingReferralCode = getStepReferralValue();
 
     setSubmitting(true, "Checking Account...");
     var accountCheck;
     try {
-      accountCheck = await checkExistingAccountRole(existingEmail, existingReferralCode);
+      accountCheck = await checkExistingAccountRole(existingEmail);
     } catch (err) {
       setStatus(err.message || "Could not verify account. Please try again.", "error");
       setSubmitting(false);
@@ -289,22 +285,21 @@
     if (!accountCheck.exists) {
       setStatus("No account found. Create a new account below.", "error");
       emailInput.value = existingEmail;
-      referralInput.value = existingReferralCode;
       setStep("new");
       setSubmitting(false);
       return;
     }
 
-    setSubmitting(true, "Applying Referral...");
+    setSubmitting(true, "Linking Account...");
     try {
-      var response = await fetch(apiBaseUrl + "/auth/register-matchmaker-web", {
+      var response = await fetch(apiBaseUrl + "/auth/register-dater-web", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
           email: existingEmail,
-          referral_code: existingReferralCode,
+          invite_token: inviteToken,
           has_account: true,
         }),
       });
@@ -323,13 +318,7 @@
       }
 
       setStatus(data.message || "Done. Continue in the app to finish setup.", "success");
-      var finishParams = new URLSearchParams();
-      finishParams.set("flow", "existing");
-      var referrerFirstName = (data.referrer_first_name || "").trim();
-      if (referrerFirstName) {
-        finishParams.set("referrer_first_name", referrerFirstName);
-      }
-      window.location.href = "signup-finish-in-app.html?" + finishParams.toString();
+      window.location.href = buildFinishUrl(true, data.matchmaker_first_name);
     } catch (err) {
       setStatus("Network error. Please try again.", "error");
     } finally {
@@ -338,12 +327,13 @@
   }
 
   async function submitNewAccountFlow() {
+    if (!requireInviteToken()) return;
     updateMismatchUI();
     if (!validateForm()) return;
 
     setSubmitting(true, "Creating Account...");
     try {
-      var response = await fetch(apiBaseUrl + "/auth/register-matchmaker-web", {
+      var response = await fetch(apiBaseUrl + "/auth/register-dater-web", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -351,7 +341,7 @@
         body: JSON.stringify({
           email: emailInput.value.trim().toLowerCase(),
           password: passwordInput.value,
-          referral_code: referralInput.value.trim(),
+          invite_token: inviteToken,
           has_account: false,
         }),
       });
@@ -368,7 +358,7 @@
         return;
       }
 
-      window.location.href = "signup-finish-in-app.html";
+      window.location.href = buildFinishUrl(false, data.matchmaker_first_name);
     } catch (err) {
       setStatus("Network error. Please try again.", "error");
     } finally {
@@ -381,6 +371,11 @@
     clearStatus();
     var stepName = getActiveStepName();
     currentStep = stepName;
+
+    if (!inviteToken) {
+      setStatus("This link is missing an invite. Ask your matchmaker to send the invite again.", "error");
+      return;
+    }
 
     if (stepName === "email") {
       await submitExistingAccountFlow();
@@ -395,12 +390,6 @@
     setStatus("Please continue with signup.", "error");
   }
 
-  function handleReferralInputChange(value) {
-    var trimmed = (value || "").trim();
-    referralInput.value = trimmed;
-    existingReferralInput.value = trimmed;
-  }
-
   function seedDefaultButtonLabels() {
     if (submitBtn) submitBtn.setAttribute("data-default-label", submitBtn.textContent);
     if (existingSubmitBtn) existingSubmitBtn.setAttribute("data-default-label", existingSubmitBtn.textContent);
@@ -409,7 +398,6 @@
   function wireNavigation() {
     backToEmailStepBtn.addEventListener("click", function () {
       existingEmailInput.value = emailInput.value.trim() || existingEmailInput.value.trim();
-      existingReferralInput.value = referralInput.value.trim() || existingReferralInput.value.trim();
       setStep("email");
     });
   }
@@ -434,28 +422,23 @@
       clearStatus();
     });
 
-    referralInput.addEventListener("input", function () {
-      existingReferralInput.value = referralInput.value;
-      clearStatus();
-    });
-
-    existingReferralInput.addEventListener("input", function () {
-      referralInput.value = existingReferralInput.value;
-      clearStatus();
-    });
-
     emailInput.addEventListener("input", clearStatus);
     existingEmailInput.addEventListener("input", clearStatus);
   }
 
-  if (referralFromQuery) {
-    handleReferralInputChange(referralFromQuery);
+  function boot() {
+    seedDefaultButtonLabels();
+    wireNavigation();
+    wireInputs();
+    form.addEventListener("submit", handleSubmit);
+    updateRuleUI();
+    if (!inviteToken) {
+      setStatus("This link is missing an invite. Ask your matchmaker to send the invite again.", "error");
+      if (existingSubmitBtn) existingSubmitBtn.disabled = true;
+      if (submitBtn) submitBtn.disabled = true;
+    }
+    setStep("email");
   }
 
-  seedDefaultButtonLabels();
-  wireNavigation();
-  wireInputs();
-  form.addEventListener("submit", handleSubmit);
-  updateRuleUI();
-  setStep("email");
+  boot();
 })();
