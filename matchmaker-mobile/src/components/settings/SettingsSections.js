@@ -936,10 +936,11 @@ const SettingsSections = () => {
 
   const handleCopyReferralCode = async () => {
     try {
-      await Share.share({ message: String(referralCode || '') });
+      await Clipboard.setStringAsync(String(referralCode || ''));
+      Alert.alert('Copied', 'Referral code copied to clipboard.');
     } catch (err) {
-      console.error('Error sharing referral code:', err);
-      Alert.alert('Error', 'Failed to share referral code');
+      console.error('Error copying referral code:', err);
+      Alert.alert('Error', 'Failed to copy referral code');
     }
   };
 
@@ -1580,11 +1581,11 @@ const SettingsSections = () => {
               <Text style={styles.mmQuickActionLabelMuted}>Text</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.mmQuickAction, styles.mmQuickActionMuted]}
+              style={[styles.mmQuickAction, styles.mmQuickActionPrimary]}
               onPress={handleOpenDaterInviteEmailModal}
               activeOpacity={0.85}
             >
-              <Ionicons name="mail-outline" size={22} color="#4B5563" />
+              <Ionicons name="mail-outline" size={22} color={MM_LINKED_PURPLE} />
               <Text style={styles.mmQuickActionLabelMuted}>Email</Text>
             </TouchableOpacity>
           </View>
