@@ -14,7 +14,9 @@ from flask_bcrypt import Bcrypt
 from flask_jwt_extended import JWTManager
 from flask_cors import CORS
 from flask_migrate import Migrate
+import logging
 import os
+import sys
 from .config import Config
 
 # Unset empty environment variables to allow defaults to be used
@@ -56,5 +58,17 @@ def create_app():
 
     from .services import ai_embeddings_cli
     ai_embeddings_cli.register_commands(app)
+
+    # INFO logs from app.services (e.g. message push flow) are otherwise hidden (root defaults to WARNING).
+    if app.debug or os.getenv("FLASK_ENV", "development") == "development":
+        svc = logging.getLogger("app.services")
+        svc.setLevel(logging.INFO)
+        if not svc.handlers:
+            ch = logging.StreamHandler(sys.stderr)
+            ch.setLevel(logging.INFO)
+            ch.setFormatter(
+                logging.Formatter("%(levelname)s [%(name)s] %(message)s")
+            )
+            svc.addHandler(ch)
 
     return app

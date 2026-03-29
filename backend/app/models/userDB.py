@@ -2,7 +2,6 @@ from app import db, bcrypt
 from werkzeug.security import generate_password_hash, check_password_hash
 import uuid
 import secrets
-import secrets
 from sqlalchemy.ext.mutable import MutableList
 from sqlalchemy import JSON
 from datetime import datetime
@@ -205,18 +204,22 @@ class PushToken(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    token = db.Column(db.String(255), nullable=False)
+    token = db.Column(db.Text, nullable=False)
+    # expo = Expo push relay; ios / android = native device tokens (APNs / FCM)
+    platform = db.Column(db.String(20), nullable=True, default='expo')
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     
-    def __init__(self, user_id, token):
+    def __init__(self, user_id, token, platform='expo'):
         self.user_id = user_id
         self.token = token
+        self.platform = platform or 'expo'
     
     def to_dict(self):
         return {
             'id': self.id,
             'user_id': self.user_id,
             'token': self.token,
+            'platform': self.platform,
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
 
