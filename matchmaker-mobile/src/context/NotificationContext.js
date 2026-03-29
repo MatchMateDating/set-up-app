@@ -290,15 +290,32 @@ export const NotificationProvider = ({ children }) => {
         Constants.expoConfig?.extra?.eas?.projectId ||
         Constants.manifest2?.extra?.eas?.projectId;
 
-      if (!projectId) {
-        console.warn('Missing projectId for push notifications');
-        return true;
-      }
-
       try {
-        const token = await Notifications.getExpoPushTokenAsync({ projectId });
-        setExpoPushToken(token.data);
-        await registerPushToken(token.data);
+        // Prefer native device token (APNs / FCM) — does not require EAS projectId
+        let nativeOk = false;
+        try {
+          const device = await Notifications.getDevicePushTokenAsync();
+          if (device?.data) {
+            const nativePlatform = Platform.OS === 'ios' ? 'ios' : 'android';
+            await registerPushToken(device.data, nativePlatform);
+            nativeOk = true;
+          }
+        } catch (_) {
+          /* simulator / missing entitlements — fall back to Expo */
+        }
+        if (!nativeOk) {
+          if (!projectId) {
+            console.warn(
+              'Missing EAS projectId: cannot get Expo push token; add extra.eas.projectId in app config or use a dev build with native push.'
+            );
+          } else {
+            const token = await Notifications.getExpoPushTokenAsync({ projectId });
+            setExpoPushToken(token.data);
+            await registerPushToken(token.data, 'expo');
+          }
+        } else {
+          setExpoPushToken(null);
+        }
       } catch (error) {
         // On simulators, this often fails - but permissions were granted
         // So we still return true to allow the toggle to work
@@ -312,12 +329,22 @@ export const NotificationProvider = ({ children }) => {
   /* -------------------------------------------
    * REGISTER PUSH TOKEN (PER USER)
    * ----------------------------------------- */
-  const registerPushToken = async (token) => {
-    if (!user?.id || registeredTokensRef.current.has(token)) return;
+  const registerPushToken = async (token, platform = 'expo') => {
+    const key = `${platform}:${token}`;
+    if (!user?.id) {
+      console.warn('registerPushToken: no user id, skipping');
+      return;
+    }
+    if (registeredTokensRef.current.has(key)) {
+      return;
+    }
 
     try {
       const authToken = await AsyncStorage.getItem('token');
-      if (!authToken) return;
+      if (!authToken) {
+        console.warn('registerPushToken: no auth token, skipping');
+        return;
+      }
 
       // Safety check: Don't make API calls if API_BASE_URL is not set
       if (!API_BASE_URL) {
@@ -333,17 +360,25 @@ export const NotificationProvider = ({ children }) => {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${authToken}`,
           },
-          body: JSON.stringify({ push_token: token }),
+          body: JSON.stringify({ push_token: token, platform }),
         }
       );
 
       if (res.ok) {
-        registeredTokensRef.current.add(token);
-      } else if (res.status === 401) {
-        const errorData = await res.json().catch(() => ({}));
-        if (errorData.error_code === 'TOKEN_EXPIRED') {
-          await AsyncStorage.removeItem('token');
-          console.warn('Token expired while registering push token. User needs to log in again.');
+        registeredTokensRef.current.add(key);
+        console.log('Push token registered:', platform);
+      } else {
+        const text = await res.text().catch(() => '');
+        console.warn('registerPushToken failed:', res.status, text);
+        if (res.status === 401) {
+          try {
+            const err = JSON.parse(text);
+            if (err.error_code === 'TOKEN_EXPIRED') {
+              await AsyncStorage.removeItem('token');
+            }
+          } catch (_) {
+            /* ignore */
+          }
         }
       }
     } catch (err) {
@@ -360,10 +395,13 @@ export const NotificationProvider = ({ children }) => {
       console.warn('Cannot enable notifications: no user logged in');
       return false;
     }
-    
+
+    // Allow re-POST to /register_token on every enable (toggle off/on or retry after failed save).
+    registeredTokensRef.current.clear();
+
     // Store the user ID at the start to prevent cross-user contamination
     const userIdAtStart = user.id;
-    
+
     const granted = await requestPermissions();
     
     // Double-check user hasn't changed during permission request
@@ -388,6 +426,7 @@ export const NotificationProvider = ({ children }) => {
     // Only disable if we're still on the same user
     if (currentUserIdRef.current === user.id) {
       setNotificationsEnabled(false);
+      registeredTokensRef.current.clear();
     } else {
       console.warn('User changed, cannot disable notifications for different user');
     }
