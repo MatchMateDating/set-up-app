@@ -5,9 +5,10 @@ import React, {
   useEffect,
   useContext,
   useRef,
+  useCallback,
 } from 'react';
 import * as Notifications from 'expo-notifications';
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_BASE_URL } from '../env';
@@ -37,6 +38,21 @@ const setupNotificationHandler = () => {
     console.error('Error setting up notification handler:', error);
   }
 };
+
+/** Native Firebase (FCM) not wired — see https://docs.expo.dev/push-notifications/fcm-credentials/ */
+function logAndroidFcmSetupHint(error) {
+  const msg = error?.message != null ? String(error.message) : String(error);
+  if (
+    typeof __DEV__ !== 'undefined' &&
+    __DEV__ &&
+    Platform.OS === 'android' &&
+    msg.includes('complete the guide')
+  ) {
+    console.warn(
+      '[Android FCM] google-services.json must be applied in the native project. In app.json set expo.android.googleServicesFile to ./google-services.json, then run: npx expo prebuild --clean && npx expo run:android'
+    );
+  }
+}
 
 export const NotificationContext = createContext(null);
 
@@ -270,6 +286,140 @@ export const NotificationProvider = ({ children }) => {
   }, [notificationsEnabled, user?.id, loading]);
 
   /* -------------------------------------------
+   * REGISTER PUSH TOKEN (PER USER)
+   * ----------------------------------------- */
+  const registerPushToken = useCallback(
+    async (token, platform = 'expo', options = {}) => {
+      const { skipDedupe = false } = options;
+      const key = `${platform}:${token}`;
+      if (!user?.id) {
+        console.warn('registerPushToken: no user id, skipping');
+        return;
+      }
+      if (!skipDedupe && registeredTokensRef.current.has(key)) {
+        return;
+      }
+
+      try {
+        const authToken = await AsyncStorage.getItem('token');
+        if (!authToken) {
+          console.warn('registerPushToken: no auth token, skipping');
+          return;
+        }
+
+        if (!API_BASE_URL) {
+          console.error('API_BASE_URL is not set, skipping token registration');
+          return;
+        }
+
+        const res = await fetch(
+          `${API_BASE_URL}/notifications/register_token`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${authToken}`,
+            },
+            body: JSON.stringify({ push_token: token, platform }),
+          }
+        );
+
+        if (res.ok) {
+          registeredTokensRef.current.add(key);
+          console.log('Push token registered:', platform);
+        } else {
+          const text = await res.text().catch(() => '');
+          console.warn('registerPushToken failed:', res.status, text);
+          if (res.status === 401) {
+            try {
+              const err = JSON.parse(text);
+              if (err.error_code === 'TOKEN_EXPIRED') {
+                await AsyncStorage.removeItem('token');
+              }
+            } catch (_) {
+              /* ignore */
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Push token registration failed:', err);
+      }
+    },
+    [user?.id]
+  );
+
+  /* Prefer native device token (APNs / FCM), else Expo — shared by permission flow and refresh */
+  const fetchPushTokenAndRegister = useCallback(
+    async (options = {}) => {
+      const { skipDedupe = false } = options;
+      if (Platform.OS === 'web') return;
+
+      const projectId =
+        Constants.expoConfig?.extra?.eas?.projectId ||
+        Constants.manifest2?.extra?.eas?.projectId;
+
+      let nativeOk = false;
+      try {
+        const device = await Notifications.getDevicePushTokenAsync();
+        if (device?.data) {
+          const nativePlatform = Platform.OS === 'ios' ? 'ios' : 'android';
+          await registerPushToken(device.data, nativePlatform, { skipDedupe });
+          nativeOk = true;
+        }
+      } catch (_) {
+        /* simulator / missing entitlements — fall back to Expo */
+      }
+      if (!nativeOk) {
+        if (!projectId) {
+          console.warn(
+            'Missing EAS projectId: cannot get Expo push token; add extra.eas.projectId in app config or use a dev build with native push.'
+          );
+        } else {
+          const token = await Notifications.getExpoPushTokenAsync({ projectId });
+          setExpoPushToken(token.data);
+          await registerPushToken(token.data, 'expo', { skipDedupe });
+        }
+      } else {
+        setExpoPushToken(null);
+      }
+    },
+    [registerPushToken]
+  );
+
+  const refreshPushTokenRegistration = useCallback(async () => {
+    if (Platform.OS === 'web' || !user?.id) return;
+    const { status } = await Notifications.getPermissionsAsync();
+    if (status !== 'granted') return;
+    try {
+      await fetchPushTokenAndRegister({ skipDedupe: true });
+    } catch (error) {
+      console.error('Push token refresh failed:', error);
+      logAndroidFcmSetupHint(error);
+    }
+  }, [user?.id, fetchPushTokenAndRegister]);
+
+  /* Cold start + foreground: keep server token in sync after updates / rotation */
+  useEffect(() => {
+    if (Platform.OS === 'web' || !user?.id || loading) return;
+
+    const run = () => {
+      if (!notificationsEnabled) return;
+      refreshPushTokenRegistration();
+    };
+
+    run();
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next === 'active') run();
+    });
+    return () => sub.remove();
+  }, [
+    notificationsEnabled,
+    loading,
+    user?.id,
+    refreshPushTokenRegistration,
+  ]);
+
+  /* -------------------------------------------
    * PERMISSIONS
    * ----------------------------------------- */
   const requestPermissions = async () => {
@@ -286,104 +436,17 @@ export const NotificationProvider = ({ children }) => {
     if (finalStatus !== 'granted') return false;
 
     if (Platform.OS !== 'web') {
-      const projectId =
-        Constants.expoConfig?.extra?.eas?.projectId ||
-        Constants.manifest2?.extra?.eas?.projectId;
-
       try {
-        // Prefer native device token (APNs / FCM) — does not require EAS projectId
-        let nativeOk = false;
-        try {
-          const device = await Notifications.getDevicePushTokenAsync();
-          if (device?.data) {
-            const nativePlatform = Platform.OS === 'ios' ? 'ios' : 'android';
-            await registerPushToken(device.data, nativePlatform);
-            nativeOk = true;
-          }
-        } catch (_) {
-          /* simulator / missing entitlements — fall back to Expo */
-        }
-        if (!nativeOk) {
-          if (!projectId) {
-            console.warn(
-              'Missing EAS projectId: cannot get Expo push token; add extra.eas.projectId in app config or use a dev build with native push.'
-            );
-          } else {
-            const token = await Notifications.getExpoPushTokenAsync({ projectId });
-            setExpoPushToken(token.data);
-            await registerPushToken(token.data, 'expo');
-          }
-        } else {
-          setExpoPushToken(null);
-        }
+        await fetchPushTokenAndRegister({ skipDedupe: false });
       } catch (error) {
+        console.error('Push token registration failed:', error);
+        logAndroidFcmSetupHint(error);
         // On simulators, this often fails - but permissions were granted
-        // So we still return true to allow the toggle to work
-        return true; // Return true because permissions were granted, even if token failed
+        return true;
       }
     }
 
     return true;
-  };
-
-  /* -------------------------------------------
-   * REGISTER PUSH TOKEN (PER USER)
-   * ----------------------------------------- */
-  const registerPushToken = async (token, platform = 'expo') => {
-    const key = `${platform}:${token}`;
-    if (!user?.id) {
-      console.warn('registerPushToken: no user id, skipping');
-      return;
-    }
-    if (registeredTokensRef.current.has(key)) {
-      return;
-    }
-
-    try {
-      const authToken = await AsyncStorage.getItem('token');
-      if (!authToken) {
-        console.warn('registerPushToken: no auth token, skipping');
-        return;
-      }
-
-      // Safety check: Don't make API calls if API_BASE_URL is not set
-      if (!API_BASE_URL) {
-        console.error('API_BASE_URL is not set, skipping token registration');
-        return;
-      }
-
-      const res = await fetch(
-        `${API_BASE_URL}/notifications/register_token`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${authToken}`,
-          },
-          body: JSON.stringify({ push_token: token, platform }),
-        }
-      );
-
-      if (res.ok) {
-        registeredTokensRef.current.add(key);
-        console.log('Push token registered:', platform);
-      } else {
-        const text = await res.text().catch(() => '');
-        console.warn('registerPushToken failed:', res.status, text);
-        if (res.status === 401) {
-          try {
-            const err = JSON.parse(text);
-            if (err.error_code === 'TOKEN_EXPIRED') {
-              await AsyncStorage.removeItem('token');
-            }
-          } catch (_) {
-            /* ignore */
-          }
-        }
-      }
-    } catch (err) {
-      console.error('Push token registration failed:', err);
-    }
   };
 
   /* -------------------------------------------
