@@ -14,17 +14,23 @@ import {
   Platform,
   TouchableWithoutFeedback,
   Switch,
+  Image,
+  BackHandler,
 } from 'react-native';
+import { PanGestureHandler, State } from 'react-native-gesture-handler';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Clipboard from 'expo-clipboard';
 import { Ionicons } from '@expo/vector-icons';
 import MultiSlider from '@ptomasroos/react-native-multi-slider';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import { API_BASE_URL, FRONTEND_URL } from '../../env';
 import FormField from '../profile/components/formField';
 import MultiSelectGender from '../profile/components/multiSelectGender';
+import { getImageUrl } from '../profile/utils/profileUtils';
 import { useNotifications } from '../../context/NotificationContext';
 import { getRoleAccentColor, getRoleBackgroundTint } from '../layout/components/RoleHeaderBanner';
 import { UserContext } from '../../context/UserContext';
+import { mainTabBackDelegateRef } from '../../navigation/mainTabsBackDelegates';
 
 const SECTION_KEYS = {
   PERSONAL: 'personal',
@@ -32,6 +38,7 @@ const SECTION_KEYS = {
   REFERRAL: 'referral',
   DATING_PREFERENCES: 'datingPreferences',
   NOTIFICATIONS: 'notifications',
+  DELETE_ACCOUNT: 'deleteAccount',
 };
 
 const getPasswordChecks = (value) => ({
@@ -40,6 +47,61 @@ const getPasswordChecks = (value) => ({
   hasLowercase: /[a-z]/.test(value || ''),
   hasSpecial: /[^A-Za-z0-9]/.test(value || ''),
 });
+
+const buildDaterInviteSignupUrl = (inviteToken) => {
+  const frontendUrl = (FRONTEND_URL || 'https://matchmatedating.com').replace(/\/+$/, '');
+  const baseUrl = `${frontendUrl}/dater-signup.html`;
+  const sep = baseUrl.includes('?') ? '&' : '?';
+  return `${baseUrl}${sep}invite_token=${encodeURIComponent(String(inviteToken))}`;
+};
+
+const MM_LINKED_PURPLE = '#5A4FCF';
+const MM_LINKED_LIGHT_PURPLE = '#EFEEFF';
+const MM_LINKED_BEIGE = '#F5F5F0';
+const MM_LINKED_REMOVE_BG = '#FDECEC';
+
+const LINKED_DATER_AVATAR_PALETTES = [
+  { bg: '#EFEEFF', fg: '#5A4FCF' },
+  { bg: '#E8F5E9', fg: '#2E7D32' },
+  { bg: '#E3F2FD', fg: '#1565C0' },
+  { bg: '#FFF3E0', fg: '#E65100' },
+];
+
+const formatLinkedDaterIdPreview = (id) => {
+  if (id == null || id === '') return '';
+  const str = String(id);
+  if (str.length >= 10) return `${str.slice(0, 8)}-${str.slice(8, 9)}`;
+  return str;
+};
+
+const linkedDaterInitial = (name) => {
+  const t = String(name || '').trim();
+  if (!t) return '?';
+  return t.charAt(0).toUpperCase();
+};
+
+const LinkedDaterRowAvatar = ({ name, firstImage, palette }) => {
+  const [imageFailed, setImageFailed] = useState(false);
+  const uri =
+    firstImage && !imageFailed ? getImageUrl(firstImage, API_BASE_URL) : null;
+
+  return (
+    <View style={[styles.mmLinkedAvatar, { backgroundColor: palette.bg }]}>
+      {uri ? (
+        <Image
+          source={{ uri }}
+          style={styles.mmLinkedAvatarImage}
+          resizeMode="cover"
+          onError={() => setImageFailed(true)}
+        />
+      ) : (
+        <Text style={[styles.mmLinkedAvatarLetter, { color: palette.fg }]}>
+          {linkedDaterInitial(name)}
+        </Text>
+      )}
+    </View>
+  );
+};
 
 const SettingsSections = () => {
   const navigation = useNavigation();
@@ -55,12 +117,17 @@ const SettingsSections = () => {
   const [showReferralModal, setShowReferralModal] = useState(false);
   const [referralInput, setReferralInput] = useState('');
   const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
+  const [deleteModalForBothRoles, setDeleteModalForBothRoles] = useState(false);
   const [showEmailVerificationModal, setShowEmailVerificationModal] = useState(false);
   const [emailVerificationCode, setEmailVerificationCode] = useState('');
   const [pendingEmail, setPendingEmail] = useState('');
   const [showEmailInviteModal, setShowEmailInviteModal] = useState(false);
   const [emailInviteInput, setEmailInviteInput] = useState('');
   const [showLinkedDatersOnboarding, setShowLinkedDatersOnboarding] = useState(false);
+  const [cachedDaterInviteUrl, setCachedDaterInviteUrl] = useState('');
+  const [daterInviteLinkLoading, setDaterInviteLinkLoading] = useState(false);
+  const [showDaterInviteEmailModal, setShowDaterInviteEmailModal] = useState(false);
+  const [daterInviteEmailInput, setDaterInviteEmailInput] = useState('');
 
   const [currentEmail, setCurrentEmail] = useState('');
   const [newEmail, setNewEmail] = useState('');
@@ -98,6 +165,9 @@ const SettingsSections = () => {
   const isPasswordStrong = Object.values(passwordChecks).every(Boolean);
   const overlayTopPadding = role === 'matchmaker' ? 120 : 56;
   const accentColor = getRoleAccentColor(role || 'matchmaker');
+  const datingPreferencesAccent = getRoleAccentColor('user');
+  const settingsBackAccent =
+    activeSection === SECTION_KEYS.DATING_PREFERENCES ? datingPreferencesAccent : accentColor;
   const backgroundTint = getRoleBackgroundTint(role || 'matchmaker');
 
   const sectionItems = useMemo(() => {
@@ -111,7 +181,7 @@ const SettingsSections = () => {
       {
         key: SECTION_KEYS.MANAGE_ACCOUNTS,
         label: 'Manage Accounts',
-        description: 'Add, switch, or remove linked account types.',
+        description: 'Add or switch between linked account types.',
         icon: 'people-outline',
       },
       {
@@ -128,6 +198,14 @@ const SettingsSections = () => {
         description: 'Control push notification preferences.',
         icon: 'notifications-outline',
       },
+      {
+        key: SECTION_KEYS.DELETE_ACCOUNT,
+        label: 'Delete Account',
+        description: user?.linked_account
+          ? 'Remove an account type or delete all data permanently.'
+          : 'Permanently delete your account and data.',
+        icon: 'trash-outline',
+      },
     ];
 
     if (role === 'user') {
@@ -139,7 +217,7 @@ const SettingsSections = () => {
       });
     }
     return base;
-  }, [role]);
+  }, [role, user?.linked_account]);
 
   const fetchUserProfile = useCallback(async () => {
     try {
@@ -218,10 +296,92 @@ const SettingsSections = () => {
     fetchUserProfile();
   }, [fetchUserProfile]);
 
+  useEffect(() => {
+    if (activeSection !== SECTION_KEYS.REFERRAL || role !== 'matchmaker') {
+      return undefined;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = await AsyncStorage.getItem('token');
+        if (!token || cancelled) return;
+        const res = await fetch(`${API_BASE_URL}/referral/dater_invite_token`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        const inviteToken = data.invite_token;
+        if (!inviteToken || cancelled) return;
+        if (!cancelled) setCachedDaterInviteUrl(buildDaterInviteSignupUrl(inviteToken));
+      } catch (err) {
+        console.error('Dater invite link prefetch:', err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeSection, role]);
+
   useFocusEffect(
     useCallback(() => {
       fetchUserProfile();
     }, [fetchUserProfile])
+  );
+
+  // Subsections are in-screen state; tab navigator would otherwise treat back / swipe as "leave Settings"
+  // (e.g. Android back → first tab, horizontal swipe → adjacent tab). Match the in-screen "Back to Settings" row.
+  useEffect(() => {
+    if (activeSection) {
+      navigation.setOptions({ swipeEnabled: false });
+    } else {
+      navigation.setOptions({ swipeEnabled: true });
+    }
+    return () => {
+      navigation.setOptions({ swipeEnabled: true });
+    };
+  }, [navigation, activeSection]);
+
+  // iOS left-edge swipe + Android back: first dismiss an open subsection (same as "Back to Settings").
+  useEffect(() => {
+    mainTabBackDelegateRef.current = () => {
+      if (activeSection) {
+        setActiveSection(null);
+        setEditingPreferences(false);
+        return true;
+      }
+      return false;
+    };
+    return () => {
+      mainTabBackDelegateRef.current = null;
+    };
+  }, [activeSection]);
+
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        navigation.setOptions({ swipeEnabled: true });
+        setActiveSection(null);
+        setEditingPreferences(false);
+      };
+    }, [navigation])
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!activeSection) {
+        return undefined;
+      }
+      const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+        setActiveSection(null);
+        setEditingPreferences(false);
+        return true;
+      });
+      return () => sub.remove();
+    }, [activeSection])
   );
 
   useEffect(() => {
@@ -638,12 +798,149 @@ const SettingsSections = () => {
     }
   };
 
+  const fetchFreshDaterInviteUrl = async () => {
+    const token = await AsyncStorage.getItem('token');
+    if (!token) {
+      Alert.alert('Error', 'Please log in');
+      navigation.navigate('Login');
+      return null;
+    }
+
+    const res = await fetch(`${API_BASE_URL}/referral/dater_invite_token`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (res.status === 401) {
+      const data = await res.json().catch(() => ({}));
+      if (data.error_code === 'TOKEN_EXPIRED') {
+        await AsyncStorage.removeItem('token');
+        Alert.alert('Session expired', 'Please log in again.');
+        navigation.navigate('Login');
+        return null;
+      }
+    }
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      Alert.alert('Error', data.error || 'Could not create invite link');
+      return null;
+    }
+
+    const data = await res.json();
+    const inviteToken = data.invite_token;
+    if (!inviteToken) {
+      Alert.alert('Error', 'Could not create invite link');
+      return null;
+    }
+
+    return buildDaterInviteSignupUrl(inviteToken);
+  };
+
+  const ensureDaterInviteUrl = async () => {
+    if (cachedDaterInviteUrl) return cachedDaterInviteUrl;
+    setDaterInviteLinkLoading(true);
+    try {
+      const url = await fetchFreshDaterInviteUrl();
+      if (url) setCachedDaterInviteUrl(url);
+      return url;
+    } finally {
+      setDaterInviteLinkLoading(false);
+    }
+  };
+
+  const handleCopyDaterInviteLink = async () => {
+    if (daterInviteLinkLoading) return;
+    try {
+      const url = await ensureDaterInviteUrl();
+      if (!url) return;
+      await Clipboard.setStringAsync(url);
+      Alert.alert('Copied', 'Invite link copied to clipboard.');
+    } catch (err) {
+      console.error('Error copying dater invite:', err);
+      Alert.alert('Error', 'Failed to copy invite link');
+    }
+  };
+
+  const handleTextDaterInviteLink = async () => {
+    if (daterInviteLinkLoading) return;
+    try {
+      const url = await ensureDaterInviteUrl();
+      if (!url) return;
+      await Share.share({
+        message: `Join MatchMate as a dater I'm matching for:\n${url}`,
+        title: 'Join MatchMate',
+      });
+    } catch (err) {
+      console.error('Error sharing dater invite:', err);
+      Alert.alert('Error', 'Failed to share invite link');
+    }
+  };
+
+  const handleOpenDaterInviteEmailModal = () => {
+    setShowDaterInviteEmailModal(true);
+  };
+
+  const sendDaterInviteEmail = async () => {
+    Keyboard.dismiss();
+
+    if (!daterInviteEmailInput.trim()) {
+      Alert.alert('Error', 'Please enter an email address');
+      return;
+    }
+
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) {
+        Alert.alert('Error', 'Please log in');
+        navigation.navigate('Login');
+        return;
+      }
+
+      const res = await fetch(`${API_BASE_URL}/invite/dater-signup-email`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ email: daterInviteEmailInput.trim() }),
+      });
+
+      if (res.status === 401) {
+        const data = await res.json().catch(() => ({}));
+        if (data.error_code === 'TOKEN_EXPIRED') {
+          await AsyncStorage.removeItem('token');
+          Alert.alert('Session expired', 'Please log in again.');
+          navigation.navigate('Login');
+          return;
+        }
+      }
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        Alert.alert('Error', data.error || 'Failed to send invite');
+        return;
+      }
+
+      Alert.alert('Success', 'Email invite sent');
+      setDaterInviteEmailInput('');
+      setShowDaterInviteEmailModal(false);
+    } catch (err) {
+      console.error('Error sending dater invite email:', err);
+      Alert.alert('Error', 'Failed to send invite');
+    }
+  };
+
   const handleCopyReferralCode = async () => {
     try {
-      await Share.share({ message: String(referralCode || '') });
+      await Clipboard.setStringAsync(String(referralCode || ''));
+      Alert.alert('Copied', 'Referral code copied to clipboard.');
     } catch (err) {
-      console.error('Error sharing referral code:', err);
-      Alert.alert('Error', 'Failed to share referral code');
+      console.error('Error copying referral code:', err);
+      Alert.alert('Error', 'Failed to copy referral code');
     }
   };
 
@@ -862,10 +1159,13 @@ const SettingsSections = () => {
     }
   };
 
-  const handleDeleteAccount = () => {
+  const openFullAccountDeletion = (forBothLinkedRoles) => {
+    setDeleteModalForBothRoles(Boolean(forBothLinkedRoles));
     Alert.alert(
-      'Delete Account',
-      'Are you sure you want to delete your account? This action cannot be undone.',
+      forBothLinkedRoles ? 'Delete Both Accounts' : 'Delete Account',
+      forBothLinkedRoles
+        ? 'Are you sure you want to permanently delete both your Dater and Matchmaker accounts? This cannot be undone.'
+        : 'Are you sure you want to delete your account? This action cannot be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Continue', style: 'destructive', onPress: () => setShowDeleteAccountModal(true) },
@@ -900,6 +1200,7 @@ const SettingsSections = () => {
       await AsyncStorage.removeItem('user');
       await AsyncStorage.removeItem('staySignedIn');
       setShowDeleteAccountModal(false);
+      setDeleteModalForBothRoles(false);
       Alert.alert('Account Deleted', 'Your account has been permanently deleted.', [
         {
           text: 'OK',
@@ -915,6 +1216,48 @@ const SettingsSections = () => {
       Alert.alert('Error', 'Failed to delete account');
     }
   };
+
+  const renderDeleteAccountSection = () => (
+    <View style={styles.card}>
+      <Text style={styles.cardHeader}>Delete Account</Text>
+      <Text style={styles.cardDescription}>
+        {user?.linked_account
+          ? 'Remove one account type only, or delete both linked accounts and all data permanently.'
+          : 'Permanently delete your account and all associated data.'}
+      </Text>
+      {user?.linked_account ? (
+        <View style={styles.deleteAccountActions}>
+          <TouchableOpacity
+            style={[styles.deleteBothAccountsBtn, styles.deleteAccountBtnInGroup]}
+            onPress={() => openFullAccountDeletion(true)}
+          >
+            <Text style={styles.deleteBothAccountsBtnText}>Delete Both Accounts</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.dangerOutlineBtn, styles.deleteAccountBtnInGroup]}
+            onPress={() => handleDeleteAccountByRole('user')}
+          >
+            <Text style={styles.dangerOutlineBtnText}>Delete Dater Account</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.dangerOutlineBtn, styles.deleteAccountBtnInGroup]}
+            onPress={() => handleDeleteAccountByRole('matchmaker')}
+          >
+            <Text style={styles.dangerOutlineBtnText}>Delete Matchmaker Account</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <View style={styles.deleteAccountActions}>
+          <TouchableOpacity
+            style={[styles.deleteBothAccountsBtn, styles.deleteAccountBtnInGroup]}
+            onPress={() => openFullAccountDeletion(false)}
+          >
+            <Text style={styles.deleteBothAccountsBtnText}>Delete Account</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+    </View>
+  );
 
   const renderSectionList = () => (
     <View>
@@ -961,10 +1304,6 @@ const SettingsSections = () => {
 
       <TouchableOpacity style={styles.signOutBtn} onPress={handleSignOut}>
         <Text style={styles.signOutBtnText}>Sign Out</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity style={styles.deleteAccountBtn} onPress={handleDeleteAccount}>
-        <Text style={styles.deleteAccountBtnText}>Delete Account</Text>
       </TouchableOpacity>
     </View>
   );
@@ -1176,20 +1515,6 @@ const SettingsSections = () => {
               Switch to {user.linked_account.role === 'matchmaker' ? 'Matchmaker' : 'Dater'} Account
             </Text>
           </TouchableOpacity>
-
-          <Text style={styles.secondarySectionTitle}>Delete Account Type</Text>
-          <TouchableOpacity
-            style={styles.dangerOutlineBtn}
-            onPress={() => handleDeleteAccountByRole('user')}
-          >
-            <Text style={styles.dangerOutlineBtnText}>Delete Dater Account</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.dangerOutlineBtn}
-            onPress={() => handleDeleteAccountByRole('matchmaker')}
-          >
-            <Text style={styles.dangerOutlineBtnText}>Delete Matchmaker Account</Text>
-          </TouchableOpacity>
         </View>
       )}
     </View>
@@ -1207,15 +1532,15 @@ const SettingsSections = () => {
           <View style={styles.actionButtonGroup}>
             <TouchableOpacity style={styles.iconActionBtn} onPress={handleCopyReferralCode}>
               <Ionicons name="copy-outline" size={20} color={accentColor} />
-              <Text style={[styles.iconActionText, { color: accentColor }]}>Copy</Text>
+              <Text style={[styles.iconActionText, { color: accentColor }]}>Copy Code</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.iconActionBtn} onPress={handleShareReferralCode}>
               <Ionicons name="share-outline" size={20} color={accentColor} />
-              <Text style={[styles.iconActionText, { color: accentColor }]}>Share</Text>
+              <Text style={[styles.iconActionText, { color: accentColor }]}>Share Link</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.iconActionBtn} onPress={handleOpenEmailInvite}>
               <Ionicons name="mail-outline" size={20} color={accentColor} />
-              <Text style={[styles.iconActionText, { color: accentColor }]}>Email</Text>
+              <Text style={[styles.iconActionText, { color: accentColor }]}>Email Link</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1223,40 +1548,97 @@ const SettingsSections = () => {
     }
 
     return (
-      <View style={styles.card}>
-        <Text style={styles.cardHeader}>Manage Linked Daters</Text>
-        <Text style={styles.cardDescription}>
-          Link new daters by entering their referral code.
-        </Text>
-        <View style={styles.referralInputRow}>
-          <TextInput
-            style={[styles.input, styles.referralInput]}
-            value={referralCode}
-            onChangeText={setReferralCode}
-            placeholder="Enter referral code"
-          />
-          <TouchableOpacity style={[styles.saveBtn, { backgroundColor: accentColor }]} onPress={handleLinkReferral}>
-            <Text style={styles.saveBtnText}>Add</Text>
-          </TouchableOpacity>
+      <View style={styles.matchmakerReferralStack}>
+        <View style={styles.mmLinkedCard}>
+          <Text style={styles.mmInviteTitle}>Invite a dater</Text>
+          <Text style={styles.mmInviteSubtitle}>Share your personal signup link</Text>
+
+          <View style={styles.mmQuickActionsRow}>
+            <TouchableOpacity
+              style={[
+                styles.mmQuickAction,
+                styles.mmQuickActionPrimary,
+                daterInviteLinkLoading && styles.iconActionBtnDisabled,
+              ]}
+              onPress={handleCopyDaterInviteLink}
+              disabled={daterInviteLinkLoading}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="copy-outline" size={22} color={MM_LINKED_PURPLE} />
+              <Text style={styles.mmQuickActionLabelPrimary}>Copy Link</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.mmQuickAction,
+                styles.mmQuickActionPrimary,
+                daterInviteLinkLoading && styles.iconActionBtnDisabled,
+              ]}
+              onPress={handleTextDaterInviteLink}
+              disabled={daterInviteLinkLoading}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="chatbubble-outline" size={22} color={MM_LINKED_PURPLE} />
+              <Text style={styles.mmQuickActionLabelMuted}>Share Link</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.mmQuickAction, styles.mmQuickActionPrimary]}
+              onPress={handleOpenDaterInviteEmailModal}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="mail-outline" size={22} color={MM_LINKED_PURPLE} />
+              <Text style={styles.mmQuickActionLabelMuted}>Email Link</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.mmSectionDivider} />
+
+          <Text style={styles.mmReferralByCodeTitle}>Or add by referral code</Text>
+          <View style={styles.mmReferralInputRow}>
+            <TextInput
+              style={styles.mmReferralInput}
+              value={referralCode}
+              onChangeText={setReferralCode}
+              placeholder="Enter referral code"
+              placeholderTextColor="#9CA3AF"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <TouchableOpacity style={styles.mmAddReferralBtn} onPress={handleLinkReferral} activeOpacity={0.9}>
+              <Text style={styles.mmAddReferralBtnText}>Add</Text>
+            </TouchableOpacity>
+          </View>
         </View>
-        {savedReferrals.length > 0 ? (
-          savedReferrals.map((ref, idx) => (
-            <View key={`${ref.referral_code}-${idx}`} style={styles.referralItem}>
-              <View style={styles.referralInfo}>
-                <Text style={styles.referralName}>{ref.name}</Text>
-                <Text style={styles.referralTag}>{ref.referral_code}</Text>
-              </View>
-              <TouchableOpacity
-                style={styles.linkedDaterDeleteBtn}
-                onPress={() => handleDeleteLinkedDater(ref)}
-              >
-                <Ionicons name="trash-outline" size={16} color="#DC2626" />
-              </TouchableOpacity>
-            </View>
-          ))
-        ) : (
-          <Text style={styles.emptyState}>No linked daters yet.</Text>
-        )}
+
+        <View style={styles.mmLinkedCard}>
+          <Text style={styles.mmLinkedListTitle}>Linked daters</Text>
+          <View style={styles.mmSectionDivider} />
+          {savedReferrals.length > 0 ? (
+            savedReferrals.map((ref, idx) => {
+              const palette = LINKED_DATER_AVATAR_PALETTES[idx % LINKED_DATER_AVATAR_PALETTES.length];
+              return (
+                <View
+                  key={`${ref.id || ref.referral_code}-${idx}`}
+                  style={[styles.mmLinkedRow, idx > 0 && styles.mmLinkedRowBorder]}
+                >
+                  <LinkedDaterRowAvatar name={ref.name} firstImage={ref.first_image} palette={palette} />
+                  <View style={styles.mmLinkedRowText}>
+                    <Text style={styles.mmLinkedName}>{ref.name || 'Dater'}</Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.mmLinkedRemove}
+                    onPress={() => handleDeleteLinkedDater(ref)}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    activeOpacity={0.85}
+                  >
+                    <Ionicons name="close" size={14} color="#B91C1C" />
+                  </TouchableOpacity>
+                </View>
+              );
+            })
+          ) : (
+            <Text style={styles.mmLinkedEmpty}>No linked daters yet.</Text>
+          )}
+        </View>
       </View>
     );
   };
@@ -1272,7 +1654,7 @@ const SettingsSections = () => {
               setEditingPreferences(true);
             }}
           >
-            <Ionicons name="create-outline" size={24} color={accentColor} />
+            <Ionicons name="create-outline" size={24} color={datingPreferencesAccent} />
           </TouchableOpacity>
         ) : null}
       </View>
@@ -1301,9 +1683,9 @@ const SettingsSections = () => {
                   handleInputChangeWrapper('preferredAgeMin', values[0].toString());
                   handleInputChangeWrapper('preferredAgeMax', values[1].toString());
                 }}
-                selectedStyle={{ backgroundColor: accentColor }}
+                selectedStyle={{ backgroundColor: datingPreferencesAccent }}
                 unselectedStyle={{ backgroundColor: '#E5E7EB' }}
-                markerStyle={[styles.sliderMarker, { backgroundColor: accentColor }]}
+                markerStyle={[styles.sliderMarker, { backgroundColor: datingPreferencesAccent }]}
                 trackStyle={styles.sliderTrack}
               />
             </View>
@@ -1320,6 +1702,7 @@ const SettingsSections = () => {
             <MultiSelectGender
               selected={formData.preferredGenders || []}
               onChange={(newList) => handleInputChangeWrapper('preferredGenders', newList)}
+              accentColor={datingPreferencesAccent}
             />
           ) : null
         }
@@ -1346,9 +1729,9 @@ const SettingsSections = () => {
                       handleInputChangeWrapper('matchRadius', values[0]);
                     }
                   }}
-                  selectedStyle={{ backgroundColor: accentColor }}
+                  selectedStyle={{ backgroundColor: datingPreferencesAccent }}
                   unselectedStyle={{ backgroundColor: '#E5E7EB' }}
-                  markerStyle={[styles.sliderMarker, { backgroundColor: accentColor }]}
+                  markerStyle={[styles.sliderMarker, { backgroundColor: datingPreferencesAccent }]}
                   trackStyle={styles.sliderTrack}
                 />
               </View>
@@ -1374,7 +1757,10 @@ const SettingsSections = () => {
 
       {editingPreferences ? (
         <View style={styles.formActions}>
-          <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: accentColor }]} onPress={handleSavePreferences}>
+          <TouchableOpacity
+            style={[styles.primaryBtn, { backgroundColor: datingPreferencesAccent }]}
+            onPress={handleSavePreferences}
+          >
             <Text style={styles.primaryBtnText}>Save</Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -1428,6 +1814,8 @@ const SettingsSections = () => {
         return renderDatingPreferences();
       case SECTION_KEYS.NOTIFICATIONS:
         return renderNotifications();
+      case SECTION_KEYS.DELETE_ACCOUNT:
+        return renderDeleteAccountSection();
       default:
         return renderSectionList();
     }
@@ -1448,14 +1836,30 @@ const SettingsSections = () => {
           <View style={[styles.content, { paddingTop: overlayTopPadding }]}>
             {activeSection ? (
               <TouchableOpacity style={styles.backRow} onPress={() => setActiveSection(null)}>
-                <Ionicons name="chevron-back-outline" size={20} color={accentColor} />
-                <Text style={[styles.backText, { color: accentColor }]}>Back to Settings</Text>
+                <Ionicons name="chevron-back-outline" size={20} color={settingsBackAccent} />
+                <Text style={[styles.backText, { color: settingsBackAccent }]}>Back to Settings</Text>
               </TouchableOpacity>
             ) : null}
             {renderActiveSection()}
           </View>
         </ScrollView>
       </TouchableWithoutFeedback>
+
+      {Platform.OS === 'ios' && activeSection ? (
+        <PanGestureHandler
+          enabled
+          activeOffsetX={[-9999, 14]}
+          failOffsetY={[-32, 32]}
+          onHandlerStateChange={({ nativeEvent }) => {
+            if (nativeEvent.state === State.END && nativeEvent.translationX > 56) {
+              setActiveSection(null);
+              setEditingPreferences(false);
+            }
+          }}
+        >
+          <View pointerEvents="box-only" style={styles.leftEdgeSwipeHitArea} />
+        </PanGestureHandler>
+      ) : null}
 
       <Modal
         visible={showReferralModal}
@@ -1502,20 +1906,35 @@ const SettingsSections = () => {
         visible={showDeleteAccountModal}
         transparent
         animationType="fade"
-        onRequestClose={() => setShowDeleteAccountModal(false)}
+        onRequestClose={() => {
+          setShowDeleteAccountModal(false);
+          setDeleteModalForBothRoles(false);
+        }}
       >
         <View style={styles.modalBackdrop}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Confirm Account Deletion</Text>
+            <Text style={styles.modalTitle}>
+              {deleteModalForBothRoles ? 'Delete Both Accounts' : 'Confirm Account Deletion'}
+            </Text>
             <Text style={styles.modalDescription}>
-              This action cannot be undone. All your data will be permanently deleted.
+              {deleteModalForBothRoles
+                ? 'This will permanently remove your Dater and Matchmaker profiles and all associated data. This cannot be undone.'
+                : 'This action cannot be undone. All your data will be permanently deleted.'}
             </Text>
             <View style={styles.modalButtons}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowDeleteAccountModal(false)}>
+              <TouchableOpacity
+                style={styles.cancelBtn}
+                onPress={() => {
+                  setShowDeleteAccountModal(false);
+                  setDeleteModalForBothRoles(false);
+                }}
+              >
                 <Text style={styles.cancelBtnText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.deleteBtn} onPress={confirmDeleteAccount}>
-                <Text style={styles.deleteBtnText}>Delete Account</Text>
+                <Text style={styles.deleteBtnText}>
+                  {deleteModalForBothRoles ? 'Delete Both' : 'Delete Account'}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1558,6 +1977,52 @@ const SettingsSections = () => {
             </View>
           </View>
         </View>
+      </Modal>
+
+      <Modal
+        visible={showDaterInviteEmailModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowDaterInviteEmailModal(false)}
+      >
+        <KeyboardAvoidingView
+          style={styles.modalBackdrop}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+        >
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Email dater invite</Text>
+              <Text style={styles.modalDescription}>
+                We’ll email them a link to sign up as a dater linked to you.
+              </Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter email address"
+                placeholderTextColor="#111827"
+                value={daterInviteEmailInput}
+                onChangeText={setDaterInviteEmailInput}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={styles.cancelBtn}
+                  onPress={() => {
+                    setShowDaterInviteEmailModal(false);
+                    setDaterInviteEmailInput('');
+                  }}
+                >
+                  <Text style={styles.cancelBtnText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: accentColor }]} onPress={sendDaterInviteEmail}>
+                  <Text style={styles.primaryBtnText}>Send</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
       </Modal>
 
       <Modal
@@ -1833,6 +2298,164 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+  matchmakerReferralStack: {
+    gap: 14,
+  },
+  mmLinkedCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 18,
+    marginBottom: 0,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  mmInviteTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 6,
+  },
+  mmInviteSubtitle: {
+    fontSize: 14,
+    color: '#374151',
+    marginBottom: 16,
+    lineHeight: 20,
+  },
+  mmQuickActionsRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  mmQuickAction: {
+    flex: 1,
+    minHeight: 78,
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mmQuickActionPrimary: {
+    backgroundColor: MM_LINKED_LIGHT_PURPLE,
+  },
+  mmQuickActionMuted: {
+    backgroundColor: MM_LINKED_BEIGE,
+  },
+  mmQuickActionLabelPrimary: {
+    marginTop: 6,
+    fontSize: 12,
+    fontWeight: '600',
+    color: MM_LINKED_PURPLE,
+    textAlign: 'center',
+  },
+  mmQuickActionLabelMuted: {
+    marginTop: 6,
+    fontSize: 12,
+    fontWeight: '600',
+    color: MM_LINKED_PURPLE,
+    textAlign: 'center',
+  },
+  mmSectionDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: '#E5E7EB',
+    marginVertical: 18,
+  },
+  mmReferralByCodeTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 10,
+  },
+  mmReferralInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  mmReferralInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: '#111827',
+    backgroundColor: '#fff',
+  },
+  mmAddReferralBtn: {
+    backgroundColor: MM_LINKED_PURPLE,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    minWidth: 72,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mmAddReferralBtnText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  mmLinkedListTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 0,
+  },
+  mmLinkedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+  },
+  mmLinkedRowBorder: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#E5E7EB',
+  },
+  mmLinkedAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+    overflow: 'hidden',
+  },
+  mmLinkedAvatarImage: {
+    width: 44,
+    height: 44,
+  },
+  mmLinkedAvatarLetter: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  mmLinkedRowText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  mmLinkedName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  mmLinkedRemove: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: MM_LINKED_REMOVE_BG,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mmLinkedEmpty: {
+    color: '#9CA3AF',
+    fontSize: 14,
+    paddingVertical: 8,
+    fontStyle: 'italic',
+  },
+  iconActionBtnDisabled: {
+    opacity: 0.55,
+  },
   cancelBtn: {
     paddingVertical: 12,
     paddingHorizontal: 16,
@@ -1991,7 +2614,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   sliderMarker: {
-    backgroundColor: '#6c5ce7',
+    backgroundColor: '#ef4d73',
     height: 22,
     width: 22,
     borderRadius: 11,
@@ -2010,13 +2633,13 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderWidth: 2,
-    borderColor: '#6c5ce7',
+    borderColor: '#ef4d73',
     borderRadius: 6,
     justifyContent: 'center',
     alignItems: 'center',
   },
   checkboxChecked: {
-    backgroundColor: '#6c5ce7',
+    backgroundColor: '#ef4d73',
   },
   checkmark: {
     color: '#fff',
@@ -2063,17 +2686,23 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 16,
   },
-  deleteAccountBtn: {
+  deleteAccountActions: {
     marginTop: 16,
+    gap: 12,
+  },
+  deleteAccountBtnInGroup: {
+    marginTop: 0,
+    marginBottom: 0,
+  },
+  deleteBothAccountsBtn: {
     borderRadius: 8,
     paddingVertical: 12,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#DC2626',
+    backgroundColor: '#DC2626',
   },
-  deleteAccountBtnText: {
-    color: '#DC2626',
-    fontWeight: '600',
+  deleteBothAccountsBtnText: {
+    color: '#fff',
+    fontWeight: '700',
     fontSize: 14,
   },
   modalBackdrop: {
@@ -2122,6 +2751,15 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '700',
     fontSize: 14,
+  },
+  leftEdgeSwipeHitArea: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 28,
+    zIndex: 1000,
+    backgroundColor: 'transparent',
   },
 });
 

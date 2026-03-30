@@ -2,9 +2,22 @@
 from flask import Blueprint, request, jsonify
 from app import db
 from app.models.userDB import User, ReferredUsers
+from app.dater_invite_tokens import encode_matchmaker_dater_invite
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
 referral_bp = Blueprint('referral', __name__)
+
+
+@referral_bp.route('/dater_invite_token', methods=['POST'])
+@jwt_required()
+def create_dater_invite_token():
+    """Return a signed token for building the hosted dater signup URL."""
+    current_user_id = get_jwt_identity()
+    matchmaker = User.query.get(current_user_id)
+    if not matchmaker or matchmaker.role != 'matchmaker':
+        return jsonify({'error': 'Only matchmakers can create dater invite links'}), 403
+    token = encode_matchmaker_dater_invite(matchmaker.id)
+    return jsonify({'invite_token': token}), 200
 
 @referral_bp.route('/link_referral', methods=['POST'])
 @jwt_required()

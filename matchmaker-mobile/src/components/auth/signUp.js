@@ -43,7 +43,7 @@ const SignUpScreen = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isPasswordFocused, setIsPasswordFocused] = useState(false);
-  const [emailError, setEmailError] = useState('');
+  const [identifierError, setIdentifierError] = useState('');
   const [agreeToTexts, setAgreeToTexts] = useState(false);
   const [staySignedIn, setStaySignedIn] = useState(true);
   const [showTermsModal, setShowTermsModal] = useState(false);
@@ -57,6 +57,16 @@ const SignUpScreen = () => {
   const confirmPasswordRevealTimeoutRef = useRef(null);
 
   const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+  const phoneDigitsOnly = (value) => (value || '').replace(/\D/g, '');
+  const isValidPhone = (value) => phoneDigitsOnly(value).length >= 10;
+
+  /** Prefer email when the value is a valid email; otherwise phone if valid. */
+  const getSignUpIdentifierKind = (trimmed) => {
+    if (!trimmed) return null;
+    if (isValidEmail(trimmed)) return 'email';
+    if (isValidPhone(trimmed)) return 'phone';
+    return null;
+  };
   const isTestEmail = (value) => {
     const normalized = (value || '').trim().toLowerCase();
     return TEST_EMAIL_DOMAINS.some((domain) => normalized.endsWith(domain));
@@ -70,15 +80,32 @@ const SignUpScreen = () => {
 
   const passwordChecks = getPasswordChecks(password);
   const isPasswordStrong = Object.values(passwordChecks).every(Boolean);
-  const shouldSkipPasswordRules = isTestEmail(identifier);
+  const trimmedIdentifierForRules = identifier.trim();
+  const identifierKind = getSignUpIdentifierKind(trimmedIdentifierForRules);
+  const shouldSkipPasswordRules =
+    identifierKind === 'email' && isTestEmail(identifier);
 
-  const handleEmailChange = (value) => {
+  const handleIdentifierChange = (value) => {
     setIdentifier(value);
-    if (value.trim() && !isValidEmail(value.trim())) {
-      setEmailError('Not a valid email');
-    } else {
-      setEmailError('');
+    const t = value.trim();
+    if (!t) {
+      setIdentifierError('');
+      return;
     }
+    if (isValidEmail(t) || isValidPhone(t)) {
+      setIdentifierError('');
+      return;
+    }
+    if (t.includes('@')) {
+      setIdentifierError('Not a valid email');
+      return;
+    }
+    const digits = phoneDigitsOnly(t);
+    if (digits.length > 0 && digits.length < 10) {
+      setIdentifierError('');
+      return;
+    }
+    setIdentifierError('Enter a valid email or phone number');
   };
 
   useEffect(() => {
@@ -149,17 +176,26 @@ const SignUpScreen = () => {
     }, 10000);
   };
 
-  const handleSignUpClick = () => {
-    const normalizedEmail = identifier.trim();
+  const handleSignUpClick = async () => {
+    const trimmed = identifier.trim();
 
-    if (!normalizedEmail) {
-      Alert.alert('Error', 'Please enter your email.');
+    if (!trimmed) {
+      Alert.alert('Error', 'Please enter your email or phone number.');
       return;
     }
 
-    if (!isValidEmail(normalizedEmail)) {
-      setEmailError('Not a valid email');
-      Alert.alert('Error', 'Please enter a valid email.');
+    const kind = getSignUpIdentifierKind(trimmed);
+    if (!kind) {
+      if (trimmed.includes('@')) {
+        setIdentifierError('Not a valid email');
+        Alert.alert('Error', 'Please enter a valid email address.');
+      } else {
+        setIdentifierError('Enter a valid email or phone number');
+        Alert.alert(
+          'Error',
+          'Please enter a valid email address or a phone number with at least 10 digits.'
+        );
+      }
       return;
     }
 
@@ -187,8 +223,26 @@ const SignUpScreen = () => {
     }
 
     if (!agreeToTexts) {
-      Alert.alert('Error', 'Please agree to receive non promotional emails to continue.');
+      Alert.alert(
+        'Error',
+        'Please agree to receive non promotional emails or texts to continue.'
+      );
       return;
+    }
+
+    if (role === 'matchmaker') {
+      const trimmedReferral = referralCode.trim();
+      if (trimmedReferral) {
+        try {
+          await axios.post(`${API_BASE_URL}/auth/validate-matchmaker-referral`, {
+            referral_code: trimmedReferral,
+          });
+        } catch (err) {
+          const errorMsg = err.response?.data?.msg || 'Invalid referral code';
+          Alert.alert('Error', errorMsg);
+          return;
+        }
+      }
     }
 
     setShowTermsModal(true);
@@ -201,15 +255,27 @@ const SignUpScreen = () => {
       return;
     }
 
-    const normalizedEmail = identifier.trim();
+    const trimmedIdentifier = identifier.trim();
+    const registerKind = getSignUpIdentifierKind(trimmedIdentifier);
 
     try {
       const payload = {
         password,
         role,
-        email: normalizedEmail,
         staySignedIn,
       };
+
+      if (registerKind === 'email') {
+        payload.email = trimmedIdentifier;
+      } else if (registerKind === 'phone') {
+        payload.phone_number = trimmedIdentifier;
+      } else {
+        Alert.alert(
+          'Error',
+          'Please enter a valid email address with at least 10 digits.'
+        );
+        return;
+      }
 
       const trimmedReferralCode = referralCode.trim();
       const shouldPromptLinkedDater = role === 'matchmaker' && !trimmedReferralCode;
@@ -268,26 +334,33 @@ const SignUpScreen = () => {
 
       if (res.data.verification_sent) {
         const signupData = {
-          email: normalizedEmail,
           password,
           role,
           referral_code: role === 'matchmaker' && trimmedReferralCode ? trimmedReferralCode : null,
           staySignedIn,
+          ...(registerKind === 'email'
+            ? { email: trimmedIdentifier }
+            : { phone_number: trimmedIdentifier }),
         };
 
         await AsyncStorage.setItem('signupData', JSON.stringify(signupData));
         await AsyncStorage.setItem('verificationToken', res.data.verification_token);
 
+        const method =
+          res.data.verification_method || (registerKind === 'phone' ? 'phone' : 'email');
+        const sentWhere =
+          method === 'phone' ? 'text message at your phone number' : 'email';
+
         Alert.alert(
           'Success',
-          'Verification code sent! Please check your email for the verification code.',
+          `Verification code sent! Please check your ${sentWhere} for the verification code.`,
           [
             {
               text: 'OK',
               onPress: () => {
                 navigation.navigate('EmailVerification', {
-                  identifier: normalizedEmail,
-                  verificationMethod: 'email',
+                  identifier: trimmedIdentifier,
+                  verificationMethod: method,
                 });
               },
             },
@@ -308,7 +381,10 @@ const SignUpScreen = () => {
   };
 
   const goToLogin = () => {
-    navigation.navigate('Login');
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'Login' }],
+    });
   };
 
   return (
@@ -356,14 +432,17 @@ const SignUpScreen = () => {
           placeholder="Email"
           placeholderTextColor="#6b7280"
           value={identifier}
-          keyboardType="email-address"
+          keyboardType="default"
           autoCapitalize="none"
-          onChangeText={handleEmailChange}
+          autoCorrect={false}
+          onChangeText={handleIdentifierChange}
           blurOnSubmit={false}
           returnKeyType="next"
           onSubmitEditing={() => passwordRef.current?.focus()}
         />
-        {emailError ? <Text style={styles.emailError}>{emailError}</Text> : null}
+        {identifierError ? (
+          <Text style={styles.emailError}>{identifierError}</Text>
+        ) : null}
 
         <View style={styles.passwordInputWrapper}>
           <TextInput
@@ -497,7 +576,9 @@ const SignUpScreen = () => {
           <View style={[styles.checkbox, agreeToTexts && styles.checkboxChecked]}>
             {agreeToTexts && <Text style={styles.checkmark}>✓</Text>}
           </View>
-          <Text style={styles.checkboxLabel}>By checking this box, you agree to receive non promotional emails.</Text>
+          <Text style={styles.checkboxLabel}>
+            By checking this box, you agree to receive non promotional emails or texts.
+          </Text>
         </TouchableOpacity>
 
         <TouchableOpacity

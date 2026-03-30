@@ -98,7 +98,7 @@ const CompleteProfile = () => {
       if (!res.ok) throw new Error("Failed to update profile");
 
       setSuccess("Profile updated successfully 🎉");
-      setTimeout(() => navigate("/match"), 1200);
+      setTimeout(() => navigate("/match", { replace: true }), 1200);
     } catch (err) {
       console.error(err);
       setError("Error saving profile. Please try again.");
@@ -230,7 +230,7 @@ const CompleteProfile = () => {
       if (!res.ok) throw new Error("Failed to save preferences");
 
       setSuccess("Profile updated successfully 🎉");
-      setTimeout(() => navigate("/match"), 800);
+      setTimeout(() => navigate("/match", { replace: true }), 800);
     } catch (err) {
       console.error(err);
       setError("Error saving preferences. Please try again.");
@@ -404,7 +404,7 @@ const CompleteProfile = () => {
                   onInputChange={handleInputChange}
                   onUnitToggle={handleUnitToggle}
                   onSubmit={saveStep1}
-                  onCancel={() => navigate("/profile")}
+                  onCancel={() => navigate("/profile", { replace: true })}
                   calculateAge={calculateAge}
                   completeProfile={false}
                   editProfile={true}

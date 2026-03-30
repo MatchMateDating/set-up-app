@@ -6,7 +6,8 @@ export const getRoleAccentColor = (role) => (role === 'user' ? '#ef4d73' : '#6c5
 export const getRoleBackgroundTint = (role) =>
   role === 'user' ? 'rgba(239, 77, 115, 0.08)' : 'rgba(108, 92, 231, 0.08)';
 
-const getRoleContainerColor = (role) => (role === 'user' ? '#ffe6ee' : '#efe7ff');
+/** Light pill/section background behind dater (rose) vs matchmaker (violet) accents. */
+export const getRoleContainerColor = (role) => (role === 'user' ? '#ffe6ee' : '#efe7ff');
 
 const getRoleLabel = (role) => (role === 'user' ? 'DATER' : 'MATCHMAKER');
 

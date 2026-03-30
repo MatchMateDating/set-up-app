@@ -30,6 +30,7 @@ const ProfileInfoCard = ({
   images,
   onDeleteImage,
   onPlaceholderClick,
+  onImagePress,
   imageError,
   fieldErrors,
   onSubmit,
@@ -133,6 +134,7 @@ const ProfileInfoCard = ({
                 editing={editing}
                 onDeleteImage={onDeleteImage}
                 onPlaceholderClick={onPlaceholderClick}
+                onImagePress={onImagePress}
                 layout={formData.imageLayout}
                 accentColor={editAccentColor}
               />
@@ -416,6 +418,7 @@ const ProfileInfoCard = ({
                 editing={editing}
                 onDeleteImage={onDeleteImage}
                 onPlaceholderClick={onPlaceholderClick}
+                onImagePress={onImagePress}
                 layout={formData.imageLayout}
                 accentColor={editAccentColor}
               />

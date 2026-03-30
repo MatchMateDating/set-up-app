@@ -1,5 +1,16 @@
 import React, { useEffect, useState, useContext, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView, Image } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Alert,
+  ScrollView,
+  Image,
+  Modal,
+  Pressable,
+  Dimensions,
+} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
@@ -12,6 +23,10 @@ import PixelCactus from './components/PixelCactus';
 import { Ionicons } from '@expo/vector-icons';
 import { UserContext } from '../../context/UserContext';
 import { getRoleAccentColor } from '../layout/components/RoleHeaderBanner';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+const { width: LIGHTBOX_WIN_W, height: LIGHTBOX_WIN_H } = Dimensions.get('window');
+
 const Profile = ({
   user,
   framed,
@@ -23,8 +38,11 @@ const Profile = ({
   parentScrollRef,
   parentScrollOffsetYRef,
   onRequestCrop,
+  enableImageLightbox = false,
 }) => {
   const { setUser } = useContext(UserContext);
+  const insets = useSafeAreaInsets();
+  const [lightboxUri, setLightboxUri] = useState(null);
   const [formData, setFormData] = useState({
     first_name: '',
     last_name: '',
@@ -397,6 +415,8 @@ const Profile = ({
     ''
   ).trim();
   const accentColor = getRoleAccentColor(user?.role || 'matchmaker');
+  const openImageLightbox =
+    enableImageLightbox && !editing ? (uri) => setLightboxUri(uri) : undefined;
 
   return (
     <>
@@ -415,7 +435,19 @@ const Profile = ({
           <View style={styles.headerLeft}>
             <View style={styles.avatarCircle}>
               {profileImageUri ? (
-                <Image source={{ uri: profileImageUri }} style={styles.avatarImage} />
+                openImageLightbox ? (
+                  <TouchableOpacity
+                    activeOpacity={0.85}
+                    style={styles.avatarImageTouchable}
+                    onPress={() => openImageLightbox(profileImageUri)}
+                    accessibilityRole="button"
+                    accessibilityLabel="Enlarge profile photo"
+                  >
+                    <Image source={{ uri: profileImageUri }} style={styles.avatarImage} />
+                  </TouchableOpacity>
+                ) : (
+                  <Image source={{ uri: profileImageUri }} style={styles.avatarImage} />
+                )
               ) : (
                 <Text style={styles.avatarFallback}>{initialLetter}</Text>
               )}
@@ -474,6 +506,7 @@ const Profile = ({
             images={images}
             onDeleteImage={handleDeleteImage}
             onPlaceholderClick={handlePlaceholderClick}
+            onImagePress={openImageLightbox}
             imageError={imageError}
             fieldErrors={fieldErrors}
             profileStyle={formData.profileStyle}
@@ -514,6 +547,50 @@ const Profile = ({
           </View>
         </View>
       )}
+      {enableImageLightbox ? (
+        <Modal
+          visible={Boolean(lightboxUri)}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setLightboxUri(null)}
+        >
+          <View style={styles.imageLightboxRoot} pointerEvents="box-none">
+            <Pressable
+              style={[StyleSheet.absoluteFillObject, styles.imageLightboxBackdrop]}
+              onPress={() => setLightboxUri(null)}
+              accessibilityLabel="Dismiss image preview"
+            />
+            <View
+              pointerEvents="box-none"
+              style={[StyleSheet.absoluteFillObject, styles.imageLightboxImageWrap]}
+            >
+              {lightboxUri ? (
+                <Image
+                  source={{ uri: lightboxUri }}
+                  style={{
+                    width: LIGHTBOX_WIN_W * 0.92,
+                    height: LIGHTBOX_WIN_H * 0.78,
+                  }}
+                  resizeMode="contain"
+                />
+              ) : null}
+            </View>
+            <TouchableOpacity
+              style={[
+                styles.imageLightboxClose,
+                { top: insets.top + 10, right: Math.max(insets.right, 16) },
+              ]}
+              onPress={() => setLightboxUri(null)}
+              accessibilityRole="button"
+              accessibilityLabel="Close image preview"
+            >
+              <View style={styles.imageLightboxCloseInner}>
+                <Ionicons name="close" size={28} color="#ffffff" />
+              </View>
+            </TouchableOpacity>
+          </View>
+        </Modal>
+      ) : null}
     </>
   );
 };
@@ -561,6 +638,10 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   avatarImage: {
+    width: '100%',
+    height: '100%',
+  },
+  avatarImageTouchable: {
     width: '100%',
     height: '100%',
   },
@@ -677,5 +758,24 @@ const styles = StyleSheet.create({
   },
   classic: {
     backgroundColor: '#FFFFFF',
+  },
+  imageLightboxRoot: {
+    flex: 1,
+  },
+  imageLightboxBackdrop: {
+    backgroundColor: 'rgba(0, 0, 0, 0.58)',
+  },
+  imageLightboxImageWrap: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imageLightboxClose: {
+    position: 'absolute',
+    zIndex: 10,
+  },
+  imageLightboxCloseInner: {
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    borderRadius: 20,
+    padding: 6,
   },
 });
