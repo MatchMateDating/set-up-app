@@ -34,7 +34,7 @@ class User(db.Model):
     match_radius = db.Column(db.Integer, nullable=True, default=0)  # in miles; used with haversine_distance
     unit = db.Column(db.String(20), nullable=False, default='Imperial')
     last_active_at = db.Column(db.DateTime, nullable=True)
-    push_token = db.Column(db.String(255), nullable=True)  # Expo push notification token
+    push_token = db.Column(db.String(255), nullable=True)  # Legacy: prefer push_tokens table for new registrations
     notifications_enabled = db.Column(db.Boolean, nullable=False, default=False)  # User's notification preference
     email_verified = db.Column(db.Boolean, nullable=False, default=False)
     email_verification_token = db.Column(db.String(100), nullable=True, unique=True)
