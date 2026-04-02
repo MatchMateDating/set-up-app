@@ -187,3 +187,18 @@ TEST_EMAIL_DOMAINS=@test.com,@mytest.com
 ```
 
 **Note:** Test mode should only be enabled in development/testing environments, not in production.
+
+### Test Android Notifications
+
+#### Preparation
+
+- Create the database locally
+- Run the app with npx expo run:android on your device and create a user
+- download `google-services.json` from your firebase project, and put it in \matchmate-mobile
+- download an api key from your firebase project, and put it in \matchmate-mobile
+- create an environment variable named `FIREBASE_CREDENTIALS_PATH` that is set to the path of your firebase api key
+
+#### Run Test 
+- Retrieve the user's token with `curl -s -X POST "http://localhost:5000/auth/login" -H "Content-Type: application/json" -d "{\"email\":\"USER.COM\",\"password\":\"PASSWORD\"}"`
+- While running the app, run `curl.exe -X POST "http://localhost:5000/notifications/test_push" -H "Authorization: Bearer [TOKEN]" -H "Content-Type: application/json"`
+

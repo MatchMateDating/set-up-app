@@ -88,5 +88,8 @@ class Config:
     APNS_USE_SANDBOX = os.getenv('APNS_USE_SANDBOX', 'false').lower() in ('1', 'true', 'yes')
 
     # Firebase Admin JSON: path to service account file, or raw JSON string (e.g. Railway secret)
-    FIREBASE_CREDENTIALS_PATH = os.getenv('FIREBASE_CREDENTIALS_PATH')
+    # Accept FIREBASE_CREDENTIAL_PATH (typo) as alias for FIREBASE_CREDENTIALS_PATH
+    FIREBASE_CREDENTIALS_PATH = os.getenv('FIREBASE_CREDENTIALS_PATH') or os.getenv(
+        'FIREBASE_CREDENTIAL_PATH'
+    )
     FIREBASE_CREDENTIALS_JSON = os.getenv('FIREBASE_CREDENTIALS_JSON')

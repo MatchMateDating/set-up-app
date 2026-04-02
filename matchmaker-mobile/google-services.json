@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "681141311450",
+    "project_id": "matchmate-dating",
+    "storage_bucket": "matchmate-dating.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:681141311450:android:cf86b9193d4311250f92e3",
+        "android_client_info": {
+          "package_name": "com.matchmate.matchmatedating"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAzHXIPVM8mwtQpaIMsZ54M-Y3cn1HRiVU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

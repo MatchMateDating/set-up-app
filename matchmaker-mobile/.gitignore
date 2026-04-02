@@ -35,7 +35,6 @@ yarn-error.*
 
 # Firebase (service account — do not commit)
 matchmate-dating-firebase-adminsdk-fbsvc-49d012fef2.json
-google-services.json
 
 # typescript
 *.tsbuildinfo

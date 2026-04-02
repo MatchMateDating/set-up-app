@@ -44,7 +44,8 @@ def _push_config() -> Dict[str, Any]:
         "APNS_TOPIC": os.environ.get("APNS_TOPIC"),
         "APNS_USE_SANDBOX": os.getenv("APNS_USE_SANDBOX", "false").lower()
         in ("1", "true", "yes"),
-        "FIREBASE_CREDENTIALS_PATH": os.environ.get("FIREBASE_CREDENTIALS_PATH"),
+        "FIREBASE_CREDENTIALS_PATH": os.environ.get("FIREBASE_CREDENTIALS_PATH")
+        or os.environ.get("FIREBASE_CREDENTIAL_PATH"),
         "FIREBASE_CREDENTIALS_JSON": os.environ.get("FIREBASE_CREDENTIALS_JSON"),
     }
 

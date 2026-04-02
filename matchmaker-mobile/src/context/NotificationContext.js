@@ -398,6 +398,34 @@ export const NotificationProvider = ({ children }) => {
     }
   }, [user?.id, fetchPushTokenAndRegister]);
 
+  /*
+   * Store update / migration: once per app version (per user), re-register after a short delay.
+   * Fixes FCM/APNs readiness races where toggling notifications off/on used to be the workaround.
+   * Bump "version" in app.json each release you need to force token refresh for opted-in users.
+   */
+  useEffect(() => {
+    if (Platform.OS === 'web' || !user?.id || loading || !notificationsEnabled) return;
+
+    let cancelled = false;
+    const run = async () => {
+      const appVersion = Constants.expoConfig?.version || '0';
+      const storageKey = `push_token_registered_for_app_version_${user.id}`;
+      const lastSynced = await AsyncStorage.getItem(storageKey);
+      if (lastSynced === appVersion) return;
+
+      await new Promise((r) => setTimeout(r, 1500));
+      if (cancelled) return;
+
+      await refreshPushTokenRegistration();
+      await AsyncStorage.setItem(storageKey, appVersion);
+    };
+
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [loading, notificationsEnabled, user?.id, refreshPushTokenRegistration]);
+
   /* Cold start + foreground: keep server token in sync after updates / rotation */
   useEffect(() => {
     if (Platform.OS === 'web' || !user?.id || loading) return;
