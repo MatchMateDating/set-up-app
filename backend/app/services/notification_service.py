@@ -19,6 +19,20 @@ logger = logging.getLogger(__name__)
 push_client = PushClient()
 
 
+def _push_tokens_for_delivery(push_tokens):
+    """
+    Avoid duplicate alerts on one phone: dev clients may register both native (ios/android)
+    and an Expo push token; APNs/FCM + Expo would each deliver the same message.
+    If the user has any native token for a mobile OS, skip Expo rows for that send.
+    """
+    if not push_tokens:
+        return push_tokens
+    platforms = {(t.platform or "expo").lower() for t in push_tokens}
+    if "ios" in platforms or "android" in platforms:
+        return [t for t in push_tokens if (t.platform or "expo").lower() != "expo"]
+    return list(push_tokens)
+
+
 def _prune_push_token(token_obj):
     """Remove a dead push token row by id (avoids stale ORM instances and SAWarning on 0-row delete)."""
     try:
@@ -138,6 +152,7 @@ def send_notification_to_user(user_id, title, body, data=None):
             )
         return False
 
+    push_tokens = _push_tokens_for_delivery(push_tokens)
     success_count = 0
     for token_obj in push_tokens:
         if send_push_to_token_row(token_obj, title, body, data):
@@ -195,6 +210,7 @@ def send_message_notification(receiver_id, sender_id, match_id, message_text):
         )
         return False
 
+    push_tokens = _push_tokens_for_delivery(push_tokens)
     logger.info(
         "message push start receiver_id=%s sender_id=%s match_id=%s token_rows=%s",
         receiver_id,
@@ -243,6 +259,7 @@ def send_match_notification(user_id, match_id, other_user_name):
             )
         return False
 
+    push_tokens = _push_tokens_for_delivery(push_tokens)
     success_count = 0
     for token_obj in push_tokens:
         if send_push_to_token_row(token_obj, title, body, data):
