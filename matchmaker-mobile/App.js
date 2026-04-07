@@ -16,14 +16,15 @@ function NotificationHandler({ navigationRef }) {
     try {
       // Handle notifications received while app is in foreground
       notificationListener.current = Notifications.addNotificationReceivedListener((notification) => {
-        // Log only stable fields to avoid deprecated proxy access warnings.
-        const { title, body, data } = notification.request.content;
-        console.log('Notification received:', {
-          id: notification.request.identifier,
-          title,
-          body,
-          data,
-        });
+        if (__DEV__) {
+          const { title, body, data } = notification.request.content;
+          console.log('Notification received:', {
+            id: notification.request.identifier,
+            title,
+            body,
+            data,
+          });
+        }
       });
 
       // Handle notification taps

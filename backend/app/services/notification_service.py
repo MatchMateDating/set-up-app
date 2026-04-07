@@ -42,7 +42,7 @@ def _prune_push_token(token_obj):
         n = PushToken.query.filter_by(id=tid).delete(synchronize_session="fetch")
         db.session.commit()
         if n:
-            logger.info("Pruned push token id=%s", tid)
+            logger.debug("Pruned push token id=%s", tid)
     except Exception as e:
         logger.error("Failed to prune push token id=%s: %s", getattr(token_obj, "id", None), e)
         db.session.rollback()
@@ -99,7 +99,7 @@ def send_push_to_token_row(token_obj, title, body, data=None):
         ok = _send_expo_push(
             token_obj.token, title, body, data, token_obj=token_obj, legacy_user=None
         )
-        logger.info(
+        logger.debug(
             "push token_id=%s platform=expo ok=%s",
             getattr(token_obj, "id", None),
             ok,
@@ -109,7 +109,7 @@ def send_push_to_token_row(token_obj, title, body, data=None):
         ok = bool(
             send_native_for_platform(eff, token_obj.token, title, body, data)
         )
-        logger.info(
+        logger.debug(
             "push token_id=%s platform=%s ok=%s",
             getattr(token_obj, "id", None),
             eff,
@@ -117,7 +117,7 @@ def send_push_to_token_row(token_obj, title, body, data=None):
         )
         return ok
     except InvalidPushToken as e:
-        logger.info(
+        logger.warning(
             "push token_id=%s platform=%s invalid, pruning: %s",
             getattr(token_obj, "id", None),
             eff,
@@ -166,18 +166,18 @@ def send_message_notification(receiver_id, sender_id, match_id, message_text):
     sender = User.query.get(sender_id)
 
     if not receiver:
-        logger.info(
+        logger.debug(
             "message push skipped: receiver_id=%s not found", receiver_id
         )
         return False
     if not receiver.notifications_enabled:
-        logger.info(
+        logger.debug(
             "message push skipped: receiver_id=%s notifications_enabled=False",
             receiver_id,
         )
         return False
     if not sender:
-        logger.info(
+        logger.debug(
             "message push skipped: sender_id=%s not found", sender_id
         )
         return False
@@ -197,21 +197,21 @@ def send_message_notification(receiver_id, sender_id, match_id, message_text):
             ok = send_push_notification(
                 receiver.push_token, title, body, data, legacy_user=receiver
             )
-            logger.info(
+            logger.debug(
                 "message push receiver_id=%s match_id=%s legacy_user.push_token ok=%s",
                 receiver_id,
                 match_id,
                 ok,
             )
             return ok
-        logger.info(
+        logger.debug(
             "message push skipped: receiver_id=%s has no push_tokens rows and no legacy push_token",
             receiver_id,
         )
         return False
 
     push_tokens = _push_tokens_for_delivery(push_tokens)
-    logger.info(
+    logger.debug(
         "message push start receiver_id=%s sender_id=%s match_id=%s token_rows=%s",
         receiver_id,
         sender_id,
@@ -226,8 +226,7 @@ def send_message_notification(receiver_id, sender_id, match_id, message_text):
 
     ok = success_count > 0
     logger.info(
-        "message push done receiver_id=%s match_id=%s ok=%s (%s/%s devices)",
-        receiver_id,
+        "message push match_id=%s ok=%s devices=%s/%s",
         match_id,
         ok,
         success_count,

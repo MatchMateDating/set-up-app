@@ -150,7 +150,7 @@ def register_token(current_user):
         platform = (data.get('platform') or 'expo').strip().lower()
         if platform not in ('expo', 'ios', 'android'):
             return jsonify({'error': 'platform must be expo, ios, or android'}), 400
-        
+
         # Check if this token already exists for this user
         existing_token = PushToken.query.filter_by(
             user_id=current_user.id,

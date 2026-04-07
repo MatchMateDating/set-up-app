@@ -312,6 +312,8 @@ export const NotificationProvider = ({ children }) => {
           return;
         }
 
+        const body = { push_token: token, platform };
+
         const res = await fetch(
           `${API_BASE_URL}/notifications/register_token`,
           {
@@ -320,13 +322,15 @@ export const NotificationProvider = ({ children }) => {
               'Content-Type': 'application/json',
               Authorization: `Bearer ${authToken}`,
             },
-            body: JSON.stringify({ push_token: token, platform }),
+            body: JSON.stringify(body),
           }
         );
 
         if (res.ok) {
           registeredTokensRef.current.add(key);
-          console.log('Push token registered:', platform);
+          if (__DEV__) {
+            console.log('Push token registered:', platform);
+          }
         } else {
           const text = await res.text().catch(() => '');
           console.warn('registerPushToken failed:', res.status, text);

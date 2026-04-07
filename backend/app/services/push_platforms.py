@@ -177,7 +177,7 @@ def send_apns(
     token_prefix = (
         f"{normalized_token[:12]}…" if len(normalized_token) > 12 else normalized_token
     )
-    logger.info(
+    logger.debug(
         "APNs send: host=%s APNS_USE_SANDBOX=%s apns-topic=%s key_id=%s team_id=%s "
         "device_token_hex_len=%s device_token_prefix=%s",
         host,
