@@ -73,6 +73,7 @@ export const NotificationProvider = ({ children }) => {
   // refs to prevent loops
   const isSavingRef = useRef(false);
   const lastSavedValueRef = useRef(null);
+  const hasLoadedPreferenceRef = useRef(false);
   const registeredTokensRef = useRef(new Set());
   const currentUserIdRef = useRef(null);
 
@@ -82,6 +83,7 @@ export const NotificationProvider = ({ children }) => {
   useEffect(() => {
     if (!user?.id) {
       // hard reset when logged out
+      hasLoadedPreferenceRef.current = false;
       setNotificationsEnabled(false);
       lastSavedValueRef.current = null;
       currentUserIdRef.current = null;
@@ -93,6 +95,7 @@ export const NotificationProvider = ({ children }) => {
     // New user detected - fetch actual preference from backend
     if (currentUserIdRef.current !== user.id) {
       currentUserIdRef.current = user.id;
+      hasLoadedPreferenceRef.current = false;
       registeredTokensRef.current.clear();
       setLoading(true);
       
@@ -177,6 +180,9 @@ export const NotificationProvider = ({ children }) => {
           setNotificationsEnabled(false);
           lastSavedValueRef.current = false;
         } finally {
+          if (currentUserIdRef.current === user.id) {
+            hasLoadedPreferenceRef.current = true;
+          }
           setLoading(false);
         }
       };
@@ -193,6 +199,7 @@ export const NotificationProvider = ({ children }) => {
       !user?.id ||
       loading ||
       isSavingRef.current ||
+      !hasLoadedPreferenceRef.current ||
       lastSavedValueRef.current === notificationsEnabled ||
       currentUserIdRef.current !== user.id  // Don't save if user changed during save
     ) {
@@ -501,6 +508,7 @@ export const NotificationProvider = ({ children }) => {
     
     // Double-check user hasn't changed during permission request
     if (granted && user?.id === userIdAtStart && currentUserIdRef.current === userIdAtStart) {
+      hasLoadedPreferenceRef.current = true;
       setNotificationsEnabled(true);
       return true;
     } else if (granted && user?.id !== userIdAtStart) {
@@ -520,6 +528,7 @@ export const NotificationProvider = ({ children }) => {
     
     // Only disable if we're still on the same user
     if (currentUserIdRef.current === user.id) {
+      hasLoadedPreferenceRef.current = true;
       setNotificationsEnabled(false);
       registeredTokensRef.current.clear();
     } else {
