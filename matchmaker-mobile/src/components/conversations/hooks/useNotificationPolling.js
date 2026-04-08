@@ -1,6 +1,6 @@
 // src/components/conversations/hooks/useNotificationPolling.js
-// This polling hook serves as a fallback for when push notifications fail
-// or when the app is in the foreground. Backend push notifications are the primary method.
+// Polls matches/conversations for UI freshness. Backend push is the only channel for
+// new-message alerts (local notifications here duplicated FCM/APNs on Android).
 import { useEffect, useRef, useContext } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNotifications } from '../../../context/NotificationContext';
@@ -57,48 +57,15 @@ export const useNotificationPolling = () => {
           // Get the last known message count
           const lastCount = lastMessageCountsRef.current[matchId] || 0;
 
-          // If there are new messages and we've already initialized (don't notify on first load)
+          // Track counts only; do not schedule local message notifications (duplicates server push).
           if (currentMessageCount > lastCount && isInitializedRef.current && lastCount > 0) {
             const newMessages = messages.slice(lastCount);
             const latestMessage = newMessages[newMessages.length - 1];
 
-            // Only notify when the current user is the receiver (don't notify for messages we sent)
             if (currentUserId == null || latestMessage.receiver_id !== currentUserId) {
               lastMessageCountsRef.current[matchId] = currentMessageCount;
               continue;
             }
-
-            // Get sender name
-            let senderName = 'Someone';
-            try {
-              const senderRes = await fetch(`${API_BASE_URL}/profile/${latestMessage.sender_id}`, {
-                headers: { Authorization: `Bearer ${token}` },
-              });
-              if (senderRes.ok) {
-                const senderData = await senderRes.json();
-                senderName = senderData.user?.first_name || senderData.first_name || 'Someone';
-              }
-            } catch (err) {
-              console.error('Error fetching sender name:', err);
-            }
-
-            // Get match user name for context
-            let matchUserName = '';
-            if (match.match_user) {
-              matchUserName = match.match_user.first_name || '';
-            }
-
-            const notificationTitle = matchUserName
-              ? `New message from ${senderName}`
-              : `New message from ${senderName}`;
-            const notificationBody = latestMessage.text
-              ? latestMessage.text.substring(0, 100)
-              : 'You have a new message';
-
-            sendNotification(notificationTitle, notificationBody, {
-              type: 'message',
-              matchId: matchId.toString(),
-            });
           }
 
           // Update last known count

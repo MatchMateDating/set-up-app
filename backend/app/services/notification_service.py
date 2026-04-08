@@ -184,7 +184,10 @@ def send_message_notification(receiver_id, sender_id, match_id, message_text):
 
     sender_name = sender.first_name or "Someone"
     title = f"New message from {sender_name}"
-    body = "You have a new message"
+    preview = (message_text or "").strip()
+    if len(preview) > 180:
+        preview = preview[:177] + "..."
+    body = preview if preview else "You have a new message"
     data = {
         "type": "message",
         "matchId": str(match_id),
