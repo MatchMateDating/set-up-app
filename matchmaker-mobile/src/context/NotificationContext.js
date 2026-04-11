@@ -56,6 +56,66 @@ function logAndroidFcmSetupHint(error) {
 
 export const NotificationContext = createContext(null);
 
+const DEFAULT_NOTIFICATION_PREFERENCES = {
+  newMatchNotification: false,
+  newNoteNotification: false,
+  newBlindMatchNotification: false,
+  newMessageNotification: false,
+};
+
+const ENABLED_NOTIFICATION_PREFERENCES = {
+  newMatchNotification: true,
+  newNoteNotification: true,
+  newBlindMatchNotification: true,
+  newMessageNotification: true,
+};
+
+const buildNotificationPreferenceState = (userData) => {
+  const enabled = Boolean(userData?.notifications_enabled ?? false);
+
+  if (!enabled) {
+    return {
+      enabled: false,
+      preferences: { ...DEFAULT_NOTIFICATION_PREFERENCES },
+    };
+  }
+
+  const readPreference = (fieldName) => {
+    const rawValue = userData?.[fieldName];
+    return rawValue == null ? true : Boolean(rawValue);
+  };
+
+  return {
+    enabled: true,
+    preferences: {
+      newMatchNotification: readPreference('new_match_notifications'),
+      newNoteNotification: readPreference('new_note_notifications'),
+      newBlindMatchNotification: readPreference('new_blind_match_notifications'),
+      newMessageNotification: readPreference('new_message_notifications'),
+    },
+  };
+};
+
+const buildNotificationPreferencePayload = (enabled, preferences) => {
+  if (!enabled) {
+    return {
+      enabled: false,
+      new_match_notifications: false,
+      new_note_notifications: false,
+      new_blind_match_notifications: false,
+      new_message_notifications: false,
+    };
+  }
+
+  return {
+    enabled: true,
+    new_match_notifications: Boolean(preferences?.newMatchNotification),
+    new_note_notifications: Boolean(preferences?.newNoteNotification),
+    new_blind_match_notifications: Boolean(preferences?.newBlindMatchNotification),
+    new_message_notifications: Boolean(preferences?.newMessageNotification),
+  };
+};
+
 export const NotificationProvider = ({ children }) => {
   // Set up notification handler on mount (lazy initialization)
   useEffect(() => {
@@ -66,13 +126,16 @@ export const NotificationProvider = ({ children }) => {
   const user = userContext?.user || null;
 
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [notificationPreferences, setNotificationPreferences] = useState(
+    DEFAULT_NOTIFICATION_PREFERENCES
+  );
   const [permissionStatus, setPermissionStatus] = useState(null);
   const [expoPushToken, setExpoPushToken] = useState(null);
   const [loading, setLoading] = useState(true);
 
   // refs to prevent loops
   const isSavingRef = useRef(false);
-  const lastSavedValueRef = useRef(null);
+  const lastSavedPayloadRef = useRef(null);
   const hasLoadedPreferenceRef = useRef(false);
   const registeredTokensRef = useRef(new Set());
   const currentUserIdRef = useRef(null);
@@ -85,7 +148,8 @@ export const NotificationProvider = ({ children }) => {
       // hard reset when logged out
       hasLoadedPreferenceRef.current = false;
       setNotificationsEnabled(false);
-      lastSavedValueRef.current = null;
+      setNotificationPreferences({ ...DEFAULT_NOTIFICATION_PREFERENCES });
+      lastSavedPayloadRef.current = null;
       currentUserIdRef.current = null;
       registeredTokensRef.current.clear();
       setLoading(false);
@@ -106,7 +170,10 @@ export const NotificationProvider = ({ children }) => {
           if (!token) {
             // No token means user is not logged in - don't make API calls
             setNotificationsEnabled(false);
-            lastSavedValueRef.current = false;
+            setNotificationPreferences({ ...DEFAULT_NOTIFICATION_PREFERENCES });
+            lastSavedPayloadRef.current = JSON.stringify(
+              buildNotificationPreferencePayload(false, DEFAULT_NOTIFICATION_PREFERENCES)
+            );
             setLoading(false);
             // Clear user from context if no token exists
             if (user?.id) {
@@ -126,7 +193,10 @@ export const NotificationProvider = ({ children }) => {
           if (!API_BASE_URL) {
             console.error('API_BASE_URL is not set, skipping API call');
             setNotificationsEnabled(false);
-            lastSavedValueRef.current = false;
+            setNotificationPreferences({ ...DEFAULT_NOTIFICATION_PREFERENCES });
+            lastSavedPayloadRef.current = JSON.stringify(
+              buildNotificationPreferencePayload(false, DEFAULT_NOTIFICATION_PREFERENCES)
+            );
             setLoading(false);
             return;
           }
@@ -143,9 +213,14 @@ export const NotificationProvider = ({ children }) => {
             const data = await res.json();
             // Only update if we're still on the same user
             if (currentUserIdRef.current === user.id && data.user?.id === user.id) {
-              const enabled = Boolean(data.user?.notifications_enabled ?? false);
-              setNotificationsEnabled(enabled);
-              lastSavedValueRef.current = enabled;
+              const nextState = buildNotificationPreferenceState(data.user);
+              const payload = buildNotificationPreferencePayload(
+                nextState.enabled,
+                nextState.preferences
+              );
+              setNotificationsEnabled(nextState.enabled);
+              setNotificationPreferences(nextState.preferences);
+              lastSavedPayloadRef.current = JSON.stringify(payload);
             }
           } else if (res.status === 401) {
             const errorData = await res.json().catch(() => ({}));
@@ -160,25 +235,37 @@ export const NotificationProvider = ({ children }) => {
             }
             // Default to false on auth error
             setNotificationsEnabled(false);
-            lastSavedValueRef.current = false;
+            setNotificationPreferences({ ...DEFAULT_NOTIFICATION_PREFERENCES });
+            lastSavedPayloadRef.current = JSON.stringify(
+              buildNotificationPreferencePayload(false, DEFAULT_NOTIFICATION_PREFERENCES)
+            );
           } else if (res.status === 404) {
             console.warn('User not found, clearing stored data');
             // User not found - clear stored data
             await AsyncStorage.removeItem('token');
             await AsyncStorage.removeItem('user');
             setNotificationsEnabled(false);
-            lastSavedValueRef.current = false;
+            setNotificationPreferences({ ...DEFAULT_NOTIFICATION_PREFERENCES });
+            lastSavedPayloadRef.current = JSON.stringify(
+              buildNotificationPreferencePayload(false, DEFAULT_NOTIFICATION_PREFERENCES)
+            );
           } else {
             console.error('Error fetching notification preferences, status:', res.status);
             // Default to false on other errors
             setNotificationsEnabled(false);
-            lastSavedValueRef.current = false;
+            setNotificationPreferences({ ...DEFAULT_NOTIFICATION_PREFERENCES });
+            lastSavedPayloadRef.current = JSON.stringify(
+              buildNotificationPreferencePayload(false, DEFAULT_NOTIFICATION_PREFERENCES)
+            );
           }
         } catch (err) {
           console.error('Error fetching notification preference:', err);
           // Default to false on error
           setNotificationsEnabled(false);
-          lastSavedValueRef.current = false;
+          setNotificationPreferences({ ...DEFAULT_NOTIFICATION_PREFERENCES });
+          lastSavedPayloadRef.current = JSON.stringify(
+            buildNotificationPreferencePayload(false, DEFAULT_NOTIFICATION_PREFERENCES)
+          );
         } finally {
           if (currentUserIdRef.current === user.id) {
             hasLoadedPreferenceRef.current = true;
@@ -195,12 +282,18 @@ export const NotificationProvider = ({ children }) => {
    * SAVE PREFERENCE TO BACKEND (USER-SCOPED)
    * ----------------------------------------- */
   useEffect(() => {
+    const payload = buildNotificationPreferencePayload(
+      notificationsEnabled,
+      notificationPreferences
+    );
+    const payloadString = JSON.stringify(payload);
+
     if (
       !user?.id ||
       loading ||
       isSavingRef.current ||
       !hasLoadedPreferenceRef.current ||
-      lastSavedValueRef.current === notificationsEnabled ||
+      lastSavedPayloadRef.current === payloadString ||
       currentUserIdRef.current !== user.id  // Don't save if user changed during save
     ) {
       return;
@@ -245,7 +338,7 @@ export const NotificationProvider = ({ children }) => {
               'Content-Type': 'application/json',
               Authorization: `Bearer ${token}`,
             },
-            body: JSON.stringify({ enabled: notificationsEnabled }),
+            body: JSON.stringify(payload),
           }
         );
 
@@ -256,7 +349,7 @@ export const NotificationProvider = ({ children }) => {
             currentUserIdRef.current === refUserIdAtSaveStart &&
             currentUserIdRef.current === user.id
           ) {
-            lastSavedValueRef.current = notificationsEnabled;
+            lastSavedPayloadRef.current = payloadString;
           } else {
             console.warn('User changed during save operation, not updating local state', {
               userIdAtSaveStart,
@@ -290,7 +383,7 @@ export const NotificationProvider = ({ children }) => {
     };
 
     checkTokenAndSave();
-  }, [notificationsEnabled, user?.id, loading]);
+  }, [notificationPreferences, notificationsEnabled, user?.id, loading]);
 
   /* -------------------------------------------
    * REGISTER PUSH TOKEN (PER USER)
@@ -509,6 +602,7 @@ export const NotificationProvider = ({ children }) => {
     // Double-check user hasn't changed during permission request
     if (granted && user?.id === userIdAtStart && currentUserIdRef.current === userIdAtStart) {
       hasLoadedPreferenceRef.current = true;
+      setNotificationPreferences({ ...ENABLED_NOTIFICATION_PREFERENCES });
       setNotificationsEnabled(true);
       return true;
     } else if (granted && user?.id !== userIdAtStart) {
@@ -529,6 +623,7 @@ export const NotificationProvider = ({ children }) => {
     // Only disable if we're still on the same user
     if (currentUserIdRef.current === user.id) {
       hasLoadedPreferenceRef.current = true;
+      setNotificationPreferences({ ...DEFAULT_NOTIFICATION_PREFERENCES });
       setNotificationsEnabled(false);
       registeredTokensRef.current.clear();
     } else {
@@ -536,8 +631,37 @@ export const NotificationProvider = ({ children }) => {
     }
   };
 
+  const setNotificationPreference = useCallback((key, value) => {
+    if (!Object.prototype.hasOwnProperty.call(DEFAULT_NOTIFICATION_PREFERENCES, key)) {
+      return;
+    }
+
+    hasLoadedPreferenceRef.current = true;
+    setNotificationPreferences((prev) => ({
+      ...prev,
+      [key]: Boolean(value),
+    }));
+  }, []);
+
+  const notificationTypeEnabled = useCallback((type) => {
+    if (!notificationsEnabled) return false;
+
+    switch (type) {
+      case 'match':
+        return notificationPreferences.newMatchNotification;
+      case 'blind_match':
+        return notificationPreferences.newBlindMatchNotification;
+      case 'note':
+        return notificationPreferences.newNoteNotification;
+      case 'message':
+        return notificationPreferences.newMessageNotification;
+      default:
+        return true;
+    }
+  }, [notificationPreferences, notificationsEnabled]);
+
   const sendNotification = async (title, body, data = {}) => {
-    if (!notificationsEnabled) return;
+    if (!notificationTypeEnabled(data?.type)) return;
 
     await Notifications.scheduleNotificationAsync({
       content: { title, body, data, sound: true },
@@ -549,8 +673,10 @@ export const NotificationProvider = ({ children }) => {
     <NotificationContext.Provider
       value={{
         notificationsEnabled,
+        notificationPreferences,
         enableNotifications,
         disableNotifications,
+        setNotificationPreference,
         sendNotification,
         permissionStatus,
         loading,

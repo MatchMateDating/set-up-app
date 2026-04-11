@@ -9,6 +9,13 @@ from app.services.push_platforms import apns_configured
 
 notification_bp = Blueprint('notification', __name__)
 
+NOTIFICATION_PREFERENCE_FIELDS = (
+    'new_match_notifications',
+    'new_note_notifications',
+    'new_blind_match_notifications',
+    'new_message_notifications',
+)
+
 
 def _firebase_credentials_present():
     """True if FCM service account path or JSON is set (server-side send)."""
@@ -110,8 +117,24 @@ def update_notification_preferences(current_user):
         if user.id != current_user.id:
             return jsonify({'error': 'User mismatch detected'}), 403
         
+        was_enabled = bool(user.notifications_enabled)
+        enabled = bool(enabled)
+
         # Update only this specific user's notification preference
-        user.notifications_enabled = bool(enabled)
+        user.notifications_enabled = enabled
+        if not enabled:
+            for field in NOTIFICATION_PREFERENCE_FIELDS:
+                setattr(user, field, False)
+        else:
+            for field in NOTIFICATION_PREFERENCE_FIELDS:
+                if field in data:
+                    value = bool(data.get(field))
+                elif not was_enabled:
+                    value = True
+                else:
+                    existing_value = getattr(user, field, None)
+                    value = True if existing_value is None else bool(existing_value)
+                setattr(user, field, value)
         db.session.commit()
         
         # Refresh to ensure we return the updated value
@@ -120,6 +143,10 @@ def update_notification_preferences(current_user):
         return jsonify({
             'message': 'Notification preferences updated successfully',
             'notifications_enabled': user.notifications_enabled,
+            'new_match_notifications': user.notification_setting_enabled('new_match_notifications'),
+            'new_note_notifications': user.notification_setting_enabled('new_note_notifications'),
+            'new_blind_match_notifications': user.notification_setting_enabled('new_blind_match_notifications'),
+            'new_message_notifications': user.notification_setting_enabled('new_message_notifications'),
             'user_id': user.id  # Include user_id in response for verification
         }), 200
         

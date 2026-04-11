@@ -1,6 +1,6 @@
 // src/components/conversations/hooks/useNotificationPolling.js
-// Polls matches/conversations for UI freshness. Backend push is the only channel for
-// new-message alerts (local notifications here duplicated FCM/APNs on Android).
+// Polls conversations for UI freshness. Backend push is the only channel for new-match
+// and new-message alerts (local notifications duplicated FCM/APNs).
 import { useEffect, useRef, useContext } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNotifications } from '../../../context/NotificationContext';
@@ -10,11 +10,10 @@ import { API_BASE_URL } from '../../../env';
 const POLLING_INTERVAL = 30000; // 30 seconds
 
 export const useNotificationPolling = () => {
-  const { notificationsEnabled, sendNotification } = useNotifications();
+  const { notificationsEnabled } = useNotifications();
   const { user } = useContext(UserContext);
   const currentUserId = user?.referred_by_id ?? user?.id ?? null;
   const lastMessageCountsRef = useRef({}); // { matchId: messageCount }
-  const lastMatchIdsRef = useRef(new Set());
   const pollingIntervalRef = useRef(null);
   const isInitializedRef = useRef(false);
 
@@ -79,60 +78,6 @@ export const useNotificationPolling = () => {
     }
   };
 
-  // Check for new matches
-  const checkNewMatches = async () => {
-    if (!notificationsEnabled) return;
-
-    try {
-      const token = await AsyncStorage.getItem('token');
-      if (!token) return;
-
-      const matchesRes = await fetch(`${API_BASE_URL}/match/matches`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!matchesRes.ok) return;
-
-      const matchesData = await matchesRes.json();
-      const allMatches = Array.isArray(matchesData)
-        ? matchesData
-        : [...(matchesData.matched || []), ...(matchesData.pending_approval || [])];
-
-      const currentMatchIds = new Set(
-        allMatches.map((m) => m.match_id).filter((id) => id != null)
-      );
-
-      // Find new matches (only if initialized, to avoid notifying for existing matches on first load)
-      const newMatchIds = isInitializedRef.current
-        ? [...currentMatchIds].filter((id) => !lastMatchIdsRef.current.has(id))
-        : [];
-
-      // Send notifications for new matches
-      for (const matchId of newMatchIds) {
-        const match = allMatches.find((m) => m.match_id === matchId);
-        if (!match) continue;
-
-        let matchUserName = 'Someone';
-        if (match.match_user) {
-          matchUserName = match.match_user.first_name || 'Someone';
-        }
-
-        const notificationTitle = 'New Match!';
-        const notificationBody = `You have a new match with ${matchUserName}`;
-
-        sendNotification(notificationTitle, notificationBody, {
-          type: 'match',
-          matchId: matchId.toString(),
-        });
-      }
-
-      // Update last known match IDs
-      lastMatchIdsRef.current = currentMatchIds;
-    } catch (err) {
-      console.error('Error checking for new matches:', err);
-    }
-  };
-
   // Initialize polling
   useEffect(() => {
     if (!notificationsEnabled) {
@@ -147,7 +92,6 @@ export const useNotificationPolling = () => {
     // Initial check - this sets up the baseline without sending notifications
     const initializeBaseline = async () => {
       await checkNewMessages();
-      await checkNewMatches();
       // Mark as initialized after first check completes
       setTimeout(() => {
         isInitializedRef.current = true;
@@ -159,7 +103,6 @@ export const useNotificationPolling = () => {
     // Set up polling interval
     pollingIntervalRef.current = setInterval(() => {
       checkNewMessages();
-      checkNewMatches();
     }, POLLING_INTERVAL);
 
     return () => {
@@ -173,14 +116,12 @@ export const useNotificationPolling = () => {
   useEffect(() => {
     if (!notificationsEnabled) {
       lastMessageCountsRef.current = {};
-      lastMatchIdsRef.current = new Set();
       isInitializedRef.current = false;
     }
   }, [notificationsEnabled]);
 
   return {
     checkNewMessages,
-    checkNewMatches,
   };
 };
 

@@ -67,6 +67,25 @@ const LINKED_DATER_AVATAR_PALETTES = [
   { bg: '#FFF3E0', fg: '#E65100' },
 ];
 
+const NOTIFICATION_PREFERENCE_ITEMS = [
+  {
+    key: 'newMatchNotification',
+    label: 'New Match Notification',
+  },
+  {
+    key: 'newNoteNotification',
+    label: 'New Note Notification',
+  },
+  {
+    key: 'newBlindMatchNotification',
+    label: 'New Blind Match Notification',
+  },
+  {
+    key: 'newMessageNotification',
+    label: 'New Message Notification',
+  },
+];
+
 const formatLinkedDaterIdPreview = (id) => {
   if (id == null || id === '') return '';
   const str = String(id);
@@ -107,7 +126,14 @@ const SettingsSections = () => {
   const navigation = useNavigation();
   const route = useRoute();
   const { setUser: setContextUser } = useContext(UserContext);
-  const { notificationsEnabled, enableNotifications, disableNotifications, permissionStatus } = useNotifications();
+  const {
+    notificationsEnabled,
+    notificationPreferences,
+    enableNotifications,
+    disableNotifications,
+    setNotificationPreference,
+    permissionStatus,
+  } = useNotifications();
 
   const [activeSection, setActiveSection] = useState(null);
   const [user, setUser] = useState(null);
@@ -1136,7 +1162,7 @@ const SettingsSections = () => {
       if (!granted) {
         Alert.alert(
           'Permission Required',
-          'Please enable notifications in your device settings to receive notifications for new messages and matches.'
+          'Please enable notifications in your device settings to receive notifications for new matches, notes, blind matches, and messages.'
         );
       }
     } else {
@@ -1783,7 +1809,7 @@ const SettingsSections = () => {
     <View style={styles.card}>
       <Text style={styles.cardHeader}>Notifications</Text>
       <Text style={styles.cardDescription}>
-        Manage push notifications for new messages and matches.
+        Turn notifications on first, then choose which alerts you want to receive.
       </Text>
       <View style={styles.notificationToggle}>
         <Text style={styles.notificationLabel}>Enable Notifications</Text>
@@ -1794,6 +1820,21 @@ const SettingsSections = () => {
           thumbColor={notificationsEnabled ? '#fff' : '#f4f3f4'}
         />
       </View>
+      {notificationsEnabled ? (
+        <View style={styles.notificationPreferencesGroup}>
+          {NOTIFICATION_PREFERENCE_ITEMS.map((item) => (
+            <View key={item.key} style={styles.notificationPreferenceRow}>
+              <Text style={styles.notificationLabel}>{item.label}</Text>
+              <Switch
+                value={Boolean(notificationPreferences?.[item.key])}
+                onValueChange={(value) => setNotificationPreference(item.key, value)}
+                trackColor={{ false: '#E5E7EB', true: accentColor }}
+                thumbColor={notificationPreferences?.[item.key] ? '#fff' : '#f4f3f4'}
+              />
+            </View>
+          ))}
+        </View>
+      ) : null}
       {permissionStatus === 'denied' ? (
         <Text style={styles.permissionWarning}>
           Notifications are disabled in your device settings. Please enable them to receive alerts.
@@ -2667,6 +2708,15 @@ const styles = StyleSheet.create({
     color: '#111827',
     fontSize: 16,
     fontWeight: '500',
+  },
+  notificationPreferencesGroup: {
+    marginTop: 16,
+    gap: 12,
+  },
+  notificationPreferenceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   permissionWarning: {
     marginTop: 10,

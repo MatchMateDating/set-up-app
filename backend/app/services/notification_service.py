@@ -19,6 +19,14 @@ logger = logging.getLogger(__name__)
 push_client = PushClient()
 
 
+def _user_notification_allowed(user, preference_field=None):
+    if not user or not user.notifications_enabled:
+        return False
+    if not preference_field:
+        return True
+    return user.notification_setting_enabled(preference_field)
+
+
 def _push_tokens_for_delivery(push_tokens):
     """
     Avoid duplicate alerts on one phone: dev clients may register both native (ios/android)
@@ -140,7 +148,7 @@ def send_notification_to_user(user_id, title, body, data=None):
     user = User.query.get(user_id)
     if not user:
         return False
-    if not user.notifications_enabled:
+    if not _user_notification_allowed(user):
         return False
 
     push_tokens = PushToken.query.filter_by(user_id=user_id).all()
@@ -170,9 +178,9 @@ def send_message_notification(receiver_id, sender_id, match_id, message_text):
             "message push skipped: receiver_id=%s not found", receiver_id
         )
         return False
-    if not receiver.notifications_enabled:
+    if not _user_notification_allowed(receiver, "new_message_notifications"):
         logger.debug(
-            "message push skipped: receiver_id=%s notifications_enabled=False",
+            "message push skipped: receiver_id=%s new_message_notifications disabled",
             receiver_id,
         )
         return False
@@ -238,21 +246,65 @@ def send_message_notification(receiver_id, sender_id, match_id, message_text):
     return ok
 
 
-def send_match_notification(user_id, match_id, other_user_name):
+def send_match_notification(user_id, match_id, other_user_name, is_blind_match=False):
     user = User.query.get(user_id)
     if not user:
         return False
-    if not user.notifications_enabled:
+    preference_field = (
+        "new_blind_match_notifications" if is_blind_match else "new_match_notifications"
+    )
+    if not _user_notification_allowed(user, preference_field):
         return False
 
-    title = "New Match!"
-    body = f"You have a new match with {other_user_name}"
+    title = "New Blind Match!" if is_blind_match else "New Match!"
+    body = (
+        f"You have a new blind match with {other_user_name}"
+        if is_blind_match
+        else f"You have a new match with {other_user_name}"
+    )
     data = {
-        "type": "match",
+        "type": "blind_match" if is_blind_match else "match",
         "matchId": str(match_id),
     }
 
     push_tokens = PushToken.query.filter_by(user_id=user_id).all()
+
+    if not push_tokens:
+        if user.push_token:
+            return send_push_notification(
+                user.push_token, title, body, data, legacy_user=user
+            )
+        return False
+
+    push_tokens = _push_tokens_for_delivery(push_tokens)
+    success_count = 0
+    for token_obj in push_tokens:
+        if send_push_to_token_row(token_obj, title, body, data):
+            success_count += 1
+
+    return success_count > 0
+
+
+def send_note_notification(receiver_id, sender_name, match_id, note_text):
+    user = User.query.get(receiver_id)
+    if not user:
+        return False
+    if not _user_notification_allowed(user, "new_note_notifications"):
+        return False
+
+    sender_name = sender_name or "Someone"
+    preview = (note_text or "").strip()
+    if len(preview) > 180:
+        preview = preview[:177] + "..."
+
+    title = f"New note from {sender_name}"
+    body = preview if preview else "You received a new note"
+    data = {
+        "type": "note",
+        "matchId": str(match_id),
+    }
+
+    push_tokens = PushToken.query.filter_by(user_id=receiver_id).all()
 
     if not push_tokens:
         if user.push_token:

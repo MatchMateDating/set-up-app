@@ -13,7 +13,7 @@ from app.routes.shared import token_required
 from app.services.ai_embeddings import get_conversation_similarity
 import math
 from math import radians, sin, cos, sqrt, atan2
-from app.services.notification_service import send_match_notification
+from app.services.notification_service import send_match_notification, send_note_notification
 
 match_bp = Blueprint('match', __name__)
 
@@ -331,11 +331,21 @@ def blind_match(current_user):
         if referred_dater and liked_user:
             # Notify the referred dater
             other_name = liked_user.first_name or 'Someone'
-            send_match_notification(referred_dater_id, new_match.id if not existing_match else existing_match.id, other_name)
+            send_match_notification(
+                referred_dater_id,
+                new_match.id if not existing_match else existing_match.id,
+                other_name,
+                is_blind_match=True,
+            )
             
             # Notify the liked user
             other_name = referred_dater.first_name or 'Someone'
-            send_match_notification(liked_user_id, new_match.id if not existing_match else existing_match.id, other_name)
+            send_match_notification(
+                liked_user_id,
+                new_match.id if not existing_match else existing_match.id,
+                other_name,
+                is_blind_match=True,
+            )
     except Exception as e:
         # Log error but don't fail the request
         print(f"Error sending match notifications: {e}")
@@ -931,6 +941,13 @@ def send_note(current_user):
     db.session.add(note_message)
 
     db.session.commit()
+
+    try:
+        sender_name = sender_user.first_name or current_user.first_name or 'Someone'
+        send_note_notification(recipient_id, sender_name, match.id, note_text)
+    except Exception as e:
+        print(f"Error sending note notification: {e}")
+
     return jsonify({'message': 'Note sent successfully', 'match': match.to_dict()}), 201
 
 @match_bp.route('/skip/<int:skipped_user_id>', methods=['POST'])

@@ -36,6 +36,10 @@ class User(db.Model):
     last_active_at = db.Column(db.DateTime, nullable=True)
     push_token = db.Column(db.String(255), nullable=True)  # Legacy: prefer push_tokens table for new registrations
     notifications_enabled = db.Column(db.Boolean, nullable=False, default=False)  # User's notification preference
+    new_match_notifications = db.Column(db.Boolean, nullable=True, default=None)
+    new_note_notifications = db.Column(db.Boolean, nullable=True, default=None)
+    new_blind_match_notifications = db.Column(db.Boolean, nullable=True, default=None)
+    new_message_notifications = db.Column(db.Boolean, nullable=True, default=None)
     email_verified = db.Column(db.Boolean, nullable=False, default=False)
     email_verification_token = db.Column(db.String(100), nullable=True, unique=True)
     phone_verified = db.Column(db.Boolean, nullable=False, default=False)
@@ -110,6 +114,25 @@ class User(db.Model):
             return User.query.get(self.linked_account_id)
         return None
 
+    def notification_setting_enabled(self, field_name):
+        if not self.notifications_enabled:
+            return False
+
+        value = getattr(self, field_name, None)
+        if value is None:
+            return True
+
+        return bool(value)
+
+    def notification_preferences_dict(self):
+        return {
+            "notifications_enabled": bool(self.notifications_enabled),
+            "new_match_notifications": self.notification_setting_enabled("new_match_notifications"),
+            "new_note_notifications": self.notification_setting_enabled("new_note_notifications"),
+            "new_blind_match_notifications": self.notification_setting_enabled("new_blind_match_notifications"),
+            "new_message_notifications": self.notification_setting_enabled("new_message_notifications"),
+        }
+
     def to_dict(self):
         linked_account = self.get_linked_account()
         linked_account_info = None
@@ -121,6 +144,7 @@ class User(db.Model):
                 "first_name": linked_account.first_name,
                 "last_name": linked_account.last_name
             }
+        notification_preferences = self.notification_preferences_dict()
         
         return {
             "id": self.id,
@@ -154,7 +178,11 @@ class User(db.Model):
             "show_location": self.show_location,
             "match_radius": self.match_radius,
             "unit": self.unit,
-            "notifications_enabled": self.notifications_enabled,
+            "notifications_enabled": notification_preferences["notifications_enabled"],
+            "new_match_notifications": notification_preferences["new_match_notifications"],
+            "new_note_notifications": notification_preferences["new_note_notifications"],
+            "new_blind_match_notifications": notification_preferences["new_blind_match_notifications"],
+            "new_message_notifications": notification_preferences["new_message_notifications"],
             "email_verified": self.email_verified,
             "phone_verified": self.phone_verified,
             "profile_completion_step": self.profile_completion_step,
