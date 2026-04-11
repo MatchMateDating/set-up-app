@@ -11,9 +11,9 @@ notification_bp = Blueprint('notification', __name__)
 
 NOTIFICATION_PREFERENCE_FIELDS = (
     'new_match_notifications',
-    'new_note_notifications',
     'new_blind_match_notifications',
     'new_message_notifications',
+    'new_match_approval_notifications',
 )
 
 
@@ -144,9 +144,11 @@ def update_notification_preferences(current_user):
             'message': 'Notification preferences updated successfully',
             'notifications_enabled': user.notifications_enabled,
             'new_match_notifications': user.notification_setting_enabled('new_match_notifications'),
-            'new_note_notifications': user.notification_setting_enabled('new_note_notifications'),
             'new_blind_match_notifications': user.notification_setting_enabled('new_blind_match_notifications'),
             'new_message_notifications': user.notification_setting_enabled('new_message_notifications'),
+            'new_match_approval_notifications': user.notification_setting_enabled(
+                'new_match_approval_notifications'
+            ),
             'user_id': user.id  # Include user_id in response for verification
         }), 200
         

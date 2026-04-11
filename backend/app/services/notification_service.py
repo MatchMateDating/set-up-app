@@ -285,26 +285,20 @@ def send_match_notification(user_id, match_id, other_user_name, is_blind_match=F
     return success_count > 0
 
 
-def send_note_notification(receiver_id, sender_name, match_id, note_text):
-    user = User.query.get(receiver_id)
+def send_approved_match_notification(user_id, title, body, match_id):
+    """Push when a pending match is approved (matchmakers or daters)."""
+    user = User.query.get(user_id)
     if not user:
         return False
-    if not _user_notification_allowed(user, "new_note_notifications"):
+    if not _user_notification_allowed(user, "new_match_approval_notifications"):
         return False
 
-    sender_name = sender_name or "Someone"
-    preview = (note_text or "").strip()
-    if len(preview) > 180:
-        preview = preview[:177] + "..."
-
-    title = f"New note from {sender_name}"
-    body = preview if preview else "You received a new note"
     data = {
-        "type": "note",
+        "type": "match_approval",
         "matchId": str(match_id),
     }
 
-    push_tokens = PushToken.query.filter_by(user_id=receiver_id).all()
+    push_tokens = PushToken.query.filter_by(user_id=user_id).all()
 
     if not push_tokens:
         if user.push_token:

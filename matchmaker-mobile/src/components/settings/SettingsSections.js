@@ -73,16 +73,17 @@ const NOTIFICATION_PREFERENCE_ITEMS = [
     label: 'New Match Notification',
   },
   {
-    key: 'newNoteNotification',
-    label: 'New Note Notification',
-  },
-  {
     key: 'newBlindMatchNotification',
     label: 'New Blind Match Notification',
+    daterOnly: true,
   },
   {
     key: 'newMessageNotification',
     label: 'New Message Notification',
+  },
+  {
+    key: 'newMatchApprovalNotification',
+    label: 'Approved Match Notification',
   },
 ];
 
@@ -195,6 +196,14 @@ const SettingsSections = () => {
   const settingsBackAccent =
     activeSection === SECTION_KEYS.DATING_PREFERENCES ? datingPreferencesAccent : accentColor;
   const backgroundTint = getRoleBackgroundTint(role || 'matchmaker');
+
+  const visibleNotificationPreferenceItems = useMemo(
+    () =>
+      NOTIFICATION_PREFERENCE_ITEMS.filter(
+        (item) => !(item.daterOnly && role === 'matchmaker')
+      ),
+    [role]
+  );
 
   const sectionItems = useMemo(() => {
     const base = [
@@ -1162,7 +1171,7 @@ const SettingsSections = () => {
       if (!granted) {
         Alert.alert(
           'Permission Required',
-          'Please enable notifications in your device settings to receive notifications for new matches, notes, blind matches, and messages.'
+          'Please enable notifications in your device settings to receive notifications for new matches, blind matches, and messages.'
         );
       }
     } else {
@@ -1822,7 +1831,7 @@ const SettingsSections = () => {
       </View>
       {notificationsEnabled ? (
         <View style={styles.notificationPreferencesGroup}>
-          {NOTIFICATION_PREFERENCE_ITEMS.map((item) => (
+          {visibleNotificationPreferenceItems.map((item) => (
             <View key={item.key} style={styles.notificationPreferenceRow}>
               <Text style={styles.notificationLabel}>{item.label}</Text>
               <Switch

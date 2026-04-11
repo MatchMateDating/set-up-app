@@ -40,6 +40,7 @@ class User(db.Model):
     new_note_notifications = db.Column(db.Boolean, nullable=True, default=None)
     new_blind_match_notifications = db.Column(db.Boolean, nullable=True, default=None)
     new_message_notifications = db.Column(db.Boolean, nullable=True, default=None)
+    new_match_approval_notifications = db.Column(db.Boolean, nullable=True, default=None)
     email_verified = db.Column(db.Boolean, nullable=False, default=False)
     email_verification_token = db.Column(db.String(100), nullable=True, unique=True)
     phone_verified = db.Column(db.Boolean, nullable=False, default=False)
@@ -128,9 +129,11 @@ class User(db.Model):
         return {
             "notifications_enabled": bool(self.notifications_enabled),
             "new_match_notifications": self.notification_setting_enabled("new_match_notifications"),
-            "new_note_notifications": self.notification_setting_enabled("new_note_notifications"),
             "new_blind_match_notifications": self.notification_setting_enabled("new_blind_match_notifications"),
             "new_message_notifications": self.notification_setting_enabled("new_message_notifications"),
+            "new_match_approval_notifications": self.notification_setting_enabled(
+                "new_match_approval_notifications"
+            ),
         }
 
     def to_dict(self):
@@ -180,9 +183,11 @@ class User(db.Model):
             "unit": self.unit,
             "notifications_enabled": notification_preferences["notifications_enabled"],
             "new_match_notifications": notification_preferences["new_match_notifications"],
-            "new_note_notifications": notification_preferences["new_note_notifications"],
             "new_blind_match_notifications": notification_preferences["new_blind_match_notifications"],
             "new_message_notifications": notification_preferences["new_message_notifications"],
+            "new_match_approval_notifications": notification_preferences[
+                "new_match_approval_notifications"
+            ],
             "email_verified": self.email_verified,
             "phone_verified": self.phone_verified,
             "profile_completion_step": self.profile_completion_step,

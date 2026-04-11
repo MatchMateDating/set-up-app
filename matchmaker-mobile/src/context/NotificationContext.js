@@ -58,16 +58,16 @@ export const NotificationContext = createContext(null);
 
 const DEFAULT_NOTIFICATION_PREFERENCES = {
   newMatchNotification: false,
-  newNoteNotification: false,
   newBlindMatchNotification: false,
   newMessageNotification: false,
+  newMatchApprovalNotification: false,
 };
 
 const ENABLED_NOTIFICATION_PREFERENCES = {
   newMatchNotification: true,
-  newNoteNotification: true,
   newBlindMatchNotification: true,
   newMessageNotification: true,
+  newMatchApprovalNotification: true,
 };
 
 const buildNotificationPreferenceState = (userData) => {
@@ -89,9 +89,9 @@ const buildNotificationPreferenceState = (userData) => {
     enabled: true,
     preferences: {
       newMatchNotification: readPreference('new_match_notifications'),
-      newNoteNotification: readPreference('new_note_notifications'),
       newBlindMatchNotification: readPreference('new_blind_match_notifications'),
       newMessageNotification: readPreference('new_message_notifications'),
+      newMatchApprovalNotification: readPreference('new_match_approval_notifications'),
     },
   };
 };
@@ -101,18 +101,18 @@ const buildNotificationPreferencePayload = (enabled, preferences) => {
     return {
       enabled: false,
       new_match_notifications: false,
-      new_note_notifications: false,
       new_blind_match_notifications: false,
       new_message_notifications: false,
+      new_match_approval_notifications: false,
     };
   }
 
   return {
     enabled: true,
     new_match_notifications: Boolean(preferences?.newMatchNotification),
-    new_note_notifications: Boolean(preferences?.newNoteNotification),
     new_blind_match_notifications: Boolean(preferences?.newBlindMatchNotification),
     new_message_notifications: Boolean(preferences?.newMessageNotification),
+    new_match_approval_notifications: Boolean(preferences?.newMatchApprovalNotification),
   };
 };
 
@@ -651,10 +651,10 @@ export const NotificationProvider = ({ children }) => {
         return notificationPreferences.newMatchNotification;
       case 'blind_match':
         return notificationPreferences.newBlindMatchNotification;
-      case 'note':
-        return notificationPreferences.newNoteNotification;
       case 'message':
         return notificationPreferences.newMessageNotification;
+      case 'match_approval':
+        return notificationPreferences.newMatchApprovalNotification;
       default:
         return true;
     }

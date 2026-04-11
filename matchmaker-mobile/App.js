@@ -33,7 +33,7 @@ function NotificationHandler({ navigationRef }) {
           const data = response.notification.request.content.data;
           
           if (data?.matchId && navigationRef.current) {
-            // Navigate to the conversation
+            // Navigate to the conversation (messages, approvals, new matches)
             navigationRef.current.navigate('MatchConvo', {
               matchId: parseInt(data.matchId),
             });
