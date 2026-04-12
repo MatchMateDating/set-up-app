@@ -126,7 +126,7 @@ const LinkedDaterRowAvatar = ({ name, firstImage, palette }) => {
 const SettingsSections = () => {
   const navigation = useNavigation();
   const route = useRoute();
-  const { setUser: setContextUser } = useContext(UserContext);
+  const { setUser: setContextUser, user: contextUser } = useContext(UserContext);
   const {
     notificationsEnabled,
     notificationPreferences,
@@ -134,7 +134,63 @@ const SettingsSections = () => {
     disableNotifications,
     setNotificationPreference,
     permissionStatus,
+    loading: notificationPrefsLoading,
   } = useNotifications();
+
+  const contextUserIdRef = useRef(contextUser?.id);
+  contextUserIdRef.current = contextUser?.id;
+  const notificationPrefsLoadingRef = useRef(notificationPrefsLoading);
+  notificationPrefsLoadingRef.current = notificationPrefsLoading;
+
+  const waitForNotificationPrefsAfterUserSwitch = useCallback(async (expectedUserId) => {
+    await new Promise((r) => setTimeout(r, 50));
+    const deadline = Date.now() + 8000;
+    while (Date.now() < deadline) {
+      if (
+        contextUserIdRef.current === expectedUserId &&
+        !notificationPrefsLoadingRef.current
+      ) {
+        return;
+      }
+      await new Promise((r) => setTimeout(r, 40));
+    }
+  }, []);
+
+  const promptEnableAllNotificationsForNewLinkedRole = useCallback(
+    (newRole) =>
+      new Promise((resolve) => {
+        const roleLabel = newRole === 'user' ? 'dater' : 'matchmaker';
+        const capitalized = newRole === 'user' ? 'Dater' : 'Matchmaker';
+        Alert.alert(
+          `${capitalized} account created`,
+          `Your ${roleLabel} account is ready.\n\nEnable all push notifications for it so you do not miss matches, messages, or approvals.`,
+          [
+            {
+              text: 'Not now',
+              style: 'cancel',
+              onPress: () => resolve(),
+            },
+            {
+              text: 'Enable all',
+              onPress: () => {
+                void (async () => {
+                  const granted = await enableNotifications();
+                  if (!granted) {
+                    Alert.alert(
+                      'Permission required',
+                      'To receive notifications, enable them in your device settings for this app.'
+                    );
+                  }
+                  resolve();
+                })();
+              },
+            },
+          ],
+          { cancelable: true, onDismiss: () => resolve() }
+        );
+      }),
+    [enableNotifications]
+  );
 
   const [activeSection, setActiveSection] = useState(null);
   const [user, setUser] = useState(null);
@@ -712,7 +768,8 @@ const SettingsSections = () => {
       setContextUser(data.user);
       setShowReferralModal(false);
       setReferralInput('');
-      Alert.alert('Success', 'Matchmaker account created successfully');
+      await waitForNotificationPrefsAfterUserSwitch(data.user.id);
+      await promptEnableAllNotificationsForNewLinkedRole('matchmaker');
       fetchUserProfile();
     } catch (err) {
       console.error(err);

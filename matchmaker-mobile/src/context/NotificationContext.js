@@ -139,6 +139,9 @@ export const NotificationProvider = ({ children }) => {
   const hasLoadedPreferenceRef = useRef(false);
   const registeredTokensRef = useRef(new Set());
   const currentUserIdRef = useRef(null);
+  /** Always latest logged-in user id — use after `await` instead of stale `user` closures. */
+  const userIdRef = useRef(user?.id ?? null);
+  userIdRef.current = user?.id ?? null;
 
   /* -------------------------------------------
    * RESET STATE WHEN USER CHANGES
@@ -585,8 +588,7 @@ export const NotificationProvider = ({ children }) => {
    * PUBLIC API
    * ----------------------------------------- */
   const enableNotifications = async () => {
-    // Ensure we have a valid user before enabling
-    if (!user?.id) {
+    if (!userIdRef.current) {
       console.warn('Cannot enable notifications: no user logged in');
       return false;
     }
@@ -594,23 +596,31 @@ export const NotificationProvider = ({ children }) => {
     // Allow re-POST to /register_token on every enable (toggle off/on or retry after failed save).
     registeredTokensRef.current.clear();
 
-    // Store the user ID at the start to prevent cross-user contamination
-    const userIdAtStart = user.id;
+    const userIdAtStart = userIdRef.current;
 
     const granted = await requestPermissions();
-    
-    // Double-check user hasn't changed during permission request
-    if (granted && user?.id === userIdAtStart && currentUserIdRef.current === userIdAtStart) {
-      hasLoadedPreferenceRef.current = true;
-      setNotificationPreferences({ ...ENABLED_NOTIFICATION_PREFERENCES });
-      setNotificationsEnabled(true);
-      return true;
-    } else if (granted && user?.id !== userIdAtStart) {
+
+    if (!granted) {
+      return false;
+    }
+
+    // After `await`, closure `user` can be stale; `userIdRef` is current. Do not require
+    // `currentUserIdRef` here — it is updated in `useEffect` and can lag one frame behind
+    // UserContext after a linked-account switch, which previously skipped `setState` and
+    // fell through to `return granted` without updating UI.
+    if (userIdRef.current !== userIdAtStart) {
       console.warn('User changed during notification enable, aborting');
       return false;
     }
-    
-    return granted;
+
+    if (currentUserIdRef.current !== userIdAtStart) {
+      currentUserIdRef.current = userIdAtStart;
+    }
+
+    hasLoadedPreferenceRef.current = true;
+    setNotificationPreferences({ ...ENABLED_NOTIFICATION_PREFERENCES });
+    setNotificationsEnabled(true);
+    return true;
   };
 
   const disableNotifications = () => {

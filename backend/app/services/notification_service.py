@@ -7,6 +7,7 @@ from exponent_server_sdk import (
     InvalidCredentialsError,
 )
 from app.models.userDB import User, PushToken
+from app.models.matchDB import Match
 from app import db
 from app.services.push_platforms import (
     InvalidPushToken,
@@ -25,6 +26,40 @@ def _user_notification_allowed(user, preference_field=None):
     if not preference_field:
         return True
     return user.notification_setting_enabled(preference_field)
+
+
+def _should_skip_message_push_pending_dater_awaits_mm(match, receiver_id, receiver):
+    """
+    pending_approval: do not push messages to a dater whose matchmaker has not approved yet —
+    they are not in the live Dater↔Dater conversation until that approval.
+    """
+    if not match or match.status != "pending_approval":
+        return False
+    if not receiver or getattr(receiver, "role", None) != "user":
+        return False
+    if receiver_id == match.user_id_1:
+        has_mm = bool(match.matched_by_user_id_1_matcher)
+        approved = bool(match.approved_by_matcher_1)
+    elif receiver_id == match.user_id_2:
+        has_mm = bool(match.matched_by_user_id_2_matcher)
+        approved = bool(match.approved_by_matcher_2)
+    else:
+        return False
+    if not has_mm:
+        return False
+    return not approved
+
+
+def _notification_body_suffix(user):
+    """Append account-type hint for users with both dater and matchmaker logins on one device."""
+    if not user:
+        return ""
+    role = getattr(user, "role", None)
+    if role == "matchmaker":
+        return " (matchmaker)"
+    if role == "user":
+        return " (dater)"
+    return ""
 
 
 def _push_tokens_for_delivery(push_tokens):
@@ -151,6 +186,8 @@ def send_notification_to_user(user_id, title, body, data=None):
     if not _user_notification_allowed(user):
         return False
 
+    body = (body or "") + _notification_body_suffix(user)
+
     push_tokens = PushToken.query.filter_by(user_id=user_id).all()
 
     if not push_tokens:
@@ -190,12 +227,22 @@ def send_message_notification(receiver_id, sender_id, match_id, message_text):
         )
         return False
 
+    match = Match.query.get(match_id) if match_id else None
+    if _should_skip_message_push_pending_dater_awaits_mm(match, receiver_id, receiver):
+        logger.debug(
+            "message push skipped: receiver_id=%s pending_approval, matchmaker not approved yet match_id=%s",
+            receiver_id,
+            match_id,
+        )
+        return False
+
     sender_name = sender.first_name or "Someone"
     title = f"New message from {sender_name}"
     preview = (message_text or "").strip()
     if len(preview) > 180:
         preview = preview[:177] + "..."
     body = preview if preview else "You have a new message"
+    body = body + _notification_body_suffix(receiver)
     data = {
         "type": "message",
         "matchId": str(match_id),
@@ -262,6 +309,7 @@ def send_match_notification(user_id, match_id, other_user_name, is_blind_match=F
         if is_blind_match
         else f"You have a new match with {other_user_name}"
     )
+    body = body + _notification_body_suffix(user)
     data = {
         "type": "blind_match" if is_blind_match else "match",
         "matchId": str(match_id),
@@ -292,6 +340,8 @@ def send_approved_match_notification(user_id, title, body, match_id):
         return False
     if not _user_notification_allowed(user, "new_match_approval_notifications"):
         return False
+
+    body = (body or "") + _notification_body_suffix(user)
 
     data = {
         "type": "match_approval",
