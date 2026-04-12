@@ -848,6 +848,9 @@ def unmatch(current_user, match_id):
     # Delete conversations (and their messages) that reference this match before deleting the match
     conversations = Conversation.query.filter_by(match_id=match_id).all()
     for conversation in conversations:
+        ConversationReadState.query.filter_by(
+            conversation_id=conversation.id
+        ).delete()
         Message.query.filter_by(conversation_id=conversation.id).delete()
         db.session.delete(conversation)
     db.session.delete(match)

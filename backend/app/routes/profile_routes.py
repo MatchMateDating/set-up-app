@@ -14,6 +14,7 @@ from app.models.blockDB import UserBlock
 from flask import current_app
 from uuid import uuid4
 from app.routes.shared import token_required, calculate_age
+from sqlalchemy import or_
 from sqlalchemy.exc import SQLAlchemyError
 from datetime import datetime
 from app.services.storage_service import (
@@ -596,9 +597,18 @@ def _delete_user_related_data(user):
 
     ConversationReadState.query.filter_by(viewer_user_id=user_id).delete()
 
-    # 2. Delete standalone/direct messages
+    # 2. Delete standalone/direct messages (any row where this user is sender or receiver)
+    # Clear last_read_message_id first so other users' read state does not reference
+    # message ids we are about to delete (FK integrity).
+    _msgs_for_user = db.session.query(Message.id).filter(
+        or_(Message.sender_id == user_id, Message.receiver_id == user_id)
+    )
+    ConversationReadState.query.filter(
+        ConversationReadState.last_read_message_id.in_(_msgs_for_user)
+    ).update({ConversationReadState.last_read_message_id: None}, synchronize_session=False)
+
     Message.query.filter(
-        (Message.sender_id == user_id) | (Message.receiver_id == user_id)
+        or_(Message.sender_id == user_id, Message.receiver_id == user_id)
     ).delete()
 
     # 3. Delete quiz results
