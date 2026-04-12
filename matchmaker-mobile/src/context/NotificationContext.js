@@ -5,13 +5,55 @@ import React, {
   useEffect,
   useContext,
   useRef,
+  useCallback,
 } from 'react';
 import * as Notifications from 'expo-notifications';
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_BASE_URL } from '../env';
 import { UserContext } from './UserContext';
+
+let activeConversationMatchId = null;
+
+export function getActiveMatchId() {
+  return activeConversationMatchId;
+}
+
+export function setActiveMatchId(id) {
+  activeConversationMatchId =
+    id != null && id !== '' ? String(id) : null;
+}
+
+/** `content.data` or (iOS direct APNs) `trigger.payload` — see expo EXNotificationSerializer. */
+export function getNotificationRoutingData(notification) {
+  const contentData = notification?.request?.content?.data;
+  if (contentData != null && typeof contentData === 'object' && !Array.isArray(contentData)) {
+    return contentData;
+  }
+
+  const trigger = notification?.request?.trigger;
+  if (trigger?.type === 'push' && trigger.payload && typeof trigger.payload === 'object') {
+    const p = trigger.payload;
+    if (p.body != null && typeof p.body === 'object' && !Array.isArray(p.body)) {
+      return p.body;
+    }
+    if (typeof p.body === 'string') {
+      try {
+        const parsed = JSON.parse(p.body);
+        if (parsed && typeof parsed === 'object') return parsed;
+      } catch (_) {
+        /* ignore */
+      }
+    }
+    const { aps: _aps, ...rest } = p;
+    if (Object.keys(rest).length > 0) {
+      return rest;
+    }
+  }
+
+  return null;
+}
 
 // Safety check for API_BASE_URL
 if (!API_BASE_URL) {
@@ -25,12 +67,35 @@ const setupNotificationHandler = () => {
   if (notificationHandlerSet) return;
   try {
     Notifications.setNotificationHandler({
-      handleNotification: async () => ({
-        shouldShowBanner: true,
-        shouldShowList: true,
-        shouldPlaySound: true,
-        shouldSetBadge: true,
-      }),
+      handleNotification: async (notification) => {
+        const data = getNotificationRoutingData(notification);
+        const type = data?.type;
+        const matchId =
+          data?.matchId != null && data?.matchId !== ''
+            ? String(data.matchId)
+            : null;
+        const active = getActiveMatchId();
+        const suppressForeground =
+          type === 'message' &&
+          matchId != null &&
+          active != null &&
+          matchId === active;
+
+        if (suppressForeground) {
+          return {
+            shouldShowBanner: false,
+            shouldShowList: false,
+            shouldPlaySound: false,
+            shouldSetBadge: false,
+          };
+        }
+        return {
+          shouldShowBanner: true,
+          shouldShowList: true,
+          shouldPlaySound: true,
+          shouldSetBadge: true,
+        };
+      },
     });
     notificationHandlerSet = true;
   } catch (error) {
@@ -38,7 +103,82 @@ const setupNotificationHandler = () => {
   }
 };
 
+/** Native Firebase (FCM) not wired — see https://docs.expo.dev/push-notifications/fcm-credentials/ */
+function logAndroidFcmSetupHint(error) {
+  const msg = error?.message != null ? String(error.message) : String(error);
+  if (
+    typeof __DEV__ !== 'undefined' &&
+    __DEV__ &&
+    Platform.OS === 'android' &&
+    msg.includes('complete the guide')
+  ) {
+    console.warn(
+      '[Android FCM] google-services.json must be applied in the native project. In app.json set expo.android.googleServicesFile to ./google-services.json, then run: npx expo prebuild --clean && npx expo run:android'
+    );
+  }
+}
+
 export const NotificationContext = createContext(null);
+
+const DEFAULT_NOTIFICATION_PREFERENCES = {
+  newMatchNotification: false,
+  newBlindMatchNotification: false,
+  newMessageNotification: false,
+  newMatchApprovalNotification: false,
+};
+
+const ENABLED_NOTIFICATION_PREFERENCES = {
+  newMatchNotification: true,
+  newBlindMatchNotification: true,
+  newMessageNotification: true,
+  newMatchApprovalNotification: true,
+};
+
+const buildNotificationPreferenceState = (userData) => {
+  const enabled = Boolean(userData?.notifications_enabled ?? false);
+
+  if (!enabled) {
+    return {
+      enabled: false,
+      preferences: { ...DEFAULT_NOTIFICATION_PREFERENCES },
+    };
+  }
+
+  const readPreference = (fieldName) => {
+    const rawValue = userData?.[fieldName];
+    return rawValue == null ? true : Boolean(rawValue);
+  };
+
+  return {
+    enabled: true,
+    preferences: {
+      newMatchNotification: readPreference('new_match_notifications'),
+      newBlindMatchNotification: readPreference('new_blind_match_notifications'),
+      newMessageNotification: readPreference('new_message_notifications'),
+      newMatchApprovalNotification: readPreference('new_match_approval_notifications'),
+    },
+  };
+};
+
+const buildNotificationPreferencePayload = (enabled, preferences) => {
+  if (!enabled) {
+    return {
+      enabled: false,
+      new_match_notifications: false,
+      new_blind_match_notifications: false,
+      new_message_notifications: false,
+      new_match_approval_notifications: false,
+    };
+  }
+
+  return {
+    enabled: true,
+    new_match_notifications: Boolean(preferences?.newMatchNotification),
+    new_blind_match_notifications: Boolean(preferences?.newBlindMatchNotification),
+    new_message_notifications: Boolean(preferences?.newMessageNotification),
+    new_match_approval_notifications: Boolean(preferences?.newMatchApprovalNotification),
+  };
+};
 
 export const NotificationProvider = ({ children }) => {
   // Set up notification handler on mount (lazy initialization)
@@ -50,15 +190,22 @@ export const NotificationProvider = ({ children }) => {
   const user = userContext?.user || null;
 
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [notificationPreferences, setNotificationPreferences] = useState(
+    DEFAULT_NOTIFICATION_PREFERENCES
+  );
   const [permissionStatus, setPermissionStatus] = useState(null);
   const [expoPushToken, setExpoPushToken] = useState(null);
   const [loading, setLoading] = useState(true);
 
   // refs to prevent loops
   const isSavingRef = useRef(false);
-  const lastSavedValueRef = useRef(null);
+  const lastSavedPayloadRef = useRef(null);
+  const hasLoadedPreferenceRef = useRef(false);
   const registeredTokensRef = useRef(new Set());
   const currentUserIdRef = useRef(null);
+  /** Always latest logged-in user id — use after `await` instead of stale `user` closures. */
+  const userIdRef = useRef(user?.id ?? null);
+  userIdRef.current = user?.id ?? null;
 
   /* -------------------------------------------
    * RESET STATE WHEN USER CHANGES
@@ -66,8 +213,10 @@ export const NotificationProvider = ({ children }) => {
   useEffect(() => {
     if (!user?.id) {
       // hard reset when logged out
+      hasLoadedPreferenceRef.current = false;
       setNotificationsEnabled(false);
-      lastSavedValueRef.current = null;
+      setNotificationPreferences({ ...DEFAULT_NOTIFICATION_PREFERENCES });
+      lastSavedPayloadRef.current = null;
       currentUserIdRef.current = null;
       registeredTokensRef.current.clear();
       setLoading(false);
@@ -77,6 +226,7 @@ export const NotificationProvider = ({ children }) => {
     // New user detected - fetch actual preference from backend
     if (currentUserIdRef.current !== user.id) {
       currentUserIdRef.current = user.id;
+      hasLoadedPreferenceRef.current = false;
       registeredTokensRef.current.clear();
       setLoading(true);
       
@@ -87,7 +237,10 @@ export const NotificationProvider = ({ children }) => {
           if (!token) {
             // No token means user is not logged in - don't make API calls
             setNotificationsEnabled(false);
-            lastSavedValueRef.current = false;
+            setNotificationPreferences({ ...DEFAULT_NOTIFICATION_PREFERENCES });
+            lastSavedPayloadRef.current = JSON.stringify(
+              buildNotificationPreferencePayload(false, DEFAULT_NOTIFICATION_PREFERENCES)
+            );
             setLoading(false);
             // Clear user from context if no token exists
             if (user?.id) {
@@ -107,7 +260,10 @@ export const NotificationProvider = ({ children }) => {
           if (!API_BASE_URL) {
             console.error('API_BASE_URL is not set, skipping API call');
             setNotificationsEnabled(false);
-            lastSavedValueRef.current = false;
+            setNotificationPreferences({ ...DEFAULT_NOTIFICATION_PREFERENCES });
+            lastSavedPayloadRef.current = JSON.stringify(
+              buildNotificationPreferencePayload(false, DEFAULT_NOTIFICATION_PREFERENCES)
+            );
             setLoading(false);
             return;
           }
@@ -124,9 +280,14 @@ export const NotificationProvider = ({ children }) => {
             const data = await res.json();
             // Only update if we're still on the same user
             if (currentUserIdRef.current === user.id && data.user?.id === user.id) {
-              const enabled = Boolean(data.user?.notifications_enabled ?? false);
-              setNotificationsEnabled(enabled);
-              lastSavedValueRef.current = enabled;
+              const nextState = buildNotificationPreferenceState(data.user);
+              const payload = buildNotificationPreferencePayload(
+                nextState.enabled,
+                nextState.preferences
+              );
+              setNotificationsEnabled(nextState.enabled);
+              setNotificationPreferences(nextState.preferences);
+              lastSavedPayloadRef.current = JSON.stringify(payload);
             }
           } else if (res.status === 401) {
             const errorData = await res.json().catch(() => ({}));
@@ -141,26 +302,41 @@ export const NotificationProvider = ({ children }) => {
             }
             // Default to false on auth error
             setNotificationsEnabled(false);
-            lastSavedValueRef.current = false;
+            setNotificationPreferences({ ...DEFAULT_NOTIFICATION_PREFERENCES });
+            lastSavedPayloadRef.current = JSON.stringify(
+              buildNotificationPreferencePayload(false, DEFAULT_NOTIFICATION_PREFERENCES)
+            );
           } else if (res.status === 404) {
             console.warn('User not found, clearing stored data');
             // User not found - clear stored data
             await AsyncStorage.removeItem('token');
             await AsyncStorage.removeItem('user');
             setNotificationsEnabled(false);
-            lastSavedValueRef.current = false;
+            setNotificationPreferences({ ...DEFAULT_NOTIFICATION_PREFERENCES });
+            lastSavedPayloadRef.current = JSON.stringify(
+              buildNotificationPreferencePayload(false, DEFAULT_NOTIFICATION_PREFERENCES)
+            );
           } else {
             console.error('Error fetching notification preferences, status:', res.status);
             // Default to false on other errors
             setNotificationsEnabled(false);
-            lastSavedValueRef.current = false;
+            setNotificationPreferences({ ...DEFAULT_NOTIFICATION_PREFERENCES });
+            lastSavedPayloadRef.current = JSON.stringify(
+              buildNotificationPreferencePayload(false, DEFAULT_NOTIFICATION_PREFERENCES)
+            );
           }
         } catch (err) {
           console.error('Error fetching notification preference:', err);
           // Default to false on error
           setNotificationsEnabled(false);
-          lastSavedValueRef.current = false;
+          setNotificationPreferences({ ...DEFAULT_NOTIFICATION_PREFERENCES });
+          lastSavedPayloadRef.current = JSON.stringify(
+            buildNotificationPreferencePayload(false, DEFAULT_NOTIFICATION_PREFERENCES)
+          );
         } finally {
+          if (currentUserIdRef.current === user.id) {
+            hasLoadedPreferenceRef.current = true;
+          }
           setLoading(false);
         }
       };
@@ -173,11 +349,18 @@ export const NotificationProvider = ({ children }) => {
    * SAVE PREFERENCE TO BACKEND (USER-SCOPED)
    * ----------------------------------------- */
   useEffect(() => {
+    const payload = buildNotificationPreferencePayload(
+      notificationsEnabled,
+      notificationPreferences
+    );
+    const payloadString = JSON.stringify(payload);
+
     if (
       !user?.id ||
       loading ||
       isSavingRef.current ||
-      lastSavedValueRef.current === notificationsEnabled ||
+      !hasLoadedPreferenceRef.current ||
+      lastSavedPayloadRef.current === payloadString ||
       currentUserIdRef.current !== user.id  // Don't save if user changed during save
     ) {
       return;
@@ -222,7 +405,7 @@ export const NotificationProvider = ({ children }) => {
               'Content-Type': 'application/json',
               Authorization: `Bearer ${token}`,
             },
-            body: JSON.stringify({ enabled: notificationsEnabled }),
+            body: JSON.stringify(payload),
           }
         );
 
@@ -233,7 +416,7 @@ export const NotificationProvider = ({ children }) => {
             currentUserIdRef.current === refUserIdAtSaveStart &&
             currentUserIdRef.current === user.id
           ) {
-            lastSavedValueRef.current = notificationsEnabled;
+            lastSavedPayloadRef.current = payloadString;
           } else {
             console.warn('User changed during save operation, not updating local state', {
               userIdAtSaveStart,
@@ -267,7 +450,173 @@ export const NotificationProvider = ({ children }) => {
     };
 
     checkTokenAndSave();
-  }, [notificationsEnabled, user?.id, loading]);
+  }, [notificationPreferences, notificationsEnabled, user?.id, loading]);
+
+  /* -------------------------------------------
+   * REGISTER PUSH TOKEN (PER USER)
+   * ----------------------------------------- */
+  const registerPushToken = useCallback(
+    async (token, platform = 'expo', options = {}) => {
+      const { skipDedupe = false } = options;
+      const key = `${platform}:${token}`;
+      if (!user?.id) {
+        console.warn('registerPushToken: no user id, skipping');
+        return;
+      }
+      if (!skipDedupe && registeredTokensRef.current.has(key)) {
+        return;
+      }
+
+      try {
+        const authToken = await AsyncStorage.getItem('token');
+        if (!authToken) {
+          console.warn('registerPushToken: no auth token, skipping');
+          return;
+        }
+
+        if (!API_BASE_URL) {
+          console.error('API_BASE_URL is not set, skipping token registration');
+          return;
+        }
+
+        const body = { push_token: token, platform };
+
+        const res = await fetch(
+          `${API_BASE_URL}/notifications/register_token`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${authToken}`,
+            },
+            body: JSON.stringify(body),
+          }
+        );
+
+        if (res.ok) {
+          registeredTokensRef.current.add(key);
+          if (__DEV__) {
+            console.log('Push token registered:', platform);
+          }
+        } else {
+          const text = await res.text().catch(() => '');
+          console.warn('registerPushToken failed:', res.status, text);
+          if (res.status === 401) {
+            try {
+              const err = JSON.parse(text);
+              if (err.error_code === 'TOKEN_EXPIRED') {
+                await AsyncStorage.removeItem('token');
+              }
+            } catch (_) {
+              /* ignore */
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Push token registration failed:', err);
+      }
+    },
+    [user?.id]
+  );
+
+  /* Prefer native device token (APNs / FCM), else Expo — shared by permission flow and refresh */
+  const fetchPushTokenAndRegister = useCallback(
+    async (options = {}) => {
+      const { skipDedupe = false } = options;
+      if (Platform.OS === 'web') return;
+
+      const projectId =
+        Constants.expoConfig?.extra?.eas?.projectId ||
+        Constants.manifest2?.extra?.eas?.projectId;
+
+      let nativeOk = false;
+      try {
+        const device = await Notifications.getDevicePushTokenAsync();
+        if (device?.data) {
+          const nativePlatform = Platform.OS === 'ios' ? 'ios' : 'android';
+          await registerPushToken(device.data, nativePlatform, { skipDedupe });
+          nativeOk = true;
+        }
+      } catch (_) {
+        /* simulator / missing entitlements — fall back to Expo */
+      }
+      if (!nativeOk) {
+        if (!projectId) {
+          console.warn(
+            'Missing EAS projectId: cannot get Expo push token; add extra.eas.projectId in app config or use a dev build with native push.'
+          );
+        } else {
+          const token = await Notifications.getExpoPushTokenAsync({ projectId });
+          setExpoPushToken(token.data);
+          await registerPushToken(token.data, 'expo', { skipDedupe });
+        }
+      } else {
+        setExpoPushToken(null);
+      }
+    },
+    [registerPushToken]
+  );
+
+  const refreshPushTokenRegistration = useCallback(async () => {
+    if (Platform.OS === 'web' || !user?.id) return;
+    const { status } = await Notifications.getPermissionsAsync();
+    if (status !== 'granted') return;
+    try {
+      await fetchPushTokenAndRegister({ skipDedupe: true });
+    } catch (error) {
+      console.error('Push token refresh failed:', error);
+      logAndroidFcmSetupHint(error);
+    }
+  }, [user?.id, fetchPushTokenAndRegister]);
+
+  /*
+   * Store update / migration: once per app version (per user), re-register after a short delay.
+   * Fixes FCM/APNs readiness races where toggling notifications off/on used to be the workaround.
+   * Bump "version" in app.json each release you need to force token refresh for opted-in users.
+   */
+  useEffect(() => {
+    if (Platform.OS === 'web' || !user?.id || loading || !notificationsEnabled) return;
+
+    let cancelled = false;
+    const run = async () => {
+      const appVersion = Constants.expoConfig?.version || '0';
+      const storageKey = `push_token_registered_for_app_version_${user.id}`;
+      const lastSynced = await AsyncStorage.getItem(storageKey);
+      if (lastSynced === appVersion) return;
+
+      await new Promise((r) => setTimeout(r, 1500));
+      if (cancelled) return;
+
+      await refreshPushTokenRegistration();
+      await AsyncStorage.setItem(storageKey, appVersion);
+    };
+
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [loading, notificationsEnabled, user?.id, refreshPushTokenRegistration]);
+
+  /* Cold start + foreground: keep server token in sync after updates / rotation */
+  useEffect(() => {
+    if (Platform.OS === 'web' || !user?.id || loading) return;
+
+    const run = () => {
+      if (!notificationsEnabled) return;
+      refreshPushTokenRegistration();
+    };
+
+    run();
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next === 'active') run();
+    });
+    return () => sub.remove();
+  }, [
+    notificationsEnabled,
+    loading,
+    user?.id,
+    refreshPushTokenRegistration,
+  ]);
 
   /* -------------------------------------------
    * PERMISSIONS
@@ -286,23 +635,13 @@ export const NotificationProvider = ({ children }) => {
     if (finalStatus !== 'granted') return false;
 
     if (Platform.OS !== 'web') {
-      const projectId =
-        Constants.expoConfig?.extra?.eas?.projectId ||
-        Constants.manifest2?.extra?.eas?.projectId;
-
-      if (!projectId) {
-        console.warn('Missing projectId for push notifications');
-        return true;
-      }
-
       try {
-        const token = await Notifications.getExpoPushTokenAsync({ projectId });
-        setExpoPushToken(token.data);
-        await registerPushToken(token.data);
+        await fetchPushTokenAndRegister({ skipDedupe: false });
       } catch (error) {
+        console.error('Push token registration failed:', error);
+        logAndroidFcmSetupHint(error);
         // On simulators, this often fails - but permissions were granted
-        // So we still return true to allow the toggle to work
-        return true; // Return true because permissions were granted, even if token failed
+        return true;
       }
     }
 
@@ -310,72 +649,42 @@ export const NotificationProvider = ({ children }) => {
   };
 
   /* -------------------------------------------
-   * REGISTER PUSH TOKEN (PER USER)
-   * ----------------------------------------- */
-  const registerPushToken = async (token) => {
-    if (!user?.id || registeredTokensRef.current.has(token)) return;
-
-    try {
-      const authToken = await AsyncStorage.getItem('token');
-      if (!authToken) return;
-
-      // Safety check: Don't make API calls if API_BASE_URL is not set
-      if (!API_BASE_URL) {
-        console.error('API_BASE_URL is not set, skipping token registration');
-        return;
-      }
-
-      const res = await fetch(
-        `${API_BASE_URL}/notifications/register_token`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${authToken}`,
-          },
-          body: JSON.stringify({ push_token: token }),
-        }
-      );
-
-      if (res.ok) {
-        registeredTokensRef.current.add(token);
-      } else if (res.status === 401) {
-        const errorData = await res.json().catch(() => ({}));
-        if (errorData.error_code === 'TOKEN_EXPIRED') {
-          await AsyncStorage.removeItem('token');
-          console.warn('Token expired while registering push token. User needs to log in again.');
-        }
-      }
-    } catch (err) {
-      console.error('Push token registration failed:', err);
-    }
-  };
-
-  /* -------------------------------------------
    * PUBLIC API
    * ----------------------------------------- */
   const enableNotifications = async () => {
-    // Ensure we have a valid user before enabling
-    if (!user?.id) {
+    if (!userIdRef.current) {
       console.warn('Cannot enable notifications: no user logged in');
       return false;
     }
-    
-    // Store the user ID at the start to prevent cross-user contamination
-    const userIdAtStart = user.id;
-    
+
+    // Allow re-POST to /register_token on every enable (toggle off/on or retry after failed save).
+    registeredTokensRef.current.clear();
+
+    const userIdAtStart = userIdRef.current;
+
     const granted = await requestPermissions();
-    
-    // Double-check user hasn't changed during permission request
-    if (granted && user?.id === userIdAtStart && currentUserIdRef.current === userIdAtStart) {
-      setNotificationsEnabled(true);
-      return true;
-    } else if (granted && user?.id !== userIdAtStart) {
+
+    if (!granted) {
+      return false;
+    }
+
+    // After `await`, closure `user` can be stale; `userIdRef` is current. Do not require
+    // `currentUserIdRef` here — it is updated in `useEffect` and can lag one frame behind
+    // UserContext after a linked-account switch, which previously skipped `setState` and
+    // fell through to `return granted` without updating UI.
+    if (userIdRef.current !== userIdAtStart) {
       console.warn('User changed during notification enable, aborting');
       return false;
     }
-    
-    return granted;
+
+    if (currentUserIdRef.current !== userIdAtStart) {
+      currentUserIdRef.current = userIdAtStart;
+    }
+
+    hasLoadedPreferenceRef.current = true;
+    setNotificationPreferences({ ...ENABLED_NOTIFICATION_PREFERENCES });
+    setNotificationsEnabled(true);
+    return true;
   };
 
   const disableNotifications = () => {
@@ -387,14 +696,46 @@ export const NotificationProvider = ({ children }) => {
     
     // Only disable if we're still on the same user
     if (currentUserIdRef.current === user.id) {
+      hasLoadedPreferenceRef.current = true;
+      setNotificationPreferences({ ...DEFAULT_NOTIFICATION_PREFERENCES });
       setNotificationsEnabled(false);
+      registeredTokensRef.current.clear();
     } else {
       console.warn('User changed, cannot disable notifications for different user');
     }
   };
 
+  const setNotificationPreference = useCallback((key, value) => {
+    if (!Object.prototype.hasOwnProperty.call(DEFAULT_NOTIFICATION_PREFERENCES, key)) {
+      return;
+    }
+
+    hasLoadedPreferenceRef.current = true;
+    setNotificationPreferences((prev) => ({
+      ...prev,
+      [key]: Boolean(value),
+    }));
+  }, []);
+
+  const notificationTypeEnabled = useCallback((type) => {
+    if (!notificationsEnabled) return false;
+
+    switch (type) {
+      case 'match':
+        return notificationPreferences.newMatchNotification;
+      case 'blind_match':
+        return notificationPreferences.newBlindMatchNotification;
+      case 'message':
+        return notificationPreferences.newMessageNotification;
+      case 'match_approval':
+        return notificationPreferences.newMatchApprovalNotification;
+      default:
+        return true;
+    }
+  }, [notificationPreferences, notificationsEnabled]);
+
   const sendNotification = async (title, body, data = {}) => {
-    if (!notificationsEnabled) return;
+    if (!notificationTypeEnabled(data?.type)) return;
 
     await Notifications.scheduleNotificationAsync({
       content: { title, body, data, sound: true },
@@ -406,8 +747,10 @@ export const NotificationProvider = ({ children }) => {
     <NotificationContext.Provider
       value={{
         notificationsEnabled,
+        notificationPreferences,
         enableNotifications,
         disableNotifications,
+        setNotificationPreference,
         sendNotification,
         permissionStatus,
         loading,

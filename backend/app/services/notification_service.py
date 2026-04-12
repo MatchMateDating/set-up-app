@@ -7,199 +7,360 @@ from exponent_server_sdk import (
     InvalidCredentialsError,
 )
 from app.models.userDB import User, PushToken
+from app.models.matchDB import Match
 from app import db
+from app.services.push_platforms import (
+    InvalidPushToken,
+    send_native_for_platform,
+)
 import logging
 
 logger = logging.getLogger(__name__)
 
-# Initialize Expo Push Client
 push_client = PushClient()
 
-def send_push_notification(push_token, title, body, data=None):
-    """
-    Send a push notification to a single device.
-    
-    Args:
-        push_token: Expo push token (string)
-        title: Notification title
-        body: Notification body
-        data: Optional data payload (dict)
-    
-    Returns:
-        bool: True if notification was sent successfully, False otherwise
-    """
-    if not push_token:
+
+def _user_notification_allowed(user, preference_field=None):
+    if not user or not user.notifications_enabled:
         return False
-    
+    if not preference_field:
+        return True
+    return user.notification_setting_enabled(preference_field)
+
+
+def _should_skip_message_push_pending_dater_awaits_mm(match, receiver_id, receiver):
+    """
+    pending_approval: do not push messages to a dater whose matchmaker has not approved yet —
+    they are not in the live Dater↔Dater conversation until that approval.
+    """
+    if not match or match.status != "pending_approval":
+        return False
+    if not receiver or getattr(receiver, "role", None) != "user":
+        return False
+    if receiver_id == match.user_id_1:
+        has_mm = bool(match.matched_by_user_id_1_matcher)
+        approved = bool(match.approved_by_matcher_1)
+    elif receiver_id == match.user_id_2:
+        has_mm = bool(match.matched_by_user_id_2_matcher)
+        approved = bool(match.approved_by_matcher_2)
+    else:
+        return False
+    if not has_mm:
+        return False
+    return not approved
+
+
+def _notification_body_suffix(user):
+    """Append account-type hint for users with both dater and matchmaker logins on one device."""
+    if not user:
+        return ""
+    role = getattr(user, "role", None)
+    if role == "matchmaker":
+        return " (matchmaker)"
+    if role == "user":
+        return " (dater)"
+    return ""
+
+
+def _push_tokens_for_delivery(push_tokens):
+    """
+    Avoid duplicate alerts on one phone: dev clients may register both native (ios/android)
+    and an Expo push token; APNs/FCM + Expo would each deliver the same message.
+    If the user has any native token for a mobile OS, skip Expo rows for that send.
+    """
+    if not push_tokens:
+        return push_tokens
+    platforms = {(t.platform or "expo").lower() for t in push_tokens}
+    if "ios" in platforms or "android" in platforms:
+        return [t for t in push_tokens if (t.platform or "expo").lower() != "expo"]
+    return list(push_tokens)
+
+
+def _prune_push_token(token_obj):
+    """Remove a dead push token row by id (avoids stale ORM instances and SAWarning on 0-row delete)."""
     try:
-        # Create push message
+        tid = getattr(token_obj, "id", None)
+        if tid is None:
+            return
+        n = PushToken.query.filter_by(id=tid).delete(synchronize_session="fetch")
+        db.session.commit()
+        if n:
+            logger.debug("Pruned push token id=%s", tid)
+    except Exception as e:
+        logger.error("Failed to prune push token id=%s: %s", getattr(token_obj, "id", None), e)
+        db.session.rollback()
+
+
+def _send_expo_push(token_str, title, body, data=None, token_obj=None, legacy_user=None):
+    """
+    Expo Push Service. token_obj / legacy_user used to prune invalid tokens.
+    """
+    if not token_str:
+        return False
+    data = data or {}
+    try:
         message = PushMessage(
-            to=push_token,
+            to=token_str,
             title=title,
             body=body,
-            data=data or {},
-            sound='default',
+            data=data,
+            sound="default",
         )
-        
-        # Send the notification
         response = push_client.publish(message)
-        
-        # The response is a PushResponse object
-        # Check if it was successful
-        if response and hasattr(response, 'status'):
-            if response.status == 'ok':
+        if response and hasattr(response, "status"):
+            if response.status == "ok":
                 return True
-            else:
-                logger.warning(f"Failed to send notification: {response}")
-                return False
-        return True  # If no error was raised, assume success
+            logger.warning("Failed to send notification: %s", response)
+            return False
+        return True
     except DeviceNotRegisteredError:
-        logger.warning(f"Device not registered: {push_token}")
+        logger.warning("Device not registered: %s", token_str)
+        if token_obj is not None:
+            _prune_push_token(token_obj)
+        elif legacy_user is not None:
+            legacy_user.push_token = None
+            db.session.commit()
         return False
     except InvalidCredentialsError:
         logger.error("Invalid credentials for push notifications")
         return False
     except PushServerError as e:
-        logger.error(f"Push server error: {e}")
+        logger.error("Push server error: %s", e)
         return False
     except Exception as e:
-        logger.error(f"Error sending push notification: {e}")
+        logger.error("Error sending push notification: %s", e)
         return False
+
+
+def send_push_to_token_row(token_obj, title, body, data=None):
+    """Dispatch by PushToken.platform: expo (Expo relay) or ios / android (native)."""
+    data = data or {}
+    eff = (token_obj.platform or "expo").lower()
+    if eff not in ("ios", "android", "expo"):
+        eff = "expo"
+    if eff == "expo":
+        ok = _send_expo_push(
+            token_obj.token, title, body, data, token_obj=token_obj, legacy_user=None
+        )
+        logger.debug(
+            "push token_id=%s platform=expo ok=%s",
+            getattr(token_obj, "id", None),
+            ok,
+        )
+        return ok
+    try:
+        ok = bool(
+            send_native_for_platform(eff, token_obj.token, title, body, data)
+        )
+        logger.debug(
+            "push token_id=%s platform=%s ok=%s",
+            getattr(token_obj, "id", None),
+            eff,
+            ok,
+        )
+        return ok
+    except InvalidPushToken as e:
+        logger.warning(
+            "push token_id=%s platform=%s invalid, pruning: %s",
+            getattr(token_obj, "id", None),
+            eff,
+            e,
+        )
+        _prune_push_token(token_obj)
+        return False
+
+
+def send_push_notification(push_token, title, body, data=None, legacy_user=None):
+    """
+    Expo-only send for the legacy User.push_token column (no PushToken row).
+    """
+    return _send_expo_push(
+        push_token, title, body, data, token_obj=None, legacy_user=legacy_user
+    )
+
 
 def send_notification_to_user(user_id, title, body, data=None):
-    """
-    Send a push notification to a user by their user ID.
-    Sends to all registered devices for the user.
-    
-    Args:
-        user_id: User ID (int)
-        title: Notification title
-        body: Notification body
-        data: Optional data payload (dict)
-    
-    Returns:
-        bool: True if at least one notification was sent successfully, False otherwise
-    """
     user = User.query.get(user_id)
     if not user:
         return False
-    
-    # Check if user has notifications enabled
-    if not user.notifications_enabled:
+    if not _user_notification_allowed(user):
         return False
-    
-    # Get all push tokens for this user
+
+    body = (body or "") + _notification_body_suffix(user)
+
     push_tokens = PushToken.query.filter_by(user_id=user_id).all()
-    
+
     if not push_tokens:
-        # Fallback to legacy push_token field for backward compatibility
         if user.push_token:
-            return send_push_notification(user.push_token, title, body, data)
+            return send_push_notification(
+                user.push_token, title, body, data, legacy_user=user
+            )
         return False
-    
-    # Send to all registered devices
+
+    push_tokens = _push_tokens_for_delivery(push_tokens)
     success_count = 0
     for token_obj in push_tokens:
-        if send_push_notification(token_obj.token, title, body, data):
+        if send_push_to_token_row(token_obj, title, body, data):
             success_count += 1
-    
+
     return success_count > 0
+
 
 def send_message_notification(receiver_id, sender_id, match_id, message_text):
-    """
-    Send a push notification for a new message.
-    Sends to all registered devices for the receiver.
-    
-    Args:
-        receiver_id: ID of the user receiving the message
-        sender_id: ID of the user sending the message
-        match_id: ID of the match/conversation
-        message_text: Text of the message (for preview)
-    """
     receiver = User.query.get(receiver_id)
     sender = User.query.get(sender_id)
-    print(f"receiver {receiver}")
-    
+
     if not receiver:
+        logger.debug(
+            "message push skipped: receiver_id=%s not found", receiver_id
+        )
         return False
-    
-    # Check if receiver has notifications enabled
-    if not receiver.notifications_enabled:
+    if not _user_notification_allowed(receiver, "new_message_notifications"):
+        logger.debug(
+            "message push skipped: receiver_id=%s new_message_notifications disabled",
+            receiver_id,
+        )
         return False
-    
     if not sender:
+        logger.debug(
+            "message push skipped: sender_id=%s not found", sender_id
+        )
         return False
-    
-    sender_name = sender.first_name or 'Someone'
+
+    match = Match.query.get(match_id) if match_id else None
+    if _should_skip_message_push_pending_dater_awaits_mm(match, receiver_id, receiver):
+        logger.debug(
+            "message push skipped: receiver_id=%s pending_approval, matchmaker not approved yet match_id=%s",
+            receiver_id,
+            match_id,
+        )
+        return False
+
+    sender_name = sender.first_name or "Someone"
     title = f"New message from {sender_name}"
-    # Privacy: Don't send message content in notification to avoid exposing sensitive data on lock screen
-    # Users can read the message when they open the app
-    body = "You have a new message"
-    
-    # Data minimization: Only include matchId needed for navigation
-    # senderId is not needed - app can fetch sender info when opening conversation
+    preview = (message_text or "").strip()
+    if len(preview) > 180:
+        preview = preview[:177] + "..."
+    body = preview if preview else "You have a new message"
+    body = body + _notification_body_suffix(receiver)
     data = {
-        'type': 'message',
-        'matchId': str(match_id),
+        "type": "message",
+        "matchId": str(match_id),
     }
-    
-    # Get all push tokens for this user
+
     push_tokens = PushToken.query.filter_by(user_id=receiver_id).all()
-    
+
     if not push_tokens:
-        # Fallback to legacy push_token field for backward compatibility
         if receiver.push_token:
-            return send_push_notification(receiver.push_token, title, body, data)
+            ok = send_push_notification(
+                receiver.push_token, title, body, data, legacy_user=receiver
+            )
+            logger.debug(
+                "message push receiver_id=%s match_id=%s legacy_user.push_token ok=%s",
+                receiver_id,
+                match_id,
+                ok,
+            )
+            return ok
+        logger.debug(
+            "message push skipped: receiver_id=%s has no push_tokens rows and no legacy push_token",
+            receiver_id,
+        )
         return False
-    
-    # Send to all registered devices
+
+    push_tokens = _push_tokens_for_delivery(push_tokens)
+    logger.debug(
+        "message push start receiver_id=%s sender_id=%s match_id=%s token_rows=%s",
+        receiver_id,
+        sender_id,
+        match_id,
+        [(t.id, (t.platform or "expo")) for t in push_tokens],
+    )
+
     success_count = 0
     for token_obj in push_tokens:
-        if send_push_notification(token_obj.token, title, body, data):
+        if send_push_to_token_row(token_obj, title, body, data):
             success_count += 1
-    
-    return success_count > 0
 
-def send_match_notification(user_id, match_id, other_user_name):
-    """
-    Send a push notification for a new match.
-    Sends to all registered devices for the user.
-    
-    Args:
-        user_id: ID of the user receiving the match notification
-        match_id: ID of the new match
-        other_user_name: Name of the matched user
-    """
+    ok = success_count > 0
+    logger.info(
+        "message push match_id=%s ok=%s devices=%s/%s",
+        match_id,
+        ok,
+        success_count,
+        len(push_tokens),
+    )
+    return ok
+
+
+def send_match_notification(user_id, match_id, other_user_name, is_blind_match=False):
     user = User.query.get(user_id)
     if not user:
         return False
-    
-    # Check if user has notifications enabled
-    if not user.notifications_enabled:
+    preference_field = (
+        "new_blind_match_notifications" if is_blind_match else "new_match_notifications"
+    )
+    if not _user_notification_allowed(user, preference_field):
         return False
-    
-    title = "New Match!"
-    body = f"You have a new match with {other_user_name}"
-    
+
+    title = "New Blind Match!" if is_blind_match else "New Match!"
+    body = (
+        f"You have a new blind match with {other_user_name}"
+        if is_blind_match
+        else f"You have a new match with {other_user_name}"
+    )
+    body = body + _notification_body_suffix(user)
     data = {
-        'type': 'match',
-        'matchId': str(match_id),
+        "type": "blind_match" if is_blind_match else "match",
+        "matchId": str(match_id),
     }
-    
-    # Get all push tokens for this user
+
     push_tokens = PushToken.query.filter_by(user_id=user_id).all()
-    
+
     if not push_tokens:
-        # Fallback to legacy push_token field for backward compatibility
         if user.push_token:
-            return send_push_notification(user.push_token, title, body, data)
+            return send_push_notification(
+                user.push_token, title, body, data, legacy_user=user
+            )
         return False
-    
-    # Send to all registered devices
+
+    push_tokens = _push_tokens_for_delivery(push_tokens)
     success_count = 0
     for token_obj in push_tokens:
-        if send_push_notification(token_obj.token, title, body, data):
+        if send_push_to_token_row(token_obj, title, body, data):
             success_count += 1
-    
+
     return success_count > 0
 
+
+def send_approved_match_notification(user_id, title, body, match_id):
+    """Push when a pending match is approved (matchmakers or daters)."""
+    user = User.query.get(user_id)
+    if not user:
+        return False
+    if not _user_notification_allowed(user, "new_match_approval_notifications"):
+        return False
+
+    body = (body or "") + _notification_body_suffix(user)
+
+    data = {
+        "type": "match_approval",
+        "matchId": str(match_id),
+    }
+
+    push_tokens = PushToken.query.filter_by(user_id=user_id).all()
+
+    if not push_tokens:
+        if user.push_token:
+            return send_push_notification(
+                user.push_token, title, body, data, legacy_user=user
+            )
+        return False
+
+    push_tokens = _push_tokens_for_delivery(push_tokens)
+    success_count = 0
+    for token_obj in push_tokens:
+        if send_push_to_token_row(token_obj, title, body, data):
+            success_count += 1
+
+    return success_count > 0

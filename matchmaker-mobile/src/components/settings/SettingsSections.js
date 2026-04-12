@@ -67,6 +67,26 @@ const LINKED_DATER_AVATAR_PALETTES = [
   { bg: '#FFF3E0', fg: '#E65100' },
 ];
 
+const NOTIFICATION_PREFERENCE_ITEMS = [
+  {
+    key: 'newMatchNotification',
+    label: 'New Match Notification',
+  },
+  {
+    key: 'newBlindMatchNotification',
+    label: 'New Blind Match Notification',
+    daterOnly: true,
+  },
+  {
+    key: 'newMessageNotification',
+    label: 'New Message Notification',
+  },
+  {
+    key: 'newMatchApprovalNotification',
+    label: 'Approved Match Notification',
+  },
+];
+
 const formatLinkedDaterIdPreview = (id) => {
   if (id == null || id === '') return '';
   const str = String(id);
@@ -106,8 +126,71 @@ const LinkedDaterRowAvatar = ({ name, firstImage, palette }) => {
 const SettingsSections = () => {
   const navigation = useNavigation();
   const route = useRoute();
-  const { setUser: setContextUser } = useContext(UserContext);
-  const { notificationsEnabled, enableNotifications, disableNotifications, permissionStatus } = useNotifications();
+  const { setUser: setContextUser, user: contextUser } = useContext(UserContext);
+  const {
+    notificationsEnabled,
+    notificationPreferences,
+    enableNotifications,
+    disableNotifications,
+    setNotificationPreference,
+    permissionStatus,
+    loading: notificationPrefsLoading,
+  } = useNotifications();
+
+  const contextUserIdRef = useRef(contextUser?.id);
+  contextUserIdRef.current = contextUser?.id;
+  const notificationPrefsLoadingRef = useRef(notificationPrefsLoading);
+  notificationPrefsLoadingRef.current = notificationPrefsLoading;
+
+  const waitForNotificationPrefsAfterUserSwitch = useCallback(async (expectedUserId) => {
+    await new Promise((r) => setTimeout(r, 50));
+    const deadline = Date.now() + 8000;
+    while (Date.now() < deadline) {
+      if (
+        contextUserIdRef.current === expectedUserId &&
+        !notificationPrefsLoadingRef.current
+      ) {
+        return;
+      }
+      await new Promise((r) => setTimeout(r, 40));
+    }
+  }, []);
+
+  const promptEnableAllNotificationsForNewLinkedRole = useCallback(
+    (newRole) =>
+      new Promise((resolve) => {
+        const roleLabel = newRole === 'user' ? 'dater' : 'matchmaker';
+        const capitalized = newRole === 'user' ? 'Dater' : 'Matchmaker';
+        Alert.alert(
+          `${capitalized} account created`,
+          `Your ${roleLabel} account is ready.\n\nEnable all push notifications for it so you do not miss matches, messages, or approvals.`,
+          [
+            {
+              text: 'Not now',
+              style: 'cancel',
+              onPress: () => resolve(),
+            },
+            {
+              text: 'Enable all',
+              onPress: () => {
+                void (async () => {
+                  const granted = await enableNotifications();
+                  if (!granted) {
+                    Alert.alert(
+                      'Permission required',
+                      'To receive notifications, enable them in your device settings for this app.'
+                    );
+                  }
+                  resolve();
+                })();
+              },
+            },
+          ],
+          { cancelable: true, onDismiss: () => resolve() }
+        );
+      }),
+    [enableNotifications]
+  );
 
   const [activeSection, setActiveSection] = useState(null);
   const [user, setUser] = useState(null);
@@ -169,6 +252,14 @@ const SettingsSections = () => {
   const settingsBackAccent =
     activeSection === SECTION_KEYS.DATING_PREFERENCES ? datingPreferencesAccent : accentColor;
   const backgroundTint = getRoleBackgroundTint(role || 'matchmaker');
+
+  const visibleNotificationPreferenceItems = useMemo(
+    () =>
+      NOTIFICATION_PREFERENCE_ITEMS.filter(
+        (item) => !(item.daterOnly && role === 'matchmaker')
+      ),
+    [role]
+  );
 
   const sectionItems = useMemo(() => {
     const base = [
@@ -677,7 +768,8 @@ const SettingsSections = () => {
       setContextUser(data.user);
       setShowReferralModal(false);
       setReferralInput('');
-      Alert.alert('Success', 'Matchmaker account created successfully');
+      await waitForNotificationPrefsAfterUserSwitch(data.user.id);
+      await promptEnableAllNotificationsForNewLinkedRole('matchmaker');
       fetchUserProfile();
     } catch (err) {
       console.error(err);
@@ -1136,7 +1228,7 @@ const SettingsSections = () => {
       if (!granted) {
         Alert.alert(
           'Permission Required',
-          'Please enable notifications in your device settings to receive notifications for new messages and matches.'
+          'Please enable notifications in your device settings to receive notifications for new matches, blind matches, and messages.'
         );
       }
     } else {
@@ -1783,7 +1875,7 @@ const SettingsSections = () => {
     <View style={styles.card}>
       <Text style={styles.cardHeader}>Notifications</Text>
       <Text style={styles.cardDescription}>
-        Manage push notifications for new messages and matches.
+        Turn notifications on first, then choose which alerts you want to receive.
       </Text>
       <View style={styles.notificationToggle}>
         <Text style={styles.notificationLabel}>Enable Notifications</Text>
@@ -1794,6 +1886,21 @@ const SettingsSections = () => {
           thumbColor={notificationsEnabled ? '#fff' : '#f4f3f4'}
         />
       </View>
+      {notificationsEnabled ? (
+        <View style={styles.notificationPreferencesGroup}>
+          {visibleNotificationPreferenceItems.map((item) => (
+            <View key={item.key} style={styles.notificationPreferenceRow}>
+              <Text style={styles.notificationLabel}>{item.label}</Text>
+              <Switch
+                value={Boolean(notificationPreferences?.[item.key])}
+                onValueChange={(value) => setNotificationPreference(item.key, value)}
+                trackColor={{ false: '#E5E7EB', true: accentColor }}
+                thumbColor={notificationPreferences?.[item.key] ? '#fff' : '#f4f3f4'}
+              />
+            </View>
+          ))}
+        </View>
+      ) : null}
       {permissionStatus === 'denied' ? (
         <Text style={styles.permissionWarning}>
           Notifications are disabled in your device settings. Please enable them to receive alerts.
@@ -2667,6 +2774,15 @@ const styles = StyleSheet.create({
     color: '#111827',
     fontSize: 16,
     fontWeight: '500',
+  },
+  notificationPreferencesGroup: {
+    marginTop: 16,
+    gap: 12,
+  },
+  notificationPreferenceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   permissionWarning: {
     marginTop: 10,

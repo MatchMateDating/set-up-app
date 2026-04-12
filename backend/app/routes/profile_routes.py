@@ -7,12 +7,14 @@ from app.models.imageDB import Image
 from app.models.matchDB import Match
 from app.models.messageDB import Message
 from app.models.conversationDB import Conversation
+from app.models.conversationReadStateDB import ConversationReadState
 from app.models.quizDB import QuizResult
 from app.models.skipDB import UserSkip
 from app.models.blockDB import UserBlock
 from flask import current_app
 from uuid import uuid4
 from app.routes.shared import token_required, calculate_age
+from sqlalchemy import or_
 from sqlalchemy.exc import SQLAlchemyError
 from datetime import datetime
 from app.services.storage_service import (
@@ -586,13 +588,27 @@ def _delete_user_related_data(user):
     for match in all_matches:
         conversations = Conversation.query.filter_by(match_id=match.id).all()
         for conversation in conversations:
+            ConversationReadState.query.filter_by(
+                conversation_id=conversation.id
+            ).delete()
             Message.query.filter_by(conversation_id=conversation.id).delete()
             db.session.delete(conversation)
         db.session.delete(match)
 
-    # 2. Delete standalone/direct messages
+    ConversationReadState.query.filter_by(viewer_user_id=user_id).delete()
+
+    # 2. Delete standalone/direct messages (any row where this user is sender or receiver)
+    # Clear last_read_message_id first so other users' read state does not reference
+    # message ids we are about to delete (FK integrity).
+    _msgs_for_user = db.session.query(Message.id).filter(
+        or_(Message.sender_id == user_id, Message.receiver_id == user_id)
+    )
+    ConversationReadState.query.filter(
+        ConversationReadState.last_read_message_id.in_(_msgs_for_user)
+    ).update({ConversationReadState.last_read_message_id: None}, synchronize_session=False)
+
     Message.query.filter(
-        (Message.sender_id == user_id) | (Message.receiver_id == user_id)
+        or_(Message.sender_id == user_id, Message.receiver_id == user_id)
     ).delete()
 
     # 3. Delete quiz results

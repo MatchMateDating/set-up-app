@@ -2,7 +2,6 @@ from app import db, bcrypt
 from werkzeug.security import generate_password_hash, check_password_hash
 import uuid
 import secrets
-import secrets
 from sqlalchemy.ext.mutable import MutableList
 from sqlalchemy import JSON
 from datetime import datetime
@@ -35,8 +34,13 @@ class User(db.Model):
     match_radius = db.Column(db.Integer, nullable=True, default=0)  # in miles; used with haversine_distance
     unit = db.Column(db.String(20), nullable=False, default='Imperial')
     last_active_at = db.Column(db.DateTime, nullable=True)
-    push_token = db.Column(db.String(255), nullable=True)  # Expo push notification token
+    push_token = db.Column(db.String(255), nullable=True)  # Legacy: prefer push_tokens table for new registrations
     notifications_enabled = db.Column(db.Boolean, nullable=False, default=False)  # User's notification preference
+    new_match_notifications = db.Column(db.Boolean, nullable=True, default=None)
+    new_note_notifications = db.Column(db.Boolean, nullable=True, default=None)
+    new_blind_match_notifications = db.Column(db.Boolean, nullable=True, default=None)
+    new_message_notifications = db.Column(db.Boolean, nullable=True, default=None)
+    new_match_approval_notifications = db.Column(db.Boolean, nullable=True, default=None)
     email_verified = db.Column(db.Boolean, nullable=False, default=False)
     email_verification_token = db.Column(db.String(100), nullable=True, unique=True)
     phone_verified = db.Column(db.Boolean, nullable=False, default=False)
@@ -111,6 +115,27 @@ class User(db.Model):
             return User.query.get(self.linked_account_id)
         return None
 
+    def notification_setting_enabled(self, field_name):
+        if not self.notifications_enabled:
+            return False
+
+        value = getattr(self, field_name, None)
+        if value is None:
+            return True
+
+        return bool(value)
+
+    def notification_preferences_dict(self):
+        return {
+            "notifications_enabled": bool(self.notifications_enabled),
+            "new_match_notifications": self.notification_setting_enabled("new_match_notifications"),
+            "new_blind_match_notifications": self.notification_setting_enabled("new_blind_match_notifications"),
+            "new_message_notifications": self.notification_setting_enabled("new_message_notifications"),
+            "new_match_approval_notifications": self.notification_setting_enabled(
+                "new_match_approval_notifications"
+            ),
+        }
+
     def to_dict(self):
         linked_account = self.get_linked_account()
         linked_account_info = None
@@ -122,6 +147,7 @@ class User(db.Model):
                 "first_name": linked_account.first_name,
                 "last_name": linked_account.last_name
             }
+        notification_preferences = self.notification_preferences_dict()
         
         return {
             "id": self.id,
@@ -155,7 +181,13 @@ class User(db.Model):
             "show_location": self.show_location,
             "match_radius": self.match_radius,
             "unit": self.unit,
-            "notifications_enabled": self.notifications_enabled,
+            "notifications_enabled": notification_preferences["notifications_enabled"],
+            "new_match_notifications": notification_preferences["new_match_notifications"],
+            "new_blind_match_notifications": notification_preferences["new_blind_match_notifications"],
+            "new_message_notifications": notification_preferences["new_message_notifications"],
+            "new_match_approval_notifications": notification_preferences[
+                "new_match_approval_notifications"
+            ],
             "email_verified": self.email_verified,
             "phone_verified": self.phone_verified,
             "profile_completion_step": self.profile_completion_step,
@@ -205,18 +237,22 @@ class PushToken(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    token = db.Column(db.String(255), nullable=False)
+    token = db.Column(db.Text, nullable=False)
+    # expo = Expo push relay; ios / android = native device tokens (APNs / FCM)
+    platform = db.Column(db.String(20), nullable=True, default='expo')
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     
-    def __init__(self, user_id, token):
+    def __init__(self, user_id, token, platform='expo'):
         self.user_id = user_id
         self.token = token
+        self.platform = platform or 'expo'
     
     def to_dict(self):
         return {
             'id': self.id,
             'user_id': self.user_id,
             'token': self.token,
+            'platform': self.platform,
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
 

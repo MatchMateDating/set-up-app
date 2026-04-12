@@ -78,3 +78,18 @@ class Config:
     
     # CORS Configuration
     CORS_ORIGINS = os.getenv('CORS_ORIGINS', '*').split(',') if os.getenv('CORS_ORIGINS') else ['*']
+
+    # Native push (APNs + FCM) — optional; when unset, only Expo push is used
+    APNS_KEY_PATH = os.getenv('APNS_KEY_PATH')  # path to AuthKey_xxx.p8
+    APNS_KEY_CONTENT = os.getenv('APNS_KEY_CONTENT')  # optional PEM inline (e.g. PaaS secret)
+    APNS_KEY_ID = os.getenv('APNS_KEY_ID')
+    APNS_TEAM_ID = os.getenv('APNS_TEAM_ID')
+    APNS_TOPIC = os.getenv('APNS_TOPIC')  # bundle id, e.g. com.matchmate.matchmatedating
+    APNS_USE_SANDBOX = os.getenv('APNS_USE_SANDBOX', 'false').lower() in ('1', 'true', 'yes')
+
+    # Firebase Admin JSON: path to service account file, or raw JSON string (e.g. Railway secret)
+    # Accept FIREBASE_CREDENTIAL_PATH (typo) as alias for FIREBASE_CREDENTIALS_PATH
+    FIREBASE_CREDENTIALS_PATH = os.getenv('FIREBASE_CREDENTIALS_PATH') or os.getenv(
+        'FIREBASE_CREDENTIAL_PATH'
+    )
+    FIREBASE_CREDENTIALS_JSON = os.getenv('FIREBASE_CREDENTIALS_JSON')
