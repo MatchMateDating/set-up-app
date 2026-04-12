@@ -7,6 +7,7 @@ from app.models.imageDB import Image
 from app.models.matchDB import Match
 from app.models.messageDB import Message
 from app.models.conversationDB import Conversation
+from app.models.conversationReadStateDB import ConversationReadState
 from app.models.quizDB import QuizResult
 from app.models.skipDB import UserSkip
 from app.models.blockDB import UserBlock
@@ -586,9 +587,14 @@ def _delete_user_related_data(user):
     for match in all_matches:
         conversations = Conversation.query.filter_by(match_id=match.id).all()
         for conversation in conversations:
+            ConversationReadState.query.filter_by(
+                conversation_id=conversation.id
+            ).delete()
             Message.query.filter_by(conversation_id=conversation.id).delete()
             db.session.delete(conversation)
         db.session.delete(match)
+
+    ConversationReadState.query.filter_by(viewer_user_id=user_id).delete()
 
     # 2. Delete standalone/direct messages
     Message.query.filter(
