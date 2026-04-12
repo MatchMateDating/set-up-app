@@ -23,7 +23,11 @@ class Match(db.Model):
     message_count_matcher_2 = db.Column(db.Integer, default=0)  # Track messages sent by matchmaker on user_id_2 side
     approved_by_matcher_1 = db.Column(db.Boolean, default=False)  # Track if matchmaker on user_id_1 side has approved
     approved_by_matcher_2 = db.Column(db.Boolean, default=False)  # Track if matchmaker on user_id_2 side has approved
-
+    # Dater who skipped create-time blind push (linked dater); notify when match becomes matched after approval
+    blind_match_deferred_notify_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    # True = that dater tapped like themselves; False = only their matchmaker liked for them; None = legacy row
+    direct_like_as_dater_1 = db.Column(db.Boolean, nullable=True, default=None)
+    direct_like_as_dater_2 = db.Column(db.Boolean, nullable=True, default=None)
 
     # relationships to the two users
     user1 = db.relationship('User', foreign_keys=[user_id_1], back_populates='matches_as_user1')
@@ -52,5 +56,7 @@ class Match(db.Model):
             'message_count_matcher_1': self.message_count_matcher_1,
             'message_count_matcher_2': self.message_count_matcher_2,
             'approved_by_matcher_1': self.approved_by_matcher_1,
-            'approved_by_matcher_2': self.approved_by_matcher_2
+            'approved_by_matcher_2': self.approved_by_matcher_2,
+            'direct_like_as_dater_1': self.direct_like_as_dater_1,
+            'direct_like_as_dater_2': self.direct_like_as_dater_2,
         }

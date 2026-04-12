@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useCallback, useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -21,7 +21,13 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useKeyboardHandler } from 'react-native-keyboard-controller';
 import Animated, { useSharedValue, useAnimatedStyle } from 'react-native-reanimated';
-import { CommonActions, useNavigation, useRoute, useIsFocused } from '@react-navigation/native';
+import {
+  CommonActions,
+  useFocusEffect,
+  useNavigation,
+  useRoute,
+  useIsFocused,
+} from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { API_BASE_URL } from '../../env';
 import { useUserInfo } from './hooks/useUserInfo';
@@ -31,6 +37,7 @@ import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 import { getImageUrl } from '../profile/utils/profileUtils';
 import { getRoleAccentColor } from '../layout/components/RoleHeaderBanner';
 import { runOnJS } from 'react-native-reanimated';
+import { setActiveMatchId } from '../../context/NotificationContext';
 
 function formatMessageTimestamp(isoString) {
   if (!isoString) return '';
@@ -61,23 +68,8 @@ function normalizeMessages(rawMessages) {
   }));
 }
 
-function haveMessagesChanged(prevMessages, nextMessages) {
-  if (prevMessages.length !== nextMessages.length) return true;
-  for (let i = 0; i < nextMessages.length; i += 1) {
-    const prev = prevMessages[i];
-    const next = nextMessages[i];
-    if (
-      prev?.id !== next?.id ||
-      prev?.text !== next?.text ||
-      prev?.timestamp !== next?.timestamp ||
-      prev?.puzzle_link !== next?.puzzle_link ||
-      prev?.puzzle_type !== next?.puzzle_type
-    ) {
-      return true;
-    }
-  }
-  return false;
-}
+/** Poll interval while chat is open — light on the server vs 3s; keeps MM threads in sync. */
+const CONVERSATION_POLL_MS = 12000;
 
 const MatchConvo = () => {
   const route = useRoute();
@@ -104,8 +96,13 @@ const MatchConvo = () => {
   const keyboardHeightAnim = useSharedValue(0);
 
   const scrollViewRef = useRef(null);
-  const markConversationAsRead = async () => {
-    if (!matchId || !isFocused) return;
+  /** Skip the useFocusEffect fetch that immediately follows the initial mount fetch for this matchId. */
+  const skipNextFocusRefreshRef = useRef(false);
+  const isFocusedRef = useRef(isFocused);
+  isFocusedRef.current = isFocused;
+
+  const markConversationAsRead = useCallback(async () => {
+    if (!matchId || !isFocusedRef.current) return;
     try {
       const token = await AsyncStorage.getItem('token');
       if (!token) return;
@@ -116,13 +113,16 @@ const MatchConvo = () => {
     } catch (err) {
       console.error('Error marking conversation as read:', err);
     }
-  };
+  }, [matchId]);
 
-  useEffect(() => {
-    const fetchConversation = async () => {
+  const loadConversationMessages = useCallback(
+    async ({ showErrors = false } = {}) => {
       try {
         const token = await AsyncStorage.getItem('token');
-        if (!token) return navigation.navigate('Login');
+        if (!token) {
+          if (showErrors) navigation.navigate('Login');
+          return;
+        }
 
         const res = await fetch(`${API_BASE_URL}/conversation/${matchId}`, {
           headers: { Authorization: `Bearer ${token}` },
@@ -132,8 +132,11 @@ const MatchConvo = () => {
           const data = await res.json();
           if (data.error_code === 'TOKEN_EXPIRED') {
             await AsyncStorage.removeItem('token');
-            Alert.alert('Session expired', 'Please log in again.');
-            return navigation.navigate('Login');
+            if (showErrors) {
+              Alert.alert('Session expired', 'Please log in again.');
+              navigation.navigate('Login');
+            }
+            return;
           }
         }
 
@@ -146,13 +149,54 @@ const MatchConvo = () => {
         }
       } catch (err) {
         console.error(err);
-        Alert.alert('Error', 'Failed to load conversation');
+        if (showErrors) {
+          Alert.alert('Error', 'Failed to load conversation');
+        }
       } finally {
-        setLoading(false);
+        if (showErrors) {
+          setLoading(false);
+        }
       }
-    };
-    if (matchId) fetchConversation();
-  }, [matchId, isFocused]);
+    },
+    [matchId, navigation, markConversationAsRead]
+  );
+
+  useEffect(() => {
+    if (!matchId) return undefined;
+    skipNextFocusRefreshRef.current = true;
+    setLoading(true);
+    loadConversationMessages({ showErrors: true });
+  }, [matchId, loadConversationMessages]);
+
+  // Refetch when returning to this screen (same matchId) without waiting for the poll.
+  useFocusEffect(
+    useCallback(() => {
+      if (!matchId) return undefined;
+      if (skipNextFocusRefreshRef.current) {
+        skipNextFocusRefreshRef.current = false;
+        return undefined;
+      }
+      loadConversationMessages({ showErrors: false });
+      return undefined;
+    }, [matchId, loadConversationMessages])
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!matchId) return undefined;
+      setActiveMatchId(matchId);
+      return () => setActiveMatchId(null);
+    }, [matchId])
+  );
+
+  // While chat is open, poll so both matchmakers see new messages without leaving.
+  useEffect(() => {
+    if (!matchId || !isFocused) return undefined;
+    const id = setInterval(() => {
+      loadConversationMessages({ showErrors: false });
+    }, CONVERSATION_POLL_MS);
+    return () => clearInterval(id);
+  }, [matchId, isFocused, loadConversationMessages]);
 
   useEffect(() => {
     const fetchNames = async () => {
@@ -214,40 +258,6 @@ const MatchConvo = () => {
     };
     if (matchId) fetchMatchUser();
   }, [matchId]);
-
-  useEffect(() => {
-    const pollConversation = async () => {
-      try {
-        const token = await AsyncStorage.getItem('token');
-        if (!token || !matchId) return;
-
-        const res = await fetch(`${API_BASE_URL}/conversation/${matchId}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!res.ok) return;
-
-        const data = await res.json();
-        const latestMessages = normalizeMessages(
-          Array.isArray(data) && data.length > 0 ? data[0].messages : []
-        );
-
-        setMessages((prevMessages) => (
-          haveMessagesChanged(prevMessages, latestMessages) ? latestMessages : prevMessages
-        ));
-        if (isFocused) {
-          await markConversationAsRead();
-        }
-      } catch (err) {
-        console.error('Error polling conversation:', err);
-      }
-    };
-
-    if (!matchId || !isFocused) return undefined;
-
-    const intervalId = setInterval(pollConversation, 3000);
-
-    return () => clearInterval(intervalId);
-  }, [matchId, isFocused]);
 
   const scrollToBottom = (animated = true) => {
     // Retry a few times to handle intermittent keyboard/layout timing.
@@ -912,7 +922,6 @@ const MatchConvo = () => {
                 {msg.text && <Text style={[styles.messageText, mine && { color: '#fff' }]}>{msg.text}</Text>}
                 {msg.puzzle_type && (
                   <TouchableOpacity style={styles.puzzleBubble} onPress={() => {
-                    // Store matchId in AsyncStorage and pass as param
                     AsyncStorage.setItem('activeMatchId', matchId.toString());
                     navigation.navigate(msg.puzzle_link, { matchId: matchId.toString() });
                   }}>

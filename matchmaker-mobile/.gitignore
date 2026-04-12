@@ -33,6 +33,9 @@ yarn-error.*
 # local env files
 .env*
 
+# Firebase (service account — do not commit)
+matchmate-dating-firebase-adminsdk-fbsvc-49d012fef2.json
+
 # typescript
 *.tsbuildinfo
 

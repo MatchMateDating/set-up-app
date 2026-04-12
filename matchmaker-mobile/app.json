@@ -31,14 +31,18 @@
         "NSLocationAlwaysAndWhenInUseUsageDescription": "This app uses your location to find matches nearby."
       }
     },
-    "plugins": [],
+    "plugins": [
+      "expo-notifications"
+    ],
     "android": {
+      "versionCode": 17,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.matchmate.matchmatedating"
+      "package": "com.matchmate.matchmatedating",
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "favicon": "./assets/favicon.png"

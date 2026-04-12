@@ -40,7 +40,6 @@ import PixelCactus from './components/PixelCactus';
 import { UserContext } from '../../context/UserContext';
 import { useNotifications } from '../../context/NotificationContext';
 import * as Notifications from 'expo-notifications';
-import Constants from 'expo-constants';
 import ImageCropModal from './components/ImageCropModal';
 
 const CompleteProfile = () => {
@@ -667,45 +666,6 @@ const CompleteProfile = () => {
             // This is okay - user can enable notifications later in settings
           }
         }, 500);
-        
-        // Get push token and register with backend
-        if (Platform.OS !== 'web') {
-          try {
-            // Try to get projectId from Constants
-            let projectId = null;
-            try {
-              if (Constants.expoConfig?.extra?.eas?.projectId) {
-                projectId = Constants.expoConfig.extra.eas.projectId;
-              } else if (Constants.expoConfig?.extra?.projectId) {
-                projectId = Constants.expoConfig.extra.projectId;
-              } else if (Constants.manifest2?.extra?.eas?.projectId) {
-                projectId = Constants.manifest2.extra.eas.projectId;
-              }
-            } catch (e) {
-              console.log('Could not get projectId from Constants:', e);
-            }
-
-            if (projectId && projectId !== 'your-project-id-here' && projectId !== 'matchmate') {
-              const token = await Notifications.getExpoPushTokenAsync({ projectId });
-              
-              // Register push token with backend using the new notifications endpoint
-              const authToken = await AsyncStorage.getItem('token');
-              if (authToken) {
-                await fetch(`${API_BASE_URL}/notifications/register_token`, {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${authToken}`,
-                  },
-                  body: JSON.stringify({ push_token: token.data }),
-                });
-              }
-            }
-          } catch (error) {
-            console.log('Could not get push token during profile completion:', error);
-            // This is okay - user can enable notifications later in settings
-          }
-        }
       } else {
         // User denied permissions - that's fine, they can enable later
         console.log('User denied notification permissions during profile completion');

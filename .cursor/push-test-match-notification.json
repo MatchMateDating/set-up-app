@@ -1,0 +1,52 @@
+{
+  "notes": "Replace matchId and token. Use ONE of the shapes below for your tool.",
+
+  "apns_http2_or_apple_tester": {
+    "aps": {
+      "alert": {
+        "title": "New Match!",
+        "subtitle": "",
+        "body": "You have a new match with Alex"
+      },
+      "sound": "default"
+    },
+    "type": "match",
+    "matchId": "3"
+  },
+
+  "apns_alternate_body_dict": {
+    "aps": {
+      "alert": {
+        "title": "New Match!",
+        "body": "You have a new match with Alex"
+      },
+      "sound": "default"
+    },
+    "body": {
+      "type": "match",
+      "matchId": "3"
+    }
+  },
+
+  "blind_match_variant": {
+    "aps": {
+      "alert": {
+        "title": "New Blind Match!",
+        "body": "You have a new blind match with Alex"
+      },
+      "sound": "default"
+    },
+    "type": "blind_match",
+    "matchId": "3"
+  },
+
+  "expo_push_tool_or_curl": {
+    "to": "ExponentPushToken[REPLACE_WITH_YOUR_TOKEN]",
+    "title": "New Match!",
+    "body": "You have a new match with Alex",
+    "data": {
+      "type": "match",
+      "matchId": "3"
+    }
+  }
+}

@@ -30,6 +30,15 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 const DEFAULT_HEIGHT_MIN_CM = 137;
 const DEFAULT_HEIGHT_MAX_CM = 213;
 
+const INITIAL_MATCH_FILTERS = {
+  heightMinCm: DEFAULT_HEIGHT_MIN_CM,
+  heightMaxCm: DEFAULT_HEIGHT_MAX_CM,
+  requireBio: false,
+  internalMatchmakingOnly: false,
+  /** Off until the user moves the height slider — avoids treating clamped "full deck" range as an active filter. */
+  heightFilterEnabled: false,
+};
+
 const formatCmAsHeightLabel = (cm, viewerUnit) => {
   const m = Math.floor(cm / 100);
   const centimeters = Math.round(cm - m * 100);
@@ -49,18 +58,8 @@ const Match = () => {
   const [referrer, setReferrer] = useState(null);
   const [roleHint, setRoleHint] = useState(null);
   const [showFilterSidebar, setShowFilterSidebar] = useState(false);
-  const [matchFilters, setMatchFilters] = useState({
-    heightMinCm: DEFAULT_HEIGHT_MIN_CM,
-    heightMaxCm: DEFAULT_HEIGHT_MAX_CM,
-    requireBio: false,
-    internalMatchmakingOnly: false,
-  });
-  const [filterDraft, setFilterDraft] = useState({
-    heightMinCm: DEFAULT_HEIGHT_MIN_CM,
-    heightMaxCm: DEFAULT_HEIGHT_MAX_CM,
-    requireBio: false,
-    internalMatchmakingOnly: false,
-  });
+  const [matchFilters, setMatchFilters] = useState(() => ({ ...INITIAL_MATCH_FILTERS }));
+  const [filterDraft, setFilterDraft] = useState(() => ({ ...INITIAL_MATCH_FILTERS }));
   const navigation = useNavigation();
   const selectedDaterId = userInfo?.referrer_id || userInfo?.referred_by_id || null;
 
@@ -115,8 +114,9 @@ const Match = () => {
   }, [heightBoundsCm.minCm, heightBoundsCm.maxCm]);
 
   const isHeightFilterActive =
-    matchFilters.heightMinCm > heightBoundsCm.minCm ||
-    matchFilters.heightMaxCm < heightBoundsCm.maxCm;
+    matchFilters.heightFilterEnabled &&
+    (matchFilters.heightMinCm > heightBoundsCm.minCm ||
+      matchFilters.heightMaxCm < heightBoundsCm.maxCm);
 
   const internalMatchmakingFilterActive =
     matchFilters.internalMatchmakingOnly &&
@@ -131,8 +131,9 @@ const Match = () => {
   const filterProfilesList = useCallback(
     (list) => {
       const hActive =
-        matchFilters.heightMinCm > heightBoundsCm.minCm ||
-        matchFilters.heightMaxCm < heightBoundsCm.maxCm;
+        matchFilters.heightFilterEnabled &&
+        (matchFilters.heightMinCm > heightBoundsCm.minCm ||
+          matchFilters.heightMaxCm < heightBoundsCm.maxCm);
       const internalActive =
         matchFilters.internalMatchmakingOnly &&
         userInfo?.role === 'matchmaker' &&
@@ -368,7 +369,10 @@ const Match = () => {
       setProfiles([]);
       setReferrer(null);
       setUserInfo(null);
-      
+      // Reset filters so height range matches fresh profile bounds (avoids stale "active" height filter).
+      setMatchFilters({ ...INITIAL_MATCH_FILTERS });
+      setFilterDraft({ ...INITIAL_MATCH_FILTERS });
+
       // Small delay to ensure backend has updated after dater selection
       const timer = setTimeout(async () => {
         try {
@@ -740,6 +744,7 @@ const Match = () => {
     const changed =
       matchFilters.heightMinCm !== filterDraft.heightMinCm ||
       matchFilters.heightMaxCm !== filterDraft.heightMaxCm ||
+      matchFilters.heightFilterEnabled !== filterDraft.heightFilterEnabled ||
       matchFilters.requireBio !== filterDraft.requireBio ||
       matchFilters.internalMatchmakingOnly !== filterDraft.internalMatchmakingOnly;
     if (changed) {
@@ -891,7 +896,7 @@ const Match = () => {
                 {formatCmAsHeightLabel(filterDraft.heightMaxCm, heightLabelUnit)}
               </Text>
               <Text style={styles.filterSectionSub}>
-                Full range includes everyone; narrowing the bar filters by height.
+                Move the handles to filter by height. Leave them at both ends to include all heights.
               </Text>
               <View style={styles.filterSliderWrap}>
                 <MultiSlider
@@ -901,10 +906,14 @@ const Match = () => {
                   step={1}
                   sliderLength={sliderWidth}
                   onValuesChange={(values) => {
+                    const [lo, hi] = values;
+                    const atFullRange =
+                      lo === heightBoundsCm.minCm && hi === heightBoundsCm.maxCm;
                     setFilterDraft((d) => ({
                       ...d,
-                      heightMinCm: values[0],
-                      heightMaxCm: values[1],
+                      heightMinCm: lo,
+                      heightMaxCm: hi,
+                      heightFilterEnabled: !atFullRange,
                     }));
                   }}
                   selectedStyle={{ backgroundColor: accentColor }}
