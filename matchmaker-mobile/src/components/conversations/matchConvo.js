@@ -37,6 +37,7 @@ import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 import { getImageUrl } from '../profile/utils/profileUtils';
 import { getRoleAccentColor } from '../layout/components/RoleHeaderBanner';
 import { runOnJS } from 'react-native-reanimated';
+import { setActiveMatchId } from '../../context/NotificationContext';
 
 function formatMessageTimestamp(isoString) {
   if (!isoString) return '';
@@ -178,6 +179,14 @@ const MatchConvo = () => {
       loadConversationMessages({ showErrors: false });
       return undefined;
     }, [matchId, loadConversationMessages])
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!matchId) return undefined;
+      setActiveMatchId(matchId);
+      return () => setActiveMatchId(null);
+    }, [matchId])
   );
 
   // While chat is open, poll so both matchmakers see new messages without leaving.
@@ -913,7 +922,6 @@ const MatchConvo = () => {
                 {msg.text && <Text style={[styles.messageText, mine && { color: '#fff' }]}>{msg.text}</Text>}
                 {msg.puzzle_type && (
                   <TouchableOpacity style={styles.puzzleBubble} onPress={() => {
-                    // Store matchId in AsyncStorage and pass as param
                     AsyncStorage.setItem('activeMatchId', matchId.toString());
                     navigation.navigate(msg.puzzle_link, { matchId: matchId.toString() });
                   }}>

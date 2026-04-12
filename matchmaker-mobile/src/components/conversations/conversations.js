@@ -51,7 +51,6 @@ const Conversations = () => {
     (listInnerWidth - MATCH_CARD_COLUMN_GAP * (MATCH_CARD_COLUMNS - 1)) / MATCH_CARD_COLUMNS
   );
 
-  const ACTIVE_CONVERSATION_STORAGE_KEY = 'activeConversationMatchId';
   const { user: contextUser } = useContext(UserContext);
   const [showDaterMatches, setShowDaterMatches] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -181,11 +180,6 @@ const Conversations = () => {
   // Refresh profile and matches when page comes into focus
   useFocusEffect(
     React.useCallback(() => {
-      // This screen is the thread list, so no single conversation should be marked active.
-      AsyncStorage.removeItem(ACTIVE_CONVERSATION_STORAGE_KEY).catch((err) => {
-        console.error('Error clearing active conversation marker on list focus:', err);
-      });
-
       // Prevent stale account data flash while switching roles/daters.
       setRefreshing(true);
       setUserInfo(null);

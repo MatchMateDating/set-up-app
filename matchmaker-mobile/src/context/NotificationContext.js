@@ -14,6 +14,47 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_BASE_URL } from '../env';
 import { UserContext } from './UserContext';
 
+let activeConversationMatchId = null;
+
+export function getActiveMatchId() {
+  return activeConversationMatchId;
+}
+
+export function setActiveMatchId(id) {
+  activeConversationMatchId =
+    id != null && id !== '' ? String(id) : null;
+}
+
+/** `content.data` or (iOS direct APNs) `trigger.payload` — see expo EXNotificationSerializer. */
+export function getNotificationRoutingData(notification) {
+  const contentData = notification?.request?.content?.data;
+  if (contentData != null && typeof contentData === 'object' && !Array.isArray(contentData)) {
+    return contentData;
+  }
+
+  const trigger = notification?.request?.trigger;
+  if (trigger?.type === 'push' && trigger.payload && typeof trigger.payload === 'object') {
+    const p = trigger.payload;
+    if (p.body != null && typeof p.body === 'object' && !Array.isArray(p.body)) {
+      return p.body;
+    }
+    if (typeof p.body === 'string') {
+      try {
+        const parsed = JSON.parse(p.body);
+        if (parsed && typeof parsed === 'object') return parsed;
+      } catch (_) {
+        /* ignore */
+      }
+    }
+    const { aps: _aps, ...rest } = p;
+    if (Object.keys(rest).length > 0) {
+      return rest;
+    }
+  }
+
+  return null;
+}
+
 // Safety check for API_BASE_URL
 if (!API_BASE_URL) {
   console.error('CRITICAL: API_BASE_URL is not set! App may crash.');
@@ -26,12 +67,35 @@ const setupNotificationHandler = () => {
   if (notificationHandlerSet) return;
   try {
     Notifications.setNotificationHandler({
-      handleNotification: async () => ({
-        shouldShowBanner: true,
-        shouldShowList: true,
-        shouldPlaySound: true,
-        shouldSetBadge: true,
-      }),
+      handleNotification: async (notification) => {
+        const data = getNotificationRoutingData(notification);
+        const type = data?.type;
+        const matchId =
+          data?.matchId != null && data?.matchId !== ''
+            ? String(data.matchId)
+            : null;
+        const active = getActiveMatchId();
+        const suppressForeground =
+          type === 'message' &&
+          matchId != null &&
+          active != null &&
+          matchId === active;
+
+        if (suppressForeground) {
+          return {
+            shouldShowBanner: false,
+            shouldShowList: false,
+            shouldPlaySound: false,
+            shouldSetBadge: false,
+          };
+        }
+        return {
+          shouldShowBanner: true,
+          shouldShowList: true,
+          shouldPlaySound: true,
+          shouldSetBadge: true,
+        };
+      },
     });
     notificationHandlerSet = true;
   } catch (error) {
