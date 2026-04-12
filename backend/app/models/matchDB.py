@@ -26,8 +26,8 @@ class Match(db.Model):
     # Dater who skipped create-time blind push (linked dater); notify when match becomes matched after approval
     blind_match_deferred_notify_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     # True = that dater tapped like themselves; False = only their matchmaker liked for them; None = legacy row
-    direct_like_as_dater_1 = db.Column(db.Boolean, nullable=True)
-    direct_like_as_dater_2 = db.Column(db.Boolean, nullable=True)
+    direct_like_as_dater_1 = db.Column(db.Boolean, nullable=True, default=None)
+    direct_like_as_dater_2 = db.Column(db.Boolean, nullable=True, default=None)
 
     # relationships to the two users
     user1 = db.relationship('User', foreign_keys=[user_id_1], back_populates='matches_as_user1')
