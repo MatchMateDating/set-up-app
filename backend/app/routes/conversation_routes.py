@@ -216,7 +216,8 @@ def add_to_conversation(current_user, match_id):
                 receiver_id=receiver_user_id,
                 sender_id=sender_user_id,
                 match_id=match_id,
-                message_text=message_preview
+                message_text=message_preview,
+                auth_sender_id=current_user.id,
             )
         except Exception as e:
             # Log error but don't fail the request

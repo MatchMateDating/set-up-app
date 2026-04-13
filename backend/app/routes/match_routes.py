@@ -15,7 +15,8 @@ import math
 from math import radians, sin, cos, sqrt, atan2
 from app.services.notification_service import (
     send_approved_match_notification,
-    send_match_notification,
+    send_new_match_push_to_dater,
+    send_match_notification_to_linked_matchmakers,
 )
 
 match_bp = Blueprint('match', __name__)
@@ -59,8 +60,20 @@ def _send_deferred_blind_match_notification_if_needed(match):
     other_id = match.user_id_2 if deferred_id == match.user_id_1 else match.user_id_1
     other = User.query.get(other_id)
     other_name = (other.first_name if other else None) or 'Someone'
+    mm_involved = bool(
+        match.matched_by_user_id_1_matcher or match.matched_by_user_id_2_matcher
+    )
     try:
-        send_match_notification(deferred_id, match.id, other_name, is_blind_match=True)
+        send_new_match_push_to_dater(
+            deferred_id,
+            match.id,
+            other_name,
+            is_blind_match=True,
+            is_matchmaker_mediated=mm_involved,
+        )
+        send_match_notification_to_linked_matchmakers(
+            deferred_id, match.id, other_name, is_blind_match=True
+        )
     except Exception as e:
         print(f'Error sending deferred blind match notification: {e}')
     match.blind_match_deferred_notify_user_id = None
@@ -449,11 +462,19 @@ def blind_match(current_user):
         referred_dater = User.query.get(referred_dater_id)
         liked_user = User.query.get(liked_user_id)
         if referred_dater and liked_user:
-            other_name = referred_dater.first_name or 'Someone'
-            send_match_notification(
+            # Cas sees Dylan as the other single; copy clarifies matchmaker-mediated match.
+            counterparty_name = referred_dater.first_name or 'Someone'
+            send_new_match_push_to_dater(
                 liked_user_id,
                 match_obj.id,
-                other_name,
+                counterparty_name,
+                is_blind_match=True,
+                is_matchmaker_mediated=True,
+            )
+            send_match_notification_to_linked_matchmakers(
+                liked_user_id,
+                match_obj.id,
+                counterparty_name,
                 is_blind_match=True,
             )
     except Exception as e:
@@ -532,22 +553,22 @@ def like_user(current_user):
         # Send push notifications when match becomes mutual or pending_approval
         if existing_match.user_id_1 in liked_ids and existing_match.user_id_2 in liked_ids:
             try:
-                from app.services.notification_service import send_match_notification
-
                 is_blind = existing_match.blind_match in ('Blind', 'Revealed')
                 
                 user1 = User.query.get(existing_match.user_id_1)
                 user2 = User.query.get(existing_match.user_id_2)
                 
                 if user1 and user2:
+                    mm_involved = bool(
+                        existing_match.matched_by_user_id_1_matcher
+                        or existing_match.matched_by_user_id_2_matcher
+                    )
                     # Notify only daters who personally liked; skip if only their matchmaker
                     # mediated their side (they cannot use the conversation yet).
                     # Skip the acting dater: they just completed the mutual like and already
                     # see the in-app match modal; notify only the other dater who was waiting.
                     for uid in (existing_match.user_id_1, existing_match.user_id_2):
                         if uid == acting_dater_id:
-                            continue
-                        if not _should_send_mutual_match_push_to_dater(existing_match, uid):
                             continue
                         other_id = (
                             existing_match.user_id_2
@@ -556,11 +577,27 @@ def like_user(current_user):
                         )
                         other = User.query.get(other_id)
                         other_name = (other.first_name if other else None) or 'Someone'
-                        send_match_notification(
+                        # Dater push: only if they personally liked (not MM-only swipe).
+                        if _should_send_mutual_match_push_to_dater(existing_match, uid):
+                            send_new_match_push_to_dater(
+                                uid,
+                                existing_match.id,
+                                other_name,
+                                is_blind_match=is_blind,
+                                is_matchmaker_mediated=mm_involved,
+                            )
+                        # Matchmakers always get a push (tokens on MM user); MM-only swipes skip dater push above.
+                        skip_mm = (
+                            {current_user.id}
+                            if getattr(current_user, "role", None) == "matchmaker"
+                            else set()
+                        )
+                        send_match_notification_to_linked_matchmakers(
                             uid,
                             existing_match.id,
                             other_name,
                             is_blind_match=is_blind,
+                            skip_matchmaker_ids=skip_mm,
                         )
             except Exception as e:
                 # Log error but don't fail the request
