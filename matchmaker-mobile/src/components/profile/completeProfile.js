@@ -10,15 +10,16 @@ import {
   ActivityIndicator,
   Alert,
   Platform,
-  Dimensions,
   Keyboard,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
-import { Picker } from '@react-native-picker/picker';
 import Slider from '@react-native-community/slider';
-import CalendarPicker from "react-native-calendar-picker";
 import ImageGallery from './images';
+import BirthdatePickerModal, {
+  MONTHS_ABBR,
+} from './components/BirthdatePickerModal';
+import HeightPickerModal from './components/HeightPickerModal';
 import * as ImagePicker from 'expo-image-picker';
 import { API_BASE_URL } from '../../env';
 import {
@@ -61,14 +62,14 @@ const CompleteProfile = () => {
   const { setUser: setContextUser } = useContext(UserContext);
   const { enableNotifications } = useNotifications();
   const scrollRef = React.useRef(null);
-  const calendarWrapperRef = React.useRef(null);
   const scrollOffsetYRef = React.useRef(0);
   const firstNameRef = React.useRef(null);
   const lastNameRef = React.useRef(null);
-  const today = new Date();
-  const defaultBirthdate = new Date(today.setFullYear(today.getFullYear() - 18))
-    .toISOString()
-    .split('T')[0];
+  const defaultBirthdate = (() => {
+    const d = new Date();
+    d.setFullYear(d.getFullYear() - 18);
+    return d.toISOString().split('T')[0];
+  })();
 
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -77,7 +78,7 @@ const CompleteProfile = () => {
   const [user, setUser] = useState(null);
   const [images, setImages] = useState([]);
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [tempBirthdate, setTempBirthdate] = useState(null);
+  const [showHeightModal, setShowHeightModal] = useState(false);
   const [cropModalVisible, setCropModalVisible] = useState(false);
   /** Queue of items to crop (multi-select order); width/height from picker when available for Android orientation accuracy */
   const [pendingCropQueue, setPendingCropQueue] = useState([]);
@@ -86,28 +87,6 @@ const CompleteProfile = () => {
   const milesToKm = (mi) => Math.round(mi * 1.60934);
   const kmToMiles = (km) => Math.round(km / 1.60934);
   const radiusMax = radiusUnit === 'km' ? 800 : 500;
-  const SCREEN_WIDTH = Dimensions.get('window').width;
-
-  const centerCalendarInView = React.useCallback(() => {
-    setTimeout(() => {
-      if (!scrollRef.current || !calendarWrapperRef.current) return;
-
-      calendarWrapperRef.current.measureInWindow((_, calendarY, __, calendarH) => {
-        scrollRef.current?.measureInWindow((_, scrollY, __2, scrollH) => {
-          const calendarCenterY = calendarY + (calendarH / 2);
-          const viewportCenterY = scrollY + (scrollH / 2);
-          const centerDelta = calendarCenterY - viewportCenterY;
-          const targetOffset = Math.max(0, scrollOffsetYRef.current + centerDelta);
-
-          scrollRef.current?.scrollTo({
-            y: targetOffset,
-            animated: true,
-          });
-        });
-      });
-    }, 100);
-  }, []);
-
   const [formData, setFormData] = useState({
     first_name: '',
     last_name: '',
@@ -128,11 +107,6 @@ const CompleteProfile = () => {
     fontFamily: 'Arial',
     show_location: false,
   });
-
-  useEffect(() => {
-    if (step !== 1 || !showDatePicker) return;
-    centerCalendarInView();
-  }, [formData.imageLayout, step, showDatePicker, centerCalendarInView]);
 
   const saveStepToBackend = async (stepNumber) => {
     try {
@@ -423,6 +397,27 @@ const CompleteProfile = () => {
       
       return newData;
     });
+  };
+
+  /** Single merge so step-1 height auto-save sees feet+inches or m+cm together */
+  const updateHeightBatch = (patch) => {
+    setFormData((prev) => {
+      const newData = { ...prev, ...patch };
+      if (step === 1) {
+        if (autoSaveFormData.current) {
+          clearTimeout(autoSaveFormData.current);
+        }
+        autoSaveFormData.current = setTimeout(() => {
+          const height = formatHeight(newData, heightUnit);
+          saveFormDataToBackend({
+            height,
+            unit: heightUnit === 'ft' ? 'imperial' : 'metric',
+          });
+        }, 1000);
+      }
+      return newData;
+    });
+    setShowHeightModal(false);
   };
 
   const handleInputChange = (e) => {
@@ -880,17 +875,7 @@ const CompleteProfile = () => {
                     returnKeyType="done"
                     onSubmitEditing={() => {
                       lastNameRef.current?.blur();
-                      // Open date picker
-                      setTempBirthdate(
-                        formData.birthdate
-                          ? (() => {
-                              const [year, month, day] = formData.birthdate.split('-').map(Number);
-                              return new Date(year, month - 1, day);
-                            })()
-                          : null
-                      );
                       setShowDatePicker(true);
-                      centerCalendarInView();
                     }}
                   />
 
@@ -909,84 +894,31 @@ const CompleteProfile = () => {
                     style={[styles.field, styles.dateField, showDatePicker && styles.fieldActive]}
                     onPress={() => {
                       Keyboard.dismiss();
-                      setTempBirthdate(
-                        formData.birthdate
-                          ? (() => {
-                              const [year, month, day] = formData.birthdate.split('-').map(Number);
-                              return new Date(year, month - 1, day); // month is 0-indexed
-                            })()
-                          : null
-                      );
                       setShowDatePicker(true);
-                      centerCalendarInView();
-                      }}
+                    }}
                     activeOpacity={0.8}
                   >
                     <Text style={[styles.dateText, !formData.birthdate && styles.placeholderText]}>
-                      {formData.birthdate || 'Select birthdate'}
+                      {formData.birthdate
+                        ? (() => {
+                            const [y, m, d] = formData.birthdate.split('-').map(Number);
+                            const dt = new Date(y, m - 1, d);
+                            return `${MONTHS_ABBR[dt.getMonth()]} ${dt.getDate()}, ${dt.getFullYear()}`;
+                          })()
+                        : 'Birthday'}
                     </Text>
                   </TouchableOpacity>
 
-                  {showDatePicker && (
-                    <View
-                      ref={calendarWrapperRef}
-                      style={styles.modalCard}
-                      onLayout={centerCalendarInView}
-                    >
-                      <Text style={styles.modalTitle}>Select Birthdate</Text>
-                      <View style={styles.calendarWrapper}>
-                        <CalendarPicker
-                          onDateChange={(date) => setTempBirthdate(date)}
-                          selectedStartDate={tempBirthdate}
-                          initialDate={tempBirthdate}
-                          maxDate={new Date(defaultBirthdate)}
-                          width={SCREEN_WIDTH - 80}
-                          minimumDate={new Date(
-                            new Date().setFullYear(new Date().getFullYear() - 100)
-                          )}
-                          todayBackgroundColor="#E9D8FD"
-                          selectedDayColor="#ef4d73"
-                          selectedDayTextColor="#fff"
-                          textStyle={{
-                            color: '#111',
-                            fontSize: 14,
-                          }}
-                          dayLabelsWrapper={styles.dayLabelsWrapper}
-                          style={{
-                            borderRadius: 8,
-                            overflow: 'hidden',
-                          }}
-                        />
-                      </View>
-
-
-                      <View style={styles.modalActions}>
-                        <TouchableOpacity
-                          style={styles.cancelButton}
-                          onPress={() => {
-                            setTempBirthdate(null);
-                            setShowDatePicker(false);
-                          }}
-                        >
-                          <Text style={styles.cancelText}>Cancel</Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                          style={styles.confirmButton}
-                          onPress={() => {
-                            if (tempBirthdate) {
-                              update(
-                                'birthdate', tempBirthdate.toISOString().split('T')[0]
-                              );
-                            }
-                            setShowDatePicker(false);
-                          }}
-                        >
-                          <Text style={styles.confirmText}>Confirm</Text>
-                        </TouchableOpacity>
-                      </View>
-                </View>
-              )}
+                  <BirthdatePickerModal
+                    visible={showDatePicker}
+                    birthdateIso={formData.birthdate || ''}
+                    onRequestClose={() => setShowDatePicker(false)}
+                    onSave={(iso) => {
+                      update('birthdate', iso);
+                      setShowDatePicker(false);
+                    }}
+                    accentColor="#ef4d73"
+                  />
 
 
               <Text style={styles.label}>Gender</Text>
@@ -997,81 +929,30 @@ const CompleteProfile = () => {
               />
 
               <Text style={styles.label}>Height ({heightUnit})</Text>
-              <View style={[styles.field, styles.heightGroup]}>
-                {heightUnit === 'ft' ? (
-                  <>
-                    {/* FEET */}
-                    <View style={styles.heightPickerWrapper}>
-                      <Picker
-                        selectedValue={formData.heightFeet}
-                        style={styles.pickerSmall}
-                        onValueChange={(v) => {
-                          update('heightFeet', v);
-                          update('heightMeters', '');
-                        }}
-                      >
-                        {Array.from({ length: 8 }, (_, i) => (
-                          <Picker.Item key={i} label={`${i}`} value={`${i}`} />
-                        ))}
-                      </Picker>
-                    </View>
+              <TouchableOpacity
+                style={[styles.field, styles.dateField, showHeightModal && styles.fieldActive]}
+                onPress={() => {
+                  Keyboard.dismiss();
+                  setShowHeightModal(true);
+                }}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.dateText}>
+                  {formatHeight(formData, heightUnit)}
+                </Text>
+              </TouchableOpacity>
 
-                    <View style={styles.divider} />
-
-                    {/* INCHES */}
-                    <View style={styles.heightPickerWrapper}>
-                      <Picker
-                        selectedValue={formData.heightInches}
-                        style={styles.pickerSmall}
-                        onValueChange={(v) => {
-                          update('heightInches', v);
-                          update('heightCentimeters', '');
-                        }}
-                      >
-                        {Array.from({ length: 12 }, (_, i) => (
-                          <Picker.Item key={i} label={`${i}`} value={`${i}`} />
-                        ))}
-                      </Picker>
-                    </View>
-                  </>
-                ) : (
-                  <>
-                    {/* METERS */}
-                    <View style={styles.heightPickerWrapper}>
-                      <Picker
-                        selectedValue={formData.heightMeters}
-                        style={styles.pickerSmall}
-                        onValueChange={(v) => {
-                          update('heightMeters', v);
-                          update('heightFeet', '');
-                        }}
-                      >
-                        {Array.from({ length: 3 }, (_, i) => (
-                          <Picker.Item key={i} label={`${i}`} value={`${i}`} />
-                        ))}
-                      </Picker>
-                    </View>
-
-                    <View style={styles.divider} />
-
-                    {/* CENTIMETERS */}
-                    <View style={styles.heightPickerWrapper}>
-                      <Picker
-                        selectedValue={formData.heightCentimeters}
-                        style={styles.pickerSmall}
-                        onValueChange={(v) => {
-                          update('heightCentimeters', v);
-                          update('heightInches', '');
-                        }}
-                      >
-                        {Array.from({ length: 100 }, (_, i) => (
-                          <Picker.Item key={i} label={`${i}`} value={`${i}`} />
-                        ))}
-                      </Picker>
-                    </View>
-                  </>
-                )}
-              </View>
+              <HeightPickerModal
+                visible={showHeightModal}
+                heightUnit={heightUnit}
+                heightFeet={formData.heightFeet}
+                heightInches={formData.heightInches}
+                heightMeters={formData.heightMeters}
+                heightCentimeters={formData.heightCentimeters}
+                onRequestClose={() => setShowHeightModal(false)}
+                onSave={updateHeightBatch}
+                accentColor="#ef4d73"
+              />
 
               <TouchableOpacity onPress={handleUnitToggle}>
                 <Text style={styles.toggle}>Switch to {heightUnit === 'ft' ? 'meters' : 'feet'}</Text>
@@ -1388,65 +1269,6 @@ const styles = StyleSheet.create({
   fieldActive: {
     borderColor: '#ef4d73',
   },
-  modalCard: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    paddingVertical: 16,
-    marginVertical: 10,
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    // Add overflow hidden to ensure nothing leaks out of the rounded corners
-    overflow: 'hidden',
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    textAlign: 'center',
-    marginBottom: 12,
-  },
-  calendarWrapper: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: '100%',
-    // Adding a slight horizontal padding to the wrapper itself
-    paddingHorizontal: 10,
-  },
-  dayLabelsWrapper: {
-    borderBottomWidth: 1,
-    borderTopWidth: 0,
-    borderColor: '#eee',
-    paddingBottom: 10,
-    // Ensure this doesn't exceed the width of its parent
-    width: '100%',
-  },
-  modalActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 16,
-    paddingHorizontal: 24,
-  },
-  cancelButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-  },
-  cancelText: {
-    color: '#6B7280',
-    fontSize: 16,
-  },
-  confirmButton: {
-    backgroundColor: '#ef4d73',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-  },
-  confirmText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
   input: {
     height: 48,
     borderWidth: 1,
@@ -1473,96 +1295,6 @@ const styles = StyleSheet.create({
   smallInput: {
     flex: 1,
     marginRight: 8,
-  },
-  pickerWrapper: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 12,
-    justifyContent: 'center',
-    backgroundColor: '#fff',
-    overflow: 'hidden',
-    ...Platform.select({
-      ios: {
-        height: 120,
-      },
-      android: {
-        height: 48,
-      },
-      default: {
-        height: 48,
-      },
-    }),
-  },
-  picker: {
-    width: '100%',
-    ...Platform.select({
-      ios: {
-        height: 215,
-      },
-      android: {
-        height: 48,
-      },
-      default: {
-        height: 48,
-      },
-    }),
-  },
-  pickerSmall: {
-    width: '100%',
-    paddingTop: 6,
-    color: '#111',
-    ...Platform.select({
-      ios: {
-        height: 215,
-      },
-      android: {
-        height: 50,
-      },
-      default: {
-        height: 50,
-      },
-    }),
-  },
-  heightGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    overflow: 'visible',
-    ...Platform.select({
-      ios: {
-        height: 215,
-      },
-      android: {
-        height: 50,
-      },
-      default: {
-        height: 50,
-      },
-    }),
-  },
-  heightPickerWrapper: {
-    flex: 1,
-    overflow: 'visible',
-    ...Platform.select({
-      ios: {
-        height: 215,
-      },
-      android: {
-        height: 50,
-      },
-      default: {
-        height: 50,
-      },
-    }),
-  },
-  heightInput: {
-    flex: 1,
-    paddingHorizontal: 12,
-    fontSize: 16,
-  },
-  divider: {
-    width: 1,
-    height: '60%',
-    backgroundColor: '#ddd',
   },
   toggle: {
     marginTop: 8,
