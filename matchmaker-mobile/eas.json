@@ -5,6 +5,7 @@
   },
   "build": {
     "development": {
+      "environment": "development",
       "developmentClient": true,
       "distribution": "internal",
       "ios": {
@@ -15,12 +16,14 @@
       }
     },
     "demo": {
+      "environment": "demo",
       "extends": "preview",
       "env": {
         "EXPO_PUBLIC_API_BASE_URL": "https://set-up-app-demo.up.railway.app"
       }
     },
     "preview": {
+      "environment": "preview",
       "developmentClient": false,
       "distribution": "internal",
       "ios": {
@@ -34,6 +37,7 @@
       }
     },
     "production": {
+      "environment": "production",
       "autoIncrement": true,
       "ios": {
         "simulator": false
