@@ -12,6 +12,7 @@ import {
   Modal,
   Keyboard,
   Image,
+  Linking,
 } from 'react-native';
 import axios from 'axios';
 import { useNavigation } from '@react-navigation/native';
@@ -21,6 +22,9 @@ import { UserContext } from '../../context/UserContext';
 import { startLocationWatcher } from './utils/startLocationWatcher';
 import { useNotifications } from '../../context/NotificationContext';
 import { Ionicons } from '@expo/vector-icons';
+
+const PRIVACY_POLICY_URL = 'https://matchmatedating.com/privacy-policy.html';
+const TERMS_AND_CONDITIONS_URL = 'https://matchmatedating.com/terms-and-conditions.html';
 
 const DEFAULT_TEST_EMAIL_DOMAINS = '@test.com,@example.com,@test.local';
 const TEST_EMAIL_DOMAINS = (
@@ -565,21 +569,35 @@ const SignUpScreen = () => {
           />
         )}
 
-        <TouchableOpacity
-          style={styles.checkboxContainer}
-          onPress={() => {
-            Keyboard.dismiss();
-            setAgreeToTexts((prev) => !prev);
-          }}
-          activeOpacity={0.7}
-        >
-          <View style={[styles.checkbox, agreeToTexts && styles.checkboxChecked]}>
-            {agreeToTexts && <Text style={styles.checkmark}>✓</Text>}
-          </View>
+        <View style={styles.checkboxContainer}>
+          <TouchableOpacity
+            onPress={() => {
+              Keyboard.dismiss();
+              setAgreeToTexts((prev) => !prev);
+            }}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.checkbox, agreeToTexts && styles.checkboxChecked]}>
+              {agreeToTexts && <Text style={styles.checkmark}>✓</Text>}
+            </View>
+          </TouchableOpacity>
           <Text style={styles.checkboxLabel}>
-            By checking this box, you agree to receive non promotional emails or texts.
+            By checking this box, I agree to receive SMS verification codes and security alerts from matchmate at the phone number I provide. Message & data rates may apply. See our{' '}
+            <Text
+              style={styles.checkboxLink}
+              onPress={() => Linking.openURL(PRIVACY_POLICY_URL)}
+            >
+              Privacy Policy
+            </Text>
+            {' '}and{' '}
+            <Text
+              style={styles.checkboxLink}
+              onPress={() => Linking.openURL(TERMS_AND_CONDITIONS_URL)}
+            >
+              Terms & Conditions
+            </Text>
           </Text>
-        </TouchableOpacity>
+        </View>
 
         <TouchableOpacity
           style={styles.checkboxContainer}
@@ -921,6 +939,11 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14,
     color: '#4a4a68',
+  },
+  checkboxLink: {
+    color: '#6c5ce7',
+    fontWeight: '600',
+    textDecorationLine: 'underline',
   },
   modalOverlay: {
     flex: 1,
