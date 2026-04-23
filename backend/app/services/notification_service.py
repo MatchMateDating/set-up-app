@@ -6,7 +6,9 @@ from exponent_server_sdk import (
     DeviceNotRegisteredError,
     InvalidCredentialsError,
 )
-from app.models.userDB import User, PushToken
+from sqlalchemy import or_
+
+from app.models.userDB import User, PushToken, ReferredUsers
 from app.models.matchDB import Match
 from app import db
 from app.services.push_platforms import (
@@ -179,16 +181,12 @@ def send_push_notification(push_token, title, body, data=None, legacy_user=None)
     )
 
 
-def send_notification_to_user(user_id, title, body, data=None):
-    user = User.query.get(user_id)
+def _dispatch_push_to_user(user, title, body, data=None):
+    """Deliver a push to one user's devices. No preference checks; body should be final."""
     if not user:
         return False
-    if not _user_notification_allowed(user):
-        return False
-
-    body = (body or "") + _notification_body_suffix(user)
-
-    push_tokens = PushToken.query.filter_by(user_id=user_id).all()
+    data = data or {}
+    push_tokens = PushToken.query.filter_by(user_id=user.id).all()
 
     if not push_tokens:
         if user.push_token:
@@ -204,6 +202,171 @@ def send_notification_to_user(user_id, title, body, data=None):
             success_count += 1
 
     return success_count > 0
+
+
+def _matchmaker_ids_for_dater(dater_id, match=None):
+    """
+    Matchmakers who should receive mirrored notifications for this dater's activity:
+    linked account, referred_by_id roster row, matchers on the match, and ReferredUsers slots.
+    """
+    ids = set()
+    if not dater_id:
+        return ids
+    dater = User.query.get(dater_id)
+    if not dater or getattr(dater, "role", None) != "user":
+        return ids
+
+    if dater.linked_account_id:
+        u = User.query.get(dater.linked_account_id)
+        if u and getattr(u, "role", None) == "matchmaker":
+            ids.add(u.id)
+
+    for mm in User.query.filter_by(referred_by_id=dater_id, role="matchmaker").all():
+        ids.add(mm.id)
+
+    if match:
+        if match.user_id_1 == dater_id and match.matched_by_user_id_1_matcher:
+            ids.add(match.matched_by_user_id_1_matcher)
+        if match.user_id_2 == dater_id and match.matched_by_user_id_2_matcher:
+            ids.add(match.matched_by_user_id_2_matcher)
+
+    slot_filters = or_(
+        *[
+            getattr(ReferredUsers, f"linked_dater_{i}_id") == dater_id
+            for i in range(1, 11)
+        ]
+    )
+    for row in ReferredUsers.query.filter(slot_filters).all():
+        ids.add(row.matchmaker_id)
+
+    return ids
+
+
+def _notify_matchmakers_for_message(
+    receiver_id, sender_id, match_id, message_text, match, sender, receiver
+):
+    """Mirror message pushes to matchmakers tied to the receiving dater."""
+    if not receiver or getattr(receiver, "role", None) != "user" or not sender:
+        return False
+
+    mm_ids = _matchmaker_ids_for_dater(receiver_id, match)
+    if not mm_ids:
+        return False
+
+    sender_name = sender.first_name or "Someone"
+    dater_label = receiver.first_name or "your dater"
+    preview = (message_text or "").strip()
+    if len(preview) > 180:
+        preview = preview[:177] + "..."
+    title = f"New message for {dater_label}"
+    body_base = preview if preview else "You have a new message"
+    data = {
+        "type": "message",
+        "matchId": str(match_id) if match_id else "",
+        "forDaterId": str(receiver_id),
+    }
+
+    any_ok = False
+    for mm_id in mm_ids:
+        mm = User.query.get(mm_id)
+        if not mm or not _user_notification_allowed(mm, "new_message_notifications"):
+            continue
+        body = f"{body_base} · from {sender_name}{_notification_body_suffix(mm)}"
+        if _dispatch_push_to_user(mm, title, body, data):
+            any_ok = True
+            logger.debug(
+                "message push mirrored to matchmaker_id=%s for dater receiver_id=%s match_id=%s",
+                mm_id,
+                receiver_id,
+                match_id,
+            )
+    return any_ok
+
+
+def _notify_matchmakers_for_match(
+    dater_id, match, match_id, other_user_name, is_blind_match, preference_field
+):
+    """Mirror new-match / blind-match pushes to that dater's matchmakers."""
+    mm_ids = _matchmaker_ids_for_dater(dater_id, match)
+    if not mm_ids:
+        return False
+
+    dater = User.query.get(dater_id)
+    dater_label = (dater.first_name if dater else None) or "your dater"
+    title = (
+        f"New blind match for {dater_label}"
+        if is_blind_match
+        else f"New match for {dater_label}"
+    )
+    if is_blind_match:
+        body_base = f"{dater_label} has a new blind match with {other_user_name}"
+    else:
+        body_base = f"{dater_label} has a new match with {other_user_name}"
+
+    data = {
+        "type": "blind_match" if is_blind_match else "match",
+        "matchId": str(match_id) if match_id else "",
+        "forDaterId": str(dater_id),
+    }
+
+    any_ok = False
+    for mm_id in mm_ids:
+        mm = User.query.get(mm_id)
+        if not mm or not _user_notification_allowed(mm, preference_field):
+            continue
+        body = body_base + _notification_body_suffix(mm)
+        if _dispatch_push_to_user(mm, title, body, data):
+            any_ok = True
+            logger.debug(
+                "match push mirrored to matchmaker_id=%s for dater_id=%s match_id=%s",
+                mm_id,
+                dater_id,
+                match_id,
+            )
+    return any_ok
+
+
+def _notify_matchmakers_for_approval(dater_id, title, body, match_id, match):
+    """Mirror match-approval pushes to that dater's matchmakers."""
+    mm_ids = _matchmaker_ids_for_dater(dater_id, match)
+    if not mm_ids:
+        return False
+
+    dater = User.query.get(dater_id)
+    dater_label = (dater.first_name if dater else None) or "your dater"
+    base_body = (body or "").strip()
+    data = {
+        "type": "match_approval",
+        "matchId": str(match_id) if match_id else "",
+        "forDaterId": str(dater_id),
+    }
+
+    any_ok = False
+    for mm_id in mm_ids:
+        mm = User.query.get(mm_id)
+        if not mm or not _user_notification_allowed(mm, "new_match_approval_notifications"):
+            continue
+        mm_body = f"{base_body} ({dater_label}){_notification_body_suffix(mm)}"
+        if _dispatch_push_to_user(mm, title, mm_body, data):
+            any_ok = True
+            logger.debug(
+                "approval push mirrored to matchmaker_id=%s for dater_id=%s match_id=%s",
+                mm_id,
+                dater_id,
+                match_id,
+            )
+    return any_ok
+
+
+def send_notification_to_user(user_id, title, body, data=None):
+    user = User.query.get(user_id)
+    if not user:
+        return False
+    if not _user_notification_allowed(user):
+        return False
+
+    body = (body or "") + _notification_body_suffix(user)
+    return _dispatch_push_to_user(user, title, body, data)
 
 
 def send_message_notification(receiver_id, sender_id, match_id, message_text):
@@ -215,12 +378,6 @@ def send_message_notification(receiver_id, sender_id, match_id, message_text):
             "message push skipped: receiver_id=%s not found", receiver_id
         )
         return False
-    if not _user_notification_allowed(receiver, "new_message_notifications"):
-        logger.debug(
-            "message push skipped: receiver_id=%s new_message_notifications disabled",
-            receiver_id,
-        )
-        return False
     if not sender:
         logger.debug(
             "message push skipped: sender_id=%s not found", sender_id
@@ -228,109 +385,80 @@ def send_message_notification(receiver_id, sender_id, match_id, message_text):
         return False
 
     match = Match.query.get(match_id) if match_id else None
-    if _should_skip_message_push_pending_dater_awaits_mm(match, receiver_id, receiver):
-        logger.debug(
-            "message push skipped: receiver_id=%s pending_approval, matchmaker not approved yet match_id=%s",
-            receiver_id,
-            match_id,
-        )
-        return False
 
-    sender_name = sender.first_name or "Someone"
-    title = f"New message from {sender_name}"
-    preview = (message_text or "").strip()
-    if len(preview) > 180:
-        preview = preview[:177] + "..."
-    body = preview if preview else "You have a new message"
-    body = body + _notification_body_suffix(receiver)
-    data = {
-        "type": "message",
-        "matchId": str(match_id),
-    }
-
-    push_tokens = PushToken.query.filter_by(user_id=receiver_id).all()
-
-    if not push_tokens:
-        if receiver.push_token:
-            ok = send_push_notification(
-                receiver.push_token, title, body, data, legacy_user=receiver
-            )
+    dater_ok = False
+    if _user_notification_allowed(receiver, "new_message_notifications"):
+        if _should_skip_message_push_pending_dater_awaits_mm(
+            match, receiver_id, receiver
+        ):
             logger.debug(
-                "message push receiver_id=%s match_id=%s legacy_user.push_token ok=%s",
+                "message push skipped for dater: receiver_id=%s pending_approval, "
+                "matchmaker not approved yet match_id=%s",
                 receiver_id,
                 match_id,
-                ok,
             )
-            return ok
+        else:
+            sender_name = sender.first_name or "Someone"
+            title = f"New message from {sender_name}"
+            preview = (message_text or "").strip()
+            if len(preview) > 180:
+                preview = preview[:177] + "..."
+            body = preview if preview else "You have a new message"
+            body = body + _notification_body_suffix(receiver)
+            data = {
+                "type": "message",
+                "matchId": str(match_id) if match_id else "",
+            }
+            dater_ok = _dispatch_push_to_user(receiver, title, body, data)
+            logger.info(
+                "message push match_id=%s dater_ok=%s receiver_id=%s",
+                match_id,
+                dater_ok,
+                receiver_id,
+            )
+    else:
         logger.debug(
-            "message push skipped: receiver_id=%s has no push_tokens rows and no legacy push_token",
+            "message push skipped for dater: receiver_id=%s new_message_notifications disabled",
             receiver_id,
         )
-        return False
 
-    push_tokens = _push_tokens_for_delivery(push_tokens)
-    logger.debug(
-        "message push start receiver_id=%s sender_id=%s match_id=%s token_rows=%s",
-        receiver_id,
-        sender_id,
-        match_id,
-        [(t.id, (t.platform or "expo")) for t in push_tokens],
+    mm_ok = _notify_matchmakers_for_message(
+        receiver_id, sender_id, match_id, message_text, match, sender, receiver
     )
-
-    success_count = 0
-    for token_obj in push_tokens:
-        if send_push_to_token_row(token_obj, title, body, data):
-            success_count += 1
-
-    ok = success_count > 0
-    logger.info(
-        "message push match_id=%s ok=%s devices=%s/%s",
-        match_id,
-        ok,
-        success_count,
-        len(push_tokens),
-    )
-    return ok
+    return dater_ok or mm_ok
 
 
 def send_match_notification(user_id, match_id, other_user_name, is_blind_match=False):
     user = User.query.get(user_id)
     if not user:
         return False
+    match = Match.query.get(match_id) if match_id else None
     preference_field = (
         "new_blind_match_notifications" if is_blind_match else "new_match_notifications"
     )
-    if not _user_notification_allowed(user, preference_field):
-        return False
 
-    title = "New Blind Match!" if is_blind_match else "New Match!"
-    body = (
-        f"You have a new blind match with {other_user_name}"
-        if is_blind_match
-        else f"You have a new match with {other_user_name}"
-    )
-    body = body + _notification_body_suffix(user)
-    data = {
-        "type": "blind_match" if is_blind_match else "match",
-        "matchId": str(match_id),
-    }
+    ok = False
+    if _user_notification_allowed(user, preference_field):
+        title = "New Blind Match!" if is_blind_match else "New Match!"
+        body = (
+            f"You have a new blind match with {other_user_name}"
+            if is_blind_match
+            else f"You have a new match with {other_user_name}"
+        )
+        body = body + _notification_body_suffix(user)
+        data = {
+            "type": "blind_match" if is_blind_match else "match",
+            "matchId": str(match_id) if match_id else "",
+        }
+        ok = _dispatch_push_to_user(user, title, body, data) or ok
 
-    push_tokens = PushToken.query.filter_by(user_id=user_id).all()
+    if getattr(user, "role", None) == "user":
+        mm_ok = _notify_matchmakers_for_match(
+            user.id, match, match_id, other_user_name, is_blind_match, preference_field
+        )
+        ok = mm_ok or ok
 
-    if not push_tokens:
-        if user.push_token:
-            return send_push_notification(
-                user.push_token, title, body, data, legacy_user=user
-            )
-        return False
-
-    push_tokens = _push_tokens_for_delivery(push_tokens)
-    success_count = 0
-    for token_obj in push_tokens:
-        if send_push_to_token_row(token_obj, title, body, data):
-            success_count += 1
-
-    return success_count > 0
+    return ok
 
 
 def send_approved_match_notification(user_id, title, body, match_id):
@@ -338,29 +466,18 @@ def send_approved_match_notification(user_id, title, body, match_id):
     user = User.query.get(user_id)
     if not user:
         return False
-    if not _user_notification_allowed(user, "new_match_approval_notifications"):
-        return False
+    match = Match.query.get(match_id) if match_id else None
 
-    body = (body or "") + _notification_body_suffix(user)
+    ok = False
+    if _user_notification_allowed(user, "new_match_approval_notifications"):
+        bod = (body or "") + _notification_body_suffix(user)
+        data = {
+            "type": "match_approval",
+            "matchId": str(match_id) if match_id else "",
+        }
+        ok = _dispatch_push_to_user(user, title, bod, data)
 
-    data = {
-        "type": "match_approval",
-        "matchId": str(match_id),
-    }
+    if getattr(user, "role", None) == "user":
+        ok = _notify_matchmakers_for_approval(user.id, title, body, match_id, match) or ok
 
-    push_tokens = PushToken.query.filter_by(user_id=user_id).all()
-
-    if not push_tokens:
-        if user.push_token:
-            return send_push_notification(
-                user.push_token, title, body, data, legacy_user=user
-            )
-        return False
-
-    push_tokens = _push_tokens_for_delivery(push_tokens)
-    success_count = 0
-    for token_obj in push_tokens:
-        if send_push_to_token_row(token_obj, title, body, data):
-            success_count += 1
-
-    return success_count > 0
+    return ok
