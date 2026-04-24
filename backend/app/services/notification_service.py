@@ -239,6 +239,18 @@ def _matchmaker_ids_for_dater(dater_id, match=None):
     for row in ReferredUsers.query.filter(slot_filters).all():
         ids.add(row.matchmaker_id)
 
+    # Never mirror to the other dater in the same pair (they are not the matchmaker observer).
+    # Prevents the counterparty from receiving "New match for ally2" style MM pushes if they
+    # were incorrectly linked in roster fields.
+    ids.discard(dater_id)
+    if match and dater_id in (match.user_id_1, match.user_id_2):
+        other_id = (
+            match.user_id_2 if dater_id == match.user_id_1 else match.user_id_1
+        )
+        other_user = User.query.get(other_id)
+        if other_user is not None and getattr(other_user, "role", None) == "user":
+            ids.discard(other_id)
+
     return ids
 
 
@@ -271,7 +283,9 @@ def _notify_matchmakers_for_message(
         mm = User.query.get(mm_id)
         if not mm or not _user_notification_allowed(mm, "new_message_notifications"):
             continue
-        body = f"{body_base} · from {sender_name}{_notification_body_suffix(mm)}"
+        # No "(matchmaker)" suffix here — it reads like the sender is a matchmaker
+        # ("from ally3 (matchmaker)"). Title already scopes this to the MM inbox.
+        body = f"{body_base} · from {sender_name}"
         if _dispatch_push_to_user(mm, title, body, data):
             any_ok = True
             logger.debug(
@@ -314,7 +328,7 @@ def _notify_matchmakers_for_match(
         mm = User.query.get(mm_id)
         if not mm or not _user_notification_allowed(mm, preference_field):
             continue
-        body = body_base + _notification_body_suffix(mm)
+        body = body_base
         if _dispatch_push_to_user(mm, title, body, data):
             any_ok = True
             logger.debug(
@@ -346,7 +360,7 @@ def _notify_matchmakers_for_approval(dater_id, title, body, match_id, match):
         mm = User.query.get(mm_id)
         if not mm or not _user_notification_allowed(mm, "new_match_approval_notifications"):
             continue
-        mm_body = f"{base_body} ({dater_label}){_notification_body_suffix(mm)}"
+        mm_body = f"{base_body} ({dater_label})"
         if _dispatch_push_to_user(mm, title, mm_body, data):
             any_ok = True
             logger.debug(
