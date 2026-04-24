@@ -532,7 +532,10 @@ def like_user(current_user):
         # Send push notifications when match becomes mutual or pending_approval
         if existing_match.user_id_1 in liked_ids and existing_match.user_id_2 in liked_ids:
             try:
-                from app.services.notification_service import send_match_notification
+                from app.services.notification_service import (
+                    send_match_notification,
+                    send_match_notification_to_matchmakers,
+                )
 
                 is_blind = existing_match.blind_match in ('Blind', 'Revealed')
                 
@@ -547,8 +550,6 @@ def like_user(current_user):
                     for uid in (existing_match.user_id_1, existing_match.user_id_2):
                         if uid == acting_dater_id:
                             continue
-                        if not _should_send_mutual_match_push_to_dater(existing_match, uid):
-                            continue
                         other_id = (
                             existing_match.user_id_2
                             if uid == existing_match.user_id_1
@@ -556,12 +557,22 @@ def like_user(current_user):
                         )
                         other = User.query.get(other_id)
                         other_name = (other.first_name if other else None) or 'Someone'
-                        send_match_notification(
-                            uid,
-                            existing_match.id,
-                            other_name,
-                            is_blind_match=is_blind,
-                        )
+                        if _should_send_mutual_match_push_to_dater(existing_match, uid):
+                            send_match_notification(
+                                uid,
+                                existing_match.id,
+                                other_name,
+                                is_blind_match=is_blind,
+                            )
+                        else:
+                            # Dater push intentionally skipped (e.g. only their matchmaker liked),
+                            # but matchmakers still want the match alert.
+                            send_match_notification_to_matchmakers(
+                                uid,
+                                existing_match.id,
+                                other_name,
+                                is_blind_match=is_blind,
+                            )
             except Exception as e:
                 # Log error but don't fail the request
                 print(f"Error sending match notifications: {e}")

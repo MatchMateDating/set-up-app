@@ -461,6 +461,29 @@ def send_match_notification(user_id, match_id, other_user_name, is_blind_match=F
     return ok
 
 
+def send_match_notification_to_matchmakers(
+    dater_id, match_id, other_user_name, is_blind_match=False
+):
+    """
+    Send "new match" push only to matchmakers tied to `dater_id`.
+    Useful when the dater push is intentionally skipped (e.g. matchmaker-mediated likes).
+    """
+    if not dater_id:
+        return False
+    match = Match.query.get(match_id) if match_id else None
+    preference_field = (
+        "new_blind_match_notifications" if is_blind_match else "new_match_notifications"
+    )
+    return _notify_matchmakers_for_match(
+        dater_id,
+        match,
+        match_id,
+        other_user_name,
+        is_blind_match,
+        preference_field,
+    )
+
+
 def send_approved_match_notification(user_id, title, body, match_id):
     """Push when a pending match is approved (matchmakers or daters)."""
     user = User.query.get(user_id)

@@ -22,11 +22,14 @@ function NotificationHandler({ navigationRef }) {
       notificationListener.current = Notifications.addNotificationReceivedListener((notification) => {
         if (__DEV__) {
           const { title, body, data } = notification.request.content;
+          // Native APNs often leave content.data null; routing keys live on trigger.payload.
+          const routingData = getNotificationRoutingData(notification);
           console.log('Notification received:', {
             id: notification.request.identifier,
             title,
             body,
-            data,
+            contentData: data,
+            routingData,
           });
         }
       });

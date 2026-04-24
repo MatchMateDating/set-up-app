@@ -75,7 +75,13 @@ const setupNotificationHandler = () => {
             ? String(data.matchId)
             : null;
         const active = getActiveMatchId();
+        // Mirrored matchmaker pushes include forDaterId — still show a banner while the MM
+        // is viewing that dater's conversation (same matchId), since the MM is not the
+        // in-thread "receiver" the silence rule was designed for.
+        const isMatchmakerMirror =
+          data?.forDaterId != null && String(data.forDaterId).trim() !== '';
         const suppressForeground =
+          !isMatchmakerMirror &&
           type === 'message' &&
           matchId != null &&
           active != null &&
