@@ -408,8 +408,6 @@ const SignUpScreen = () => {
             resizeMode="contain"
           />
         </View>
-
-        <Text style={styles.title}>Create Account</Text>
         <Text style={styles.subtitle}>Join the community</Text>
 
         <View style={styles.roleToggleWrapper}>

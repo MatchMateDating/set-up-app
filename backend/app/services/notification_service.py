@@ -21,6 +21,15 @@ logger = logging.getLogger(__name__)
 
 push_client = PushClient()
 
+def _recipient_role_value(user):
+    """Notification routing hint for the mobile client: 'dater' vs 'matchmaker'."""
+    role = getattr(user, "role", None)
+    if role == "matchmaker":
+        return "matchmaker"
+    if role == "user":
+        return "dater"
+    return None
+
 
 def _user_notification_allowed(user, preference_field=None):
     if not user or not user.notifications_enabled:
@@ -140,10 +149,49 @@ def _push_tokens_for_delivery(push_tokens):
     """
     if not push_tokens:
         return push_tokens
-    platforms = {(t.platform or "expo").lower() for t in push_tokens}
+    # Normalize and de-dupe: tokens can accumulate over time (reinstalls, dev builds, etc).
+    # We prefer the most recent token per platform to prevent a single device receiving
+    # multiple notifications due to stale-but-still-valid token rows.
+    normalized = []
+    for t in push_tokens:
+        eff = (t.platform or "expo").lower()
+        if eff not in ("ios", "android", "expo"):
+            eff = "expo"
+        normalized.append((eff, t))
+
+    platforms = {eff for eff, _ in normalized}
     if "ios" in platforms or "android" in platforms:
-        return [t for t in push_tokens if (t.platform or "expo").lower() != "expo"]
-    return list(push_tokens)
+        normalized = [(eff, t) for eff, t in normalized if eff != "expo"]
+
+    # Keep the newest row per (platform, token_string). Then, if multiple distinct tokens
+    # exist for the same platform, keep only the newest one to avoid duplicate delivery
+    # to a single phone with rotated tokens.
+    by_platform = {}
+    for eff, t in normalized:
+        by_platform.setdefault(eff, [])
+        by_platform[eff].append(t)
+
+    selected = []
+    for eff, rows in by_platform.items():
+        # unique by token string first
+        seen = {}
+        for r in rows:
+            key = (r.token or "").strip()
+            if not key:
+                continue
+            prev = seen.get(key)
+            if prev is None or (getattr(r, "created_at", None) and getattr(prev, "created_at", None) and r.created_at > prev.created_at):
+                seen[key] = r
+            elif prev is None:
+                seen[key] = r
+
+        uniq = list(seen.values())
+        uniq.sort(key=lambda x: getattr(x, "created_at", None) or 0, reverse=True)
+        if uniq:
+            # keep newest token for this platform
+            selected.append(uniq[0])
+
+    return selected
 
 
 def _prune_push_token(token_obj):
@@ -312,7 +360,7 @@ def send_message_notification(receiver_id, sender_id, match_id, message_text, au
     if len(preview) > 180:
         preview = preview[:177] + "..."
     base_body = preview if preview else "You have a new message"
-    data = {
+    base_data = {
         "type": "message",
         "matchId": str(match_id),
     }
@@ -323,6 +371,8 @@ def send_message_notification(receiver_id, sender_id, match_id, message_text, au
         dater_receiver, "new_message_notifications"
     ):
         body = base_body + _notification_body_suffix(dater_receiver)
+        data = dict(base_data)
+        data["recipientRole"] = "dater"
         any_ok = (
             _deliver_message_push_tokens(
                 dater_receiver, title, body, data, match_id, receiver_id
@@ -337,8 +387,10 @@ def send_message_notification(receiver_id, sender_id, match_id, message_text, au
         if not mm or not _user_notification_allowed(mm, "new_message_notifications"):
             continue
         body_mm = base_body + _notification_body_suffix(mm)
+        data_mm = dict(base_data)
+        data_mm["recipientRole"] = "matchmaker"
         any_ok = (
-            _deliver_message_push_tokens(mm, title, body_mm, data, match_id, mm_id)
+            _deliver_message_push_tokens(mm, title, body_mm, data_mm, match_id, mm_id)
             or any_ok
         )
 
@@ -440,8 +492,8 @@ def send_match_notification_to_linked_matchmakers(
     skip_matchmaker_ids=None,
 ):
     """Fan-out new-match push to matchmakers who manage this dater (devices register under MM user ids)."""
-    managed = User.query.get(dater_id)
-    managed_name = (managed.first_name if managed else None) or "Someone"
+    # Matchmaker copy should name the *counterparty* (the other dater), not the managed dater.
+    counterparty_name = (counterparty_first_name or "Someone").strip() or "Someone"
     skip = set(skip_matchmaker_ids or [])
     any_ok = False
     for mm_id in _matchmaker_ids_linked_to_dater(dater_id):
@@ -453,7 +505,7 @@ def send_match_notification_to_linked_matchmakers(
         if send_new_match_push_to_matchmaker(
             mm_id,
             match_id,
-            managed_name,
+            counterparty_name,
             is_blind_match=is_blind_match,
         ):
             any_ok = True
@@ -473,6 +525,7 @@ def send_approved_match_notification(user_id, title, body, match_id):
     data = {
         "type": "match_approval",
         "matchId": str(match_id),
+        "recipientRole": _recipient_role_value(user),
     }
 
     push_tokens = PushToken.query.filter_by(user_id=user_id).all()
