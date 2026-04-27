@@ -104,11 +104,16 @@ def add_to_conversation(current_user, match_id):
     # For pending_approval matches, only users in liked_by or involved matchmakers can send messages
     if match.status == 'pending_approval':
         liked_ids = {u.id for u in match.liked_by}
-        # Check if user is in liked_by OR if matchmaker is involved in the match
+        # Check if user is in liked_by OR if matchmaker is involved in the match OR
+        # the dater's matchmaker has already approved (allows MM1-approved flows).
         matchmaker_involved = (current_user.role == 'matchmaker' and 
                               (match.matched_by_user_id_1_matcher == current_user.id or 
                                match.matched_by_user_id_2_matcher == current_user.id))
-        if check_user_id not in liked_ids and not matchmaker_involved:
+        side_approved = (
+            (check_user_id == match.user_id_1 and bool(match.approved_by_matcher_1)) or
+            (check_user_id == match.user_id_2 and bool(match.approved_by_matcher_2))
+        )
+        if check_user_id not in liked_ids and not matchmaker_involved and not side_approved:
             return jsonify({'error': 'You do not have permission to send messages in this conversation'}), 403
     
     # For matched matches, both users can send messages
@@ -177,12 +182,15 @@ def add_to_conversation(current_user, match_id):
                 # Check if this matchmaker has approved but the other hasn't
                 if match.matched_by_user_id_1_matcher == current_user.id:
                     if match.approved_by_matcher_1 and not match.approved_by_matcher_2:
-                        db.session.rollback()
-                        return jsonify({"error": "Waiting for the other matchmaker to approve. You cannot send more messages."}), 400
+                        # After approving, MM can only send puzzles (no freeform text) until the other MM approves.
+                        if text:
+                            db.session.rollback()
+                            return jsonify({"error": "Waiting for the other matchmaker to approve. You can only send puzzles."}), 400
                 elif match.matched_by_user_id_2_matcher == current_user.id:
                     if match.approved_by_matcher_2 and not match.approved_by_matcher_1:
-                        db.session.rollback()
-                        return jsonify({"error": "Waiting for the other matchmaker to approve. You cannot send more messages."}), 400
+                        if text:
+                            db.session.rollback()
+                            return jsonify({"error": "Waiting for the other matchmaker to approve. You can only send puzzles."}), 400
             
             # Check if this matchmaker is involved
             if match.matched_by_user_id_1_matcher == current_user.id:
@@ -218,6 +226,7 @@ def add_to_conversation(current_user, match_id):
                 match_id=match_id,
                 message_text=message_preview,
                 auth_sender_id=current_user.id,
+                puzzle_type=puzzle_type,
             )
         except Exception as e:
             # Log error but don't fail the request

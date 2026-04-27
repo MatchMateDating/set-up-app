@@ -61,16 +61,38 @@ def _should_skip_message_push_pending_dater_awaits_mm(match, receiver_id, receiv
     return not approved
 
 
-def _notification_body_suffix(user):
-    """Append account-type hint for users with both dater and matchmaker logins on one device."""
+def _msg_display_first_name(user):
     if not user:
-        return ""
-    role = getattr(user, "role", None)
-    if role == "matchmaker":
-        return " (matchmaker)"
-    if role == "user":
-        return " (dater)"
-    return ""
+        return "Someone"
+    return (getattr(user, "first_name", None) or "Someone").strip() or "Someone"
+
+
+def _counterparty_dater_id(match, dater_id):
+    if not match or not dater_id:
+        return None
+    if match.user_id_1 == dater_id:
+        return match.user_id_2
+    if match.user_id_2 == dater_id:
+        return match.user_id_1
+    return None
+
+
+def _match_has_dedicated_matchmaker(match):
+    return bool(
+        match
+        and (
+            match.matched_by_user_id_1_matcher
+            or match.matched_by_user_id_2_matcher
+        )
+    )
+
+
+def _match_two_matchmakers(match):
+    return bool(
+        match
+        and match.matched_by_user_id_1_matcher
+        and match.matched_by_user_id_2_matcher
+    )
 
 
 def _matchmaker_ids_linked_to_dater(dater_id):
@@ -304,7 +326,6 @@ def send_notification_to_user(user_id, title, body, data=None):
     if not _user_notification_allowed(user):
         return False
 
-    body = (body or "") + _notification_body_suffix(user)
 
     push_tokens = PushToken.query.filter_by(user_id=user_id).all()
 
@@ -324,7 +345,15 @@ def send_notification_to_user(user_id, title, body, data=None):
     return success_count > 0
 
 
-def send_message_notification(receiver_id, sender_id, match_id, message_text, auth_sender_id=None):
+def send_message_notification(
+    receiver_id,
+    sender_id,
+    match_id,
+    message_text,
+    auth_sender_id=None,
+    *,
+    puzzle_type=None,
+):
     """
     Notify the receiving dater and any matchmakers linked to that dater (tokens are on MM accounts).
     auth_sender_id: authenticated User.id of the sender; skips notifying that matchmaker when they sent.
@@ -354,45 +383,157 @@ def send_message_notification(receiver_id, sender_id, match_id, message_text, au
             match_id,
         )
 
-    sender_name = sender.first_name or "Someone"
-    title = f"New message from {sender_name}"
+    auth_sender = User.query.get(auth_sender_id) if auth_sender_id else None
+    auth_sender_role = getattr(auth_sender, "role", None) if auth_sender else None
+
+    is_puzzle = bool(puzzle_type)
+
     preview = (message_text or "").strip()
     if len(preview) > 180:
         preview = preview[:177] + "..."
-    base_body = preview if preview else "You have a new message"
+    preview_body = preview if preview else "You have a new message"
+    if is_puzzle:
+        preview_body = f"Sent {puzzle_type}"
+
+    cp_id = _counterparty_dater_id(match, receiver_id) if match else None
+    cp_user = User.query.get(cp_id) if cp_id else None
+    cp_name = _msg_display_first_name(cp_user)
+
+    # Dater titles:
+    # - approved chat: other dater's first name
+    # - approved chat + matchmaker sent puzzle: "{other dater}'s matchmaker"
+    # - pending_approval + matchmaker sent: "{other dater}'s matchmaker"
+    # - otherwise: sender first name (legacy behavior)
+    if match and match.status == "matched" and auth_sender_role == "matchmaker" and is_puzzle:
+        dater_title = f"{cp_name}'s matchmaker"
+    elif match and match.status == "matched":
+        dater_title = cp_name
+    elif match and match.status == "pending_approval" and auth_sender_role == "matchmaker":
+        dater_title = f"{cp_name}'s matchmaker"
+    else:
+        dater_title = _msg_display_first_name(sender)
+
     base_data = {
         "type": "message",
         "matchId": str(match_id),
     }
 
     any_ok = False
+    notified_mm_ids = set()
 
     if not skip_dater_push and _user_notification_allowed(
         dater_receiver, "new_message_notifications"
     ):
-        body = base_body + _notification_body_suffix(dater_receiver)
         data = dict(base_data)
         data["recipientRole"] = "dater"
         any_ok = (
             _deliver_message_push_tokens(
-                dater_receiver, title, body, data, match_id, receiver_id
+                dater_receiver, dater_title, preview_body, data, match_id, receiver_id
             )
             or any_ok
         )
 
+    # Approved + matchmaker sent puzzle: also notify the matchmaker's linked dater.
+    if match and match.status == "matched" and auth_sender_role == "matchmaker" and is_puzzle:
+        linked_dater = User.query.get(sender_id)
+        if linked_dater and _user_notification_allowed(linked_dater, "new_message_notifications"):
+            data_ld = dict(base_data)
+            data_ld["recipientRole"] = "dater"
+            any_ok = (
+                _deliver_message_push_tokens(
+                    linked_dater,
+                    "Your Matchmaker",
+                    f"Sent {puzzle_type}",
+                    data_ld,
+                    match_id,
+                    sender_id,
+                )
+                or any_ok
+            )
+
+    linked_name = _msg_display_first_name(dater_receiver)
     for mm_id in _matchmaker_ids_linked_to_dater(receiver_id):
         if auth_sender_id is not None and mm_id == auth_sender_id:
             continue
         mm = User.query.get(mm_id)
         if not mm or not _user_notification_allowed(mm, "new_message_notifications"):
             continue
-        body_mm = base_body + _notification_body_suffix(mm)
+
+        if match and match.status == "pending_approval":
+            if _match_two_matchmakers(match):
+                mm_title = f"{cp_name}'s matchmaker"
+            else:
+                mm_title = cp_name
+            # Pending approval + dater sent: show pending state in MM title.
+            if auth_sender_role == "user":
+                mm_title = f"{_msg_display_first_name(sender)} - pending approval"
+            mm_body_text = preview_body
+        elif match and match.status == "matched" and _match_has_dedicated_matchmaker(
+            match
+        ):
+            mm_title = _msg_display_first_name(sender)
+            mm_body_text = f"{linked_name} has a new message"
+        else:
+            mm_title = _msg_display_first_name(sender)
+            mm_body_text = preview_body
+
         data_mm = dict(base_data)
         data_mm["recipientRole"] = "matchmaker"
         any_ok = (
-            _deliver_message_push_tokens(mm, title, body_mm, data_mm, match_id, mm_id)
+            _deliver_message_push_tokens(mm, mm_title, mm_body_text, data_mm, match_id, mm_id)
             or any_ok
         )
+        notified_mm_ids.add(mm_id)
+
+    # Pending approval: when a dater sends (especially after their MM approved),
+    # also notify the sender's matchmaker(s) so they see activity on their side.
+    if match and match.status == "pending_approval" and auth_sender_role == "user":
+        sender_name = _msg_display_first_name(sender)
+        for mm_id in _matchmaker_ids_linked_to_dater(sender_id):
+            if mm_id in notified_mm_ids:
+                continue
+            mm = User.query.get(mm_id)
+            if not mm or not _user_notification_allowed(mm, "new_message_notifications"):
+                continue
+            data_mm = dict(base_data)
+            data_mm["recipientRole"] = "matchmaker"
+            any_ok = (
+                _deliver_message_push_tokens(
+                    mm,
+                    f"{sender_name} - pending approval",
+                    preview_body,
+                    data_mm,
+                    match_id,
+                    mm_id,
+                )
+                or any_ok
+            )
+            notified_mm_ids.add(mm_id)
+
+    # Approved + matchmaker-involved: also notify the sender's matchmaker(s) when the linked
+    # dater sends a message (so the MM sees activity even though they aren't receiver-side).
+    if match and match.status == "matched" and _match_has_dedicated_matchmaker(match) and auth_sender_role == "user":
+        sender_name = _msg_display_first_name(sender)
+        for mm_id in _matchmaker_ids_linked_to_dater(sender_id):
+            if mm_id in notified_mm_ids:
+                continue
+            mm = User.query.get(mm_id)
+            if not mm or not _user_notification_allowed(mm, "new_message_notifications"):
+                continue
+            data_mm = dict(base_data)
+            data_mm["recipientRole"] = "matchmaker"
+            any_ok = (
+                _deliver_message_push_tokens(
+                    mm,
+                    sender_name,
+                    f"{sender_name} sent a new message",
+                    data_mm,
+                    match_id,
+                    mm_id,
+                )
+                or any_ok
+            )
+            notified_mm_ids.add(mm_id)
 
     return any_ok
 
@@ -442,14 +583,14 @@ def send_new_match_push_to_dater(
     cp = (counterparty_first_name or "Someone").strip() or "Someone"
     if is_matchmaker_mediated:
         if is_blind_match:
-            body = f"you have a new blind matchmaker match with {cp}(dater)"
+            body = f"you have a new blind matchmaker match with {cp}"
         else:
-            body = f"you have a new matchmaker match with {cp}(dater)"
+            body = f"you have a new matchmaker match with {cp}"
     else:
         if is_blind_match:
-            body = f"you have a new blind match with {cp}(dater)"
+            body = f"you have a new blind match with {cp}"
         else:
-            body = f"you have a new match with {cp}(dater)"
+            body = f"you have a new match with {cp}"
 
     data = {
         "type": "blind_match" if is_blind_match else "match",
@@ -459,9 +600,16 @@ def send_new_match_push_to_dater(
     return _deliver_new_match_push(user_id, user, title, body, data)
 
 
-def send_new_match_push_to_matchmaker(mm_user_id, match_id, managed_dater_first_name, *, is_blind_match):
+def send_new_match_push_to_matchmaker(
+    mm_user_id,
+    match_id,
+    linked_dater_first_name,
+    matched_dater_first_name,
+    *,
+    is_blind_match,
+):
     """
-    Push to a matchmaker user row only. Copy references the managed dater, ends with (matchmaker).
+    Push to a matchmaker user row only. Names the roster dater and their match, ends with (matchmaker).
     """
     user = User.query.get(mm_user_id)
     if not user:
@@ -470,11 +618,12 @@ def send_new_match_push_to_matchmaker(mm_user_id, match_id, managed_dater_first_
         return False
 
     title = "New Blind Match!" if is_blind_match else "New Match!"
-    display = (managed_dater_first_name or "Someone").strip() or "Someone"
+    linked = (linked_dater_first_name or "Someone").strip() or "Someone"
+    matched = (matched_dater_first_name or "Someone").strip() or "Someone"
     if is_blind_match:
-        body = f"you have a new blind match with {display}(matchmaker)"
+        body = f"{linked} has a new blind match with {matched}"
     else:
-        body = f"you have a new match with {display}(matchmaker)"
+        body = f"{linked} has a new match with {matched}"
 
     data = {
         "type": "blind_match" if is_blind_match else "match",
@@ -492,7 +641,8 @@ def send_match_notification_to_linked_matchmakers(
     skip_matchmaker_ids=None,
 ):
     """Fan-out new-match push to matchmakers who manage this dater (devices register under MM user ids)."""
-    # Matchmaker copy should name the *counterparty* (the other dater), not the managed dater.
+    dater = User.query.get(dater_id)
+    linked_dater_first_name = getattr(dater, "first_name", None) if dater else None
     counterparty_name = (counterparty_first_name or "Someone").strip() or "Someone"
     skip = set(skip_matchmaker_ids or [])
     any_ok = False
@@ -505,6 +655,7 @@ def send_match_notification_to_linked_matchmakers(
         if send_new_match_push_to_matchmaker(
             mm_id,
             match_id,
+            linked_dater_first_name,
             counterparty_name,
             is_blind_match=is_blind_match,
         ):
@@ -519,8 +670,6 @@ def send_approved_match_notification(user_id, title, body, match_id):
         return False
     if not _user_notification_allowed(user, "new_match_approval_notifications"):
         return False
-
-    body = (body or "") + _notification_body_suffix(user)
 
     data = {
         "type": "match_approval",

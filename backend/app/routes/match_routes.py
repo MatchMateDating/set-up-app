@@ -86,30 +86,72 @@ def _notify_other_matchmaker_peer_approved(match, approving_mm):
     if not m1 or not m2:
         return
     other_mm_id = m2 if approving_mm.id == m1 else m1
-    actor_name = (approving_mm.first_name or '').strip() or 'The other matchmaker'
+    dater1 = User.query.get(match.user_id_1)
+    dater2 = User.query.get(match.user_id_2)
+    d1 = (dater1.first_name or "Someone").strip() or "Someone" if dater1 else "Someone"
+    d2 = (dater2.first_name or "Someone").strip() or "Someone" if dater2 else "Someone"
+
+    # Which side approved?
+    approving_side_dater_id = match.user_id_1 if approving_mm.id == m1 else match.user_id_2
+    approving_side_name = d1 if approving_side_dater_id == match.user_id_1 else d2
+    other_side_name = d2 if approving_side_dater_id == match.user_id_1 else d1
     try:
+        # Notify the approving matchmaker's linked dater they can speak to the other matchmaker.
+        send_approved_match_notification(
+            approving_side_dater_id,
+            "New Approved Match",
+            f"You can speak to {other_side_name}'s matchmaker",
+            match.id,
+        )
+
         send_approved_match_notification(
             other_mm_id,
-            'Match approval update',
-            f'{actor_name} approved this conversation. You can approve when you\'re ready.',
+            "Match Approval Update",
+            f"Approved by {approving_side_name}'s matchmaker. You can speak to {approving_side_name} and approve the match for {other_side_name}.",
             match.id,
         )
     except Exception as e:
         print(f'Error sending peer matchmaker approval notification: {e}')
 
 
-def _notify_daters_two_matchmakers_fully_approved(match):
+def _notify_other_matchmaker_fully_approved(match, approving_mm):
+    """Two matchmakers: when the second approves, notify the first matchmaker the match is fully approved."""
+    m1 = match.matched_by_user_id_1_matcher
+    m2 = match.matched_by_user_id_2_matcher
+    if not m1 or not m2 or not approving_mm:
+        return
+    other_mm_id = m2 if approving_mm.id == m1 else m1
+    dater1 = User.query.get(match.user_id_1)
+    dater2 = User.query.get(match.user_id_2)
+    d1 = (dater1.first_name or "Someone").strip() or "Someone" if dater1 else "Someone"
+    d2 = (dater2.first_name or "Someone").strip() or "Someone" if dater2 else "Someone"
     try:
         send_approved_match_notification(
+            other_mm_id,
+            "Match Approved Update",
+            f"{d2}'s matchmaker approved {d1} for {d2}.",
+            match.id,
+        )
+    except Exception as e:
+        print(f'Error sending fully-approved other matchmaker notification: {e}')
+
+
+def _notify_daters_two_matchmakers_fully_approved(match):
+    try:
+        u1 = User.query.get(match.user_id_1)
+        u2 = User.query.get(match.user_id_2)
+        other1 = (u2.first_name or "Someone").strip() or "Someone" if u2 else "Someone"
+        other2 = (u1.first_name or "Someone").strip() or "Someone" if u1 else "Someone"
+        send_approved_match_notification(
             match.user_id_1,
-            'Match approved',
-            'New match approved by your matchmaker.',
+            "Match Approved",
+            f"You have been approved by {other1}'s matchmaker",
             match.id,
         )
         send_approved_match_notification(
             match.user_id_2,
-            'Match approved',
-            'New match approved by your matchmaker.',
+            "Match Approved",
+            f"{other2} approved by your matchmaker.",
             match.id,
         )
     except Exception as e:
@@ -117,7 +159,11 @@ def _notify_daters_two_matchmakers_fully_approved(match):
 
 
 def _notify_daters_single_matchmaker_fully_approved(match):
-    """One matchmaker on the match: linked dater vs other dater get different copy."""
+    """
+    One matchmaker on the match:
+    - the non-linked dater is told they were approved by the linked dater's matchmaker
+    - the linked dater is told the other dater was approved by their matchmaker
+    """
     mid1 = match.matched_by_user_id_1_matcher
     mid2 = match.matched_by_user_id_2_matcher
     if mid1 and not mid2:
@@ -129,18 +175,20 @@ def _notify_daters_single_matchmaker_fully_approved(match):
     else:
         return
     try:
-        du = User.query.get(dater_with_mm)
-        other_first = (du.first_name or 'your match') if du else 'your match'
+        u_mm = User.query.get(dater_with_mm)
+        u_other = User.query.get(dater_other)
+        other_party_name = (u_other.first_name or "Someone").strip() or "Someone" if u_other else "Someone"
+        linked_dater_name = (u_mm.first_name or "Someone").strip() or "Someone" if u_mm else "Someone"
         send_approved_match_notification(
             dater_with_mm,
-            'Match approved',
-            'New match approved by your matchmaker.',
+            'New Approved Match',
+            f'{other_party_name} approved by your matchmaker.',
             match.id,
         )
         send_approved_match_notification(
             dater_other,
-            'Match approved',
-            f"Your conversation with {other_first}'s matchmaker has been approved.",
+            'Match Approved',
+            f"You have been approved by {linked_dater_name}'s matchmaker.",
             match.id,
         )
     except Exception as e:
@@ -996,6 +1044,7 @@ def approve_match(current_user, match_id):
             _send_deferred_blind_match_notification_if_needed(match)
             db.session.commit()
             match = Match.query.get(match_id)
+            _notify_other_matchmaker_fully_approved(match, current_user)
             _notify_daters_two_matchmakers_fully_approved(match)
             return jsonify({
                 'message': 'Match approved successfully by both matchmakers.', 
