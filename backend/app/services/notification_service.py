@@ -421,9 +421,9 @@ def send_message_notification(
     any_ok = False
     notified_mm_ids = set()
 
-    if not skip_dater_push and _user_notification_allowed(
-        dater_receiver, "new_message_notifications"
-    ):
+    # Deliver message pushes even if the user disabled "new_message_notifications" preference,
+    # so the client can keep unread counts in sync; the client can suppress UI display.
+    if not skip_dater_push and _user_notification_allowed(dater_receiver):
         data = dict(base_data)
         data["recipientRole"] = "dater"
         any_ok = (
@@ -436,7 +436,7 @@ def send_message_notification(
     # Approved + matchmaker sent puzzle: also notify the matchmaker's linked dater.
     if match and match.status == "matched" and auth_sender_role == "matchmaker" and is_puzzle:
         linked_dater = User.query.get(sender_id)
-        if linked_dater and _user_notification_allowed(linked_dater, "new_message_notifications"):
+        if linked_dater and _user_notification_allowed(linked_dater):
             data_ld = dict(base_data)
             data_ld["recipientRole"] = "dater"
             any_ok = (
@@ -456,7 +456,7 @@ def send_message_notification(
         if auth_sender_id is not None and mm_id == auth_sender_id:
             continue
         mm = User.query.get(mm_id)
-        if not mm or not _user_notification_allowed(mm, "new_message_notifications"):
+        if not mm or not _user_notification_allowed(mm):
             continue
 
         if match and match.status == "pending_approval":
@@ -493,7 +493,7 @@ def send_message_notification(
             if mm_id in notified_mm_ids:
                 continue
             mm = User.query.get(mm_id)
-            if not mm or not _user_notification_allowed(mm, "new_message_notifications"):
+            if not mm or not _user_notification_allowed(mm):
                 continue
             data_mm = dict(base_data)
             data_mm["recipientRole"] = "matchmaker"
@@ -518,7 +518,7 @@ def send_message_notification(
             if mm_id in notified_mm_ids:
                 continue
             mm = User.query.get(mm_id)
-            if not mm or not _user_notification_allowed(mm, "new_message_notifications"):
+            if not mm or not _user_notification_allowed(mm):
                 continue
             data_mm = dict(base_data)
             data_mm["recipientRole"] = "matchmaker"

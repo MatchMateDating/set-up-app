@@ -63,6 +63,12 @@ if (!API_BASE_URL) {
 // Set up notification handler with error handling
 // Wrap in a function that's called lazily to avoid startup crashes
 let notificationHandlerSet = false;
+let notificationTypeEnabledFn = null;
+
+export function setNotificationTypeEnabledFn(fn) {
+  notificationTypeEnabledFn = typeof fn === 'function' ? fn : null;
+}
+
 const setupNotificationHandler = () => {
   if (notificationHandlerSet) return;
   try {
@@ -81,7 +87,10 @@ const setupNotificationHandler = () => {
           active != null &&
           matchId === active;
 
-        if (suppressForeground) {
+        const typeAllowed =
+          notificationTypeEnabledFn != null ? Boolean(notificationTypeEnabledFn(type)) : true;
+
+        if (suppressForeground || !typeAllowed) {
           return {
             shouldShowBanner: false,
             shouldShowList: false,
@@ -196,6 +205,21 @@ export const NotificationProvider = ({ children }) => {
   const [permissionStatus, setPermissionStatus] = useState(null);
   const [expoPushToken, setExpoPushToken] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [lastNotificationEvent, setLastNotificationEvent] = useState(null);
+
+  // Bubble up push notifications to screens so they can refresh on-demand (no polling).
+  useEffect(() => {
+    const sub = Notifications.addNotificationReceivedListener((notification) => {
+      const data = getNotificationRoutingData(notification);
+      setLastNotificationEvent({
+        data: data || null,
+        receivedAt: Date.now(),
+      });
+    });
+    return () => {
+      sub?.remove?.();
+    };
+  }, []);
 
   // refs to prevent loops
   const isSavingRef = useRef(false);
@@ -734,6 +758,12 @@ export const NotificationProvider = ({ children }) => {
     }
   }, [notificationPreferences, notificationsEnabled]);
 
+  // Keep the global handler in sync with current preference toggles.
+  useEffect(() => {
+    setNotificationTypeEnabledFn(notificationTypeEnabled);
+    return () => setNotificationTypeEnabledFn(null);
+  }, [notificationTypeEnabled]);
+
   const sendNotification = async (title, body, data = {}) => {
     if (!notificationTypeEnabled(data?.type)) return;
 
@@ -753,7 +783,9 @@ export const NotificationProvider = ({ children }) => {
         setNotificationPreference,
         sendNotification,
         permissionStatus,
+        expoPushToken,
         loading,
+        lastNotificationEvent,
       }}
     >
       {children}

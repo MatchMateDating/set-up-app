@@ -10,7 +10,6 @@ import {
   TouchableOpacity,
   Modal,
   Pressable,
-  AppState,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -24,6 +23,7 @@ import { useMatches } from './hooks/useMatches';
 import { useUserInfo } from './hooks/useUserInfo';
 import { getRoleAccentColor, getRoleBackgroundTint } from '../layout/components/RoleHeaderBanner';
 import { UserContext } from '../../context/UserContext';
+import { useNotifications } from '../../context/NotificationContext';
 
 const MATCH_CARD_COLUMNS = 3;
 const CONTENT_HORIZONTAL_PADDING = 16;
@@ -58,6 +58,7 @@ const Conversations = () => {
   const [roleHint, setRoleHint] = useState(null);
   const { userInfo, setUserInfo, referrerInfo, setReferrerInfo, loading: userLoading } = useUserInfo(API_BASE_URL);
   const { matches, setMatches, loading: matchesLoading, fetchMatches } = useMatches(API_BASE_URL);
+  const { lastNotificationEvent, notificationsEnabled, expoPushToken } = useNotifications();
   const matchedList = Array.isArray(matches) ? matches : (matches?.matched || []);
   const pendingApprovalList = Array.isArray(matches) ? [] : (matches?.pending_approval || []);
   const navigation = useNavigation();
@@ -196,32 +197,30 @@ const Conversations = () => {
     }, [])
   );
 
-  // Keep unread receipts fresh while the screen is open (read badges come from GET /match/matches).
+  // Option B: refresh conversations only when a push arrives (no polling).
+  useEffect(() => {
+    const data = lastNotificationEvent?.data;
+    if (!data) return;
+    if (data.type !== 'message' && data.type !== 'match' && data.type !== 'blind_match' && data.type !== 'match_approval') {
+      return;
+    }
+    fetchMatches();
+  }, [lastNotificationEvent?.receivedAt]);
+
+  // Fallback: if push can't be relied on (notifications disabled or no token),
+  // refresh while focused with a light interval so unread counts still update.
   useFocusEffect(
     React.useCallback(() => {
-      let mounted = true;
-      const refresh = () => {
-        if (!mounted) return;
+      const canUsePushRefresh = Boolean(notificationsEnabled && expoPushToken);
+      if (canUsePushRefresh) {
+        return () => {};
+      }
+      fetchMatches();
+      const id = setInterval(() => {
         fetchMatches();
-      };
-
-      // Refresh immediately on focus, then poll.
-      refresh();
-      const intervalId = setInterval(refresh, 5000);
-
-      // Also refresh when returning from background while staying on this screen.
-      const sub = AppState.addEventListener('change', (state) => {
-        if (state === 'active') {
-          refresh();
-        }
-      });
-
-      return () => {
-        mounted = false;
-        clearInterval(intervalId);
-        sub?.remove?.();
-      };
-    }, [fetchMatches])
+      }, 8000);
+      return () => clearInterval(id);
+    }, [notificationsEnabled, expoPushToken, fetchMatches])
   );
 
   // Unread badges use `unread_count` from GET /match/matches (no per-conversation polling).
