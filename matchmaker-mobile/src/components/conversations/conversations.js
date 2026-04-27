@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   Modal,
   Pressable,
+  AppState,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -193,6 +194,34 @@ const Conversations = () => {
       }, 100);
       return () => clearTimeout(timer);
     }, [])
+  );
+
+  // Keep unread receipts fresh while the screen is open (read badges come from GET /match/matches).
+  useFocusEffect(
+    React.useCallback(() => {
+      let mounted = true;
+      const refresh = () => {
+        if (!mounted) return;
+        fetchMatches();
+      };
+
+      // Refresh immediately on focus, then poll.
+      refresh();
+      const intervalId = setInterval(refresh, 5000);
+
+      // Also refresh when returning from background while staying on this screen.
+      const sub = AppState.addEventListener('change', (state) => {
+        if (state === 'active') {
+          refresh();
+        }
+      });
+
+      return () => {
+        mounted = false;
+        clearInterval(intervalId);
+        sub?.remove?.();
+      };
+    }, [fetchMatches])
   );
 
   // Unread badges use `unread_count` from GET /match/matches (no per-conversation polling).
