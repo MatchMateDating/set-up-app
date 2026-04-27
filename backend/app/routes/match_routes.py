@@ -11,13 +11,17 @@ from app.models.messageDB import Message
 from app import db
 from app.routes.shared import token_required
 from app.services.ai_embeddings import get_conversation_similarity
+import logging
 import math
 from math import radians, sin, cos, sqrt, atan2
 from app.services.notification_service import (
     send_approved_match_notification,
     send_new_match_push_to_dater,
     send_match_notification_to_linked_matchmakers,
+    send_unmatch_sync_for_match,
 )
+
+logger = logging.getLogger(__name__)
 
 match_bp = Blueprint('match', __name__)
 
@@ -929,6 +933,12 @@ def unmatch(current_user, match_id):
         # Also check if this matchmaker is involved in the match
         if match.matched_by_user_id_1_matcher != current_user.id and match.matched_by_user_id_2_matcher != current_user.id:
             return jsonify({'message': 'You are not authorized to unmatch this match'}), 403
+
+    # Data-only push to all parties (no visible alert) so clients update without polling.
+    try:
+        send_unmatch_sync_for_match(match)
+    except Exception as e:
+        logger.warning("send_unmatch_sync_for_match failed: %s", e)
 
     # Delete conversations (and their messages) that reference this match before deleting the match
     conversations = Conversation.query.filter_by(match_id=match_id).all()

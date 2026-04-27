@@ -197,15 +197,29 @@ const Conversations = () => {
     }, [])
   );
 
-  // Option B: refresh conversations only when a push arrives (no polling).
+  // Option B: refresh conversations when a push arrives (no polling for list updates).
   useEffect(() => {
     const data = lastNotificationEvent?.data;
     if (!data) return;
+    if (data.type === 'unmatch' && data.matchId != null) {
+      const mid = parseInt(String(data.matchId), 10);
+      if (!Number.isFinite(mid)) return;
+      setMatches((prev) => {
+        if (Array.isArray(prev)) {
+          return prev.filter((m) => m.match_id !== mid);
+        }
+        return {
+          matched: (prev?.matched || []).filter((m) => m.match_id !== mid),
+          pending_approval: (prev?.pending_approval || []).filter((m) => m.match_id !== mid),
+        };
+      });
+      return;
+    }
     if (data.type !== 'message' && data.type !== 'match' && data.type !== 'blind_match' && data.type !== 'match_approval') {
       return;
     }
     fetchMatches();
-  }, [lastNotificationEvent?.receivedAt]);
+  }, [lastNotificationEvent?.receivedAt, fetchMatches]);
 
   // Fallback: if push can't be relied on (notifications disabled or no token),
   // refresh while focused with a light interval so unread counts still update.

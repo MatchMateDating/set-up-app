@@ -13,6 +13,7 @@ from app.models.matchDB import Match
 from app import db
 from app.services.push_platforms import (
     InvalidPushToken,
+    send_native_data_sync,
     send_native_for_platform,
 )
 import logging
@@ -270,6 +271,139 @@ def _send_expo_push(token_str, title, body, data=None, token_obj=None, legacy_us
     except Exception as e:
         logger.error("Error sending push notification: %s", e)
         return False
+
+
+def _send_expo_push_data_sync(
+    token_str, data, token_obj=None, legacy_user=None
+):
+    """
+    Data + priority only (no title/body/sound) for client-side state updates.
+    """
+    if not token_str:
+        return False
+    data = data or {}
+    try:
+        message = PushMessage(
+            to=token_str,
+            data=data,
+            priority="high",
+        )
+        response = push_client.publish(message)
+        if response and hasattr(response, "status"):
+            if response.status == "ok":
+                return True
+            logger.warning("Failed to send data sync push: %s", response)
+            return False
+        return True
+    except DeviceNotRegisteredError:
+        logger.warning("Device not registered: %s", token_str)
+        if token_obj is not None:
+            _prune_push_token(token_obj)
+        elif legacy_user is not None:
+            legacy_user.push_token = None
+            db.session.commit()
+        return False
+    except InvalidCredentialsError:
+        logger.error("Invalid credentials for push notifications")
+        return False
+    except PushServerError as e:
+        logger.error("Push server error: %s", e)
+        return False
+    except Exception as e:
+        logger.error("Error sending data sync push: %s", e)
+        return False
+
+
+def send_unmatch_sync_push_to_token_row(token_obj, data):
+    eff = (token_obj.platform or "expo").lower()
+    if eff not in ("ios", "android", "expo"):
+        eff = "expo"
+    if eff == "expo":
+        return _send_expo_push_data_sync(
+            token_obj.token, data, token_obj=token_obj, legacy_user=None
+        )
+    try:
+        return bool(
+            send_native_data_sync(eff, token_obj.token, data)
+        )
+    except InvalidPushToken as e:
+        logger.warning("unmatch sync token invalid, pruning: %s", e)
+        _prune_push_token(token_obj)
+        return False
+    except Exception as e:
+        logger.warning("unmatch sync native send failed: %s", e)
+        return False
+
+
+def _deliver_unmatch_sync_to_user(target_user, data, match_id, log_receiver_id):
+    """Ignore notifications_enabled; requires at least one device token."""
+    push_tokens = PushToken.query.filter_by(user_id=target_user.id).all()
+    if not push_tokens:
+        if target_user.push_token:
+            ok = _send_expo_push_data_sync(
+                target_user.push_token, data, token_obj=None, legacy_user=target_user
+            )
+            logger.debug(
+                "unmatch sync (legacy) receiver_id=%s match_id=%s ok=%s",
+                log_receiver_id,
+                match_id,
+                ok,
+            )
+            return ok
+        logger.debug(
+            "unmatch sync skipped: receiver_id=%s has no device tokens", log_receiver_id
+        )
+        return False
+
+    push_tokens = _push_tokens_for_delivery(push_tokens)
+    success_count = 0
+    for token_obj in push_tokens:
+        if send_unmatch_sync_push_to_token_row(token_obj, data):
+            success_count += 1
+    return success_count > 0
+
+
+def send_unmatch_sync_for_match(match):
+    """
+    Data-only push so clients remove the match from UI and close the chat, without
+    a user-visible alert. Does not honor user notification toggles.
+    """
+    if not match:
+        return False
+    mid = match.id
+    ids = set()
+    for attr in ("user_id_1", "user_id_2"):
+        uid = getattr(match, attr, None)
+        if uid:
+            ids.add(uid)
+    for attr in (
+        "matched_by_user_id_1_matcher",
+        "matched_by_user_id_2_matcher",
+    ):
+        mm = getattr(match, attr, None)
+        if mm:
+            ids.add(mm)
+    for dater_id in (getattr(match, "user_id_1", None), getattr(match, "user_id_2", None)):
+        if not dater_id:
+            continue
+        for mm_id in _matchmaker_ids_linked_to_dater(dater_id):
+            ids.add(mm_id)
+
+    any_ok = False
+    for user_id in ids:
+        user = User.query.get(user_id)
+        if not user:
+            continue
+        data = {
+            "type": "unmatch",
+            "matchId": str(mid),
+        }
+        role = _recipient_role_value(user)
+        if role:
+            data["recipientRole"] = role
+        if _deliver_unmatch_sync_to_user(user, data, mid, user_id):
+            any_ok = True
+    return any_ok
 
 
 def send_push_to_token_row(token_obj, title, body, data=None):

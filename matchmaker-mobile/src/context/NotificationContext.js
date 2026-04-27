@@ -87,6 +87,15 @@ const setupNotificationHandler = () => {
           active != null &&
           matchId === active;
 
+        if (type === 'unmatch') {
+          return {
+            shouldShowBanner: false,
+            shouldShowList: false,
+            shouldPlaySound: false,
+            shouldSetBadge: false,
+          };
+        }
+
         const typeAllowed =
           notificationTypeEnabledFn != null ? Boolean(notificationTypeEnabledFn(type)) : true;
 
@@ -742,6 +751,9 @@ export const NotificationProvider = ({ children }) => {
   }, []);
 
   const notificationTypeEnabled = useCallback((type) => {
+    if (type === 'unmatch') {
+      return true;
+    }
     if (!notificationsEnabled) return false;
 
     switch (type) {

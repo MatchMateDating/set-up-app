@@ -226,6 +226,117 @@ def send_apns(
     return False
 
 
+def send_fcm_data_only(fcm_token: str, data: Optional[Dict[str, Any]] = None) -> bool:
+    """
+    Data-only FCM (no notification tray entry). Used for silent client state sync.
+    """
+    cfg = _push_config()
+    if not _ensure_firebase(cfg):
+        logger.warning("FCM not configured; skipping native Android data push")
+        return False
+
+    from firebase_admin import messaging
+
+    data_str = {
+        str(k): str(v) if v is not None else ""
+        for k, v in (data or {}).items()
+    }
+
+    message = messaging.Message(
+        data=data_str,
+        token=fcm_token.strip(),
+        android=messaging.AndroidConfig(priority="high"),
+    )
+    try:
+        messaging.send(message)
+        return True
+    except Exception as e:
+        err = str(e).lower()
+        if (
+            "not found" in err
+            or "registration-token-not-registered" in err
+            or "unregistered" in err
+            or "requested entity was not found" in err
+        ):
+            raise InvalidPushToken(str(e)) from e
+        logger.warning("FCM data-only send failed: %s", e)
+        return False
+
+
+def send_apns_background_data(
+    device_token: str,
+    data: Optional[Dict[str, Any]] = None,
+) -> bool:
+    """
+    Silent APNs with content-available for app wake / JS delivery (no alert).
+    """
+    cfg = _push_config()
+    if not apns_configured(cfg):
+        logger.debug("APNs not configured; skipping background data push")
+        return False
+
+    key_content = _apns_key_material(cfg)
+    if not key_content:
+        return False
+
+    key_id = cfg["APNS_KEY_ID"]
+    team_id = cfg["APNS_TEAM_ID"]
+    topic = cfg["APNS_TOPIC"]
+    use_sandbox = bool(cfg.get("APNS_USE_SANDBOX"))
+
+    normalized_token = _normalize_apns_device_token(device_token)
+    if not normalized_token:
+        raise InvalidPushToken("empty device token")
+    if len(normalized_token) != 64:
+        logger.debug(
+            "APNs background token length=%s; deliver may be unreliable",
+            len(normalized_token),
+        )
+
+    auth_token = jwt.encode(
+        {"iss": team_id, "iat": int(time.time())},
+        key_content,
+        algorithm="ES256",
+        headers={"kid": key_id, "alg": "ES256"},
+    )
+    if isinstance(auth_token, bytes):
+        auth_token = auth_token.decode("utf-8")
+
+    host = "api.sandbox.push.apple.com" if use_sandbox else "api.push.apple.com"
+    url = f"https://{host}/3/device/{normalized_token}"
+
+    payload: Dict[str, Any] = {"aps": {"content-available": 1}}
+    for k, v in (data or {}).items():
+        if v is None:
+            continue
+        payload[str(k)] = v if isinstance(v, (str, int, float, bool)) else str(v)
+
+    headers = {
+        "authorization": f"bearer {auth_token}",
+        "apns-topic": topic,
+        "apns-push-type": "background",
+        "apns-priority": "5",
+        "content-type": "application/json",
+    }
+
+    with httpx.Client(http2=True, timeout=30.0) as client:
+        r = client.post(url, headers=headers, json=payload)
+
+    if r.status_code == 410:
+        raise InvalidPushToken("APNs unregistered")
+    if r.status_code == 200:
+        return True
+    text_lower = (r.text or "").lower()
+    if r.status_code in (400, 404) and (
+        "unregistered" in text_lower
+        or "baddevicetoken" in text_lower
+        or "device token" in text_lower
+    ):
+        raise InvalidPushToken(r.text)
+    logger.warning("APNs background send failed: %s %s", r.status_code, (r.text or "")[:500])
+    return False
+
+
 def send_fcm(
     fcm_token: str,
     title: str,
@@ -280,5 +391,28 @@ def send_native_for_platform(
         return send_fcm(token, title, body, data)
     logger.warning(
         "send_native_for_platform called with unexpected platform: %s", platform
+    )
+    return False
+
+
+def send_native_data_sync(
+    platform: str,
+    token: str,
+    data: Optional[Dict[str, Any]] = None,
+) -> bool:
+    """No visible notification — data only (FCM / APNs background)."""
+    pl = (platform or "expo").lower()
+    if pl == "ios":
+        try:
+            return send_apns_background_data(token, data)
+        except InvalidPushToken:
+            raise
+    if pl == "android":
+        try:
+            return send_fcm_data_only(token, data)
+        except InvalidPushToken:
+            raise
+    logger.warning(
+        "send_native_data_sync called with unexpected platform: %s", platform
     )
     return False
