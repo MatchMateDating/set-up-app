@@ -212,6 +212,9 @@ const SettingsSections = () => {
   const [showDaterInviteEmailModal, setShowDaterInviteEmailModal] = useState(false);
   const [daterInviteEmailInput, setDaterInviteEmailInput] = useState('');
 
+  /** Set when a matchmaker taps "Add Dater Account"; cleared on success, confirmed exit, or leaving Settings. */
+  const [addDaterAccountFlowActive, setAddDaterAccountFlowActive] = useState(false);
+
   const [currentEmail, setCurrentEmail] = useState('');
   const [newEmail, setNewEmail] = useState('');
   const [confirmNewEmail, setConfirmNewEmail] = useState('');
@@ -423,6 +426,39 @@ const SettingsSections = () => {
     }, [fetchUserProfile])
   );
 
+  const exitSubsection = useCallback(() => {
+    if (
+      activeSection === SECTION_KEYS.MANAGE_ACCOUNTS &&
+      addDaterAccountFlowActive &&
+      role === 'matchmaker'
+    ) {
+      Alert.alert(
+        'Stop creating a dater account?',
+        'If you go back now, you will stop creating a dater account.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Go back',
+            onPress: () => {
+              setActiveSection(null);
+              setEditingPreferences(false);
+              setAddDaterAccountFlowActive(false);
+            },
+          },
+        ],
+        { cancelable: true }
+      );
+      return;
+    }
+    if (activeSection) {
+      if (activeSection === SECTION_KEYS.MANAGE_ACCOUNTS) {
+        setAddDaterAccountFlowActive(false);
+      }
+      setActiveSection(null);
+      setEditingPreferences(false);
+    }
+  }, [activeSection, addDaterAccountFlowActive, role]);
+
   // Subsections are in-screen state; tab navigator would otherwise treat back / swipe as "leave Settings"
   // (e.g. Android back → first tab, horizontal swipe → adjacent tab). Match the in-screen "Back to Settings" row.
   useEffect(() => {
@@ -440,8 +476,7 @@ const SettingsSections = () => {
   useEffect(() => {
     mainTabBackDelegateRef.current = () => {
       if (activeSection) {
-        setActiveSection(null);
-        setEditingPreferences(false);
+        exitSubsection();
         return true;
       }
       return false;
@@ -449,7 +484,7 @@ const SettingsSections = () => {
     return () => {
       mainTabBackDelegateRef.current = null;
     };
-  }, [activeSection]);
+  }, [activeSection, exitSubsection]);
 
   useFocusEffect(
     useCallback(() => {
@@ -457,6 +492,7 @@ const SettingsSections = () => {
         navigation.setOptions({ swipeEnabled: true });
         setActiveSection(null);
         setEditingPreferences(false);
+        setAddDaterAccountFlowActive(false);
       };
     }, [navigation])
   );
@@ -467,12 +503,11 @@ const SettingsSections = () => {
         return undefined;
       }
       const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-        setActiveSection(null);
-        setEditingPreferences(false);
+        exitSubsection();
         return true;
       });
       return () => sub.remove();
-    }, [activeSection])
+    }, [activeSection, exitSubsection])
   );
 
   useEffect(() => {
@@ -680,7 +715,7 @@ const SettingsSections = () => {
     }
   };
 
-  const handleCreateDaterAccount = async () => {
+  const submitCreateDaterAccount = async () => {
     try {
       const token = await AsyncStorage.getItem('token');
       if (!token) {
@@ -688,6 +723,8 @@ const SettingsSections = () => {
         navigation.navigate('Login');
         return;
       }
+
+      setAddDaterAccountFlowActive(true);
 
       const res = await fetch(`${API_BASE_URL}/profile/create_linked_dater`, {
         method: 'POST',
@@ -699,6 +736,7 @@ const SettingsSections = () => {
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
+        setAddDaterAccountFlowActive(false);
         Alert.alert('Error', data.error || 'Failed to create dater account');
         return;
       }
@@ -709,13 +747,40 @@ const SettingsSections = () => {
       }
       await AsyncStorage.setItem('user', JSON.stringify(data.user));
       setContextUser(data.user);
+      setAddDaterAccountFlowActive(false);
       Alert.alert('Success', 'Dater account created successfully');
-      navigation.navigate('CompleteProfile');
+      navigation.navigate('CompleteProfile', { creatingLinkedDater: true });
       fetchUserProfile();
     } catch (err) {
       console.error(err);
+      setAddDaterAccountFlowActive(false);
       Alert.alert('Error', 'Failed to create dater account');
     }
+  };
+
+  const handleCreateDaterAccount = () => {
+    Alert.alert(
+      'Create a dater account?',
+      [
+        'You are about to create a second profile (dater) that uses the same email and password as your matchmaker account. After you confirm, you will complete profile setup in three steps:',
+        '',
+        '1. Setup — Add photos and enter your name, birthdate, gender, height, and a short bio.',
+        '2. Preview — See how your dater profile will look to others.',
+        '3. Preferences — Choose age range, who you want to match with, and your match distance.',
+        '',
+        'You can switch between your matchmaker and dater accounts later from Settings.',
+      ].join('\n'),
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Create dater account',
+          onPress: () => {
+            void submitCreateDaterAccount();
+          },
+        },
+      ],
+      { cancelable: true }
+    );
   };
 
   const handleCreateMatchmakerAccount = () => {
@@ -1942,7 +2007,7 @@ const SettingsSections = () => {
         >
           <View style={[styles.content, { paddingTop: overlayTopPadding }]}>
             {activeSection ? (
-              <TouchableOpacity style={styles.backRow} onPress={() => setActiveSection(null)}>
+              <TouchableOpacity style={styles.backRow} onPress={exitSubsection}>
                 <Ionicons name="chevron-back-outline" size={22} color={settingsBackAccent} />
               </TouchableOpacity>
             ) : null}
@@ -1958,8 +2023,7 @@ const SettingsSections = () => {
           failOffsetY={[-32, 32]}
           onHandlerStateChange={({ nativeEvent }) => {
             if (nativeEvent.state === State.END && nativeEvent.translationX > 56) {
-              setActiveSection(null);
-              setEditingPreferences(false);
+              exitSubsection();
             }
           }}
         >

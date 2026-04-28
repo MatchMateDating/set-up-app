@@ -13,7 +13,7 @@ import {
   Keyboard,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import Slider from '@react-native-community/slider';
 import ImageGallery from './images';
 import BirthdatePickerModal, {
@@ -45,6 +45,9 @@ import ImageCropModal from './components/ImageCropModal';
 
 const CompleteProfile = () => {
   const navigation = useNavigation();
+  const route = useRoute();
+  const creatingLinkedDater = route.params?.creatingLinkedDater === true;
+  const allowLinkedDaterExitRef = React.useRef(false);
   const resetToMainMatches = useCallback(() => {
     navigation.reset({
       index: 0,
@@ -254,6 +257,82 @@ const CompleteProfile = () => {
       }
     };
   }, []);
+
+  const abandonCreatingLinkedDater = useCallback(
+    async (navigationAction) => {
+      try {
+        setLoading(true);
+        const token = await AsyncStorage.getItem('token');
+        if (!token) {
+          Alert.alert('Error', 'Please log in');
+          resetToLogin();
+          return;
+        }
+
+        const res = await fetch(`${API_BASE_URL}/profile/delete_account_by_role`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ role: 'user' }),
+        });
+
+        if (!res.ok) {
+          const errorData = await res.json().catch(() => ({}));
+          Alert.alert('Error', errorData.error || 'Failed to remove dater account');
+          return;
+        }
+
+        const data = await res.json();
+        if (data.token) {
+          await AsyncStorage.setItem('token', data.token);
+        }
+        if (data.user) {
+          await AsyncStorage.setItem('user', JSON.stringify(data.user));
+          setContextUser(data.user);
+        }
+
+        allowLinkedDaterExitRef.current = true;
+        navigation.dispatch(navigationAction);
+      } catch (err) {
+        console.error(err);
+        Alert.alert('Error', 'Failed to remove dater account');
+      } finally {
+        setLoading(false);
+      }
+    },
+    [navigation, resetToLogin, setContextUser]
+  );
+
+  useEffect(() => {
+    if (!creatingLinkedDater) {
+      return undefined;
+    }
+    return navigation.addListener('beforeRemove', (e) => {
+      if (allowLinkedDaterExitRef.current) {
+        return;
+      }
+      if (step !== 1) {
+        return;
+      }
+      e.preventDefault();
+      Alert.alert(
+        'Stop creating a dater account?',
+        'If you go back now, this dater account will be deleted and you will return to your matchmaker account.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Go back',
+            onPress: () => {
+              abandonCreatingLinkedDater(e.data.action);
+            },
+          },
+        ],
+        { cancelable: true }
+      );
+    });
+  }, [navigation, creatingLinkedDater, step, abandonCreatingLinkedDater]);
 
   // Parse height from backend format (e.g., "5'10\"" or "1m 78cm") to formData format
   const parseHeight = React.useCallback((heightString, unit) => {
@@ -991,12 +1070,6 @@ const CompleteProfile = () => {
               <TouchableOpacity style={styles.nextBtn} onPress={saveStep1}>
                 <Text style={styles.nextBtnText}>Next</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.skipBtn} onPress={() => {
-                setStep(3);
-                saveStepToBackend(3);
-              }}>
-                <Text style={styles.skipBtnText}>Skip</Text>
-              </TouchableOpacity>
             </View>
             </View>
           )}
@@ -1326,18 +1399,6 @@ const styles = StyleSheet.create({
   },
   nextBtnText: {
     color: '#fff',
-    fontWeight: '700',
-    textAlign: 'center',
-  },
-  skipBtn: {
-    padding: 14,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#ef4d73',
-    marginTop: 20,
-  },
-  skipBtnText: {
-    color: '#ef4d73',
     fontWeight: '700',
     textAlign: 'center',
   },
