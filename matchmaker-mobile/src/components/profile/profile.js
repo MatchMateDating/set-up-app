@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useContext, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useContext, useCallback, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,8 @@ import {
   Pressable,
   Dimensions,
 } from 'react-native';
+import { GestureHandlerRootView, GestureDetector, Gesture } from 'react-native-gesture-handler';
+import { runOnJS } from 'react-native-reanimated';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
@@ -42,7 +44,8 @@ const Profile = ({
 }) => {
   const { setUser } = useContext(UserContext);
   const insets = useSafeAreaInsets();
-  const [lightboxUri, setLightboxUri] = useState(null);
+  /** Index into `lightboxUris` while the image preview is open; `null` when closed. */
+  const [lightboxIndex, setLightboxIndex] = useState(null);
   const [formData, setFormData] = useState({
     first_name: '',
     last_name: '',
@@ -398,6 +401,66 @@ const Profile = ({
     setEditing(false);
   };
 
+  const lightboxUris = useMemo(
+    () =>
+      (images || [])
+        .map((img) => (img?.image_url ? getImageUrl(img.image_url, API_BASE_URL) : null))
+        .filter(Boolean),
+    [images]
+  );
+
+  const goNextLightbox = useCallback(() => {
+    setLightboxIndex((i) => {
+      if (i == null) return i;
+      const last = lightboxUris.length - 1;
+      if (last < 0) return null;
+      return i < last ? i + 1 : i;
+    });
+  }, [lightboxUris.length]);
+
+  const goPrevLightbox = useCallback(() => {
+    setLightboxIndex((i) => {
+      if (i == null) return i;
+      return i > 0 ? i - 1 : i;
+    });
+  }, []);
+
+  const lightboxPanGesture = useMemo(
+    () =>
+      Gesture.Pan()
+        .onEnd((e) => {
+          'worklet';
+          const { translationX, translationY, velocityX, velocityY } = e;
+          const T = 48;
+          const vT = 380;
+          const absX = Math.abs(translationX);
+          const absY = Math.abs(translationY);
+          if (absX < 10 && absY < 10) return;
+          if (absX >= absY) {
+            if (translationX > T || velocityX > vT) {
+              runOnJS(goPrevLightbox)();
+            } else if (translationX < -T || velocityX < -vT) {
+              runOnJS(goNextLightbox)();
+            }
+          } else {
+            if (translationY > T || velocityY > vT) {
+              runOnJS(goPrevLightbox)();
+            } else if (translationY < -T || velocityY < -vT) {
+              runOnJS(goNextLightbox)();
+            }
+          }
+        }),
+    [goNextLightbox, goPrevLightbox]
+  );
+
+  useEffect(() => {
+    setLightboxIndex((i) => {
+      if (i == null) return i;
+      if (lightboxUris.length === 0) return null;
+      return i >= lightboxUris.length ? lightboxUris.length - 1 : i;
+    });
+  }, [lightboxUris]);
+
   if (!user) return null;
 
   const profileImageUri = images?.[0]?.image_url
@@ -416,7 +479,13 @@ const Profile = ({
   ).trim();
   const accentColor = getRoleAccentColor(user?.role || 'matchmaker');
   const openImageLightbox =
-    enableImageLightbox && !editing ? (uri) => setLightboxUri(uri) : undefined;
+    enableImageLightbox && !editing
+      ? (uri) => {
+          if (lightboxUris.length === 0) return;
+          const i = lightboxUris.findIndex((u) => u === uri);
+          setLightboxIndex(i >= 0 ? i : 0);
+        }
+      : undefined;
 
   return (
     <>
@@ -549,30 +618,47 @@ const Profile = ({
       )}
       {enableImageLightbox ? (
         <Modal
-          visible={Boolean(lightboxUri)}
+          visible={lightboxIndex != null && lightboxUris.length > 0}
           transparent
           animationType="fade"
-          onRequestClose={() => setLightboxUri(null)}
+          onRequestClose={() => setLightboxIndex(null)}
         >
-          <View style={styles.imageLightboxRoot} pointerEvents="box-none">
+          <GestureHandlerRootView style={styles.imageLightboxRoot}>
             <Pressable
               style={[StyleSheet.absoluteFillObject, styles.imageLightboxBackdrop]}
-              onPress={() => setLightboxUri(null)}
+              onPress={() => setLightboxIndex(null)}
               accessibilityLabel="Dismiss image preview"
             />
             <View
               pointerEvents="box-none"
               style={[StyleSheet.absoluteFillObject, styles.imageLightboxImageWrap]}
             >
-              {lightboxUri ? (
-                <Image
-                  source={{ uri: lightboxUri }}
-                  style={{
-                    width: LIGHTBOX_WIN_W * 0.92,
-                    height: LIGHTBOX_WIN_H * 0.78,
-                  }}
-                  resizeMode="contain"
-                />
+              {lightboxIndex != null && lightboxUris[lightboxIndex] ? (
+                <>
+                  {lightboxUris.length > 1 ? (
+                    <Text style={styles.imageLightboxCounter} pointerEvents="none">
+                      {lightboxIndex + 1} / {lightboxUris.length}
+                    </Text>
+                  ) : null}
+                  <GestureDetector gesture={lightboxPanGesture}>
+                    <View
+                      style={styles.imageLightboxHitArea}
+                      accessible
+                      accessibilityRole="image"
+                      accessibilityLabel={`Photo ${lightboxIndex + 1} of ${lightboxUris.length}. Swipe left or up for the next image, right or down for the previous image.`}
+                    >
+                      <Image
+                        key={lightboxUris[lightboxIndex]}
+                        source={{ uri: lightboxUris[lightboxIndex] }}
+                        style={{
+                          width: LIGHTBOX_WIN_W * 0.92,
+                          height: LIGHTBOX_WIN_H * 0.78,
+                        }}
+                        resizeMode="contain"
+                      />
+                    </View>
+                  </GestureDetector>
+                </>
               ) : null}
             </View>
             <TouchableOpacity
@@ -580,7 +666,7 @@ const Profile = ({
                 styles.imageLightboxClose,
                 { top: insets.top + 10, right: Math.max(insets.right, 16) },
               ]}
-              onPress={() => setLightboxUri(null)}
+              onPress={() => setLightboxIndex(null)}
               accessibilityRole="button"
               accessibilityLabel="Close image preview"
             >
@@ -588,7 +674,7 @@ const Profile = ({
                 <Ionicons name="close" size={28} color="#ffffff" />
               </View>
             </TouchableOpacity>
-          </View>
+          </GestureHandlerRootView>
         </Modal>
       ) : null}
     </>
@@ -766,6 +852,21 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.58)',
   },
   imageLightboxImageWrap: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imageLightboxCounter: {
+    position: 'absolute',
+    top: '10%',
+    zIndex: 2,
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '600',
+    textShadowColor: 'rgba(0,0,0,0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+  },
+  imageLightboxHitArea: {
     justifyContent: 'center',
     alignItems: 'center',
   },
