@@ -23,6 +23,7 @@ import { useMatches } from './hooks/useMatches';
 import { useUserInfo } from './hooks/useUserInfo';
 import { getRoleAccentColor, getRoleBackgroundTint } from '../layout/components/RoleHeaderBanner';
 import { UserContext } from '../../context/UserContext';
+import { useNotifications } from '../../context/NotificationContext';
 
 const MATCH_CARD_COLUMNS = 3;
 const CONTENT_HORIZONTAL_PADDING = 16;
@@ -57,6 +58,7 @@ const Conversations = () => {
   const [roleHint, setRoleHint] = useState(null);
   const { userInfo, setUserInfo, referrerInfo, setReferrerInfo, loading: userLoading } = useUserInfo(API_BASE_URL);
   const { matches, setMatches, loading: matchesLoading, fetchMatches } = useMatches(API_BASE_URL);
+  const { lastNotificationEvent, notificationsEnabled, expoPushToken } = useNotifications();
   const matchedList = Array.isArray(matches) ? matches : (matches?.matched || []);
   const pendingApprovalList = Array.isArray(matches) ? [] : (matches?.pending_approval || []);
   const navigation = useNavigation();
@@ -193,6 +195,46 @@ const Conversations = () => {
       }, 100);
       return () => clearTimeout(timer);
     }, [])
+  );
+
+  // Option B: refresh conversations when a push arrives (no polling for list updates).
+  useEffect(() => {
+    const data = lastNotificationEvent?.data;
+    if (!data) return;
+    if (data.type === 'unmatch' && data.matchId != null) {
+      const mid = parseInt(String(data.matchId), 10);
+      if (!Number.isFinite(mid)) return;
+      setMatches((prev) => {
+        if (Array.isArray(prev)) {
+          return prev.filter((m) => m.match_id !== mid);
+        }
+        return {
+          matched: (prev?.matched || []).filter((m) => m.match_id !== mid),
+          pending_approval: (prev?.pending_approval || []).filter((m) => m.match_id !== mid),
+        };
+      });
+      return;
+    }
+    if (data.type !== 'message' && data.type !== 'match' && data.type !== 'blind_match' && data.type !== 'match_approval') {
+      return;
+    }
+    fetchMatches();
+  }, [lastNotificationEvent?.receivedAt, fetchMatches]);
+
+  // Fallback: if push can't be relied on (notifications disabled or no token),
+  // refresh while focused with a light interval so unread counts still update.
+  useFocusEffect(
+    React.useCallback(() => {
+      const canUsePushRefresh = Boolean(notificationsEnabled && expoPushToken);
+      if (canUsePushRefresh) {
+        return () => {};
+      }
+      fetchMatches();
+      const id = setInterval(() => {
+        fetchMatches();
+      }, 8000);
+      return () => clearInterval(id);
+    }, [notificationsEnabled, expoPushToken, fetchMatches])
   );
 
   // Unread badges use `unread_count` from GET /match/matches (no per-conversation polling).

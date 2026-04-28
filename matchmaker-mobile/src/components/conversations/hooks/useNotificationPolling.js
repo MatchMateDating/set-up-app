@@ -1,6 +1,6 @@
 // src/components/conversations/hooks/useNotificationPolling.js
 // Polls matches/conversations for UI freshness. Backend push is the only channel for
-// new-message alerts (local notifications here duplicated FCM/APNs on Android).
+// new-match and new-message alerts (local notifications duplicated FCM/APNs and used wrong copy).
 import { useEffect, useRef, useContext } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNotifications } from '../../../context/NotificationContext';
@@ -10,7 +10,7 @@ import { API_BASE_URL } from '../../../env';
 const POLLING_INTERVAL = 30000; // 30 seconds
 
 export const useNotificationPolling = () => {
-  const { notificationsEnabled, sendNotification } = useNotifications();
+  const { notificationsEnabled } = useNotifications();
   const { user } = useContext(UserContext);
   const currentUserId = user?.referred_by_id ?? user?.id ?? null;
   const lastMessageCountsRef = useRef({}); // { matchId: messageCount }
@@ -102,25 +102,8 @@ export const useNotificationPolling = () => {
         allMatches.map((m) => m.match_id).filter((id) => id != null)
       );
 
-      const newMatchIds = isInitializedRef.current
-        ? [...currentMatchIds].filter((id) => !lastMatchIdsRef.current.has(id))
-        : [];
-
-      for (const matchId of newMatchIds) {
-        const match = allMatches.find((m) => m.match_id === matchId);
-        if (!match) continue;
-
-        let matchUserName = 'Someone';
-        if (match.match_user) {
-          matchUserName = match.match_user.first_name || 'Someone';
-        }
-
-        sendNotification('New Match!', `You have a new match with ${matchUserName}`, {
-          type: 'match',
-          matchId: matchId.toString(),
-        });
-      }
-
+      // Track match id set only; do not schedule local match notifications — server push carries
+      // role-specific copy (dater vs matchmaker). Polling used wrong names for matchmakers.
       lastMatchIdsRef.current = currentMatchIds;
     } catch (err) {
       console.error('Error checking for new matches:', err);

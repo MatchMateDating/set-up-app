@@ -1943,8 +1943,7 @@ const SettingsSections = () => {
           <View style={[styles.content, { paddingTop: overlayTopPadding }]}>
             {activeSection ? (
               <TouchableOpacity style={styles.backRow} onPress={() => setActiveSection(null)}>
-                <Ionicons name="chevron-back-outline" size={20} color={settingsBackAccent} />
-                <Text style={[styles.backText, { color: settingsBackAccent }]}>Back to Settings</Text>
+                <Ionicons name="chevron-back-outline" size={22} color={settingsBackAccent} />
               </TouchableOpacity>
             ) : null}
             {renderActiveSection()}
@@ -2206,15 +2205,17 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   backRow: {
+    alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 16,
-  },
-  backText: {
-    color: '#6c5ce7',
-    fontSize: 16,
-    fontWeight: '600',
-    marginLeft: 4,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    position: 'relative',
+    zIndex: 2000,
+    elevation: 50,
+    backgroundColor: 'transparent',
   },
   sectionButton: {
     backgroundColor: '#fff',

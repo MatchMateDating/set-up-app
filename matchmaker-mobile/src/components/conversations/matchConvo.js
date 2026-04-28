@@ -37,7 +37,7 @@ import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 import { getImageUrl } from '../profile/utils/profileUtils';
 import { getRoleAccentColor } from '../layout/components/RoleHeaderBanner';
 import { runOnJS } from 'react-native-reanimated';
-import { setActiveMatchId } from '../../context/NotificationContext';
+import { setActiveMatchId, useNotifications } from '../../context/NotificationContext';
 
 function formatMessageTimestamp(isoString) {
   if (!isoString) return '';
@@ -94,6 +94,7 @@ const MatchConvo = () => {
   const [approvedByMeLocally, setApprovedByMeLocally] = useState(false);
   const insets = useSafeAreaInsets();
   const keyboardHeightAnim = useSharedValue(0);
+  const { lastNotificationEvent } = useNotifications();
 
   const scrollViewRef = useRef(null);
   /** Skip the useFocusEffect fetch that immediately follows the initial mount fetch for this matchId. */
@@ -138,6 +139,20 @@ const MatchConvo = () => {
             }
             return;
           }
+        }
+
+        if (res.status === 404) {
+          if (Platform.OS === 'ios') {
+            navigation.dispatch(
+              CommonActions.reset({
+                index: 0,
+                routes: [{ name: 'Main', params: { screen: 'Conversations' } }],
+              })
+            );
+          } else {
+            navigation.navigate('Main', { screen: 'Conversations' });
+          }
+          return;
         }
 
         if (res.ok) {
@@ -188,6 +203,22 @@ const MatchConvo = () => {
       return () => setActiveMatchId(null);
     }, [matchId])
   );
+
+  useEffect(() => {
+    const data = lastNotificationEvent?.data;
+    if (!data || data.type !== 'unmatch' || matchId == null) return;
+    if (String(data.matchId) !== String(matchId)) return;
+    if (Platform.OS === 'ios') {
+      navigation.dispatch(
+        CommonActions.reset({
+          index: 0,
+          routes: [{ name: 'Main', params: { screen: 'Conversations' } }],
+        })
+      );
+    } else {
+      navigation.navigate('Main', { screen: 'Conversations' });
+    }
+  }, [lastNotificationEvent?.receivedAt, matchId, navigation]);
 
   // While chat is open, poll so both matchmakers see new messages without leaving.
   useEffect(() => {

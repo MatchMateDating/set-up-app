@@ -11,12 +11,17 @@ from app.models.messageDB import Message
 from app import db
 from app.routes.shared import token_required
 from app.services.ai_embeddings import get_conversation_similarity
+import logging
 import math
 from math import radians, sin, cos, sqrt, atan2
 from app.services.notification_service import (
     send_approved_match_notification,
-    send_match_notification,
+    send_new_match_push_to_dater,
+    send_match_notification_to_linked_matchmakers,
+    send_unmatch_sync_for_match,
 )
+
+logger = logging.getLogger(__name__)
 
 match_bp = Blueprint('match', __name__)
 
@@ -59,8 +64,20 @@ def _send_deferred_blind_match_notification_if_needed(match):
     other_id = match.user_id_2 if deferred_id == match.user_id_1 else match.user_id_1
     other = User.query.get(other_id)
     other_name = (other.first_name if other else None) or 'Someone'
+    mm_involved = bool(
+        match.matched_by_user_id_1_matcher or match.matched_by_user_id_2_matcher
+    )
     try:
-        send_match_notification(deferred_id, match.id, other_name, is_blind_match=True)
+        send_new_match_push_to_dater(
+            deferred_id,
+            match.id,
+            other_name,
+            is_blind_match=True,
+            is_matchmaker_mediated=mm_involved,
+        )
+        send_match_notification_to_linked_matchmakers(
+            deferred_id, match.id, other_name, is_blind_match=True
+        )
     except Exception as e:
         print(f'Error sending deferred blind match notification: {e}')
     match.blind_match_deferred_notify_user_id = None
@@ -73,30 +90,72 @@ def _notify_other_matchmaker_peer_approved(match, approving_mm):
     if not m1 or not m2:
         return
     other_mm_id = m2 if approving_mm.id == m1 else m1
-    actor_name = (approving_mm.first_name or '').strip() or 'The other matchmaker'
+    dater1 = User.query.get(match.user_id_1)
+    dater2 = User.query.get(match.user_id_2)
+    d1 = (dater1.first_name or "Someone").strip() or "Someone" if dater1 else "Someone"
+    d2 = (dater2.first_name or "Someone").strip() or "Someone" if dater2 else "Someone"
+
+    # Which side approved?
+    approving_side_dater_id = match.user_id_1 if approving_mm.id == m1 else match.user_id_2
+    approving_side_name = d1 if approving_side_dater_id == match.user_id_1 else d2
+    other_side_name = d2 if approving_side_dater_id == match.user_id_1 else d1
     try:
+        # Notify the approving matchmaker's linked dater they can speak to the other matchmaker.
+        send_approved_match_notification(
+            approving_side_dater_id,
+            "New Approved Match",
+            f"You can speak to {other_side_name}'s matchmaker",
+            match.id,
+        )
+
         send_approved_match_notification(
             other_mm_id,
-            'Match approval update',
-            f'{actor_name} approved this conversation. You can approve when you\'re ready.',
+            "Match Approval Update",
+            f"Approved by {approving_side_name}'s matchmaker. You can speak to {approving_side_name} and approve the match for {other_side_name}.",
             match.id,
         )
     except Exception as e:
         print(f'Error sending peer matchmaker approval notification: {e}')
 
 
-def _notify_daters_two_matchmakers_fully_approved(match):
+def _notify_other_matchmaker_fully_approved(match, approving_mm):
+    """Two matchmakers: when the second approves, notify the first matchmaker the match is fully approved."""
+    m1 = match.matched_by_user_id_1_matcher
+    m2 = match.matched_by_user_id_2_matcher
+    if not m1 or not m2 or not approving_mm:
+        return
+    other_mm_id = m2 if approving_mm.id == m1 else m1
+    dater1 = User.query.get(match.user_id_1)
+    dater2 = User.query.get(match.user_id_2)
+    d1 = (dater1.first_name or "Someone").strip() or "Someone" if dater1 else "Someone"
+    d2 = (dater2.first_name or "Someone").strip() or "Someone" if dater2 else "Someone"
     try:
         send_approved_match_notification(
+            other_mm_id,
+            "Match Approved Update",
+            f"{d2}'s matchmaker approved {d1} for {d2}.",
+            match.id,
+        )
+    except Exception as e:
+        print(f'Error sending fully-approved other matchmaker notification: {e}')
+
+
+def _notify_daters_two_matchmakers_fully_approved(match):
+    try:
+        u1 = User.query.get(match.user_id_1)
+        u2 = User.query.get(match.user_id_2)
+        other1 = (u2.first_name or "Someone").strip() or "Someone" if u2 else "Someone"
+        other2 = (u1.first_name or "Someone").strip() or "Someone" if u1 else "Someone"
+        send_approved_match_notification(
             match.user_id_1,
-            'Match approved',
-            'New match approved by your matchmaker.',
+            "Match Approved",
+            f"You have been approved by {other1}'s matchmaker",
             match.id,
         )
         send_approved_match_notification(
             match.user_id_2,
-            'Match approved',
-            'New match approved by your matchmaker.',
+            "Match Approved",
+            f"{other2} approved by your matchmaker.",
             match.id,
         )
     except Exception as e:
@@ -104,7 +163,11 @@ def _notify_daters_two_matchmakers_fully_approved(match):
 
 
 def _notify_daters_single_matchmaker_fully_approved(match):
-    """One matchmaker on the match: linked dater vs other dater get different copy."""
+    """
+    One matchmaker on the match:
+    - the non-linked dater is told they were approved by the linked dater's matchmaker
+    - the linked dater is told the other dater was approved by their matchmaker
+    """
     mid1 = match.matched_by_user_id_1_matcher
     mid2 = match.matched_by_user_id_2_matcher
     if mid1 and not mid2:
@@ -116,18 +179,20 @@ def _notify_daters_single_matchmaker_fully_approved(match):
     else:
         return
     try:
-        du = User.query.get(dater_with_mm)
-        other_first = (du.first_name or 'your match') if du else 'your match'
+        u_mm = User.query.get(dater_with_mm)
+        u_other = User.query.get(dater_other)
+        other_party_name = (u_other.first_name or "Someone").strip() or "Someone" if u_other else "Someone"
+        linked_dater_name = (u_mm.first_name or "Someone").strip() or "Someone" if u_mm else "Someone"
         send_approved_match_notification(
             dater_with_mm,
-            'Match approved',
-            'New match approved by your matchmaker.',
+            'New Approved Match',
+            f'{other_party_name} approved by your matchmaker.',
             match.id,
         )
         send_approved_match_notification(
             dater_other,
-            'Match approved',
-            f"Your conversation with {other_first}'s matchmaker has been approved.",
+            'Match Approved',
+            f"You have been approved by {linked_dater_name}'s matchmaker.",
             match.id,
         )
     except Exception as e:
@@ -449,11 +514,19 @@ def blind_match(current_user):
         referred_dater = User.query.get(referred_dater_id)
         liked_user = User.query.get(liked_user_id)
         if referred_dater and liked_user:
-            other_name = referred_dater.first_name or 'Someone'
-            send_match_notification(
+            # Cas sees Dylan as the other single; copy clarifies matchmaker-mediated match.
+            counterparty_name = referred_dater.first_name or 'Someone'
+            send_new_match_push_to_dater(
                 liked_user_id,
                 match_obj.id,
-                other_name,
+                counterparty_name,
+                is_blind_match=True,
+                is_matchmaker_mediated=True,
+            )
+            send_match_notification_to_linked_matchmakers(
+                liked_user_id,
+                match_obj.id,
+                counterparty_name,
                 is_blind_match=True,
             )
     except Exception as e:
@@ -532,22 +605,22 @@ def like_user(current_user):
         # Send push notifications when match becomes mutual or pending_approval
         if existing_match.user_id_1 in liked_ids and existing_match.user_id_2 in liked_ids:
             try:
-                from app.services.notification_service import send_match_notification
-
                 is_blind = existing_match.blind_match in ('Blind', 'Revealed')
                 
                 user1 = User.query.get(existing_match.user_id_1)
                 user2 = User.query.get(existing_match.user_id_2)
                 
                 if user1 and user2:
+                    mm_involved = bool(
+                        existing_match.matched_by_user_id_1_matcher
+                        or existing_match.matched_by_user_id_2_matcher
+                    )
                     # Notify only daters who personally liked; skip if only their matchmaker
                     # mediated their side (they cannot use the conversation yet).
                     # Skip the acting dater: they just completed the mutual like and already
                     # see the in-app match modal; notify only the other dater who was waiting.
                     for uid in (existing_match.user_id_1, existing_match.user_id_2):
                         if uid == acting_dater_id:
-                            continue
-                        if not _should_send_mutual_match_push_to_dater(existing_match, uid):
                             continue
                         other_id = (
                             existing_match.user_id_2
@@ -556,11 +629,27 @@ def like_user(current_user):
                         )
                         other = User.query.get(other_id)
                         other_name = (other.first_name if other else None) or 'Someone'
-                        send_match_notification(
+                        # Dater push: only if they personally liked (not MM-only swipe).
+                        if _should_send_mutual_match_push_to_dater(existing_match, uid):
+                            send_new_match_push_to_dater(
+                                uid,
+                                existing_match.id,
+                                other_name,
+                                is_blind_match=is_blind,
+                                is_matchmaker_mediated=mm_involved,
+                            )
+                        # Matchmakers always get a push (tokens on MM user); MM-only swipes skip dater push above.
+                        skip_mm = (
+                            {current_user.id}
+                            if getattr(current_user, "role", None) == "matchmaker"
+                            else set()
+                        )
+                        send_match_notification_to_linked_matchmakers(
                             uid,
                             existing_match.id,
                             other_name,
                             is_blind_match=is_blind,
+                            skip_matchmaker_ids=skip_mm,
                         )
             except Exception as e:
                 # Log error but don't fail the request
@@ -845,6 +934,12 @@ def unmatch(current_user, match_id):
         if match.matched_by_user_id_1_matcher != current_user.id and match.matched_by_user_id_2_matcher != current_user.id:
             return jsonify({'message': 'You are not authorized to unmatch this match'}), 403
 
+    # Data-only push to all parties (no visible alert) so clients update without polling.
+    try:
+        send_unmatch_sync_for_match(match)
+    except Exception as e:
+        logger.warning("send_unmatch_sync_for_match failed: %s", e)
+
     # Delete conversations (and their messages) that reference this match before deleting the match
     conversations = Conversation.query.filter_by(match_id=match_id).all()
     for conversation in conversations:
@@ -959,6 +1054,7 @@ def approve_match(current_user, match_id):
             _send_deferred_blind_match_notification_if_needed(match)
             db.session.commit()
             match = Match.query.get(match_id)
+            _notify_other_matchmaker_fully_approved(match, current_user)
             _notify_daters_two_matchmakers_fully_approved(match)
             return jsonify({
                 'message': 'Match approved successfully by both matchmakers.', 
