@@ -25,7 +25,7 @@ const LoginScreen = () => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [staySignedIn, setStaySignedIn] = useState(true);
-  const [emailError, setEmailError] = useState('');
+  const [identifierError, setIdentifierError] = useState('');
   const navigation = useNavigation();
   const identifierRef = useRef(null);
   const passwordRef = useRef(null);
@@ -48,14 +48,45 @@ const LoginScreen = () => {
   }, [navigation]);
 
   const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+  const phoneDigitsOnly = (value) => (value || '').replace(/\D/g, '');
+  const isValidPhone = (value) => phoneDigitsOnly(value).length >= 10;
 
-  const handleEmailChange = (value) => {
-    setIdentifier(value);
-    if (value.trim() && !isValidEmail(value.trim())) {
-      setEmailError('Not a valid email');
-    } else {
-      setEmailError('');
+  const normalizeUsPhoneToE164 = (value) => {
+    let digits = phoneDigitsOnly(value);
+    if (!digits.startsWith('1') && digits.length === 10) {
+      digits = `1${digits}`;
     }
+    return `+${digits}`;
+  };
+
+  const getIdentifierKind = (trimmed) => {
+    if (!trimmed) return null;
+    if (isValidEmail(trimmed)) return 'email';
+    if (isValidPhone(trimmed)) return 'phone';
+    return null;
+  };
+
+  const handleIdentifierChange = (value) => {
+    setIdentifier(value);
+    const t = value.trim();
+    if (!t) {
+      setIdentifierError('');
+      return;
+    }
+    if (isValidEmail(t) || isValidPhone(t)) {
+      setIdentifierError('');
+      return;
+    }
+    if (t.includes('@')) {
+      setIdentifierError('Not a valid email');
+      return;
+    }
+    const digits = phoneDigitsOnly(t);
+    if (digits.length > 0 && digits.length < 10) {
+      setIdentifierError('');
+      return;
+    }
+    setIdentifierError('Enter a valid email or phone number');
   };
 
   useEffect(() => {
@@ -116,19 +147,32 @@ const LoginScreen = () => {
   };
 
   const handleLogin = async () => {
-    if (!identifier.trim()) {
-      Alert.alert('Error', 'Please enter your email.');
+    const trimmed = identifier.trim();
+    if (!trimmed) {
+      Alert.alert('Error', 'Please enter your email or phone number.');
       return;
     }
-    if (!isValidEmail(identifier.trim())) {
-      setEmailError('Not a valid email');
+    const kind = getIdentifierKind(trimmed);
+    if (!kind) {
+      if (trimmed.includes('@')) {
+        setIdentifierError('Not a valid email');
+        Alert.alert('Error', 'Please enter a valid email address.');
+      } else {
+        setIdentifierError('Enter a valid email or phone number');
+        Alert.alert(
+          'Error',
+          'Please enter a valid email or a US phone number with at least 10 digits.'
+        );
+      }
       return;
     }
+    const loginIdentifier =
+      kind === 'phone' ? normalizeUsPhoneToE164(trimmed) : trimmed;
     try {
-      const res = await axios.post(`${API_BASE_URL}/auth/login`, { 
-        identifier: identifier,
+      const res = await axios.post(`${API_BASE_URL}/auth/login`, {
+        identifier: loginIdentifier,
         password,
-        staySignedIn
+        staySignedIn,
       });
       await AsyncStorage.setItem('staySignedIn', staySignedIn ? 'true' : 'false');
       // Store token in AsyncStorage
@@ -228,17 +272,20 @@ const LoginScreen = () => {
           <TextInput
             ref={identifierRef}
             style={styles.input}
-            placeholder="Email"
+            placeholder="Email or phone number"
             placeholderTextColor="#6b7280"
             value={identifier}
-            onChangeText={handleEmailChange}
+            onChangeText={handleIdentifierChange}
             blurOnSubmit={false}
-            keyboardType="email-address"
+            keyboardType="default"
             autoCapitalize="none"
+            autoCorrect={false}
             returnKeyType="next"
             onSubmitEditing={() => passwordRef.current?.focus()}
           />
-          {emailError ? <Text style={styles.emailError}>{emailError}</Text> : null}
+          {identifierError ? (
+            <Text style={styles.emailError}>{identifierError}</Text>
+          ) : null}
           <View style={styles.passwordInputWrapper}>
             <TextInput
               ref={passwordRef}

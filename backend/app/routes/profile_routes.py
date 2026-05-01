@@ -13,6 +13,7 @@ from app.models.skipDB import UserSkip
 from app.models.blockDB import UserBlock
 from flask import current_app
 from uuid import uuid4
+from uuid import uuid4
 from app.routes.shared import token_required, calculate_age
 from sqlalchemy import or_
 from sqlalchemy.exc import SQLAlchemyError
