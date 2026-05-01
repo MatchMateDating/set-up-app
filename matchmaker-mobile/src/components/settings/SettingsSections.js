@@ -196,6 +196,8 @@ const SettingsSections = () => {
   const [user, setUser] = useState(null);
   const [role, setRole] = useState(null);
   const [savedReferrals, setSavedReferrals] = useState([]);
+  /** Matchmakers who linked this dater via referral (inverse of savedReferrals). */
+  const [linkedMatchmakers, setLinkedMatchmakers] = useState([]);
   const [referralCode, setReferralCode] = useState('');
   const [showReferralModal, setShowReferralModal] = useState(false);
   const [referralInput, setReferralInput] = useState('');
@@ -283,7 +285,7 @@ const SettingsSections = () => {
         label: role === 'matchmaker' ? 'Manage Linked Daters' : 'Referral Code',
         description: role === 'matchmaker'
           ? 'Link and manage your connected daters.'
-          : 'Copy, share, or email your referral code.',
+          : 'Share your code and manage who can matchmake for you.',
         icon: 'gift-outline',
       },
       {
@@ -368,6 +370,7 @@ const SettingsSections = () => {
       });
 
       if (data.user.role === 'matchmaker') {
+        setLinkedMatchmakers([]);
         const linkedRes = await fetch(`${API_BASE_URL}/referral/referrals/${data.user.id}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -375,8 +378,20 @@ const SettingsSections = () => {
           const linkedData = await linkedRes.json();
           setSavedReferrals(linkedData.linked_daters || []);
         }
+      } else if (data.user.role === 'user') {
+        setSavedReferrals([]);
+        const mmRes = await fetch(`${API_BASE_URL}/referral/linked_matchmakers`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (mmRes.ok) {
+          const mmData = await mmRes.json();
+          setLinkedMatchmakers(mmData.linked_matchmakers || []);
+        } else {
+          setLinkedMatchmakers([]);
+        }
       } else {
         setSavedReferrals([]);
+        setLinkedMatchmakers([]);
       }
 
       await AsyncStorage.setItem('user', JSON.stringify(data.user));
@@ -1192,6 +1207,52 @@ const SettingsSections = () => {
     }
   };
 
+  const handleDeleteLinkedMatchmaker = (linkedMm) => {
+    Alert.alert(
+      'Remove matchmaker',
+      `Remove ${linkedMm.name || 'this matchmaker'}? They will no longer be able to matchmake for you.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const token = await AsyncStorage.getItem('token');
+              if (!token) {
+                Alert.alert('Error', 'Please log in');
+                navigation.navigate('Login');
+                return;
+              }
+
+              const res = await fetch(`${API_BASE_URL}/referral/dater_unlink_matchmaker`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({ matchmaker_id: linkedMm.id }),
+              });
+
+              const data = await res.json().catch(() => ({}));
+              if (!res.ok) {
+                Alert.alert('Error', data.error || 'Failed to remove matchmaker');
+                return;
+              }
+
+              setLinkedMatchmakers(data.linked_matchmakers || []);
+              Alert.alert('Success', 'Matchmaker removed');
+              fetchUserProfile();
+            } catch (err) {
+              console.error(err);
+              Alert.alert('Error', 'Failed to remove matchmaker');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const handleDeleteLinkedDater = (linkedDater) => {
     Alert.alert(
       'Remove Linked Dater',
@@ -1680,25 +1741,63 @@ const SettingsSections = () => {
   const renderReferral = () => {
     if (role === 'user') {
       return (
-        <View style={styles.card}>
-          <Text style={styles.cardHeader}>Referral Code</Text>
-          <Text style={styles.cardDescription}>Share your referral code with your matchmaker.</Text>
-          <View style={[styles.referralCodeBox, { borderColor: accentColor }]}>
-            <Text style={[styles.referralCodeText, { color: accentColor }]}>{referralCode || 'No code available'}</Text>
+        <View style={styles.matchmakerReferralStack}>
+          <View style={styles.card}>
+            <Text style={styles.cardHeader}>Referral Code</Text>
+            <Text style={styles.cardDescription}>
+              Share your referral code so a matchmaker can link to you and set up matches.
+            </Text>
+            <View style={[styles.referralCodeBox, { borderColor: accentColor }]}>
+              <Text style={[styles.referralCodeText, { color: accentColor }]}>{referralCode || 'No code available'}</Text>
+            </View>
+            <View style={styles.actionButtonGroup}>
+              <TouchableOpacity style={styles.iconActionBtn} onPress={handleCopyReferralCode}>
+                <Ionicons name="copy-outline" size={20} color={accentColor} />
+                <Text style={[styles.iconActionText, { color: accentColor }]}>Copy Code</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.iconActionBtn} onPress={handleShareReferralCode}>
+                <Ionicons name="share-outline" size={20} color={accentColor} />
+                <Text style={[styles.iconActionText, { color: accentColor }]}>Share Link</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.iconActionBtn} onPress={handleOpenEmailInvite}>
+                <Ionicons name="mail-outline" size={20} color={accentColor} />
+                <Text style={[styles.iconActionText, { color: accentColor }]}>Email Link</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-          <View style={styles.actionButtonGroup}>
-            <TouchableOpacity style={styles.iconActionBtn} onPress={handleCopyReferralCode}>
-              <Ionicons name="copy-outline" size={20} color={accentColor} />
-              <Text style={[styles.iconActionText, { color: accentColor }]}>Copy Code</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.iconActionBtn} onPress={handleShareReferralCode}>
-              <Ionicons name="share-outline" size={20} color={accentColor} />
-              <Text style={[styles.iconActionText, { color: accentColor }]}>Share Link</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.iconActionBtn} onPress={handleOpenEmailInvite}>
-              <Ionicons name="mail-outline" size={20} color={accentColor} />
-              <Text style={[styles.iconActionText, { color: accentColor }]}>Email Link</Text>
-            </TouchableOpacity>
+
+          <View style={styles.mmLinkedCard}>
+            <Text style={styles.mmLinkedListTitle}>Your matchmakers</Text>
+            <Text style={styles.mmInviteSubtitle}>
+              Matchmakers who linked using your code. Remove someone if you do not want them matchmaking for you anymore.
+            </Text>
+            <View style={styles.mmSectionDivider} />
+            {linkedMatchmakers.length > 0 ? (
+              linkedMatchmakers.map((mm, idx) => {
+                const palette = LINKED_DATER_AVATAR_PALETTES[idx % LINKED_DATER_AVATAR_PALETTES.length];
+                return (
+                  <View
+                    key={`${mm.id || idx}-${idx}`}
+                    style={[styles.mmLinkedRow, idx > 0 && styles.mmLinkedRowBorder]}
+                  >
+                    <LinkedDaterRowAvatar name={mm.name} firstImage={mm.first_image} palette={palette} />
+                    <View style={styles.mmLinkedRowText}>
+                      <Text style={styles.mmLinkedName}>{mm.name || 'Matchmaker'}</Text>
+                    </View>
+                    <TouchableOpacity
+                      style={styles.mmLinkedRemove}
+                      onPress={() => handleDeleteLinkedMatchmaker(mm)}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      activeOpacity={0.85}
+                    >
+                      <Ionicons name="close" size={14} color="#B91C1C" />
+                    </TouchableOpacity>
+                  </View>
+                );
+              })
+            ) : (
+              <Text style={styles.mmLinkedEmpty}>No matchmakers linked yet.</Text>
+            )}
           </View>
         </View>
       );

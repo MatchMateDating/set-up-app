@@ -1,11 +1,18 @@
 # app/routes/referral_routes.py
 from flask import Blueprint, request, jsonify
+from sqlalchemy import or_
 from app import db
 from app.models.userDB import User, ReferredUsers
 from app.dater_invite_tokens import encode_matchmaker_dater_invite
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
 referral_bp = Blueprint('referral', __name__)
+
+
+def _user_id_from_jwt(identity):
+    if identity is None:
+        return None
+    return int(identity)
 
 
 @referral_bp.route('/dater_invite_token', methods=['POST'])
@@ -149,5 +156,121 @@ def unlink_dater():
         "message": "Linked dater removed successfully",
         "linked_daters": referral_row.to_dict().get("linked_daters", []),
         "selected_dater_id": matchmaker.referred_by_id
+    }), 200
+
+
+def _matchmaker_summary_dict(mm_user):
+    if not mm_user:
+        return None
+    name = f"{mm_user.first_name or ''}".strip()
+    first_image = mm_user.images[0].image_url if mm_user.images else None
+    return {
+        "id": mm_user.id,
+        "name": name or "Matchmaker",
+        "first_image": first_image,
+    }
+
+
+@referral_bp.route('/linked_matchmakers', methods=['GET'])
+@jwt_required()
+def get_linked_matchmakers_for_dater():
+    """All matchmakers who have this dater in their linked roster (used the dater's referral code or linked flow)."""
+    dater_id = _user_id_from_jwt(get_jwt_identity())
+    dater = User.query.get(dater_id)
+    if not dater or dater.role != 'user':
+        return jsonify({"error": "Only daters can view linked matchmakers"}), 403
+
+    slot_filters = [
+        getattr(ReferredUsers, f"linked_dater_{i}_id") == dater.id
+        for i in range(1, 11)
+    ]
+    rows = ReferredUsers.query.filter(or_(*slot_filters)).all()
+    linked = []
+    seen_mm = set()
+    for row in rows:
+        if row.matchmaker_id in seen_mm:
+            continue
+        mm = User.query.get(row.matchmaker_id)
+        if not mm or mm.role != 'matchmaker':
+            continue
+        seen_mm.add(row.matchmaker_id)
+        summary = _matchmaker_summary_dict(mm)
+        if summary:
+            linked.append(summary)
+
+    return jsonify({"linked_matchmakers": linked}), 200
+
+
+@referral_bp.route('/dater_unlink_matchmaker', methods=['POST'])
+@jwt_required()
+def dater_unlink_matchmaker():
+    """Dater removes a matchmaker from their roster so that matchmaker can no longer matchmake for them."""
+    data = request.get_json() or {}
+    matchmaker_id = data.get('matchmaker_id')
+    dater_id = _user_id_from_jwt(get_jwt_identity())
+
+    if matchmaker_id is None:
+        return jsonify({"error": "matchmaker_id is required"}), 400
+
+    dater = User.query.get(dater_id)
+    if not dater or dater.role != 'user':
+        return jsonify({"error": "Only daters can remove a linked matchmaker"}), 403
+
+    try:
+        matchmaker_id = int(matchmaker_id)
+    except (TypeError, ValueError):
+        return jsonify({"error": "Invalid matchmaker_id"}), 400
+
+    matchmaker = User.query.get(matchmaker_id)
+    if not matchmaker or matchmaker.role != 'matchmaker':
+        return jsonify({"error": "Matchmaker not found"}), 404
+
+    referral_row = ReferredUsers.query.filter_by(matchmaker_id=matchmaker.id).first()
+    if not referral_row:
+        return jsonify({"error": "No linked roster for this matchmaker"}), 404
+
+    removed = False
+    for i in range(1, 11):
+        col = f"linked_dater_{i}_id"
+        if getattr(referral_row, col) == dater.id:
+            setattr(referral_row, col, None)
+            removed = True
+            break
+
+    if not removed:
+        return jsonify({"error": "This matchmaker is not linked to you"}), 404
+
+    remaining_ids = [
+        getattr(referral_row, f"linked_dater_{i}_id")
+        for i in range(1, 11)
+        if getattr(referral_row, f"linked_dater_{i}_id") is not None
+    ]
+    if matchmaker.referred_by_id == dater.id:
+        matchmaker.referred_by_id = remaining_ids[0] if remaining_ids else None
+
+    db.session.commit()
+
+    slot_filters = [
+        getattr(ReferredUsers, f"linked_dater_{i}_id") == dater.id
+        for i in range(1, 11)
+    ]
+    rows = ReferredUsers.query.filter(or_(*slot_filters)).all()
+    linked = []
+    seen_mm = set()
+    for row in rows:
+        if row.matchmaker_id in seen_mm:
+            continue
+        mm = User.query.get(row.matchmaker_id)
+        if not mm or mm.role != 'matchmaker':
+            continue
+        seen_mm.add(row.matchmaker_id)
+        summary = _matchmaker_summary_dict(mm)
+        if summary:
+            linked.append(summary)
+
+    return jsonify({
+        "message": "Matchmaker removed successfully",
+        "linked_matchmakers": linked,
+        "selected_dater_id": matchmaker.referred_by_id,
     }), 200
 
