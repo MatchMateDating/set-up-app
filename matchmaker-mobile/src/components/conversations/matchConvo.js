@@ -1370,10 +1370,6 @@ const MatchConvo = () => {
         ) : null}
       </ScrollView>
 
-      {typingBannerText ? (
-        <Text style={styles.typingIndicator}>{typingBannerText}</Text>
-      ) : null}
-
       {selectedPuzzleLink ? (
         <View style={styles.selectedPuzzlePreview}>
           <Ionicons name="game-controller-outline" size={20} color={accentColor} />
