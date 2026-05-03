@@ -8,8 +8,65 @@ from app import db
 from datetime import datetime, timezone
 from app.routes.shared import token_required
 from app.services.notification_service import send_message_notification
+from app.services.conversation_typing import set_typing, active_typer_ids
 
 conversation_bp = Blueprint('conversation', __name__)
+
+
+def _deny_conversation_view(current_user, match):
+    """Return Flask (response, status) if viewer cannot access this match thread, else None."""
+    if not match:
+        return jsonify({'error': 'Match not found'}), 404
+    check_user_id = _conversation_user_id(current_user)
+    if current_user.role == 'matchmaker' and not current_user.referred_by_id:
+        return jsonify({'error': 'Matchmaker has no linked dater'}), 403
+    if match.status == 'pending_approval':
+        liked_ids = {u.id for u in match.liked_by}
+        matchmaker_involved = (
+            current_user.role == 'matchmaker' and
+            (match.matched_by_user_id_1_matcher == current_user.id or
+             match.matched_by_user_id_2_matcher == current_user.id)
+        )
+        if check_user_id not in liked_ids and not matchmaker_involved:
+            return jsonify({'error': 'You do not have permission to view this conversation'}), 403
+    elif match.status == 'matched':
+        if check_user_id not in [match.user_id_1, match.user_id_2]:
+            return jsonify({'error': 'You do not have permission to view this conversation'}), 403
+    else:
+        liked_ids = {u.id for u in match.liked_by}
+        if check_user_id not in liked_ids:
+            return jsonify({'error': 'You do not have permission to view this conversation'}), 403
+    return None
+
+
+def _deny_conversation_send(current_user, match):
+    """Return Flask (response, status) if user cannot send in this thread, else None."""
+    if not match:
+        return jsonify({'error': 'Match not found'}), 404
+    check_user_id = _conversation_user_id(current_user)
+    if current_user.role == 'matchmaker' and not current_user.referred_by_id:
+        return jsonify({'error': 'Matchmaker has no linked dater'}), 403
+    if match.status == 'pending_approval':
+        liked_ids = {u.id for u in match.liked_by}
+        matchmaker_involved = (
+            current_user.role == 'matchmaker' and
+            (match.matched_by_user_id_1_matcher == current_user.id or
+             match.matched_by_user_id_2_matcher == current_user.id)
+        )
+        side_approved = (
+            (check_user_id == match.user_id_1 and bool(match.approved_by_matcher_1)) or
+            (check_user_id == match.user_id_2 and bool(match.approved_by_matcher_2))
+        )
+        if check_user_id not in liked_ids and not matchmaker_involved and not side_approved:
+            return jsonify({'error': 'You do not have permission to send messages in this conversation'}), 403
+    elif match.status == 'matched':
+        if check_user_id not in [match.user_id_1, match.user_id_2]:
+            return jsonify({'error': 'You do not have permission to send messages in this conversation'}), 403
+    else:
+        liked_ids = {u.id for u in match.liked_by}
+        if check_user_id not in liked_ids:
+            return jsonify({'error': 'You do not have permission to send messages in this conversation'}), 403
+    return None
 
 
 def _message_timestamp_utc_iso(dt):
@@ -31,37 +88,11 @@ def _conversation_user_id(current_user):
 @conversation_bp.route('/<int:match_id>', methods=['GET'])
 @token_required
 def get_matched_conversations(current_user, match_id):
-    # Check if user has permission to view this conversation
     match = Match.query.get(match_id)
-    if not match:
-        return jsonify({'error': 'Match not found'}), 404
-    
-    # Determine the user ID to check (for matchmakers, use their linked dater)
-    check_user_id = _conversation_user_id(current_user)
-    if current_user.role == 'matchmaker' and not current_user.referred_by_id:
-        return jsonify({'error': 'Matchmaker has no linked dater'}), 403
-    
-    # For pending_approval matches, only users in liked_by or involved matchmakers can access
-    if match.status == 'pending_approval':
-        liked_ids = {u.id for u in match.liked_by}
-        # Check if user is in liked_by OR if matchmaker is involved in the match
-        matchmaker_involved = (current_user.role == 'matchmaker' and 
-                              (match.matched_by_user_id_1_matcher == current_user.id or 
-                               match.matched_by_user_id_2_matcher == current_user.id))
-        if check_user_id not in liked_ids and not matchmaker_involved:
-            return jsonify({'error': 'You do not have permission to view this conversation'}), 403
-    
-    # For matched matches, both users can access
-    elif match.status == 'matched':
-        if check_user_id not in [match.user_id_1, match.user_id_2]:
-            return jsonify({'error': 'You do not have permission to view this conversation'}), 403
-    
-    # For pending matches, only users in liked_by can access
-    else:  # pending status
-        liked_ids = {u.id for u in match.liked_by}
-        if check_user_id not in liked_ids:
-            return jsonify({'error': 'You do not have permission to view this conversation'}), 403
-    
+    denied = _deny_conversation_view(current_user, match)
+    if denied:
+        return denied
+
     conversation = Conversation.query.filter_by(match_id=match_id).first()
     if not conversation:
         return jsonify([]), 200
@@ -91,42 +122,11 @@ def get_matched_conversations(current_user, match_id):
 @conversation_bp.route('/<int:match_id>', methods=['POST'])
 @token_required
 def add_to_conversation(current_user, match_id):
-    # Check if user has permission to send messages in this conversation
     match = Match.query.get(match_id)
-    if not match:
-        return jsonify({'error': 'Match not found'}), 404
-    
-    # Determine the user ID to check (for matchmakers, use their linked dater)
-    check_user_id = _conversation_user_id(current_user)
-    if current_user.role == 'matchmaker' and not current_user.referred_by_id:
-        return jsonify({'error': 'Matchmaker has no linked dater'}), 403
-    
-    # For pending_approval matches, only users in liked_by or involved matchmakers can send messages
-    if match.status == 'pending_approval':
-        liked_ids = {u.id for u in match.liked_by}
-        # Check if user is in liked_by OR if matchmaker is involved in the match OR
-        # the dater's matchmaker has already approved (allows MM1-approved flows).
-        matchmaker_involved = (current_user.role == 'matchmaker' and 
-                              (match.matched_by_user_id_1_matcher == current_user.id or 
-                               match.matched_by_user_id_2_matcher == current_user.id))
-        side_approved = (
-            (check_user_id == match.user_id_1 and bool(match.approved_by_matcher_1)) or
-            (check_user_id == match.user_id_2 and bool(match.approved_by_matcher_2))
-        )
-        if check_user_id not in liked_ids and not matchmaker_involved and not side_approved:
-            return jsonify({'error': 'You do not have permission to send messages in this conversation'}), 403
-    
-    # For matched matches, both users can send messages
-    elif match.status == 'matched':
-        if check_user_id not in [match.user_id_1, match.user_id_2]:
-            return jsonify({'error': 'You do not have permission to send messages in this conversation'}), 403
-    
-    # For pending matches, only users in liked_by can send messages
-    else:  # pending status
-        liked_ids = {u.id for u in match.liked_by}
-        if check_user_id not in liked_ids:
-            return jsonify({'error': 'You do not have permission to send messages in this conversation'}), 403
-    
+    denied = _deny_conversation_send(current_user, match)
+    if denied:
+        return denied
+
     data = request.get_json()
     text = data.get('message')
     puzzle_type = data.get('puzzle_type')
@@ -305,3 +305,31 @@ def mark_conversation_read(current_user, match_id):
 
     db.session.commit()
     return jsonify({'updated': 1}), 200
+
+
+@conversation_bp.route('/<int:match_id>/typing', methods=['GET', 'POST'])
+@token_required
+def conversation_typing(current_user, match_id):
+    match = Match.query.get(match_id)
+    if request.method == 'GET':
+        denied = _deny_conversation_view(current_user, match)
+        if denied:
+            return denied
+        ids = active_typer_ids(match_id, exclude_user_id=current_user.id)
+        typing_users = []
+        for uid in ids:
+            u = User.query.get(uid)
+            if u:
+                typing_users.append({
+                    'user_id': u.id,
+                    'first_name': u.first_name or '',
+                    'role': u.role or 'user',
+                })
+        return jsonify({'typing': typing_users}), 200
+
+    denied = _deny_conversation_send(current_user, match)
+    if denied:
+        return denied
+    data = request.get_json(silent=True) or {}
+    set_typing(match_id, current_user.id, bool(data.get('typing')))
+    return jsonify({'ok': True}), 200

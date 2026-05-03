@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState, useRef } from 'react';
+import React, { useCallback, useEffect, useState, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -70,6 +70,10 @@ function normalizeMessages(rawMessages) {
 
 /** Poll interval while chat is open — light on the server vs 3s; keeps MM threads in sync. */
 const CONVERSATION_POLL_MS = 12000;
+/** Poll typing indicators — separate from message poll for snappy UX. */
+const TYPING_POLL_MS = 2500;
+const TYPING_HEARTBEAT_MS = 2500;
+const TYPING_DEBOUNCE_MS = 350;
 
 const MatchConvo = () => {
   const route = useRoute();
@@ -101,6 +105,58 @@ const MatchConvo = () => {
   const skipNextFocusRefreshRef = useRef(false);
   const isFocusedRef = useRef(isFocused);
   isFocusedRef.current = isFocused;
+  const [othersTyping, setOthersTyping] = useState([]);
+  const typingDebounceRef = useRef(null);
+  const typingHeartbeatRef = useRef(null);
+
+  const clearTypingHeartbeat = useCallback(() => {
+    if (typingHeartbeatRef.current) {
+      clearInterval(typingHeartbeatRef.current);
+      typingHeartbeatRef.current = null;
+    }
+  }, []);
+
+  const postTyping = useCallback(
+    async (typing) => {
+      try {
+        const token = await AsyncStorage.getItem('token');
+        if (!token || !matchId) return;
+        await fetch(`${API_BASE_URL}/conversation/${matchId}/typing`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ typing }),
+        });
+      } catch (err) {
+        console.error('typing indicator:', err);
+      }
+    },
+    [matchId]
+  );
+
+  const handleComposerChange = useCallback(
+    (text) => {
+      setNewMessageText(text);
+      if (typingDebounceRef.current) {
+        clearTimeout(typingDebounceRef.current);
+        typingDebounceRef.current = null;
+      }
+      if (!text.trim()) {
+        postTyping(false);
+        clearTypingHeartbeat();
+        return;
+      }
+      typingDebounceRef.current = setTimeout(() => {
+        typingDebounceRef.current = null;
+        postTyping(true);
+        if (!typingHeartbeatRef.current) {
+          typingHeartbeatRef.current = setInterval(() => {
+            postTyping(true);
+          }, TYPING_HEARTBEAT_MS);
+        }
+      }, TYPING_DEBOUNCE_MS);
+    },
+    [postTyping, clearTypingHeartbeat]
+  );
 
   const markConversationAsRead = useCallback(async () => {
     if (!matchId || !isFocusedRef.current) return;
@@ -203,6 +259,55 @@ const MatchConvo = () => {
       return () => setActiveMatchId(null);
     }, [matchId])
   );
+
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        if (typingDebounceRef.current) {
+          clearTimeout(typingDebounceRef.current);
+          typingDebounceRef.current = null;
+        }
+        clearTypingHeartbeat();
+        postTyping(false);
+      };
+    }, [postTyping, clearTypingHeartbeat])
+  );
+
+  useEffect(() => {
+    return () => {
+      if (typingDebounceRef.current) {
+        clearTimeout(typingDebounceRef.current);
+        typingDebounceRef.current = null;
+      }
+      clearTypingHeartbeat();
+      postTyping(false);
+    };
+  }, [matchId, postTyping, clearTypingHeartbeat]);
+
+  useEffect(() => {
+    if (!matchId || !isFocused) return undefined;
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const token = await AsyncStorage.getItem('token');
+        if (!token || cancelled) return;
+        const res = await fetch(`${API_BASE_URL}/conversation/${matchId}/typing`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        if (!cancelled) setOthersTyping(Array.isArray(data.typing) ? data.typing : []);
+      } catch {
+        if (!cancelled) setOthersTyping([]);
+      }
+    };
+    poll();
+    const id = setInterval(poll, TYPING_POLL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [matchId, isFocused]);
 
   useEffect(() => {
     const data = lastNotificationEvent?.data;
@@ -356,6 +461,12 @@ const MatchConvo = () => {
       if (res.ok || res.status === 201) {
         const data = await res.json();
         setMessages(normalizeMessages(data.messages || []));
+        if (typingDebounceRef.current) {
+          clearTimeout(typingDebounceRef.current);
+          typingDebounceRef.current = null;
+        }
+        clearTypingHeartbeat();
+        postTyping(false);
         setNewMessageText('');
         setSelectedPuzzleLink('');
         InteractionManager.runAfterInteractions(() => {
@@ -484,6 +595,17 @@ const MatchConvo = () => {
   const isBlindFromMatchInfo = hasBlindValueFromMatchInfo && matchInfo?.blind_match === 'Blind';
   const effectiveIsBlind = hasBlindValueFromMatchInfo ? isBlindFromMatchInfo : !!isBlind;
   const accentColor = getRoleAccentColor(userInfo?.role || 'matchmaker');
+
+  const typingBannerText = useMemo(() => {
+    if (!othersTyping.length) return null;
+    const labels = othersTyping.map((t) => {
+      if (t.role === 'matchmaker' && userInfo?.role === 'user') return 'Matchmaker';
+      return (t.first_name && String(t.first_name).trim()) || 'Someone';
+    });
+    if (labels.length === 1) return `${labels[0]} is typing…`;
+    if (labels.length === 2) return `${labels[0]} and ${labels[1]} are typing…`;
+    return `${labels.slice(0, -1).join(', ')}, and ${labels[labels.length - 1]} are typing…`;
+  }, [othersTyping, userInfo?.role]);
 
   // Matchmakers see this when both are involved and one approval is still outstanding.
   const showSpeakingWithMatchmakerForMatchmaker =
@@ -969,6 +1091,10 @@ const MatchConvo = () => {
         )}
       </ScrollView>
 
+      {typingBannerText ? (
+        <Text style={styles.typingIndicator}>{typingBannerText}</Text>
+      ) : null}
+
       {selectedPuzzleLink ? (
         <View style={styles.selectedPuzzlePreview}>
           <Ionicons name="game-controller-outline" size={20} color={accentColor} />
@@ -983,7 +1109,7 @@ const MatchConvo = () => {
         <TextInput
           style={styles.messageInput}
           value={newMessageText}
-          onChangeText={setNewMessageText}
+          onChangeText={handleComposerChange}
           placeholder="Type a message..."
           placeholderTextColor="#999"
           multiline
@@ -996,7 +1122,7 @@ const MatchConvo = () => {
         <TextInput
           style={styles.messageInput}
           value={newMessageText}
-          onChangeText={setNewMessageText}
+          onChangeText={handleComposerChange}
           placeholder="Type a message..."
           placeholderTextColor="#999"
           multiline
@@ -1189,6 +1315,14 @@ const styles = StyleSheet.create({
   },
   messagesContent: { padding: 16, gap: 12 },
   emptyText: { textAlign: 'center', color: '#6b7280', fontSize: 16, marginTop: 40 },
+  typingIndicator: {
+    paddingHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 8,
+    fontSize: 14,
+    fontStyle: 'italic',
+    color: '#6b7280',
+  },
   messageBubble: { maxWidth: '75%', padding: 12, borderRadius: 16, marginBottom: 8 },
   mine: { alignSelf: 'flex-end', backgroundColor: '#6c5ce7' },
   theirs: { alignSelf: 'flex-start', backgroundColor: '#fff' },
