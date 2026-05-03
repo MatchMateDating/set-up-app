@@ -25,9 +25,7 @@ import { getRoleAccentColor, getRoleBackgroundTint } from '../layout/components/
 import { UserContext } from '../../context/UserContext';
 import { useNotifications } from '../../context/NotificationContext';
 
-const MATCH_CARD_COLUMNS = 3;
 const CONTENT_HORIZONTAL_PADDING = 16;
-const MATCH_CARD_COLUMN_GAP = 10;
 
 /** True when the counterparty's side had a matchmaker, for list filtering (prefers API field). */
 function isOtherPersonMatchmakerInvolved(match) {
@@ -48,9 +46,7 @@ const Conversations = () => {
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
   const listInnerWidth = windowWidth - CONTENT_HORIZONTAL_PADDING * 2;
-  const matchCardWidth = Math.floor(
-    (listInnerWidth - MATCH_CARD_COLUMN_GAP * (MATCH_CARD_COLUMNS - 1)) / MATCH_CARD_COLUMNS
-  );
+  const matchCardWidth = listInnerWidth;
 
   const { user: contextUser } = useContext(UserContext);
   const [showDaterMatches, setShowDaterMatches] = useState(true);
@@ -58,7 +54,13 @@ const Conversations = () => {
   const [roleHint, setRoleHint] = useState(null);
   const { userInfo, setUserInfo, referrerInfo, setReferrerInfo, loading: userLoading } = useUserInfo(API_BASE_URL);
   const { matches, setMatches, loading: matchesLoading, fetchMatches } = useMatches(API_BASE_URL);
-  const { lastNotificationEvent, notificationsEnabled, expoPushToken } = useNotifications();
+  const {
+    lastNotificationEvent,
+    notificationsEnabled,
+    expoPushToken,
+    notificationPreferences,
+    isMatchMessageMuted,
+  } = useNotifications();
   const matchedList = Array.isArray(matches) ? matches : (matches?.matched || []);
   const pendingApprovalList = Array.isArray(matches) ? [] : (matches?.pending_approval || []);
   const navigation = useNavigation();
@@ -67,12 +69,27 @@ const Conversations = () => {
   const [conversationFilters, setConversationFilters] = useState({
     requireOtherMatchmaker: false,
     blindOnly: false,
+    notificationsOnOnly: false,
   });
   const [conversationFilterDraft, setConversationFilterDraft] = useState({
     requireOtherMatchmaker: false,
     blindOnly: false,
+    notificationsOnOnly: false,
   });
   const selectedDaterId = userInfo?.referrer_id || userInfo?.referred_by_id || null;
+
+  const showNotificationsOnFilterOption =
+    notificationsEnabled && notificationPreferences.newMessageNotification;
+
+  useEffect(() => {
+    if (notificationPreferences.newMessageNotification) return;
+    setConversationFilters((f) =>
+      f.notificationsOnOnly ? { ...f, notificationsOnOnly: false } : f
+    );
+    setConversationFilterDraft((d) =>
+      d.notificationsOnOnly ? { ...d, notificationsOnOnly: false } : d
+    );
+  }, [notificationPreferences.newMessageNotification]);
 
   useEffect(() => {
     const loadRoleHint = async () => {
@@ -257,6 +274,12 @@ const Conversations = () => {
         return false;
       }
       if (conversationFilters.blindOnly && match.blind_match !== 'Blind') {
+        return false;
+      }
+      if (
+        conversationFilters.notificationsOnOnly &&
+        isMatchMessageMuted(match.match_id)
+      ) {
         return false;
       }
       return true;
@@ -467,7 +490,11 @@ const Conversations = () => {
   const filteredMatches = getFilteredMatches();
   const activeConversationFilterCount =
     (conversationFilters.requireOtherMatchmaker ? 1 : 0) +
-    (conversationFilters.blindOnly ? 1 : 0);
+    (conversationFilters.blindOnly ? 1 : 0) +
+    (conversationFilters.notificationsOnOnly &&
+    showNotificationsOnFilterOption
+      ? 1
+      : 0);
   const accentColor = getRoleAccentColor(userInfo?.role || 'matchmaker');
   const backgroundTint = getRoleBackgroundTint(userInfo?.role || 'matchmaker');
   const overlayTopPadding = userInfo?.role === 'matchmaker' ? 140 : 56;
@@ -681,6 +708,36 @@ const Conversations = () => {
                 </View>
                 <Text style={styles.filterCheckboxLabel}>Blind match only</Text>
               </TouchableOpacity>
+
+              {showNotificationsOnFilterOption ? (
+                <TouchableOpacity
+                  style={[styles.filterCheckboxRow, { marginTop: 16 }]}
+                  onPress={() =>
+                    setConversationFilterDraft((d) => ({
+                      ...d,
+                      notificationsOnOnly: !d.notificationsOnOnly,
+                    }))
+                  }
+                  activeOpacity={0.7}
+                >
+                  <View
+                    style={[
+                      styles.filterCheckbox,
+                      conversationFilterDraft.notificationsOnOnly && {
+                        backgroundColor: accentColor,
+                        borderColor: accentColor,
+                      },
+                    ]}
+                  >
+                    {conversationFilterDraft.notificationsOnOnly ? (
+                      <Ionicons name="checkmark" size={16} color="#ffffff" />
+                    ) : null}
+                  </View>
+                  <Text style={styles.filterCheckboxLabel}>
+                    Only conversations with message notifications on
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
             </ScrollView>
             <View
               style={[
@@ -859,9 +916,7 @@ const styles = StyleSheet.create({
     color: '#6b7280',
   },
   matchList: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    columnGap: MATCH_CARD_COLUMN_GAP,
+    flexDirection: 'column',
     rowGap: 16,
     width: '100%',
   },

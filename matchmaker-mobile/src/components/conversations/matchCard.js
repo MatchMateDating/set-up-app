@@ -1,9 +1,11 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { API_BASE_URL } from '../../env';
 import { useNavigation } from '@react-navigation/native';
 import { getImageUrl } from '../profile/utils/profileUtils';
 import { getRoleAccentColor, getRoleContainerColor } from '../layout/components/RoleHeaderBanner';
+import { useNotifications } from '../../context/NotificationContext';
 
 /** Dark rose for pill copy; pairs with getRoleAccentColor('user') / #ffe6ee surfaces. */
 const DATER_CONVERSATIONS_PILL_TEXT = '#be123c';
@@ -17,12 +19,18 @@ const MatchCard = ({
   daterConversationsTheme = false,
 }) => {
   const navigation = useNavigation();
+  const {
+    notificationsEnabled,
+    notificationPreferences,
+    toggleMatchMessageMuted,
+    isMatchMessageMuted,
+  } = useNotifications();
   const resolvedCardWidth = cardWidth ?? 150;
-  const imageSize = Math.min(85, Math.max(48, Math.floor(resolvedCardWidth - 28)));
+  const imageSize = Math.min(72, Math.max(48, Math.floor(resolvedCardWidth - 28)));
   const imageRadius = imageSize / 2;
-  const vennW = Math.min(110, Math.floor(resolvedCardWidth - 8));
-  const vennH = Math.max(56, Math.floor(vennW * (85 / 110)));
-  const vennCircle = Math.min(70, Math.floor(imageSize * 0.82));
+  const vennW = Math.min(104, Math.max(72, Math.floor(imageSize * 1.35)));
+  const vennH = Math.max(50, Math.floor(vennW * (85 / 110)));
+  const vennCircle = Math.min(58, Math.floor(imageSize * 0.88));
   const vennCircleRadius = vennCircle / 2;
   const isDater = userInfo?.role === 'user';
   const useDaterConversationsPalette = daterConversationsTheme && isDater;
@@ -118,6 +126,20 @@ const MatchCard = ({
   const avatarBorderColor = useDaterConversationsPalette ? 'rgba(239, 77, 115, 0.35)' : '#eee';
   const placeholderBg = useDaterConversationsPalette ? 'rgba(239, 77, 115, 0.08)' : '#f2f2f2';
 
+  const isApprovedMatchRow = matchObj.status === 'matched';
+  const showPerMatchMessageBell =
+    notificationsEnabled &&
+    notificationPreferences.newMessageNotification &&
+    (userInfo?.role !== 'matchmaker' ||
+      !isApprovedMatchRow ||
+      notificationPreferences.approvedMatchMessageNotification);
+  const messageMutedForMatch = isMatchMessageMuted(matchObj.match_id);
+  const bellIconColor = messageMutedForMatch
+    ? '#94a3b8'
+    : useDaterConversationsPalette
+      ? DATER_CONVERSATIONS_PILL_TEXT
+      : '#64748b';
+
   return (
     <TouchableOpacity
       style={[
@@ -136,81 +158,83 @@ const MatchCard = ({
         </View>
       )}
       <View style={styles.profileSection}>
-        {userInfo?.role === 'matchmaker' && matchObj.linked_dater
-          ? renderOverlappedImages()
-          : (
-            <>
-              {matchObj.match_user.first_image ? (
-                <View style={styles.imageContainer}>
-                  {isBlind ? (
-                    <Image
-                      source={{ uri: getImageUrl(matchObj.match_user.first_image, API_BASE_URL) }}
-                      style={[
-                        styles.matchImage,
-                        {
-                          width: imageSize,
-                          height: imageSize,
-                          borderRadius: imageRadius,
-                          borderColor: avatarBorderColor,
-                        },
-                      ]}
-                      resizeMode="cover"
-                      blurRadius={isBlind ? 40 : 0}
-                    />
-                  ):(
-                    <Image
-                      source={{ uri: getImageUrl(matchObj.match_user.first_image, API_BASE_URL) }}
-                      style={[
-                        styles.matchImage,
-                        {
-                          width: imageSize,
-                          height: imageSize,
-                          borderRadius: imageRadius,
-                          borderColor: avatarBorderColor,
-                        },
-                      ]}
-                      resizeMode="cover"
-                    />)}
-                </View>
-              ) : (
-                <View
-                  style={[
-                    styles.matchPlaceholder,
-                    {
-                      width: imageSize,
-                      height: imageSize,
-                      borderRadius: imageRadius,
-                      backgroundColor: placeholderBg,
-                      borderWidth: useDaterConversationsPalette ? StyleSheet.hairlineWidth : 0,
-                      borderColor: useDaterConversationsPalette ? avatarBorderColor : 'transparent',
-                    },
-                  ]}
-                >
-                  <Text style={styles.placeholderText}>No Image</Text>
-                </View>
-              )}
-            </>
-          )
-        }
+        <View style={styles.thumbnailColumn}>
+          {userInfo?.role === 'matchmaker' && matchObj.linked_dater
+            ? renderOverlappedImages()
+            : (
+              <>
+                {matchObj.match_user.first_image ? (
+                  <View style={styles.imageContainer}>
+                    {isBlind ? (
+                      <Image
+                        source={{ uri: getImageUrl(matchObj.match_user.first_image, API_BASE_URL) }}
+                        style={[
+                          styles.matchImage,
+                          {
+                            width: imageSize,
+                            height: imageSize,
+                            borderRadius: imageRadius,
+                            borderColor: avatarBorderColor,
+                          },
+                        ]}
+                        resizeMode="cover"
+                        blurRadius={isBlind ? 40 : 0}
+                      />
+                    ) : (
+                      <Image
+                        source={{ uri: getImageUrl(matchObj.match_user.first_image, API_BASE_URL) }}
+                        style={[
+                          styles.matchImage,
+                          {
+                            width: imageSize,
+                            height: imageSize,
+                            borderRadius: imageRadius,
+                            borderColor: avatarBorderColor,
+                          },
+                        ]}
+                        resizeMode="cover"
+                      />
+                    )}
+                  </View>
+                ) : (
+                  <View
+                    style={[
+                      styles.matchPlaceholder,
+                      {
+                        width: imageSize,
+                        height: imageSize,
+                        borderRadius: imageRadius,
+                        backgroundColor: placeholderBg,
+                        borderWidth: useDaterConversationsPalette ? StyleSheet.hairlineWidth : 0,
+                        borderColor: useDaterConversationsPalette ? avatarBorderColor : 'transparent',
+                      },
+                    ]}
+                  >
+                    <Text style={styles.placeholderText}>No Image</Text>
+                  </View>
+                )}
+              </>
+            )}
+        </View>
 
-        {/* Pending-approval banner */}
-        {isPendingApproval && (
-          <View style={[styles.pendingBanner, { backgroundColor: roleBadgeBackground }]}>
-            <Text
-              style={[styles.pendingBannerText, { color: roleBadgeText }]}
-              numberOfLines={1}
-              adjustsFontSizeToFit
-              minimumFontScale={0.8}
-            >
-              {getPendingBannerText()}
-            </Text>
-          </View>
-        )}
-
-        <View style={styles.matchInfo}>
+        <View style={styles.textColumn}>
           <View style={styles.nameRow}>
             <Text style={styles.matchName}>{matchObj.match_user.first_name}</Text>
           </View>
+
+          {isPendingApproval && (
+            <View style={[styles.pendingBanner, { backgroundColor: roleBadgeBackground }]}>
+              <Text
+                style={[styles.pendingBannerText, { color: roleBadgeText }]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.8}
+              >
+                {getPendingBannerText()}
+              </Text>
+            </View>
+          )}
+
           {(isBlind || userInfo?.role === 'user' || showBothMmsPill) && (
             <View style={styles.pillsRow}>
               {isBlind && (
@@ -234,6 +258,28 @@ const MatchCard = ({
           )}
         </View>
 
+        {showPerMatchMessageBell ? (
+          <TouchableOpacity
+            style={[
+              styles.messageBellButton,
+              hasUnreadMessages && styles.messageBellButtonWithUnreadBadge,
+            ]}
+            onPress={() => toggleMatchMessageMuted(matchObj.match_id)}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            accessibilityRole="button"
+            accessibilityLabel={
+              messageMutedForMatch
+                ? 'Turn on message notifications for this match'
+                : 'Mute message notifications for this match'
+            }
+          >
+            <MaterialCommunityIcons
+              name={messageMutedForMatch ? 'bell-off-outline' : 'bell-outline'}
+              size={22}
+              color={bellIconColor}
+            />
+          </TouchableOpacity>
+        ) : null}
       </View>
     </TouchableOpacity>
   );
@@ -242,7 +288,7 @@ const MatchCard = ({
 const styles = StyleSheet.create({
   matchCard: {
     flexDirection: 'column',
-    alignItems: 'center',
+    alignItems: 'stretch',
     backgroundColor: '#fff',
     borderRadius: 16,
     padding: 12,
@@ -275,7 +321,6 @@ const styles = StyleSheet.create({
   },
   vennContainer: {
     position: 'relative',
-    marginBottom: 6,
   },
   vennImage: {
     borderWidth: 2,
@@ -292,10 +337,31 @@ const styles = StyleSheet.create({
     opacity: 0.95,
   },
   profileSection: {
-    flexDirection: 'column',
+    flexDirection: 'row',
     alignItems: 'center',
     position: 'relative',
     width: '100%',
+  },
+  thumbnailColumn: {
+    marginRight: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  textColumn: {
+    flex: 1,
+    minWidth: 0,
+    justifyContent: 'center',
+  },
+  messageBellButton: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 40,
+    minHeight: 44,
+    flexShrink: 0,
+    marginLeft: 4,
+  },
+  messageBellButtonWithUnreadBadge: {
+    marginRight: 24,
   },
   imageContainer: {
     position: 'relative',
@@ -313,10 +379,6 @@ const styles = StyleSheet.create({
     color: '#999',
     fontSize: 13,
   },
-  matchInfo: {
-    marginTop: 8,
-    alignItems: 'center',
-  },
   nameRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -326,15 +388,14 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 15,
     color: '#333',
-    marginBottom: 4,
-    textAlign: 'center',
+    textAlign: 'left',
   },
   pillsRow: {
-    marginTop: 2,
+    marginTop: 6,
     flexDirection: 'row',
     gap: 6,
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     flexWrap: 'wrap',
   },
   blindMatchPill: {
@@ -383,15 +444,15 @@ const styles = StyleSheet.create({
   },
   pendingBanner: {
     backgroundColor: '#efe5d3',
-    width: '100%',
+    alignSelf: 'stretch',
     paddingVertical: 6,
-    paddingHorizontal: 6,
-    borderRadius: 0,
-    marginTop: 8,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    marginTop: 6,
     flexDirection: 'row',
     gap: 4,
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
   },
   pendingBannerText: {
     fontSize: 11,

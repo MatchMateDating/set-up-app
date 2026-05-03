@@ -183,6 +183,8 @@ const buildNotificationPreferenceState = (userData) => {
   };
 };
 
+const mutedMatchesStorageKey = (userId) => `match_message_mutes_v1_${userId}`;
+
 const buildNotificationPreferencePayload = (enabled, preferences) => {
   if (!enabled) {
     return {
@@ -224,6 +226,8 @@ export const NotificationProvider = ({ children }) => {
   const [expoPushToken, setExpoPushToken] = useState(null);
   const [loading, setLoading] = useState(true);
   const [lastNotificationEvent, setLastNotificationEvent] = useState(null);
+  /** Match ids (strings) for which the user chose to suppress message notifications (client-side). */
+  const [mutedMessageMatchIds, setMutedMessageMatchIds] = useState([]);
 
   // Bubble up push notifications to screens so they can refresh on-demand (no polling).
   useEffect(() => {
@@ -258,6 +262,7 @@ export const NotificationProvider = ({ children }) => {
       hasLoadedPreferenceRef.current = false;
       setNotificationsEnabled(false);
       setNotificationPreferences({ ...DEFAULT_NOTIFICATION_PREFERENCES });
+      setMutedMessageMatchIds([]);
       lastSavedPayloadRef.current = null;
       currentUserIdRef.current = null;
       registeredTokensRef.current.clear();
@@ -385,6 +390,33 @@ export const NotificationProvider = ({ children }) => {
 
       fetchNotificationPreference();
     }
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!user?.id) {
+      setMutedMessageMatchIds([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(mutedMatchesStorageKey(user.id));
+        if (cancelled) return;
+        if (!raw) {
+          setMutedMessageMatchIds([]);
+          return;
+        }
+        const parsed = JSON.parse(raw);
+        setMutedMessageMatchIds(
+          Array.isArray(parsed) ? parsed.map((x) => String(x)) : []
+        );
+      } catch {
+        if (!cancelled) setMutedMessageMatchIds([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [user?.id]);
 
   /* -------------------------------------------
@@ -759,6 +791,27 @@ export const NotificationProvider = ({ children }) => {
     }));
   }, []);
 
+  const toggleMatchMessageMuted = useCallback((matchId) => {
+    const uid = userIdRef.current;
+    if (!uid || matchId == null || matchId === '') return;
+    const id = String(matchId);
+    setMutedMessageMatchIds((prev) => {
+      const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
+      AsyncStorage.setItem(mutedMatchesStorageKey(uid), JSON.stringify(next)).catch((err) => {
+        console.warn('Failed to persist per-match message mute', err);
+      });
+      return next;
+    });
+  }, []);
+
+  const isMatchMessageMuted = useCallback(
+    (matchId) => {
+      if (matchId == null || matchId === '') return false;
+      return mutedMessageMatchIds.includes(String(matchId));
+    },
+    [mutedMessageMatchIds]
+  );
+
   const notificationTypeEnabled = useCallback(
     (type, data = null) => {
       if (type === 'unmatch') {
@@ -773,6 +826,9 @@ export const NotificationProvider = ({ children }) => {
           return notificationPreferences.newBlindMatchNotification;
         case 'message': {
           if (!notificationPreferences.newMessageNotification) return false;
+          const mid =
+            data?.matchId != null && data?.matchId !== '' ? String(data.matchId) : null;
+          if (mid && mutedMessageMatchIds.includes(mid)) return false;
           if (
             user?.role === 'matchmaker' &&
             data &&
@@ -788,7 +844,7 @@ export const NotificationProvider = ({ children }) => {
           return true;
       }
     },
-    [notificationPreferences, notificationsEnabled, user?.role]
+    [notificationPreferences, notificationsEnabled, user?.role, mutedMessageMatchIds]
   );
 
   // Keep the global handler in sync with current preference toggles.
@@ -819,6 +875,8 @@ export const NotificationProvider = ({ children }) => {
         expoPushToken,
         loading,
         lastNotificationEvent,
+        toggleMatchMessageMuted,
+        isMatchMessageMuted,
       }}
     >
       {children}
