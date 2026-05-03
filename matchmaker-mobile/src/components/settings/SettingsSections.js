@@ -82,6 +82,13 @@ const NOTIFICATION_PREFERENCE_ITEMS = [
     label: 'New Message Notification',
   },
   {
+    key: 'approvedMatchMessageNotification',
+    label: 'Messages in approved matches',
+    description:
+      'When off, you will still get message alerts while a match is waiting for approval.',
+    matchmakerOnly: true,
+  },
+  {
     key: 'newMatchApprovalNotification',
     label: 'Approved Match Notification',
   },
@@ -260,9 +267,11 @@ const SettingsSections = () => {
 
   const visibleNotificationPreferenceItems = useMemo(
     () =>
-      NOTIFICATION_PREFERENCE_ITEMS.filter(
-        (item) => !(item.daterOnly && role === 'matchmaker')
-      ),
+      NOTIFICATION_PREFERENCE_ITEMS.filter((item) => {
+        if (item.daterOnly && role === 'matchmaker') return false;
+        if (item.matchmakerOnly && role === 'user') return false;
+        return true;
+      }),
     [role]
   );
 
@@ -2053,8 +2062,19 @@ const SettingsSections = () => {
       {notificationsEnabled ? (
         <View style={styles.notificationPreferencesGroup}>
           {visibleNotificationPreferenceItems.map((item) => (
-            <View key={item.key} style={styles.notificationPreferenceRow}>
-              <Text style={styles.notificationLabel}>{item.label}</Text>
+            <View
+              key={item.key}
+              style={[
+                styles.notificationPreferenceRow,
+                item.description ? styles.notificationPreferenceRowAlignTop : null,
+              ]}
+            >
+              <View style={styles.notificationLabelBlock}>
+                <Text style={styles.notificationLabel}>{item.label}</Text>
+                {item.description ? (
+                  <Text style={styles.notificationItemHint}>{item.description}</Text>
+                ) : null}
+              </View>
               <Switch
                 value={Boolean(notificationPreferences?.[item.key])}
                 onValueChange={(value) => setNotificationPreference(item.key, value)}
@@ -2947,6 +2967,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    gap: 12,
+  },
+  notificationPreferenceRowAlignTop: {
+    alignItems: 'flex-start',
+  },
+  notificationLabelBlock: {
+    flex: 1,
+    minWidth: 0,
+    paddingRight: 4,
+  },
+  notificationItemHint: {
+    marginTop: 4,
+    color: '#6B7280',
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '400',
   },
   permissionWarning: {
     marginTop: 10,

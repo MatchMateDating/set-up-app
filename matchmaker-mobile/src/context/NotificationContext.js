@@ -97,7 +97,9 @@ const setupNotificationHandler = () => {
         }
 
         const typeAllowed =
-          notificationTypeEnabledFn != null ? Boolean(notificationTypeEnabledFn(type)) : true;
+          notificationTypeEnabledFn != null
+            ? Boolean(notificationTypeEnabledFn(type, data))
+            : true;
 
         if (suppressForeground || !typeAllowed) {
           return {
@@ -142,6 +144,7 @@ const DEFAULT_NOTIFICATION_PREFERENCES = {
   newMatchNotification: false,
   newBlindMatchNotification: false,
   newMessageNotification: false,
+  approvedMatchMessageNotification: false,
   newMatchApprovalNotification: false,
 };
 
@@ -149,6 +152,7 @@ const ENABLED_NOTIFICATION_PREFERENCES = {
   newMatchNotification: true,
   newBlindMatchNotification: true,
   newMessageNotification: true,
+  approvedMatchMessageNotification: true,
   newMatchApprovalNotification: true,
 };
 
@@ -173,6 +177,7 @@ const buildNotificationPreferenceState = (userData) => {
       newMatchNotification: readPreference('new_match_notifications'),
       newBlindMatchNotification: readPreference('new_blind_match_notifications'),
       newMessageNotification: readPreference('new_message_notifications'),
+      approvedMatchMessageNotification: readPreference('approved_match_message_notifications'),
       newMatchApprovalNotification: readPreference('new_match_approval_notifications'),
     },
   };
@@ -185,6 +190,7 @@ const buildNotificationPreferencePayload = (enabled, preferences) => {
       new_match_notifications: false,
       new_blind_match_notifications: false,
       new_message_notifications: false,
+      approved_match_message_notifications: false,
       new_match_approval_notifications: false,
     };
   }
@@ -194,6 +200,9 @@ const buildNotificationPreferencePayload = (enabled, preferences) => {
     new_match_notifications: Boolean(preferences?.newMatchNotification),
     new_blind_match_notifications: Boolean(preferences?.newBlindMatchNotification),
     new_message_notifications: Boolean(preferences?.newMessageNotification),
+    approved_match_message_notifications: Boolean(
+      preferences?.approvedMatchMessageNotification
+    ),
     new_match_approval_notifications: Boolean(preferences?.newMatchApprovalNotification),
   };
 };
@@ -750,25 +759,37 @@ export const NotificationProvider = ({ children }) => {
     }));
   }, []);
 
-  const notificationTypeEnabled = useCallback((type) => {
-    if (type === 'unmatch') {
-      return true;
-    }
-    if (!notificationsEnabled) return false;
-
-    switch (type) {
-      case 'match':
-        return notificationPreferences.newMatchNotification;
-      case 'blind_match':
-        return notificationPreferences.newBlindMatchNotification;
-      case 'message':
-        return notificationPreferences.newMessageNotification;
-      case 'match_approval':
-        return notificationPreferences.newMatchApprovalNotification;
-      default:
+  const notificationTypeEnabled = useCallback(
+    (type, data = null) => {
+      if (type === 'unmatch') {
         return true;
-    }
-  }, [notificationPreferences, notificationsEnabled]);
+      }
+      if (!notificationsEnabled) return false;
+
+      switch (type) {
+        case 'match':
+          return notificationPreferences.newMatchNotification;
+        case 'blind_match':
+          return notificationPreferences.newBlindMatchNotification;
+        case 'message': {
+          if (!notificationPreferences.newMessageNotification) return false;
+          if (
+            user?.role === 'matchmaker' &&
+            data &&
+            String(data.matchStatus) === 'matched'
+          ) {
+            return Boolean(notificationPreferences.approvedMatchMessageNotification);
+          }
+          return true;
+        }
+        case 'match_approval':
+          return notificationPreferences.newMatchApprovalNotification;
+        default:
+          return true;
+      }
+    },
+    [notificationPreferences, notificationsEnabled, user?.role]
+  );
 
   // Keep the global handler in sync with current preference toggles.
   useEffect(() => {
@@ -777,7 +798,7 @@ export const NotificationProvider = ({ children }) => {
   }, [notificationTypeEnabled]);
 
   const sendNotification = async (title, body, data = {}) => {
-    if (!notificationTypeEnabled(data?.type)) return;
+    if (!notificationTypeEnabled(data?.type, data)) return;
 
     await Notifications.scheduleNotificationAsync({
       content: { title, body, data, sound: true },

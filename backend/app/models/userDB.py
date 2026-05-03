@@ -40,6 +40,8 @@ class User(db.Model):
     new_note_notifications = db.Column(db.Boolean, nullable=True, default=None)
     new_blind_match_notifications = db.Column(db.Boolean, nullable=True, default=None)
     new_message_notifications = db.Column(db.Boolean, nullable=True, default=None)
+    # Matchmaker: push for chat after the match is fully approved (status matched). Pending-approval alerts unchanged.
+    approved_match_message_notifications = db.Column(db.Boolean, nullable=True, default=None)
     new_match_approval_notifications = db.Column(db.Boolean, nullable=True, default=None)
     email_verified = db.Column(db.Boolean, nullable=False, default=False)
     email_verification_token = db.Column(db.String(100), nullable=True, unique=True)
@@ -131,6 +133,9 @@ class User(db.Model):
             "new_match_notifications": self.notification_setting_enabled("new_match_notifications"),
             "new_blind_match_notifications": self.notification_setting_enabled("new_blind_match_notifications"),
             "new_message_notifications": self.notification_setting_enabled("new_message_notifications"),
+            "approved_match_message_notifications": self.notification_setting_enabled(
+                "approved_match_message_notifications"
+            ),
             "new_match_approval_notifications": self.notification_setting_enabled(
                 "new_match_approval_notifications"
             ),
@@ -185,6 +190,9 @@ class User(db.Model):
             "new_match_notifications": notification_preferences["new_match_notifications"],
             "new_blind_match_notifications": notification_preferences["new_blind_match_notifications"],
             "new_message_notifications": notification_preferences["new_message_notifications"],
+            "approved_match_message_notifications": notification_preferences[
+                "approved_match_message_notifications"
+            ],
             "new_match_approval_notifications": notification_preferences[
                 "new_match_approval_notifications"
             ],

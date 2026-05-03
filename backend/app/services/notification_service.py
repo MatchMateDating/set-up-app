@@ -96,6 +96,13 @@ def _match_two_matchmakers(match):
     )
 
 
+def _matchmaker_approved_match_message_pushes_enabled(mm_user):
+    """Matchmaker-only: off = no push for new messages in fully approved (matched) chats; pending approval unchanged."""
+    if not mm_user:
+        return False
+    return mm_user.notification_setting_enabled("approved_match_message_notifications")
+
+
 def _matchmaker_ids_linked_to_dater(dater_id):
     """Matchmaker user ids for this dater: ReferredUsers roster + MM accounts with referred_by_id = dater."""
     if not dater_id:
@@ -551,6 +558,8 @@ def send_message_notification(
         "type": "message",
         "matchId": str(match_id),
     }
+    if match:
+        base_data["matchStatus"] = match.status
 
     any_ok = False
     notified_mm_ids = set()
@@ -591,6 +600,10 @@ def send_message_notification(
             continue
         mm = User.query.get(mm_id)
         if not mm or not _user_notification_allowed(mm):
+            continue
+        if match and match.status == "matched" and not _matchmaker_approved_match_message_pushes_enabled(
+            mm
+        ):
             continue
 
         if match and match.status == "pending_approval":
@@ -653,6 +666,8 @@ def send_message_notification(
                 continue
             mm = User.query.get(mm_id)
             if not mm or not _user_notification_allowed(mm):
+                continue
+            if not _matchmaker_approved_match_message_pushes_enabled(mm):
                 continue
             data_mm = dict(base_data)
             data_mm["recipientRole"] = "matchmaker"
