@@ -72,8 +72,11 @@ function normalizeMessages(rawMessages) {
 const CONVERSATION_POLL_MS = 12000;
 /** Poll typing indicators — separate from message poll for snappy UX. */
 const TYPING_POLL_MS = 2500;
-const TYPING_HEARTBEAT_MS = 2500;
 const TYPING_DEBOUNCE_MS = 350;
+/** After this long with no new keystrokes, we report not typing (draft alone does not count). */
+const TYPING_IDLE_CLEAR_MS = 3000;
+/** If the user is within this many px of the bottom, content-size changes snap them to the new bottom. */
+const TYPING_SCROLL_BOTTOM_THRESHOLD_PX = 40;
 
 const MatchConvo = () => {
   const route = useRoute();
@@ -107,12 +110,22 @@ const MatchConvo = () => {
   isFocusedRef.current = isFocused;
   const [othersTyping, setOthersTyping] = useState([]);
   const typingDebounceRef = useRef(null);
-  const typingHeartbeatRef = useRef(null);
+  const typingIdleClearRef = useRef(null);
+  const scrollMetricsRef = useRef({ scrollY: 0, contentH: 0, layoutH: 0 });
 
-  const clearTypingHeartbeat = useCallback(() => {
-    if (typingHeartbeatRef.current) {
-      clearInterval(typingHeartbeatRef.current);
-      typingHeartbeatRef.current = null;
+  const handleScrollViewScroll = useCallback((event) => {
+    const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+    scrollMetricsRef.current = {
+      scrollY: contentOffset.y,
+      contentH: contentSize.height,
+      layoutH: layoutMeasurement.height,
+    };
+  }, []);
+
+  const clearTypingIdleClearTimer = useCallback(() => {
+    if (typingIdleClearRef.current) {
+      clearTimeout(typingIdleClearRef.current);
+      typingIdleClearRef.current = null;
     }
   }, []);
 
@@ -140,22 +153,24 @@ const MatchConvo = () => {
         clearTimeout(typingDebounceRef.current);
         typingDebounceRef.current = null;
       }
+      clearTypingIdleClearTimer();
+
       if (!text.trim()) {
         postTyping(false);
-        clearTypingHeartbeat();
         return;
       }
+
+      typingIdleClearRef.current = setTimeout(() => {
+        typingIdleClearRef.current = null;
+        postTyping(false);
+      }, TYPING_IDLE_CLEAR_MS);
+
       typingDebounceRef.current = setTimeout(() => {
         typingDebounceRef.current = null;
         postTyping(true);
-        if (!typingHeartbeatRef.current) {
-          typingHeartbeatRef.current = setInterval(() => {
-            postTyping(true);
-          }, TYPING_HEARTBEAT_MS);
-        }
       }, TYPING_DEBOUNCE_MS);
     },
-    [postTyping, clearTypingHeartbeat]
+    [postTyping, clearTypingIdleClearTimer]
   );
 
   const markConversationAsRead = useCallback(async () => {
@@ -267,10 +282,10 @@ const MatchConvo = () => {
           clearTimeout(typingDebounceRef.current);
           typingDebounceRef.current = null;
         }
-        clearTypingHeartbeat();
+        clearTypingIdleClearTimer();
         postTyping(false);
       };
-    }, [postTyping, clearTypingHeartbeat])
+    }, [postTyping, clearTypingIdleClearTimer])
   );
 
   useEffect(() => {
@@ -279,10 +294,10 @@ const MatchConvo = () => {
         clearTimeout(typingDebounceRef.current);
         typingDebounceRef.current = null;
       }
-      clearTypingHeartbeat();
+      clearTypingIdleClearTimer();
       postTyping(false);
     };
-  }, [matchId, postTyping, clearTypingHeartbeat]);
+  }, [matchId, postTyping, clearTypingIdleClearTimer]);
 
   useEffect(() => {
     if (!matchId || !isFocused) return undefined;
@@ -465,7 +480,7 @@ const MatchConvo = () => {
           clearTimeout(typingDebounceRef.current);
           typingDebounceRef.current = null;
         }
-        clearTypingHeartbeat();
+        clearTypingIdleClearTimer();
         postTyping(false);
         setNewMessageText('');
         setSelectedPuzzleLink('');
@@ -1059,7 +1074,36 @@ const MatchConvo = () => {
           ...styles.messagesContent,
           paddingBottom: selectedPuzzleLink ? 1 : 0, // extra space if a puzzle is selected
         }}
-        onContentSizeChange={() => scrollToBottom(false)}
+        onScroll={handleScrollViewScroll}
+        scrollEventThrottle={100}
+        onLayout={(e) => {
+          scrollMetricsRef.current = {
+            ...scrollMetricsRef.current,
+            layoutH: e.nativeEvent.layout.height,
+          };
+        }}
+        onContentSizeChange={(contentWidth, contentHeight) => {
+          const m = scrollMetricsRef.current;
+          const layoutH = m.layoutH;
+          const prevContentH = m.contentH;
+          const prevScrollY = m.scrollY;
+
+          scrollMetricsRef.current = { ...m, contentH: contentHeight };
+
+          if (layoutH <= 0 || contentHeight <= 0) return;
+
+          const maxScrollOld = Math.max(0, prevContentH - layoutH);
+          const maxScrollNew = Math.max(0, contentHeight - layoutH);
+          const distFromBottom =
+            maxScrollOld <= 0 ? 0 : maxScrollOld - prevScrollY;
+          const wasNearBottom =
+            maxScrollOld <= 0 || distFromBottom <= TYPING_SCROLL_BOTTOM_THRESHOLD_PX;
+
+          if (wasNearBottom && scrollViewRef.current) {
+            scrollViewRef.current.scrollTo({ y: maxScrollNew, animated: false });
+            scrollMetricsRef.current.scrollY = maxScrollNew;
+          }
+        }}
       >
         {messages.length === 0 ? (
           <Text style={styles.emptyText}>No messages yet. Say hi!</Text>
@@ -1089,11 +1133,10 @@ const MatchConvo = () => {
             );
           })
         )}
+        {typingBannerText ? (
+          <Text style={styles.typingIndicatorInScroll}>{typingBannerText}</Text>
+        ) : null}
       </ScrollView>
-
-      {typingBannerText ? (
-        <Text style={styles.typingIndicator}>{typingBannerText}</Text>
-      ) : null}
 
       {selectedPuzzleLink ? (
         <View style={styles.selectedPuzzlePreview}>
@@ -1315,8 +1358,7 @@ const styles = StyleSheet.create({
   },
   messagesContent: { padding: 16, gap: 12 },
   emptyText: { textAlign: 'center', color: '#6b7280', fontSize: 16, marginTop: 40 },
-  typingIndicator: {
-    paddingHorizontal: 16,
+  typingIndicatorInScroll: {
     marginTop: 12,
     marginBottom: 8,
     fontSize: 14,
