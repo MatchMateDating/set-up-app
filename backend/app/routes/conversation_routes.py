@@ -1,3 +1,4 @@
+import logging
 from flask import Blueprint, jsonify, request
 from app.models.messageDB import Message
 from app.models.conversationDB import Conversation
@@ -7,10 +8,26 @@ from app.models.userDB import User
 from app import db
 from datetime import datetime, timezone
 from app.routes.shared import token_required
-from app.services.notification_service import send_message_notification
+from app.services.notification_service import (
+    send_message_notification,
+    send_dater_removed_matchmaker_sync,
+)
+
+logger = logging.getLogger(__name__)
 from app.services.conversation_typing import set_typing, active_typer_ids
 
 conversation_bp = Blueprint('conversation', __name__)
+
+
+def _matchmaker_thread_access(match, matchmaker_user_id):
+    """True if this matchmaker user may participate in a pending_approval thread (not removed by their dater)."""
+    if not match or not matchmaker_user_id:
+        return False
+    if match.matched_by_user_id_1_matcher == matchmaker_user_id:
+        return not bool(match.dater_removed_matcher_1)
+    if match.matched_by_user_id_2_matcher == matchmaker_user_id:
+        return not bool(match.dater_removed_matcher_2)
+    return False
 
 
 def _deny_conversation_view(current_user, match):
@@ -25,7 +42,8 @@ def _deny_conversation_view(current_user, match):
         matchmaker_involved = (
             current_user.role == 'matchmaker' and
             (match.matched_by_user_id_1_matcher == current_user.id or
-             match.matched_by_user_id_2_matcher == current_user.id)
+             match.matched_by_user_id_2_matcher == current_user.id) and
+            _matchmaker_thread_access(match, current_user.id)
         )
         if check_user_id not in liked_ids and not matchmaker_involved:
             return jsonify({'error': 'You do not have permission to view this conversation'}), 403
@@ -51,7 +69,8 @@ def _deny_conversation_send(current_user, match):
         matchmaker_involved = (
             current_user.role == 'matchmaker' and
             (match.matched_by_user_id_1_matcher == current_user.id or
-             match.matched_by_user_id_2_matcher == current_user.id)
+             match.matched_by_user_id_2_matcher == current_user.id) and
+            _matchmaker_thread_access(match, current_user.id)
         )
         side_approved = (
             (check_user_id == match.user_id_1 and bool(match.approved_by_matcher_1)) or
@@ -269,7 +288,8 @@ def mark_conversation_read(current_user, match_id):
         matchmaker_involved = (
             current_user.role == 'matchmaker' and
             (match.matched_by_user_id_1_matcher == current_user.id or
-             match.matched_by_user_id_2_matcher == current_user.id)
+             match.matched_by_user_id_2_matcher == current_user.id) and
+            _matchmaker_thread_access(match, current_user.id)
         )
         if check_user_id not in liked_ids and not matchmaker_involved:
             return jsonify({'error': 'You do not have permission to update this conversation'}), 403
@@ -307,6 +327,55 @@ def mark_conversation_read(current_user, match_id):
     return jsonify({'updated': 1}), 200
 
 
+@conversation_bp.route('/<int:match_id>/remove-my-matchmaker', methods=['POST'])
+@token_required
+def remove_my_matchmaker_from_conversation(current_user, match_id):
+    """Dater-only: revoke their own side's matchmaker from the mediated thread (pending approval or matched)."""
+    if current_user.role != 'user':
+        return jsonify({'message': 'Only daters can remove their matchmaker from the conversation.'}), 403
+
+    match = Match.query.get(match_id)
+    if not match:
+        return jsonify({'message': 'Match not found.'}), 404
+    if match.status not in ('pending_approval', 'matched'):
+        return jsonify({'message': 'This action is not available for this match.'}), 400
+
+    removed_mm_user_id = None
+    if current_user.id == match.user_id_1:
+        if not match.matched_by_user_id_1_matcher:
+            return jsonify({'message': 'There is no matchmaker on your side to remove.'}), 400
+        if match.status == 'pending_approval' and not match.approved_by_matcher_1:
+            return jsonify({'message': 'Your matchmaker has not approved yet; you cannot remove them yet.'}), 400
+        if match.dater_removed_matcher_1:
+            return jsonify({'message': 'Already removed.', 'dater_removed_matcher_1': True}), 200
+        removed_mm_user_id = match.matched_by_user_id_1_matcher
+        match.dater_removed_matcher_1 = True
+    elif current_user.id == match.user_id_2:
+        if not match.matched_by_user_id_2_matcher:
+            return jsonify({'message': 'There is no matchmaker on your side to remove.'}), 400
+        if match.status == 'pending_approval' and not match.approved_by_matcher_2:
+            return jsonify({'message': 'Your matchmaker has not approved yet; you cannot remove them yet.'}), 400
+        if match.dater_removed_matcher_2:
+            return jsonify({'message': 'Already removed.', 'dater_removed_matcher_2': True}), 200
+        removed_mm_user_id = match.matched_by_user_id_2_matcher
+        match.dater_removed_matcher_2 = True
+    else:
+        return jsonify({'message': 'You are not part of this match.'}), 403
+
+    db.session.commit()
+    if removed_mm_user_id:
+        try:
+            send_dater_removed_matchmaker_sync(match.id, removed_mm_user_id)
+        except Exception as e:
+            logger.warning('send_dater_removed_matchmaker_sync failed: %s', e)
+
+    return jsonify({
+        'message': 'Your matchmaker can no longer view or participate in this conversation.',
+        'dater_removed_matcher_1': bool(match.dater_removed_matcher_1),
+        'dater_removed_matcher_2': bool(match.dater_removed_matcher_2),
+    }), 200
+
+
 @conversation_bp.route('/<int:match_id>/typing', methods=['GET', 'POST'])
 @token_required
 def conversation_typing(current_user, match_id):
@@ -320,6 +389,13 @@ def conversation_typing(current_user, match_id):
         for uid in ids:
             u = User.query.get(uid)
             if u:
+                if (
+                    match
+                    and match.status == 'pending_approval'
+                    and (u.role or '') == 'matchmaker'
+                    and not _matchmaker_thread_access(match, u.id)
+                ):
+                    continue
                 typing_users.append({
                     'user_id': u.id,
                     'first_name': u.first_name or '',

@@ -27,6 +27,25 @@ import { useNotifications } from '../../context/NotificationContext';
 
 const CONTENT_HORIZONTAL_PADDING = 16;
 
+/** True if the viewing dater removed their own side's matchmaker (`dater_on_user_id_1_side` from GET /match/matches). */
+function currentDaterRemovedOwnMatchmaker(match, currentUserId) {
+  if (!match || !currentUserId) return false;
+  if (typeof match.dater_on_user_id_1_side !== 'boolean') return false;
+  return match.dater_on_user_id_1_side
+    ? !!match.dater_removed_matcher_1
+    : !!match.dater_removed_matcher_2;
+}
+
+/**
+ * For a dater, a row belongs on the "Matchmaker Matches" tab only while their side is still matchmaker-mediated.
+ * After they remove their matchmaker, the same match is listed under "Dater Matches" instead.
+ */
+function isMediatedMatchmakerTabForDater(match, currentUserId) {
+  const mediated = !!match.both_matchmakers_involved || match.linked_dater !== null;
+  if (!mediated) return false;
+  return !currentDaterRemovedOwnMatchmaker(match, currentUserId);
+}
+
 /** True when the counterparty's side had a matchmaker, for list filtering (prefers API field). */
 function isOtherPersonMatchmakerInvolved(match) {
   if (typeof match?.other_matchmaker_involved === 'boolean') {
@@ -232,7 +251,13 @@ const Conversations = () => {
       });
       return;
     }
-    if (data.type !== 'message' && data.type !== 'match' && data.type !== 'blind_match' && data.type !== 'match_approval') {
+    if (
+      data.type !== 'message' &&
+      data.type !== 'match' &&
+      data.type !== 'blind_match' &&
+      data.type !== 'match_approval' &&
+      data.type !== 'dater_removed_matchmaker'
+    ) {
       return;
     }
     fetchMatches();
@@ -299,10 +324,8 @@ const Conversations = () => {
     }
 
     const filteredMatched = matchedList.filter((match) => {
-      if (showDaterMatches) {
-        return !match.both_matchmakers_involved && match.linked_dater === null;
-      }
-      return match.both_matchmakers_involved || match.linked_dater !== null;
+      const inMmTab = isMediatedMatchmakerTabForDater(match, userInfo.id);
+      return showDaterMatches ? !inMmTab : inMmTab;
     });
 
     const filteredPendingApprovals = showDaterMatches ? pendingApprovalList : [];

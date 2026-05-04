@@ -40,6 +40,21 @@ def _user_notification_allowed(user, preference_field=None):
     return user.notification_setting_enabled(preference_field)
 
 
+def _pending_mm_removed_from_thread(match, mm_user_id):
+    """True if this matchmaker was removed from the pending-approval thread by their dater."""
+    if not match or match.status != "pending_approval" or not mm_user_id:
+        return False
+    if match.matched_by_user_id_1_matcher == mm_user_id and bool(
+        getattr(match, "dater_removed_matcher_1", False)
+    ):
+        return True
+    if match.matched_by_user_id_2_matcher == mm_user_id and bool(
+        getattr(match, "dater_removed_matcher_2", False)
+    ):
+        return True
+    return False
+
+
 def _should_skip_message_push_pending_dater_awaits_mm(match, receiver_id, receiver):
     """
     pending_approval: do not push messages to a dater whose matchmaker has not approved yet —
@@ -413,6 +428,26 @@ def send_unmatch_sync_for_match(match):
     return any_ok
 
 
+def send_dater_removed_matchmaker_sync(match_id, matchmaker_user_id):
+    """
+    Data-only push to the matchmaker who was removed from a thread so clients
+    close the open chat immediately (same delivery path as unmatch sync).
+    """
+    if not match_id or not matchmaker_user_id:
+        return False
+    user = User.query.get(matchmaker_user_id)
+    if not user:
+        return False
+    data = {
+        "type": "dater_removed_matchmaker",
+        "matchId": str(match_id),
+    }
+    role = _recipient_role_value(user)
+    if role:
+        data["recipientRole"] = role
+    return bool(_deliver_unmatch_sync_to_user(user, data, match_id, matchmaker_user_id))
+
+
 def send_push_to_token_row(token_obj, title, body, data=None):
     """Dispatch by PushToken.platform: expo (Expo relay) or ios / android (native)."""
     data = data or {}
@@ -596,6 +631,8 @@ def send_message_notification(
 
     linked_name = _msg_display_first_name(dater_receiver)
     for mm_id in _matchmaker_ids_linked_to_dater(receiver_id):
+        if _pending_mm_removed_from_thread(match, mm_id):
+            continue
         if auth_sender_id is not None and mm_id == auth_sender_id:
             continue
         mm = User.query.get(mm_id)
@@ -637,6 +674,8 @@ def send_message_notification(
     if match and match.status == "pending_approval" and auth_sender_role == "user":
         sender_name = _msg_display_first_name(sender)
         for mm_id in _matchmaker_ids_linked_to_dater(sender_id):
+            if _pending_mm_removed_from_thread(match, mm_id):
+                continue
             if mm_id in notified_mm_ids:
                 continue
             mm = User.query.get(mm_id)

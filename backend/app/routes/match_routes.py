@@ -705,6 +705,10 @@ def get_mutual_matches(current_user):
         ).all()
 
         for match in approved_matches:
+            if match.matched_by_user_id_1_matcher == current_user.id and (match.dater_removed_matcher_1 or False):
+                continue
+            if match.matched_by_user_id_2_matcher == current_user.id and (match.dater_removed_matcher_2 or False):
+                continue
             user1 = User.query.get(match.user_id_1)
             user2 = User.query.get(match.user_id_2)
             other_user = user1 if (user2 and user2.id == linked_dater_id) else user2
@@ -744,6 +748,10 @@ def get_mutual_matches(current_user):
         ).all()
 
         for match in pending_matches:
+            if match.matched_by_user_id_1_matcher == current_user.id and (match.dater_removed_matcher_1 or False):
+                continue
+            if match.matched_by_user_id_2_matcher == current_user.id and (match.dater_removed_matcher_2 or False):
+                continue
             user1 = User.query.get(match.user_id_1)
             user2 = User.query.get(match.user_id_2)
             other_user = user1 if (user2 and user2.id == linked_dater_id) else user2
@@ -844,11 +852,17 @@ def get_mutual_matches(current_user):
                 'match_user': user_dict,
                 'linked_dater': linked_dater_dict,
                 'blind_match': match.blind_match,
+                'status': match.status,
                 'unread_count': _unread_count_for_match(match.id, current_user.id),
                 'user_1_matchmaker_involved': user1_matchmaker_involved,
                 'user_2_matchmaker_involved': user2_matchmaker_involved,
                 'both_matchmakers_involved': both_matchmakers_involved,
                 'other_matchmaker_involved': other_matchmaker_involved,
+                'approved_by_matcher_1': bool(match.approved_by_matcher_1),
+                'approved_by_matcher_2': bool(match.approved_by_matcher_2),
+                'dater_removed_matcher_1': bool(match.dater_removed_matcher_1),
+                'dater_removed_matcher_2': bool(match.dater_removed_matcher_2),
+                'dater_on_user_id_1_side': match.user_id_1 == current_user.id,
             })
 
         # Get pending_approval matches - only show if current_user directly liked (is in liked_by)
@@ -904,6 +918,11 @@ def get_mutual_matches(current_user):
                 'user_2_matchmaker_involved': user2_matchmaker_involved,
                 'both_matchmakers_involved': both_matchmakers_involved,
                 'other_matchmaker_involved': other_matchmaker_involved,
+                'approved_by_matcher_1': bool(match.approved_by_matcher_1),
+                'approved_by_matcher_2': bool(match.approved_by_matcher_2),
+                'dater_removed_matcher_1': bool(match.dater_removed_matcher_1),
+                'dater_removed_matcher_2': bool(match.dater_removed_matcher_2),
+                'dater_on_user_id_1_side': match.user_id_1 == current_user.id,
             })
 
     return jsonify({'matched': matched_users, 'pending_approval': pending_approval_users})

@@ -87,7 +87,7 @@ const setupNotificationHandler = () => {
           active != null &&
           matchId === active;
 
-        if (type === 'unmatch') {
+        if (type === 'unmatch' || type === 'dater_removed_matchmaker') {
           return {
             shouldShowBanner: false,
             shouldShowList: false,

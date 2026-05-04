@@ -227,8 +227,6 @@ const MatchCard = ({
               <Text
                 style={[styles.pendingBannerText, { color: roleBadgeText }]}
                 numberOfLines={1}
-                adjustsFontSizeToFit
-                minimumFontScale={0.8}
               >
                 {getPendingBannerText()}
               </Text>
@@ -443,21 +441,17 @@ const styles = StyleSheet.create({
     borderColor: '#eee',
   },
   pendingBanner: {
-    backgroundColor: '#efe5d3',
-    alignSelf: 'stretch',
-    paddingVertical: 6,
+    alignSelf: 'flex-start',
+    paddingVertical: 3,
     paddingHorizontal: 8,
-    borderRadius: 8,
+    borderRadius: 12,
     marginTop: 6,
     flexDirection: 'row',
-    gap: 4,
     alignItems: 'center',
-    justifyContent: 'flex-start',
   },
   pendingBannerText: {
     fontSize: 11,
     fontWeight: '600',
-    flexShrink: 1,
   },
 });
 

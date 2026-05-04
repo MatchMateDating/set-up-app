@@ -106,6 +106,8 @@ const MatchConvo = () => {
   const scrollViewRef = useRef(null);
   /** Skip the useFocusEffect fetch that immediately follows the initial mount fetch for this matchId. */
   const skipNextFocusRefreshRef = useRef(false);
+  /** After 403 (lost access), avoid repeated navigations from the message poll. */
+  const conversationAccessLostRef = useRef(false);
   const isFocusedRef = useRef(isFocused);
   isFocusedRef.current = isFocused;
   const [othersTyping, setOthersTyping] = useState([]);
@@ -187,6 +189,22 @@ const MatchConvo = () => {
     }
   }, [matchId]);
 
+  /** Close chat once (push, 403 poll, or send denied) when the user no longer has access. */
+  const exitConversationDueToAccessLoss = useCallback(() => {
+    if (conversationAccessLostRef.current) return;
+    conversationAccessLostRef.current = true;
+    if (Platform.OS === 'ios') {
+      navigation.dispatch(
+        CommonActions.reset({
+          index: 0,
+          routes: [{ name: 'Main', params: { screen: 'Conversations' } }],
+        })
+      );
+    } else {
+      navigation.navigate('Main', { screen: 'Conversations' });
+    }
+  }, [navigation]);
+
   const loadConversationMessages = useCallback(
     async ({ showErrors = false } = {}) => {
       try {
@@ -210,6 +228,11 @@ const MatchConvo = () => {
             }
             return;
           }
+        }
+
+        if (res.status === 403) {
+          exitConversationDueToAccessLoss();
+          return;
         }
 
         if (res.status === 404) {
@@ -244,8 +267,12 @@ const MatchConvo = () => {
         }
       }
     },
-    [matchId, navigation, markConversationAsRead]
+    [matchId, navigation, markConversationAsRead, exitConversationDueToAccessLoss]
   );
+
+  useEffect(() => {
+    conversationAccessLostRef.current = false;
+  }, [matchId]);
 
   useEffect(() => {
     if (!matchId) return undefined;
@@ -326,19 +353,12 @@ const MatchConvo = () => {
 
   useEffect(() => {
     const data = lastNotificationEvent?.data;
-    if (!data || data.type !== 'unmatch' || matchId == null) return;
+    if (!data || matchId == null) return;
+    const t = data.type;
+    if (t !== 'unmatch' && t !== 'dater_removed_matchmaker') return;
     if (String(data.matchId) !== String(matchId)) return;
-    if (Platform.OS === 'ios') {
-      navigation.dispatch(
-        CommonActions.reset({
-          index: 0,
-          routes: [{ name: 'Main', params: { screen: 'Conversations' } }],
-        })
-      );
-    } else {
-      navigation.navigate('Main', { screen: 'Conversations' });
-    }
-  }, [lastNotificationEvent?.receivedAt, matchId, navigation]);
+    exitConversationDueToAccessLoss();
+  }, [lastNotificationEvent?.receivedAt, matchId, exitConversationDueToAccessLoss]);
 
   // While chat is open, poll so both matchmakers see new messages without leaving.
   useEffect(() => {
@@ -473,6 +493,11 @@ const MatchConvo = () => {
         body: JSON.stringify(bodyData),
       });
 
+      if (res.status === 403) {
+        exitConversationDueToAccessLoss();
+        return;
+      }
+
       if (res.ok || res.status === 201) {
         const data = await res.json();
         setMessages(normalizeMessages(data.messages || []));
@@ -605,6 +630,24 @@ const MatchConvo = () => {
   const messageCount = matchInfo?.message_count || 0;
   const canSendMore = messageCount < 10;
   const waitingForOtherApproval = matchInfo?.waiting_for_other_approval || false;
+
+  const mediatedChatAsDater =
+    userInfo?.role === 'user' &&
+    matchInfo &&
+    (matchInfo.status === 'pending_approval' ||
+      matchInfo.message_count !== undefined ||
+      matchInfo.status === 'matched');
+  const canRemoveOwnMatchmaker =
+    mediatedChatAsDater &&
+    typeof matchInfo.dater_on_user_id_1_side === 'boolean' &&
+    ((matchInfo.dater_on_user_id_1_side &&
+      matchInfo.user_1_matchmaker_involved &&
+      (matchInfo.approved_by_matcher_1 || matchInfo.status === 'matched') &&
+      !matchInfo.dater_removed_matcher_1) ||
+      (!matchInfo.dater_on_user_id_1_side &&
+        matchInfo.user_2_matchmaker_involved &&
+        (matchInfo.approved_by_matcher_2 || matchInfo.status === 'matched') &&
+        !matchInfo.dater_removed_matcher_2));
   const approvedByOtherMatchmaker = matchInfo?.approved_by_other_matchmaker || false;
   const hasBlindValueFromMatchInfo = typeof matchInfo?.blind_match === 'string';
   const isBlindFromMatchInfo = hasBlindValueFromMatchInfo && matchInfo?.blind_match === 'Blind';
@@ -815,6 +858,67 @@ const MatchConvo = () => {
     } catch (err) {
       console.error('Error unmatching:', err);
       Alert.alert('Error', 'Failed to unmatch');
+    }
+  };
+
+  const handleRemoveMyMatchmakerFromMenu = async () => {
+    setMenuVisible(false);
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) {
+        Alert.alert('Error', 'Please log in');
+        navigation.navigate('Login');
+        return;
+      }
+      Alert.alert(
+        'Remove your matchmaker',
+        'Your matchmaker will no longer be able to view this chat or send puzzles. You can keep talking with the other dater and their matchmaker.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Remove',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                const res = await fetch(`${API_BASE_URL}/conversation/${matchId}/remove-my-matchmaker`, {
+                  method: 'POST',
+                  headers: { Authorization: `Bearer ${token}` },
+                });
+                if (res.status === 401) {
+                  const data = await res.json().catch(() => ({}));
+                  if (data.error_code === 'TOKEN_EXPIRED') {
+                    await AsyncStorage.removeItem('token');
+                    Alert.alert('Session expired', 'Please log in again.');
+                    navigation.navigate('Login');
+                  }
+                  return;
+                }
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                  Alert.alert('Error', data.message || 'Could not remove matchmaker');
+                  return;
+                }
+                setMatchInfo((prev) =>
+                  prev
+                    ? {
+                        ...prev,
+                        dater_removed_matcher_1: data.dater_removed_matcher_1 ?? prev.dater_removed_matcher_1,
+                        dater_removed_matcher_2: data.dater_removed_matcher_2 ?? prev.dater_removed_matcher_2,
+                      }
+                    : prev
+                );
+                Alert.alert('Done', 'Your matchmaker has been removed from this conversation.');
+              } catch (err) {
+                console.error(err);
+                Alert.alert('Error', 'Something went wrong');
+              }
+            },
+          },
+        ]
+      );
+    } catch (err) {
+      console.error(err);
+      Alert.alert('Error', 'Something went wrong');
     }
   };
 
@@ -1240,6 +1344,11 @@ const MatchConvo = () => {
                   onPress={handleUnmatchConfirmFromMenu}
                 >
                   <Text style={[styles.menuItemText, styles.menuItemTextDanger]}>Unmatch</Text>
+                </TouchableOpacity>
+              )}
+              {userInfo?.role === 'user' && canRemoveOwnMatchmaker && (
+                <TouchableOpacity style={styles.menuItem} onPress={handleRemoveMyMatchmakerFromMenu}>
+                  <Text style={styles.menuItemText}>Remove my matchmaker from chat</Text>
                 </TouchableOpacity>
               )}
               {userInfo?.role === 'user' && (
