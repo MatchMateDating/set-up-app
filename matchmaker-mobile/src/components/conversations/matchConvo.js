@@ -764,7 +764,9 @@ const MatchConvo = () => {
   const mediatedChatAsDater =
     userInfo?.role === 'user' &&
     matchInfo &&
-    (matchInfo.status === 'pending_approval' || matchInfo.status === 'matched');
+    (matchInfo.status === 'pending_approval' ||
+      matchInfo.message_count !== undefined ||
+      matchInfo.status === 'matched');
   const canRemoveOwnMatchmaker =
     mediatedChatAsDater &&
     typeof matchInfo.dater_on_user_id_1_side === 'boolean' &&
