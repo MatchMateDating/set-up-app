@@ -70,27 +70,27 @@ const LINKED_DATER_AVATAR_PALETTES = [
 const NOTIFICATION_PREFERENCE_ITEMS = [
   {
     key: 'newMatchNotification',
-    label: 'New Match Notification',
+    label: 'New Match',
   },
   {
     key: 'newBlindMatchNotification',
-    label: 'New Blind Match Notification',
+    label: 'New Blind Match',
     daterOnly: true,
   },
   {
     key: 'newMessageNotification',
-    label: 'New Message Notification',
+    label: 'New Message',
   },
   {
     key: 'approvedMatchMessageNotification',
-    label: 'Messages in approved matches',
+    label: 'Approved Match Messages',
     description:
       'When off, you will still get message alerts while a match is waiting for approval.',
     matchmakerOnly: true,
   },
   {
     key: 'newMatchApprovalNotification',
-    label: 'Approved Match Notification',
+    label: 'Approved Match',
   },
 ];
 

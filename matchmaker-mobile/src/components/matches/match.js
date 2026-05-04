@@ -895,9 +895,6 @@ const Match = () => {
                 {formatCmAsHeightLabel(filterDraft.heightMinCm, heightLabelUnit)} –{' '}
                 {formatCmAsHeightLabel(filterDraft.heightMaxCm, heightLabelUnit)}
               </Text>
-              <Text style={styles.filterSectionSub}>
-                Move the handles to filter by height. Leave them at both ends to include all heights.
-              </Text>
               <View style={styles.filterSliderWrap}>
                 <MultiSlider
                   values={[filterDraft.heightMinCm, filterDraft.heightMaxCm]}
@@ -953,7 +950,7 @@ const Match = () => {
                   ) : null}
                 </View>
                 <Text style={styles.filterCheckboxLabel}>
-                  Only show profiles with about me filled out
+                  About Me Filled Out
                 </Text>
               </TouchableOpacity>
 

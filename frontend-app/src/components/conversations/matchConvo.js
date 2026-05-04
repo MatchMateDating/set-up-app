@@ -400,7 +400,7 @@ const MatchConvo = () => {
         {canRemoveOwnMatchmaker && (
           <div style={{ padding: "0 16px 16px" }}>
             <button type="button" className="send-puzzle-button" onClick={handleRemoveMyMatchmaker}>
-              Remove my matchmaker from chat
+              Remove Matchmaker
             </button>
           </div>
         )}

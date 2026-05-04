@@ -674,9 +674,6 @@ const Conversations = () => {
               keyboardShouldPersistTaps="handled"
             >
               <Text style={styles.filterSectionLabel}>Conversation type</Text>
-              <Text style={styles.filterSectionSub}>
-                Narrow the list; leave unchecked to show everyone.
-              </Text>
 
               <TouchableOpacity
                 style={styles.filterCheckboxRow}
@@ -702,7 +699,7 @@ const Conversations = () => {
                   ) : null}
                 </View>
                 <Text style={styles.filterCheckboxLabel}>
-                  Other person's matchmaker was involved
+                  Other Matchmaker Involved
                 </Text>
               </TouchableOpacity>
 
@@ -757,7 +754,7 @@ const Conversations = () => {
                     ) : null}
                   </View>
                   <Text style={styles.filterCheckboxLabel}>
-                    Only conversations with message notifications on
+                    Conversations with Notifications
                   </Text>
                 </TouchableOpacity>
               ) : null}
