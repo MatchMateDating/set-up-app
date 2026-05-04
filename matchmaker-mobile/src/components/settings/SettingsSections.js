@@ -89,13 +89,6 @@ const NOTIFICATION_PREFERENCE_ITEMS = [
     matchmakerOnly: true,
   },
   {
-    key: 'approvedMatchMessageNotification',
-    label: 'Messages in approved matches',
-    description:
-      'When off, you will still get message alerts while a match is waiting for approval.',
-    matchmakerOnly: true,
-  },
-  {
     key: 'newMatchApprovalNotification',
     label: 'Approved Match',
   },
