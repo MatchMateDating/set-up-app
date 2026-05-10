@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState, useRef, useMemo } from 'react';
+import React, { useCallback, useContext, useEffect, useState, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -38,6 +38,7 @@ import { getImageUrl } from '../profile/utils/profileUtils';
 import { getRoleAccentColor } from '../layout/components/RoleHeaderBanner';
 import { runOnJS } from 'react-native-reanimated';
 import { setActiveMatchId, useNotifications } from '../../context/NotificationContext';
+import { UserContext } from '../../context/UserContext';
 
 function formatMessageTimestamp(isoString) {
   if (!isoString) return '';
@@ -84,7 +85,8 @@ const MatchConvo = () => {
   const isFocused = useIsFocused();
   const containerRef = useRef(null);
   const { matchId, isBlind } = route.params || {};
-  const { userInfo } = useUserInfo(API_BASE_URL);
+  const { userInfo, setUserInfo } = useUserInfo(API_BASE_URL);
+  const { user: contextUser } = useContext(UserContext);
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [newMessageText, setNewMessageText] = useState('');
@@ -314,6 +316,32 @@ const MatchConvo = () => {
       };
     }, [postTyping, clearTypingIdleClearTimer])
   );
+
+  // After linked-account switch (e.g. notification tap), keep profile in sync with UserContext — same as conversations.js.
+  useEffect(() => {
+    if (!contextUser) {
+      return;
+    }
+
+    setUserInfo((prevUserInfo) => {
+      if (!prevUserInfo) {
+        return contextUser;
+      }
+
+      const sameUser = prevUserInfo.id === contextUser.id;
+      const sameSelectedDater =
+        prevUserInfo.referrer_id === contextUser.referrer_id &&
+        prevUserInfo.referred_by_id === contextUser.referred_by_id;
+      const sameLinkedDaters =
+        JSON.stringify(prevUserInfo.linked_daters || []) === JSON.stringify(contextUser.linked_daters || []);
+
+      if (sameUser && sameSelectedDater && sameLinkedDaters) {
+        return prevUserInfo;
+      }
+
+      return { ...prevUserInfo, ...contextUser };
+    });
+  }, [contextUser, setUserInfo]);
 
   useEffect(() => {
     return () => {
@@ -626,7 +654,7 @@ const MatchConvo = () => {
     }
   };
 
-  const isPendingApproval = matchInfo?.status === 'pending_approval' || matchInfo?.message_count !== undefined;
+  const isPendingApproval = matchInfo?.status === 'pending_approval';
   const messageCount = matchInfo?.message_count || 0;
   const canSendMore = messageCount < 10;
   const waitingForOtherApproval = matchInfo?.waiting_for_other_approval || false;
@@ -634,9 +662,7 @@ const MatchConvo = () => {
   const mediatedChatAsDater =
     userInfo?.role === 'user' &&
     matchInfo &&
-    (matchInfo.status === 'pending_approval' ||
-      matchInfo.message_count !== undefined ||
-      matchInfo.status === 'matched');
+    (matchInfo.status === 'pending_approval' || matchInfo.status === 'matched');
   const canRemoveOwnMatchmaker =
     mediatedChatAsDater &&
     typeof matchInfo.dater_on_user_id_1_side === 'boolean' &&
