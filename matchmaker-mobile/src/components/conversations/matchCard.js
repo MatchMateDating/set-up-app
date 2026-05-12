@@ -10,6 +10,23 @@ import { useNotifications } from '../../context/NotificationContext';
 /** Dark rose for pill copy; pairs with getRoleAccentColor('user') / #ffe6ee surfaces. */
 const DATER_CONVERSATIONS_PILL_TEXT = '#be123c';
 
+function formatLastMessageTime(isoString) {
+  if (!isoString) return '';
+  const d = new Date(isoString);
+  if (Number.isNaN(d.getTime())) return '';
+  const now = new Date();
+  const diffMs = now - d;
+  const diffMins = Math.floor(diffMs / 60000);
+  if (diffMins < 1) return 'Just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  const diffHours = Math.floor(diffMins / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays === 1) return 'Yesterday';
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+}
+
 const MatchCard = ({
   matchObj,
   userInfo,
@@ -219,7 +236,12 @@ const MatchCard = ({
 
         <View style={styles.textColumn}>
           <View style={styles.nameRow}>
-            <Text style={styles.matchName}>{matchObj.match_user.first_name}</Text>
+            <Text style={styles.matchName} numberOfLines={1}>{matchObj.match_user.first_name}</Text>
+            {matchObj.last_message_time ? (
+              <Text style={styles.lastMessageTime}>
+                {formatLastMessageTime(matchObj.last_message_time)}
+              </Text>
+            ) : null}
           </View>
 
           {isPendingApproval && (
@@ -380,6 +402,7 @@ const styles = StyleSheet.create({
   nameRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     gap: 6,
   },
   matchName: {
@@ -387,6 +410,12 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#333',
     textAlign: 'left',
+    flexShrink: 1,
+  },
+  lastMessageTime: {
+    fontSize: 11,
+    color: '#999',
+    flexShrink: 0,
   },
   pillsRow: {
     marginTop: 6,

@@ -1463,7 +1463,7 @@ const MatchConvo = () => {
                   style={styles.menuItem}
                   onPress={effectiveIsBlind ? handleRevealFromMenu : handleHideFromMenu}
                 >
-                  <Text style={styles.menuItemText}>{effectiveIsBlind ? 'Reveal' : 'Hide'}</Text>
+                  <Text style={styles.menuItemText}>{effectiveIsBlind ? 'Reveal Match' : 'Blind Match'}</Text>
                 </TouchableOpacity>
               )}
               {userInfo?.role === 'matchmaker' && showHeaderUnmatchAction && (
