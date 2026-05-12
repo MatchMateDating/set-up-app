@@ -795,6 +795,7 @@ def send_new_match_push_to_matchmaker(
     matched_dater_first_name,
     *,
     is_blind_match,
+    linked_dater_id=None,
 ):
     """
     Push to a matchmaker user row only. Names the roster dater and their match, ends with (matchmaker).
@@ -818,6 +819,11 @@ def send_new_match_push_to_matchmaker(
         "matchId": str(match_id),
         "recipientRole": "matchmaker",
     }
+    if linked_dater_id is not None:
+        try:
+            data["linkedDaterId"] = str(int(linked_dater_id))
+        except (TypeError, ValueError):
+            pass
     return _deliver_new_match_push(mm_user_id, user, title, body, data)
 
 
@@ -846,6 +852,7 @@ def send_match_notification_to_linked_matchmakers(
             linked_dater_first_name,
             counterparty_name,
             is_blind_match=is_blind_match,
+            linked_dater_id=dater_id,
         ):
             any_ok = True
     return any_ok

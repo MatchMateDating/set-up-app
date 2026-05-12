@@ -1,4 +1,4 @@
-import React, { useCallback, useContext, useEffect, useState, useRef, useMemo } from 'react';
+import React, { useCallback, useContext, useEffect, useLayoutEffect, useState, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -71,6 +71,8 @@ function normalizeMessages(rawMessages) {
 
 /** Poll interval while chat is open — light on the server vs 3s; keeps MM threads in sync. */
 const CONVERSATION_POLL_MS = 12000;
+/** Two-MM pending: refresh match row so peer approval updates header copy without leaving the thread. */
+const MATCH_META_PENDING_POLL_MS = 3500;
 /** Poll typing indicators — separate from message poll for snappy UX. */
 const TYPING_POLL_MS = 2500;
 const TYPING_DEBOUNCE_MS = 350;
@@ -85,7 +87,7 @@ const MatchConvo = () => {
   const isFocused = useIsFocused();
   const containerRef = useRef(null);
   const { matchId, isBlind } = route.params || {};
-  const { userInfo, setUserInfo } = useUserInfo(API_BASE_URL);
+  const { userInfo, setUserInfo, referrerInfo } = useUserInfo(API_BASE_URL);
   const { user: contextUser } = useContext(UserContext);
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -110,6 +112,9 @@ const MatchConvo = () => {
   const skipNextFocusRefreshRef = useRef(false);
   /** After 403 (lost access), avoid repeated navigations from the message poll. */
   const conversationAccessLostRef = useRef(false);
+  /** Latest match id for this screen — async match-meta fetches must not apply to an older navigation. */
+  const currentMatchIdRef = useRef(matchId);
+  currentMatchIdRef.current = matchId;
   const isFocusedRef = useRef(isFocused);
   isFocusedRef.current = isFocused;
   const [othersTyping, setOthersTyping] = useState([]);
@@ -272,6 +277,70 @@ const MatchConvo = () => {
     [matchId, navigation, markConversationAsRead, exitConversationDueToAccessLoss]
   );
 
+  /** Load match row + counterparty for the header; daters retry briefly so post-approval opens are not stale. */
+  const loadMatchMeta = useCallback(async () => {
+    const mid = Number(matchId);
+    if (!Number.isFinite(mid)) return;
+
+    const delay = (ms) => new Promise((r) => setTimeout(r, ms));
+
+    const fetchOnce = async () => {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) return null;
+      const res = await fetch(`${API_BASE_URL}/match/matches?_=${Date.now()}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      const allMatches = Array.isArray(data) ? data : [...(data.matched || []), ...(data.pending_approval || [])];
+      return allMatches.find((m) => m.match_id === mid) ?? null;
+    };
+
+    const maxAttempts = userInfo?.role === 'user' ? 5 : 1;
+
+    for (let i = 0; i < maxAttempts; i++) {
+      if (Number(currentMatchIdRef.current) !== mid) return;
+
+      let row = null;
+      try {
+        row = await fetchOnce();
+      } catch (err) {
+        console.error('Error fetching match user:', err);
+      }
+
+      if (Number(currentMatchIdRef.current) !== mid) return;
+
+      if (!row) {
+        if (i < maxAttempts - 1) await delay(400);
+        continue;
+      }
+
+      const mu = row.match_user;
+      const invalidSelf =
+        userInfo?.role === 'user' &&
+        userInfo?.id != null &&
+        mu?.id != null &&
+        Number(mu.id) === Number(userInfo.id);
+
+      if (!invalidSelf && mu && mu.id != null) {
+        setMatchUser(mu);
+        setMatchInfo(row);
+        return;
+      }
+
+      setMatchInfo(row);
+      setMatchUser(null);
+
+      if (i < maxAttempts - 1) await delay(400);
+    }
+  }, [matchId, userInfo?.role, userInfo?.id]);
+
+  useLayoutEffect(() => {
+    if (matchId == null || matchId === '') return;
+    setMatchUser(null);
+    setMatchInfo(null);
+  }, [matchId]);
+
   useEffect(() => {
     conversationAccessLostRef.current = false;
   }, [matchId]);
@@ -283,6 +352,11 @@ const MatchConvo = () => {
     loadConversationMessages({ showErrors: true });
   }, [matchId, loadConversationMessages]);
 
+  useEffect(() => {
+    if (!matchId) return undefined;
+    loadMatchMeta();
+  }, [matchId, loadMatchMeta]);
+
   // Refetch when returning to this screen (same matchId) without waiting for the poll.
   useFocusEffect(
     useCallback(() => {
@@ -292,8 +366,9 @@ const MatchConvo = () => {
         return undefined;
       }
       loadConversationMessages({ showErrors: false });
+      loadMatchMeta();
       return undefined;
-    }, [matchId, loadConversationMessages])
+    }, [matchId, loadConversationMessages, loadMatchMeta])
   );
 
   useFocusEffect(
@@ -382,11 +457,16 @@ const MatchConvo = () => {
   useEffect(() => {
     const data = lastNotificationEvent?.data;
     if (!data || matchId == null) return;
-    const t = data.type;
-    if (t !== 'unmatch' && t !== 'dater_removed_matchmaker') return;
     if (String(data.matchId) !== String(matchId)) return;
-    exitConversationDueToAccessLoss();
-  }, [lastNotificationEvent?.receivedAt, matchId, exitConversationDueToAccessLoss]);
+    const t = data.type;
+    if (t === 'unmatch' || t === 'dater_removed_matchmaker') {
+      exitConversationDueToAccessLoss();
+      return;
+    }
+    if (t === 'match_approval') {
+      loadMatchMeta();
+    }
+  }, [lastNotificationEvent?.receivedAt, matchId, exitConversationDueToAccessLoss, loadMatchMeta]);
 
   // While chat is open, poll so both matchmakers see new messages without leaving.
   useEffect(() => {
@@ -396,6 +476,25 @@ const MatchConvo = () => {
     }, CONVERSATION_POLL_MS);
     return () => clearInterval(id);
   }, [matchId, isFocused, loadConversationMessages]);
+
+  // Two-MM pending: peer approval only changes GET /match/matches — poll lightly while focused (push also refreshes).
+  useEffect(() => {
+    if (!matchId || !isFocused) return undefined;
+    if (userInfo?.role !== 'matchmaker') return undefined;
+    if (matchInfo?.status !== 'pending_approval') return undefined;
+    if (!matchInfo?.both_matchmakers_involved) return undefined;
+    const id = setInterval(() => {
+      loadMatchMeta();
+    }, MATCH_META_PENDING_POLL_MS);
+    return () => clearInterval(id);
+  }, [
+    matchId,
+    isFocused,
+    userInfo?.role,
+    matchInfo?.status,
+    matchInfo?.both_matchmakers_involved,
+    loadMatchMeta,
+  ]);
 
   useEffect(() => {
     const fetchNames = async () => {
@@ -431,32 +530,6 @@ const MatchConvo = () => {
     };
     if (messages.length > 0) fetchNames();
   }, [messages]);
-
-  useEffect(() => {
-    const fetchMatchUser = async () => {
-      try {
-        const token = await AsyncStorage.getItem('token');
-        if (!token) return;
-
-        const res = await fetch(`${API_BASE_URL}/match/matches`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (res.ok) {
-          const data = await res.json();
-          // Handle new structure: {matched: [], pending_approval: []}
-          const allMatches = Array.isArray(data) ? data : [...(data.matched || []), ...(data.pending_approval || [])];
-          const matchInfo = allMatches.find((m) => m.match_id === Number(matchId));
-          if (matchInfo) {
-            setMatchUser(matchInfo.match_user);
-            setMatchInfo(matchInfo);
-          }
-        }
-      } catch (err) {
-        console.error('Error fetching match user:', err);
-      }
-    };
-    if (matchId) fetchMatchUser();
-  }, [matchId]);
 
   const scrollToBottom = (animated = true) => {
     // Retry a few times to handle intermittent keyboard/layout timing.
@@ -568,18 +641,47 @@ const MatchConvo = () => {
   const getSenderLabel = (msg) => {
     if (isMine(msg)) return '';
     const senderRole = senderRoles[msg.sender_id];
-    const senderName = senderNames[msg.sender_id] || 'Loading...';
+    const trimmedSenderName =
+      senderNames[msg.sender_id] != null ? String(senderNames[msg.sender_id]).trim() : '';
+    const senderName = trimmedSenderName || 'Loading...';
     if (senderRole === undefined && userInfo?.role === 'matchmaker') {
       // During profile lookup, prefer a stable label for matchmaker-mediated chats.
       return 'Matchmaker';
     }
     if (senderRole === 'matchmaker') {
-      if (userInfo?.role === 'user') {
-        const senderLinkedDaterId = senderReferrerIds[msg.sender_id];
-        const isUsersMatchmaker = Number(senderLinkedDaterId) === Number(userInfo?.id);
-        return isUsersMatchmaker ? 'Matchmaker(you)' : 'Matchmaker(them)';
+      const senderLinkedDaterId = senderReferrerIds[msg.sender_id];
+      const isDaterViewer = userInfo?.role === 'user';
+      const myLinkedDaterId = isDaterViewer
+        ? userInfo?.id
+        : (userInfo?.referrer_id ?? userInfo?.referred_by_id ?? null);
+      const isCurrentUsersMatchmaker =
+        myLinkedDaterId != null &&
+        senderLinkedDaterId != null &&
+        Number(senderLinkedDaterId) === Number(myLinkedDaterId);
+
+      let myDaterFirstName = '';
+      if (isDaterViewer) {
+        myDaterFirstName = userInfo?.first_name != null ? String(userInfo.first_name).trim() : '';
+      } else if (userInfo?.role === 'matchmaker') {
+        myDaterFirstName =
+          (matchInfo?.linked_dater?.first_name != null && String(matchInfo.linked_dater.first_name).trim()) ||
+          (referrerInfo?.first_name != null && String(referrerInfo.first_name).trim()) ||
+          '';
+      }
+
+      const otherDaterFirstName =
+        matchUser?.first_name != null ? String(matchUser.first_name).trim() : '';
+
+      if (isDaterViewer || userInfo?.role === 'matchmaker') {
+        if (isCurrentUsersMatchmaker) {
+          return myDaterFirstName ? `${myDaterFirstName} • Matchmaker` : 'Matchmaker';
+        }
+        return otherDaterFirstName ? `${otherDaterFirstName} • Matchmaker` : 'Matchmaker';
       }
       return 'Matchmaker';
+    }
+    if (senderRole === 'user' || senderRole === 'dater') {
+      return trimmedSenderName ? `${trimmedSenderName} • Dater` : senderName;
     }
     return senderName;
   };
@@ -1374,7 +1476,7 @@ const MatchConvo = () => {
               )}
               {userInfo?.role === 'user' && canRemoveOwnMatchmaker && (
                 <TouchableOpacity style={styles.menuItem} onPress={handleRemoveMyMatchmakerFromMenu}>
-                  <Text style={styles.menuItemText}>Remove my matchmaker from chat</Text>
+                  <Text style={styles.menuItemText}>Remove Matchmaker</Text>
                 </TouchableOpacity>
               )}
               {userInfo?.role === 'user' && (

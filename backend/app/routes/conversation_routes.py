@@ -48,7 +48,17 @@ def _deny_conversation_view(current_user, match):
         if check_user_id not in liked_ids and not matchmaker_involved:
             return jsonify({'error': 'You do not have permission to view this conversation'}), 403
     elif match.status == 'matched':
-        if check_user_id not in [match.user_id_1, match.user_id_2]:
+        # Matchmaker may still mediate this thread even when their *selected* roster dater
+        # (referred_by_id) differs — e.g. multi-roster MMs who tapped a push before switching.
+        mm_mediated = (
+            current_user.role == 'matchmaker'
+            and (
+                match.matched_by_user_id_1_matcher == current_user.id
+                or match.matched_by_user_id_2_matcher == current_user.id
+            )
+            and _matchmaker_thread_access(match, current_user.id)
+        )
+        if check_user_id not in [match.user_id_1, match.user_id_2] and not mm_mediated:
             return jsonify({'error': 'You do not have permission to view this conversation'}), 403
     else:
         liked_ids = {u.id for u in match.liked_by}
@@ -79,7 +89,15 @@ def _deny_conversation_send(current_user, match):
         if check_user_id not in liked_ids and not matchmaker_involved and not side_approved:
             return jsonify({'error': 'You do not have permission to send messages in this conversation'}), 403
     elif match.status == 'matched':
-        if check_user_id not in [match.user_id_1, match.user_id_2]:
+        mm_mediated = (
+            current_user.role == 'matchmaker'
+            and (
+                match.matched_by_user_id_1_matcher == current_user.id
+                or match.matched_by_user_id_2_matcher == current_user.id
+            )
+            and _matchmaker_thread_access(match, current_user.id)
+        )
+        if check_user_id not in [match.user_id_1, match.user_id_2] and not mm_mediated:
             return jsonify({'error': 'You do not have permission to send messages in this conversation'}), 403
     else:
         liked_ids = {u.id for u in match.liked_by}
@@ -294,7 +312,15 @@ def mark_conversation_read(current_user, match_id):
         if check_user_id not in liked_ids and not matchmaker_involved:
             return jsonify({'error': 'You do not have permission to update this conversation'}), 403
     elif match.status == 'matched':
-        if check_user_id not in [match.user_id_1, match.user_id_2]:
+        mm_mediated = (
+            current_user.role == 'matchmaker'
+            and (
+                match.matched_by_user_id_1_matcher == current_user.id
+                or match.matched_by_user_id_2_matcher == current_user.id
+            )
+            and _matchmaker_thread_access(match, current_user.id)
+        )
+        if check_user_id not in [match.user_id_1, match.user_id_2] and not mm_mediated:
             return jsonify({'error': 'You do not have permission to update this conversation'}), 403
     else:
         liked_ids = {u.id for u in match.liked_by}

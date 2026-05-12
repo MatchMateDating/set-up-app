@@ -76,6 +76,44 @@ function NotificationHandler({ navigationRef }) {
         }
       };
 
+      /** Multi-roster matchmakers: align selected dater with the push so /conversation and /match/matches agree. */
+      const ensureSelectedLinkedDaterForNotification = async (linkedRaw, actingUser) => {
+        if (linkedRaw == null || linkedRaw === '') return;
+        const linkedDaterId = parseInt(String(linkedRaw), 10);
+        if (!Number.isFinite(linkedDaterId)) return;
+        if (normalizeRole(actingUser?.role) !== 'matchmaker') return;
+
+        const currentSelected = actingUser?.referrer_id ?? actingUser?.referred_by_id ?? null;
+        if (currentSelected != null && Number(currentSelected) === linkedDaterId) return;
+
+        try {
+          const token = await AsyncStorage.getItem('token');
+          if (!token) return;
+
+          const res = await fetch(`${API_BASE_URL}/referral/set_selected_dater`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ selected_dater_id: linkedDaterId }),
+          });
+          if (!res.ok) return;
+
+          const prof = await fetch(`${API_BASE_URL}/profile/`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (!prof.ok) return;
+          const pdata = await prof.json().catch(() => null);
+          if (pdata?.user) {
+            await AsyncStorage.setItem('user', JSON.stringify(pdata.user));
+            setUser(pdata.user);
+          }
+        } catch (err) {
+          console.error('Error selecting linked dater for notification:', err);
+        }
+      };
+
       const navigateFromNotification = async (notification) => {
         if (!navigationRef.current || !notification) return;
         const reqId = notification.request?.identifier;
@@ -84,7 +122,21 @@ function NotificationHandler({ navigationRef }) {
         const data = getNotificationRoutingData(notification);
         await ensureAccountRoleForNotification(data?.recipientRole);
 
-        const raw = data?.matchId;
+        let actingUser = user;
+        try {
+          const stored = await AsyncStorage.getItem('user');
+          if (stored) {
+            actingUser = JSON.parse(stored);
+          }
+        } catch (_) {
+          /* keep actingUser from context */
+        }
+        await ensureSelectedLinkedDaterForNotification(
+          data?.linkedDaterId ?? data?.linked_dater_id,
+          actingUser
+        );
+
+        const raw = data?.matchId ?? data?.match_id;
         if (raw == null || raw === '') return;
         const matchId = parseInt(String(raw), 10);
         if (!Number.isFinite(matchId)) return;
@@ -118,7 +170,7 @@ function NotificationHandler({ navigationRef }) {
         console.error('Error cleaning up notification listeners:', error);
       }
     };
-  }, [user?.role, setUser]);
+  }, [user?.role, user?.referrer_id, user?.referred_by_id, setUser]);
 
   return null;
 }

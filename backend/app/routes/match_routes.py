@@ -75,9 +75,10 @@ def _send_deferred_blind_match_notification_if_needed(match):
             is_blind_match=True,
             is_matchmaker_mediated=mm_involved,
         )
-        send_match_notification_to_linked_matchmakers(
-            deferred_id, match.id, other_name, is_blind_match=True
-        )
+        if mm_involved:
+            send_match_notification_to_linked_matchmakers(
+                deferred_id, match.id, other_name, is_blind_match=True
+            )
     except Exception as e:
         print(f'Error sending deferred blind match notification: {e}')
     match.blind_match_deferred_notify_user_id = None
@@ -638,19 +639,21 @@ def like_user(current_user):
                                 is_blind_match=is_blind,
                                 is_matchmaker_mediated=mm_involved,
                             )
-                        # Matchmakers always get a push (tokens on MM user); MM-only swipes skip dater push above.
-                        skip_mm = (
-                            {current_user.id}
-                            if getattr(current_user, "role", None) == "matchmaker"
-                            else set()
-                        )
-                        send_match_notification_to_linked_matchmakers(
-                            uid,
-                            existing_match.id,
-                            other_name,
-                            is_blind_match=is_blind,
-                            skip_matchmaker_ids=skip_mm,
-                        )
+                        # Only notify matchmakers when they mediated a side (pending approval / MM swipe).
+                        # Pure dater–dater mutual likes should not ping the roster matchmaker.
+                        if mm_involved:
+                            skip_mm = (
+                                {current_user.id}
+                                if getattr(current_user, "role", None) == "matchmaker"
+                                else set()
+                            )
+                            send_match_notification_to_linked_matchmakers(
+                                uid,
+                                existing_match.id,
+                                other_name,
+                                is_blind_match=is_blind,
+                                skip_matchmaker_ids=skip_mm,
+                            )
             except Exception as e:
                 # Log error but don't fail the request
                 print(f"Error sending match notifications: {e}")
