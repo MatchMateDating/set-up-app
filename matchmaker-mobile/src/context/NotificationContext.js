@@ -87,7 +87,7 @@ const setupNotificationHandler = () => {
           active != null &&
           matchId === active;
 
-        if (type === 'unmatch') {
+        if (type === 'unmatch' || type === 'dater_removed_matchmaker') {
           return {
             shouldShowBanner: false,
             shouldShowList: false,
@@ -97,7 +97,9 @@ const setupNotificationHandler = () => {
         }
 
         const typeAllowed =
-          notificationTypeEnabledFn != null ? Boolean(notificationTypeEnabledFn(type)) : true;
+          notificationTypeEnabledFn != null
+            ? Boolean(notificationTypeEnabledFn(type, data))
+            : true;
 
         if (suppressForeground || !typeAllowed) {
           return {
@@ -142,6 +144,7 @@ const DEFAULT_NOTIFICATION_PREFERENCES = {
   newMatchNotification: false,
   newBlindMatchNotification: false,
   newMessageNotification: false,
+  approvedMatchMessageNotification: false,
   newMatchApprovalNotification: false,
 };
 
@@ -149,6 +152,7 @@ const ENABLED_NOTIFICATION_PREFERENCES = {
   newMatchNotification: true,
   newBlindMatchNotification: true,
   newMessageNotification: true,
+  approvedMatchMessageNotification: true,
   newMatchApprovalNotification: true,
 };
 
@@ -173,10 +177,13 @@ const buildNotificationPreferenceState = (userData) => {
       newMatchNotification: readPreference('new_match_notifications'),
       newBlindMatchNotification: readPreference('new_blind_match_notifications'),
       newMessageNotification: readPreference('new_message_notifications'),
+      approvedMatchMessageNotification: readPreference('approved_match_message_notifications'),
       newMatchApprovalNotification: readPreference('new_match_approval_notifications'),
     },
   };
 };
+
+const mutedMatchesStorageKey = (userId) => `match_message_mutes_v1_${userId}`;
 
 const buildNotificationPreferencePayload = (enabled, preferences) => {
   if (!enabled) {
@@ -185,6 +192,7 @@ const buildNotificationPreferencePayload = (enabled, preferences) => {
       new_match_notifications: false,
       new_blind_match_notifications: false,
       new_message_notifications: false,
+      approved_match_message_notifications: false,
       new_match_approval_notifications: false,
     };
   }
@@ -194,6 +202,9 @@ const buildNotificationPreferencePayload = (enabled, preferences) => {
     new_match_notifications: Boolean(preferences?.newMatchNotification),
     new_blind_match_notifications: Boolean(preferences?.newBlindMatchNotification),
     new_message_notifications: Boolean(preferences?.newMessageNotification),
+    approved_match_message_notifications: Boolean(
+      preferences?.approvedMatchMessageNotification
+    ),
     new_match_approval_notifications: Boolean(preferences?.newMatchApprovalNotification),
   };
 };
@@ -215,6 +226,8 @@ export const NotificationProvider = ({ children }) => {
   const [expoPushToken, setExpoPushToken] = useState(null);
   const [loading, setLoading] = useState(true);
   const [lastNotificationEvent, setLastNotificationEvent] = useState(null);
+  /** Match ids (strings) for which the user chose to suppress message notifications (client-side). */
+  const [mutedMessageMatchIds, setMutedMessageMatchIds] = useState([]);
 
   // Bubble up push notifications to screens so they can refresh on-demand (no polling).
   useEffect(() => {
@@ -249,6 +262,7 @@ export const NotificationProvider = ({ children }) => {
       hasLoadedPreferenceRef.current = false;
       setNotificationsEnabled(false);
       setNotificationPreferences({ ...DEFAULT_NOTIFICATION_PREFERENCES });
+      setMutedMessageMatchIds([]);
       lastSavedPayloadRef.current = null;
       currentUserIdRef.current = null;
       registeredTokensRef.current.clear();
@@ -376,6 +390,33 @@ export const NotificationProvider = ({ children }) => {
 
       fetchNotificationPreference();
     }
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!user?.id) {
+      setMutedMessageMatchIds([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(mutedMatchesStorageKey(user.id));
+        if (cancelled) return;
+        if (!raw) {
+          setMutedMessageMatchIds([]);
+          return;
+        }
+        const parsed = JSON.parse(raw);
+        setMutedMessageMatchIds(
+          Array.isArray(parsed) ? parsed.map((x) => String(x)) : []
+        );
+      } catch {
+        if (!cancelled) setMutedMessageMatchIds([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [user?.id]);
 
   /* -------------------------------------------
@@ -750,25 +791,61 @@ export const NotificationProvider = ({ children }) => {
     }));
   }, []);
 
-  const notificationTypeEnabled = useCallback((type) => {
-    if (type === 'unmatch') {
-      return true;
-    }
-    if (!notificationsEnabled) return false;
+  const toggleMatchMessageMuted = useCallback((matchId) => {
+    const uid = userIdRef.current;
+    if (!uid || matchId == null || matchId === '') return;
+    const id = String(matchId);
+    setMutedMessageMatchIds((prev) => {
+      const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
+      AsyncStorage.setItem(mutedMatchesStorageKey(uid), JSON.stringify(next)).catch((err) => {
+        console.warn('Failed to persist per-match message mute', err);
+      });
+      return next;
+    });
+  }, []);
 
-    switch (type) {
-      case 'match':
-        return notificationPreferences.newMatchNotification;
-      case 'blind_match':
-        return notificationPreferences.newBlindMatchNotification;
-      case 'message':
-        return notificationPreferences.newMessageNotification;
-      case 'match_approval':
-        return notificationPreferences.newMatchApprovalNotification;
-      default:
+  const isMatchMessageMuted = useCallback(
+    (matchId) => {
+      if (matchId == null || matchId === '') return false;
+      return mutedMessageMatchIds.includes(String(matchId));
+    },
+    [mutedMessageMatchIds]
+  );
+
+  const notificationTypeEnabled = useCallback(
+    (type, data = null) => {
+      if (type === 'unmatch') {
         return true;
-    }
-  }, [notificationPreferences, notificationsEnabled]);
+      }
+      if (!notificationsEnabled) return false;
+
+      switch (type) {
+        case 'match':
+          return notificationPreferences.newMatchNotification;
+        case 'blind_match':
+          return notificationPreferences.newBlindMatchNotification;
+        case 'message': {
+          if (!notificationPreferences.newMessageNotification) return false;
+          const mid =
+            data?.matchId != null && data?.matchId !== '' ? String(data.matchId) : null;
+          if (mid && mutedMessageMatchIds.includes(mid)) return false;
+          if (
+            user?.role === 'matchmaker' &&
+            data &&
+            String(data.matchStatus) === 'matched'
+          ) {
+            return Boolean(notificationPreferences.approvedMatchMessageNotification);
+          }
+          return true;
+        }
+        case 'match_approval':
+          return notificationPreferences.newMatchApprovalNotification;
+        default:
+          return true;
+      }
+    },
+    [notificationPreferences, notificationsEnabled, user?.role, mutedMessageMatchIds]
+  );
 
   // Keep the global handler in sync with current preference toggles.
   useEffect(() => {
@@ -777,7 +854,7 @@ export const NotificationProvider = ({ children }) => {
   }, [notificationTypeEnabled]);
 
   const sendNotification = async (title, body, data = {}) => {
-    if (!notificationTypeEnabled(data?.type)) return;
+    if (!notificationTypeEnabled(data?.type, data)) return;
 
     await Notifications.scheduleNotificationAsync({
       content: { title, body, data, sound: true },
@@ -798,6 +875,8 @@ export const NotificationProvider = ({ children }) => {
         expoPushToken,
         loading,
         lastNotificationEvent,
+        toggleMatchMessageMuted,
+        isMatchMessageMuted,
       }}
     >
       {children}

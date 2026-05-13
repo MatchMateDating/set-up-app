@@ -18,32 +18,95 @@ import { API_BASE_URL } from '../../env';
 
 const ForgotPasswordScreen = () => {
   const [identifier, setIdentifier] = useState('');
+  const [identifierError, setIdentifierError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigation = useNavigation();
   const identifierRef = useRef(null);
 
+  const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+  const phoneDigitsOnly = (value) => (value || '').replace(/\D/g, '');
+  const isValidPhone = (value) => phoneDigitsOnly(value).length >= 10;
+
+  const normalizeUsPhoneToE164 = (value) => {
+    let digits = phoneDigitsOnly(value);
+    if (!digits.startsWith('1') && digits.length === 10) {
+      digits = `1${digits}`;
+    }
+    return `+${digits}`;
+  };
+
+  const getIdentifierKind = (trimmed) => {
+    if (!trimmed) return null;
+    if (isValidEmail(trimmed)) return 'email';
+    if (isValidPhone(trimmed)) return 'phone';
+    return null;
+  };
+
+  const handleIdentifierChange = (value) => {
+    setIdentifier(value);
+    const t = value.trim();
+    if (!t) {
+      setIdentifierError('');
+      return;
+    }
+    if (isValidEmail(t) || isValidPhone(t)) {
+      setIdentifierError('');
+      return;
+    }
+    if (t.includes('@')) {
+      setIdentifierError('Not a valid email');
+      return;
+    }
+    const digits = phoneDigitsOnly(t);
+    if (digits.length > 0 && digits.length < 10) {
+      setIdentifierError('');
+      return;
+    }
+    setIdentifierError('Enter a valid email or phone number');
+  };
+
   const handleSendReset = async () => {
-    if (!identifier.trim()) {
+    const trimmed = identifier.trim();
+    if (!trimmed) {
       Alert.alert('Error', 'Please enter your email or phone number.');
       return;
     }
 
+    const kind = getIdentifierKind(trimmed);
+    if (!kind) {
+      if (trimmed.includes('@')) {
+        setIdentifierError('Not a valid email');
+        Alert.alert('Error', 'Please enter a valid email address.');
+      } else {
+        setIdentifierError('Enter a valid email or phone number');
+        Alert.alert(
+          'Error',
+          'Please enter a valid email or a US phone number with at least 10 digits.'
+        );
+      }
+      return;
+    }
+
+    const payloadIdentifier =
+      kind === 'phone' ? normalizeUsPhoneToE164(trimmed) : trimmed;
+
     setLoading(true);
     try {
       const res = await axios.post(`${API_BASE_URL}/auth/forgot-password`, {
-        identifier: identifier.trim()
+        identifier: payloadIdentifier,
       });
 
-      Alert.alert(
-        'Success',
-        res.data.message || 'Password reset instructions have been sent to your email or phone.',
-        [
-          {
-            text: 'OK',
-            onPress: () => navigation.goBack()
-          }
-        ]
-      );
+      const defaultMsg =
+        kind === 'phone'
+          ? 'If an account exists for that number, we sent a text with a link to reset your password.'
+          : 'If an account exists for that email, we sent reset instructions to your inbox.';
+
+      Alert.alert('Success', res.data.message || defaultMsg, [
+        {
+          text: 'OK',
+          onPress: () => navigation.goBack(),
+        },
+      ]);
     } catch (err) {
       Alert.alert('Error', err.response?.data?.msg || 'Failed to send reset instructions. Please try again.');
     } finally {
@@ -80,28 +143,35 @@ const ForgotPasswordScreen = () => {
 
         <Text style={styles.title}>Forgot Password</Text>
         <Text style={styles.subtitle}>
-          Enter your email or phone number and we'll send you instructions to reset your password.
+          Enter your email or US phone number. We will email you a reset link, or text you a link if
+          you used your phone number.
         </Text>
 
         <TextInput
           ref={identifierRef}
           style={styles.input}
-          placeholder="Email or Phone Number"
+          placeholder="Email or phone number"
           placeholderTextColor="#6b7280"
           value={identifier}
-          onChangeText={setIdentifier}
+          onChangeText={handleIdentifierChange}
           keyboardType="default"
           autoCapitalize="none"
+          autoCorrect={false}
           returnKeyType="done"
           onSubmitEditing={handleSendReset}
         />
+        {identifierError ? (
+          <Text style={styles.fieldError}>{identifierError}</Text>
+        ) : null}
 
-        <TouchableOpacity 
-          style={[styles.button, loading && styles.buttonDisabled]} 
+        <TouchableOpacity
+          style={[styles.button, loading && styles.buttonDisabled]}
           onPress={handleSendReset}
           disabled={loading}
         >
-          <Text style={styles.buttonText}>{loading ? 'Sending...' : 'Send Reset Link'}</Text>
+          <Text style={styles.buttonText}>
+            {loading ? 'Sending...' : 'Send reset instructions'}
+          </Text>
         </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -182,6 +252,13 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  fieldError: {
+    color: '#e53e3e',
+    fontSize: 13,
+    marginTop: -4,
+    marginBottom: 8,
+    marginLeft: 4,
   },
 });
 

@@ -13,6 +13,7 @@ NOTIFICATION_PREFERENCE_FIELDS = (
     'new_match_notifications',
     'new_blind_match_notifications',
     'new_message_notifications',
+    'approved_match_message_notifications',
     'new_match_approval_notifications',
 )
 
@@ -151,6 +152,9 @@ def update_notification_preferences(current_user):
             'new_match_notifications': refreshed.notification_setting_enabled('new_match_notifications'),
             'new_blind_match_notifications': refreshed.notification_setting_enabled('new_blind_match_notifications'),
             'new_message_notifications': refreshed.notification_setting_enabled('new_message_notifications'),
+            'approved_match_message_notifications': refreshed.notification_setting_enabled(
+                'approved_match_message_notifications'
+            ),
             'new_match_approval_notifications': refreshed.notification_setting_enabled(
                 'new_match_approval_notifications'
             ),

@@ -75,9 +75,10 @@ def _send_deferred_blind_match_notification_if_needed(match):
             is_blind_match=True,
             is_matchmaker_mediated=mm_involved,
         )
-        send_match_notification_to_linked_matchmakers(
-            deferred_id, match.id, other_name, is_blind_match=True
-        )
+        if mm_involved:
+            send_match_notification_to_linked_matchmakers(
+                deferred_id, match.id, other_name, is_blind_match=True
+            )
     except Exception as e:
         print(f'Error sending deferred blind match notification: {e}')
     match.blind_match_deferred_notify_user_id = None
@@ -217,6 +218,24 @@ def _unread_count_for_match(match_id, receiver_id):
         Message.id > last_read_message_id,
         Message.sender_id != receiver_id
     ).count()
+
+def _last_message_time_for_match(match_id):
+    conversation = Conversation.query.filter_by(match_id=match_id).first()
+    if not conversation:
+        return None
+    last_msg = (
+        Message.query
+        .filter_by(conversation_id=conversation.id)
+        .order_by(Message.timestamp.desc())
+        .first()
+    )
+    if not last_msg or not last_msg.timestamp:
+        return None
+    dt = last_msg.timestamp
+    if dt.tzinfo is None:
+        return dt.strftime('%Y-%m-%dT%H:%M:%SZ')
+    return dt.strftime('%Y-%m-%dT%H:%M:%SZ')
+
 
 def haversine_distance(lat1, lon1, lat2, lon2):
     """Return distance between two coordinates in miles."""
@@ -638,19 +657,21 @@ def like_user(current_user):
                                 is_blind_match=is_blind,
                                 is_matchmaker_mediated=mm_involved,
                             )
-                        # Matchmakers always get a push (tokens on MM user); MM-only swipes skip dater push above.
-                        skip_mm = (
-                            {current_user.id}
-                            if getattr(current_user, "role", None) == "matchmaker"
-                            else set()
-                        )
-                        send_match_notification_to_linked_matchmakers(
-                            uid,
-                            existing_match.id,
-                            other_name,
-                            is_blind_match=is_blind,
-                            skip_matchmaker_ids=skip_mm,
-                        )
+                        # Only notify matchmakers when they mediated a side (pending approval / MM swipe).
+                        # Pure dater–dater mutual likes should not ping the roster matchmaker.
+                        if mm_involved:
+                            skip_mm = (
+                                {current_user.id}
+                                if getattr(current_user, "role", None) == "matchmaker"
+                                else set()
+                            )
+                            send_match_notification_to_linked_matchmakers(
+                                uid,
+                                existing_match.id,
+                                other_name,
+                                is_blind_match=is_blind,
+                                skip_matchmaker_ids=skip_mm,
+                            )
             except Exception as e:
                 # Log error but don't fail the request
                 print(f"Error sending match notifications: {e}")
@@ -705,6 +726,10 @@ def get_mutual_matches(current_user):
         ).all()
 
         for match in approved_matches:
+            if match.matched_by_user_id_1_matcher == current_user.id and (match.dater_removed_matcher_1 or False):
+                continue
+            if match.matched_by_user_id_2_matcher == current_user.id and (match.dater_removed_matcher_2 or False):
+                continue
             user1 = User.query.get(match.user_id_1)
             user2 = User.query.get(match.user_id_2)
             other_user = user1 if (user2 and user2.id == linked_dater_id) else user2
@@ -729,6 +754,7 @@ def get_mutual_matches(current_user):
                 'linked_dater': linked_dater_dict,
                 'blind_match': match.blind_match,
                 'unread_count': _unread_count_for_match(match.id, current_user.id),
+                'last_message_time': _last_message_time_for_match(match.id),
                 'user_1_matchmaker_involved': user1_matchmaker_involved,
                 'user_2_matchmaker_involved': user2_matchmaker_involved,
                 'both_matchmakers_involved': both_matchmakers_involved,
@@ -744,6 +770,10 @@ def get_mutual_matches(current_user):
         ).all()
 
         for match in pending_matches:
+            if match.matched_by_user_id_1_matcher == current_user.id and (match.dater_removed_matcher_1 or False):
+                continue
+            if match.matched_by_user_id_2_matcher == current_user.id and (match.dater_removed_matcher_2 or False):
+                continue
             user1 = User.query.get(match.user_id_1)
             user2 = User.query.get(match.user_id_2)
             other_user = user1 if (user2 and user2.id == linked_dater_id) else user2
@@ -792,6 +822,7 @@ def get_mutual_matches(current_user):
                 'blind_match': match.blind_match,
                 'status': match.status,
                 'unread_count': _unread_count_for_match(match.id, current_user.id),
+                'last_message_time': _last_message_time_for_match(match.id),
                 'message_count': message_count,
                 'waiting_for_other_approval': waiting_for_other,
                 'approved_by_other_matchmaker': both_matchmakers_involved and approved_by_other and not approved_by_current,
@@ -844,11 +875,18 @@ def get_mutual_matches(current_user):
                 'match_user': user_dict,
                 'linked_dater': linked_dater_dict,
                 'blind_match': match.blind_match,
+                'status': match.status,
                 'unread_count': _unread_count_for_match(match.id, current_user.id),
+                'last_message_time': _last_message_time_for_match(match.id),
                 'user_1_matchmaker_involved': user1_matchmaker_involved,
                 'user_2_matchmaker_involved': user2_matchmaker_involved,
                 'both_matchmakers_involved': both_matchmakers_involved,
                 'other_matchmaker_involved': other_matchmaker_involved,
+                'approved_by_matcher_1': bool(match.approved_by_matcher_1),
+                'approved_by_matcher_2': bool(match.approved_by_matcher_2),
+                'dater_removed_matcher_1': bool(match.dater_removed_matcher_1),
+                'dater_removed_matcher_2': bool(match.dater_removed_matcher_2),
+                'dater_on_user_id_1_side': match.user_id_1 == current_user.id,
             })
 
         # Get pending_approval matches - only show if current_user directly liked (is in liked_by)
@@ -900,10 +938,16 @@ def get_mutual_matches(current_user):
                 'blind_match': match.blind_match,
                 'status': 'pending_approval',
                 'unread_count': _unread_count_for_match(match.id, current_user.id),
+                'last_message_time': _last_message_time_for_match(match.id),
                 'user_1_matchmaker_involved': user1_matchmaker_involved,
                 'user_2_matchmaker_involved': user2_matchmaker_involved,
                 'both_matchmakers_involved': both_matchmakers_involved,
                 'other_matchmaker_involved': other_matchmaker_involved,
+                'approved_by_matcher_1': bool(match.approved_by_matcher_1),
+                'approved_by_matcher_2': bool(match.approved_by_matcher_2),
+                'dater_removed_matcher_1': bool(match.dater_removed_matcher_1),
+                'dater_removed_matcher_2': bool(match.dater_removed_matcher_2),
+                'dater_on_user_id_1_side': match.user_id_1 == current_user.id,
             })
 
     return jsonify({'matched': matched_users, 'pending_approval': pending_approval_users})

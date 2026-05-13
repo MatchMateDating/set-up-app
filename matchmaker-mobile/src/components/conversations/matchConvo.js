@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState, useRef } from 'react';
+import React, { useCallback, useContext, useEffect, useLayoutEffect, useState, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -38,6 +38,7 @@ import { getImageUrl } from '../profile/utils/profileUtils';
 import { getRoleAccentColor } from '../layout/components/RoleHeaderBanner';
 import { runOnJS } from 'react-native-reanimated';
 import { setActiveMatchId, useNotifications } from '../../context/NotificationContext';
+import { UserContext } from '../../context/UserContext';
 
 function formatMessageTimestamp(isoString) {
   if (!isoString) return '';
@@ -70,6 +71,15 @@ function normalizeMessages(rawMessages) {
 
 /** Poll interval while chat is open — light on the server vs 3s; keeps MM threads in sync. */
 const CONVERSATION_POLL_MS = 12000;
+/** Two-MM pending: refresh match row so peer approval updates header copy without leaving the thread. */
+const MATCH_META_PENDING_POLL_MS = 3500;
+/** Poll typing indicators — separate from message poll for snappy UX. */
+const TYPING_POLL_MS = 2500;
+const TYPING_DEBOUNCE_MS = 350;
+/** After this long with no new keystrokes, we report not typing (draft alone does not count). */
+const TYPING_IDLE_CLEAR_MS = 3000;
+/** If the user is within this many px of the bottom, content-size changes snap them to the new bottom. */
+const TYPING_SCROLL_BOTTOM_THRESHOLD_PX = 40;
 
 const MatchConvo = () => {
   const route = useRoute();
@@ -77,7 +87,8 @@ const MatchConvo = () => {
   const isFocused = useIsFocused();
   const containerRef = useRef(null);
   const { matchId, isBlind } = route.params || {};
-  const { userInfo } = useUserInfo(API_BASE_URL);
+  const { userInfo, setUserInfo, referrerInfo } = useUserInfo(API_BASE_URL);
+  const { user: contextUser } = useContext(UserContext);
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [newMessageText, setNewMessageText] = useState('');
@@ -99,8 +110,77 @@ const MatchConvo = () => {
   const scrollViewRef = useRef(null);
   /** Skip the useFocusEffect fetch that immediately follows the initial mount fetch for this matchId. */
   const skipNextFocusRefreshRef = useRef(false);
+  /** After 403 (lost access), avoid repeated navigations from the message poll. */
+  const conversationAccessLostRef = useRef(false);
+  /** Latest match id for this screen — async match-meta fetches must not apply to an older navigation. */
+  const currentMatchIdRef = useRef(matchId);
+  currentMatchIdRef.current = matchId;
   const isFocusedRef = useRef(isFocused);
   isFocusedRef.current = isFocused;
+  const [othersTyping, setOthersTyping] = useState([]);
+  const typingDebounceRef = useRef(null);
+  const typingIdleClearRef = useRef(null);
+  const scrollMetricsRef = useRef({ scrollY: 0, contentH: 0, layoutH: 0 });
+
+  const handleScrollViewScroll = useCallback((event) => {
+    const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+    scrollMetricsRef.current = {
+      scrollY: contentOffset.y,
+      contentH: contentSize.height,
+      layoutH: layoutMeasurement.height,
+    };
+  }, []);
+
+  const clearTypingIdleClearTimer = useCallback(() => {
+    if (typingIdleClearRef.current) {
+      clearTimeout(typingIdleClearRef.current);
+      typingIdleClearRef.current = null;
+    }
+  }, []);
+
+  const postTyping = useCallback(
+    async (typing) => {
+      try {
+        const token = await AsyncStorage.getItem('token');
+        if (!token || !matchId) return;
+        await fetch(`${API_BASE_URL}/conversation/${matchId}/typing`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ typing }),
+        });
+      } catch (err) {
+        console.error('typing indicator:', err);
+      }
+    },
+    [matchId]
+  );
+
+  const handleComposerChange = useCallback(
+    (text) => {
+      setNewMessageText(text);
+      if (typingDebounceRef.current) {
+        clearTimeout(typingDebounceRef.current);
+        typingDebounceRef.current = null;
+      }
+      clearTypingIdleClearTimer();
+
+      if (!text.trim()) {
+        postTyping(false);
+        return;
+      }
+
+      typingIdleClearRef.current = setTimeout(() => {
+        typingIdleClearRef.current = null;
+        postTyping(false);
+      }, TYPING_IDLE_CLEAR_MS);
+
+      typingDebounceRef.current = setTimeout(() => {
+        typingDebounceRef.current = null;
+        postTyping(true);
+      }, TYPING_DEBOUNCE_MS);
+    },
+    [postTyping, clearTypingIdleClearTimer]
+  );
 
   const markConversationAsRead = useCallback(async () => {
     if (!matchId || !isFocusedRef.current) return;
@@ -115,6 +195,22 @@ const MatchConvo = () => {
       console.error('Error marking conversation as read:', err);
     }
   }, [matchId]);
+
+  /** Close chat once (push, 403 poll, or send denied) when the user no longer has access. */
+  const exitConversationDueToAccessLoss = useCallback(() => {
+    if (conversationAccessLostRef.current) return;
+    conversationAccessLostRef.current = true;
+    if (Platform.OS === 'ios') {
+      navigation.dispatch(
+        CommonActions.reset({
+          index: 0,
+          routes: [{ name: 'Main', params: { screen: 'Conversations' } }],
+        })
+      );
+    } else {
+      navigation.navigate('Main', { screen: 'Conversations' });
+    }
+  }, [navigation]);
 
   const loadConversationMessages = useCallback(
     async ({ showErrors = false } = {}) => {
@@ -139,6 +235,11 @@ const MatchConvo = () => {
             }
             return;
           }
+        }
+
+        if (res.status === 403) {
+          exitConversationDueToAccessLoss();
+          return;
         }
 
         if (res.status === 404) {
@@ -173,8 +274,76 @@ const MatchConvo = () => {
         }
       }
     },
-    [matchId, navigation, markConversationAsRead]
+    [matchId, navigation, markConversationAsRead, exitConversationDueToAccessLoss]
   );
+
+  /** Load match row + counterparty for the header; daters retry briefly so post-approval opens are not stale. */
+  const loadMatchMeta = useCallback(async () => {
+    const mid = Number(matchId);
+    if (!Number.isFinite(mid)) return;
+
+    const delay = (ms) => new Promise((r) => setTimeout(r, ms));
+
+    const fetchOnce = async () => {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) return null;
+      const res = await fetch(`${API_BASE_URL}/match/matches?_=${Date.now()}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      const allMatches = Array.isArray(data) ? data : [...(data.matched || []), ...(data.pending_approval || [])];
+      return allMatches.find((m) => m.match_id === mid) ?? null;
+    };
+
+    const maxAttempts = userInfo?.role === 'user' ? 5 : 1;
+
+    for (let i = 0; i < maxAttempts; i++) {
+      if (Number(currentMatchIdRef.current) !== mid) return;
+
+      let row = null;
+      try {
+        row = await fetchOnce();
+      } catch (err) {
+        console.error('Error fetching match user:', err);
+      }
+
+      if (Number(currentMatchIdRef.current) !== mid) return;
+
+      if (!row) {
+        if (i < maxAttempts - 1) await delay(400);
+        continue;
+      }
+
+      const mu = row.match_user;
+      const invalidSelf =
+        userInfo?.role === 'user' &&
+        userInfo?.id != null &&
+        mu?.id != null &&
+        Number(mu.id) === Number(userInfo.id);
+
+      if (!invalidSelf && mu && mu.id != null) {
+        setMatchUser(mu);
+        setMatchInfo(row);
+        return;
+      }
+
+      setMatchInfo(row);
+      setMatchUser(null);
+
+      if (i < maxAttempts - 1) await delay(400);
+    }
+  }, [matchId, userInfo?.role, userInfo?.id]);
+
+  useLayoutEffect(() => {
+    if (matchId == null || matchId === '') return;
+    setMatchUser(null);
+    setMatchInfo(null);
+  }, [matchId]);
+
+  useEffect(() => {
+    conversationAccessLostRef.current = false;
+  }, [matchId]);
 
   useEffect(() => {
     if (!matchId) return undefined;
@@ -182,6 +351,11 @@ const MatchConvo = () => {
     setLoading(true);
     loadConversationMessages({ showErrors: true });
   }, [matchId, loadConversationMessages]);
+
+  useEffect(() => {
+    if (!matchId) return undefined;
+    loadMatchMeta();
+  }, [matchId, loadMatchMeta]);
 
   // Refetch when returning to this screen (same matchId) without waiting for the poll.
   useFocusEffect(
@@ -192,8 +366,9 @@ const MatchConvo = () => {
         return undefined;
       }
       loadConversationMessages({ showErrors: false });
+      loadMatchMeta();
       return undefined;
-    }, [matchId, loadConversationMessages])
+    }, [matchId, loadConversationMessages, loadMatchMeta])
   );
 
   useFocusEffect(
@@ -204,21 +379,94 @@ const MatchConvo = () => {
     }, [matchId])
   );
 
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        if (typingDebounceRef.current) {
+          clearTimeout(typingDebounceRef.current);
+          typingDebounceRef.current = null;
+        }
+        clearTypingIdleClearTimer();
+        postTyping(false);
+      };
+    }, [postTyping, clearTypingIdleClearTimer])
+  );
+
+  // After linked-account switch (e.g. notification tap), keep profile in sync with UserContext — same as conversations.js.
+  useEffect(() => {
+    if (!contextUser) {
+      return;
+    }
+
+    setUserInfo((prevUserInfo) => {
+      if (!prevUserInfo) {
+        return contextUser;
+      }
+
+      const sameUser = prevUserInfo.id === contextUser.id;
+      const sameSelectedDater =
+        prevUserInfo.referrer_id === contextUser.referrer_id &&
+        prevUserInfo.referred_by_id === contextUser.referred_by_id;
+      const sameLinkedDaters =
+        JSON.stringify(prevUserInfo.linked_daters || []) === JSON.stringify(contextUser.linked_daters || []);
+
+      if (sameUser && sameSelectedDater && sameLinkedDaters) {
+        return prevUserInfo;
+      }
+
+      return { ...prevUserInfo, ...contextUser };
+    });
+  }, [contextUser, setUserInfo]);
+
+  useEffect(() => {
+    return () => {
+      if (typingDebounceRef.current) {
+        clearTimeout(typingDebounceRef.current);
+        typingDebounceRef.current = null;
+      }
+      clearTypingIdleClearTimer();
+      postTyping(false);
+    };
+  }, [matchId, postTyping, clearTypingIdleClearTimer]);
+
+  useEffect(() => {
+    if (!matchId || !isFocused) return undefined;
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const token = await AsyncStorage.getItem('token');
+        if (!token || cancelled) return;
+        const res = await fetch(`${API_BASE_URL}/conversation/${matchId}/typing`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        if (!cancelled) setOthersTyping(Array.isArray(data.typing) ? data.typing : []);
+      } catch {
+        if (!cancelled) setOthersTyping([]);
+      }
+    };
+    poll();
+    const id = setInterval(poll, TYPING_POLL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [matchId, isFocused]);
+
   useEffect(() => {
     const data = lastNotificationEvent?.data;
-    if (!data || data.type !== 'unmatch' || matchId == null) return;
+    if (!data || matchId == null) return;
     if (String(data.matchId) !== String(matchId)) return;
-    if (Platform.OS === 'ios') {
-      navigation.dispatch(
-        CommonActions.reset({
-          index: 0,
-          routes: [{ name: 'Main', params: { screen: 'Conversations' } }],
-        })
-      );
-    } else {
-      navigation.navigate('Main', { screen: 'Conversations' });
+    const t = data.type;
+    if (t === 'unmatch' || t === 'dater_removed_matchmaker') {
+      exitConversationDueToAccessLoss();
+      return;
     }
-  }, [lastNotificationEvent?.receivedAt, matchId, navigation]);
+    if (t === 'match_approval') {
+      loadMatchMeta();
+    }
+  }, [lastNotificationEvent?.receivedAt, matchId, exitConversationDueToAccessLoss, loadMatchMeta]);
 
   // While chat is open, poll so both matchmakers see new messages without leaving.
   useEffect(() => {
@@ -228,6 +476,25 @@ const MatchConvo = () => {
     }, CONVERSATION_POLL_MS);
     return () => clearInterval(id);
   }, [matchId, isFocused, loadConversationMessages]);
+
+  // Two-MM pending: peer approval only changes GET /match/matches — poll lightly while focused (push also refreshes).
+  useEffect(() => {
+    if (!matchId || !isFocused) return undefined;
+    if (userInfo?.role !== 'matchmaker') return undefined;
+    if (matchInfo?.status !== 'pending_approval') return undefined;
+    if (!matchInfo?.both_matchmakers_involved) return undefined;
+    const id = setInterval(() => {
+      loadMatchMeta();
+    }, MATCH_META_PENDING_POLL_MS);
+    return () => clearInterval(id);
+  }, [
+    matchId,
+    isFocused,
+    userInfo?.role,
+    matchInfo?.status,
+    matchInfo?.both_matchmakers_involved,
+    loadMatchMeta,
+  ]);
 
   useEffect(() => {
     const fetchNames = async () => {
@@ -263,32 +530,6 @@ const MatchConvo = () => {
     };
     if (messages.length > 0) fetchNames();
   }, [messages]);
-
-  useEffect(() => {
-    const fetchMatchUser = async () => {
-      try {
-        const token = await AsyncStorage.getItem('token');
-        if (!token) return;
-
-        const res = await fetch(`${API_BASE_URL}/match/matches`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (res.ok) {
-          const data = await res.json();
-          // Handle new structure: {matched: [], pending_approval: []}
-          const allMatches = Array.isArray(data) ? data : [...(data.matched || []), ...(data.pending_approval || [])];
-          const matchInfo = allMatches.find((m) => m.match_id === Number(matchId));
-          if (matchInfo) {
-            setMatchUser(matchInfo.match_user);
-            setMatchInfo(matchInfo);
-          }
-        }
-      } catch (err) {
-        console.error('Error fetching match user:', err);
-      }
-    };
-    if (matchId) fetchMatchUser();
-  }, [matchId]);
 
   const scrollToBottom = (animated = true) => {
     // Retry a few times to handle intermittent keyboard/layout timing.
@@ -353,9 +594,20 @@ const MatchConvo = () => {
         body: JSON.stringify(bodyData),
       });
 
+      if (res.status === 403) {
+        exitConversationDueToAccessLoss();
+        return;
+      }
+
       if (res.ok || res.status === 201) {
         const data = await res.json();
         setMessages(normalizeMessages(data.messages || []));
+        if (typingDebounceRef.current) {
+          clearTimeout(typingDebounceRef.current);
+          typingDebounceRef.current = null;
+        }
+        clearTypingIdleClearTimer();
+        postTyping(false);
         setNewMessageText('');
         setSelectedPuzzleLink('');
         InteractionManager.runAfterInteractions(() => {
@@ -389,18 +641,47 @@ const MatchConvo = () => {
   const getSenderLabel = (msg) => {
     if (isMine(msg)) return '';
     const senderRole = senderRoles[msg.sender_id];
-    const senderName = senderNames[msg.sender_id] || 'Loading...';
+    const trimmedSenderName =
+      senderNames[msg.sender_id] != null ? String(senderNames[msg.sender_id]).trim() : '';
+    const senderName = trimmedSenderName || 'Loading...';
     if (senderRole === undefined && userInfo?.role === 'matchmaker') {
       // During profile lookup, prefer a stable label for matchmaker-mediated chats.
       return 'Matchmaker';
     }
     if (senderRole === 'matchmaker') {
-      if (userInfo?.role === 'user') {
-        const senderLinkedDaterId = senderReferrerIds[msg.sender_id];
-        const isUsersMatchmaker = Number(senderLinkedDaterId) === Number(userInfo?.id);
-        return isUsersMatchmaker ? 'Matchmaker(you)' : 'Matchmaker(them)';
+      const senderLinkedDaterId = senderReferrerIds[msg.sender_id];
+      const isDaterViewer = userInfo?.role === 'user';
+      const myLinkedDaterId = isDaterViewer
+        ? userInfo?.id
+        : (userInfo?.referrer_id ?? userInfo?.referred_by_id ?? null);
+      const isCurrentUsersMatchmaker =
+        myLinkedDaterId != null &&
+        senderLinkedDaterId != null &&
+        Number(senderLinkedDaterId) === Number(myLinkedDaterId);
+
+      let myDaterFirstName = '';
+      if (isDaterViewer) {
+        myDaterFirstName = userInfo?.first_name != null ? String(userInfo.first_name).trim() : '';
+      } else if (userInfo?.role === 'matchmaker') {
+        myDaterFirstName =
+          (matchInfo?.linked_dater?.first_name != null && String(matchInfo.linked_dater.first_name).trim()) ||
+          (referrerInfo?.first_name != null && String(referrerInfo.first_name).trim()) ||
+          '';
+      }
+
+      const otherDaterFirstName =
+        matchUser?.first_name != null ? String(matchUser.first_name).trim() : '';
+
+      if (isDaterViewer || userInfo?.role === 'matchmaker') {
+        if (isCurrentUsersMatchmaker) {
+          return myDaterFirstName ? `${myDaterFirstName} • Matchmaker` : 'Matchmaker';
+        }
+        return otherDaterFirstName ? `${otherDaterFirstName} • Matchmaker` : 'Matchmaker';
       }
       return 'Matchmaker';
+    }
+    if (senderRole === 'user' || senderRole === 'dater') {
+      return trimmedSenderName ? `${trimmedSenderName} • Dater` : senderName;
     }
     return senderName;
   };
@@ -475,15 +756,42 @@ const MatchConvo = () => {
     }
   };
 
-  const isPendingApproval = matchInfo?.status === 'pending_approval' || matchInfo?.message_count !== undefined;
+  const isPendingApproval = matchInfo?.status === 'pending_approval';
   const messageCount = matchInfo?.message_count || 0;
   const canSendMore = messageCount < 10;
   const waitingForOtherApproval = matchInfo?.waiting_for_other_approval || false;
+
+  const mediatedChatAsDater =
+    userInfo?.role === 'user' &&
+    matchInfo &&
+    (matchInfo.status === 'pending_approval' || matchInfo.status === 'matched');
+  const canRemoveOwnMatchmaker =
+    mediatedChatAsDater &&
+    typeof matchInfo.dater_on_user_id_1_side === 'boolean' &&
+    ((matchInfo.dater_on_user_id_1_side &&
+      matchInfo.user_1_matchmaker_involved &&
+      (matchInfo.approved_by_matcher_1 || matchInfo.status === 'matched') &&
+      !matchInfo.dater_removed_matcher_1) ||
+      (!matchInfo.dater_on_user_id_1_side &&
+        matchInfo.user_2_matchmaker_involved &&
+        (matchInfo.approved_by_matcher_2 || matchInfo.status === 'matched') &&
+        !matchInfo.dater_removed_matcher_2));
   const approvedByOtherMatchmaker = matchInfo?.approved_by_other_matchmaker || false;
   const hasBlindValueFromMatchInfo = typeof matchInfo?.blind_match === 'string';
   const isBlindFromMatchInfo = hasBlindValueFromMatchInfo && matchInfo?.blind_match === 'Blind';
   const effectiveIsBlind = hasBlindValueFromMatchInfo ? isBlindFromMatchInfo : !!isBlind;
   const accentColor = getRoleAccentColor(userInfo?.role || 'matchmaker');
+
+  const typingBannerText = useMemo(() => {
+    if (!othersTyping.length) return null;
+    const labels = othersTyping.map((t) => {
+      if (t.role === 'matchmaker' && userInfo?.role === 'user') return 'Matchmaker';
+      return (t.first_name && String(t.first_name).trim()) || 'Someone';
+    });
+    if (labels.length === 1) return `${labels[0]} is typing…`;
+    if (labels.length === 2) return `${labels[0]} and ${labels[1]} are typing…`;
+    return `${labels.slice(0, -1).join(', ')}, and ${labels[labels.length - 1]} are typing…`;
+  }, [othersTyping, userInfo?.role]);
 
   // Matchmakers see this when both are involved and one approval is still outstanding.
   const showSpeakingWithMatchmakerForMatchmaker =
@@ -678,6 +986,67 @@ const MatchConvo = () => {
     } catch (err) {
       console.error('Error unmatching:', err);
       Alert.alert('Error', 'Failed to unmatch');
+    }
+  };
+
+  const handleRemoveMyMatchmakerFromMenu = async () => {
+    setMenuVisible(false);
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) {
+        Alert.alert('Error', 'Please log in');
+        navigation.navigate('Login');
+        return;
+      }
+      Alert.alert(
+        'Remove your matchmaker',
+        'Your matchmaker will no longer be able to view this chat or send puzzles. You can keep talking with the other dater and their matchmaker.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Remove',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                const res = await fetch(`${API_BASE_URL}/conversation/${matchId}/remove-my-matchmaker`, {
+                  method: 'POST',
+                  headers: { Authorization: `Bearer ${token}` },
+                });
+                if (res.status === 401) {
+                  const data = await res.json().catch(() => ({}));
+                  if (data.error_code === 'TOKEN_EXPIRED') {
+                    await AsyncStorage.removeItem('token');
+                    Alert.alert('Session expired', 'Please log in again.');
+                    navigation.navigate('Login');
+                  }
+                  return;
+                }
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                  Alert.alert('Error', data.message || 'Could not remove matchmaker');
+                  return;
+                }
+                setMatchInfo((prev) =>
+                  prev
+                    ? {
+                        ...prev,
+                        dater_removed_matcher_1: data.dater_removed_matcher_1 ?? prev.dater_removed_matcher_1,
+                        dater_removed_matcher_2: data.dater_removed_matcher_2 ?? prev.dater_removed_matcher_2,
+                      }
+                    : prev
+                );
+                Alert.alert('Done', 'Your matchmaker has been removed from this conversation.');
+              } catch (err) {
+                console.error(err);
+                Alert.alert('Error', 'Something went wrong');
+              }
+            },
+          },
+        ]
+      );
+    } catch (err) {
+      console.error(err);
+      Alert.alert('Error', 'Something went wrong');
     }
   };
 
@@ -937,7 +1306,36 @@ const MatchConvo = () => {
           ...styles.messagesContent,
           paddingBottom: selectedPuzzleLink ? 1 : 0, // extra space if a puzzle is selected
         }}
-        onContentSizeChange={() => scrollToBottom(false)}
+        onScroll={handleScrollViewScroll}
+        scrollEventThrottle={100}
+        onLayout={(e) => {
+          scrollMetricsRef.current = {
+            ...scrollMetricsRef.current,
+            layoutH: e.nativeEvent.layout.height,
+          };
+        }}
+        onContentSizeChange={(contentWidth, contentHeight) => {
+          const m = scrollMetricsRef.current;
+          const layoutH = m.layoutH;
+          const prevContentH = m.contentH;
+          const prevScrollY = m.scrollY;
+
+          scrollMetricsRef.current = { ...m, contentH: contentHeight };
+
+          if (layoutH <= 0 || contentHeight <= 0) return;
+
+          const maxScrollOld = Math.max(0, prevContentH - layoutH);
+          const maxScrollNew = Math.max(0, contentHeight - layoutH);
+          const distFromBottom =
+            maxScrollOld <= 0 ? 0 : maxScrollOld - prevScrollY;
+          const wasNearBottom =
+            maxScrollOld <= 0 || distFromBottom <= TYPING_SCROLL_BOTTOM_THRESHOLD_PX;
+
+          if (wasNearBottom && scrollViewRef.current) {
+            scrollViewRef.current.scrollTo({ y: maxScrollNew, animated: false });
+            scrollMetricsRef.current.scrollY = maxScrollNew;
+          }
+        }}
       >
         {messages.length === 0 ? (
           <Text style={styles.emptyText}>No messages yet. Say hi!</Text>
@@ -967,6 +1365,9 @@ const MatchConvo = () => {
             );
           })
         )}
+        {typingBannerText ? (
+          <Text style={styles.typingIndicatorInScroll}>{typingBannerText}</Text>
+        ) : null}
       </ScrollView>
 
       {selectedPuzzleLink ? (
@@ -983,7 +1384,7 @@ const MatchConvo = () => {
         <TextInput
           style={styles.messageInput}
           value={newMessageText}
-          onChangeText={setNewMessageText}
+          onChangeText={handleComposerChange}
           placeholder="Type a message..."
           placeholderTextColor="#999"
           multiline
@@ -996,7 +1397,7 @@ const MatchConvo = () => {
         <TextInput
           style={styles.messageInput}
           value={newMessageText}
-          onChangeText={setNewMessageText}
+          onChangeText={handleComposerChange}
           placeholder="Type a message..."
           placeholderTextColor="#999"
           multiline
@@ -1062,7 +1463,7 @@ const MatchConvo = () => {
                   style={styles.menuItem}
                   onPress={effectiveIsBlind ? handleRevealFromMenu : handleHideFromMenu}
                 >
-                  <Text style={styles.menuItemText}>{effectiveIsBlind ? 'Reveal' : 'Hide'}</Text>
+                  <Text style={styles.menuItemText}>{effectiveIsBlind ? 'Reveal Match' : 'Blind Match'}</Text>
                 </TouchableOpacity>
               )}
               {userInfo?.role === 'matchmaker' && showHeaderUnmatchAction && (
@@ -1071,6 +1472,11 @@ const MatchConvo = () => {
                   onPress={handleUnmatchConfirmFromMenu}
                 >
                   <Text style={[styles.menuItemText, styles.menuItemTextDanger]}>Unmatch</Text>
+                </TouchableOpacity>
+              )}
+              {userInfo?.role === 'user' && canRemoveOwnMatchmaker && (
+                <TouchableOpacity style={styles.menuItem} onPress={handleRemoveMyMatchmakerFromMenu}>
+                  <Text style={styles.menuItemText}>Remove Matchmaker</Text>
                 </TouchableOpacity>
               )}
               {userInfo?.role === 'user' && (
@@ -1189,6 +1595,13 @@ const styles = StyleSheet.create({
   },
   messagesContent: { padding: 16, gap: 12 },
   emptyText: { textAlign: 'center', color: '#6b7280', fontSize: 16, marginTop: 40 },
+  typingIndicatorInScroll: {
+    marginTop: 12,
+    marginBottom: 8,
+    fontSize: 14,
+    fontStyle: 'italic',
+    color: '#6b7280',
+  },
   messageBubble: { maxWidth: '75%', padding: 12, borderRadius: 16, marginBottom: 8 },
   mine: { alignSelf: 'flex-end', backgroundColor: '#6c5ce7' },
   theirs: { alignSelf: 'flex-start', backgroundColor: '#fff' },
