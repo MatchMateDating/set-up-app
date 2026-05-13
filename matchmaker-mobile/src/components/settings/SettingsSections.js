@@ -70,20 +70,27 @@ const LINKED_DATER_AVATAR_PALETTES = [
 const NOTIFICATION_PREFERENCE_ITEMS = [
   {
     key: 'newMatchNotification',
-    label: 'New Match Notification',
+    label: 'New Match',
   },
   {
     key: 'newBlindMatchNotification',
-    label: 'New Blind Match Notification',
+    label: 'New Blind Match',
     daterOnly: true,
   },
   {
     key: 'newMessageNotification',
-    label: 'New Message Notification',
+    label: 'New Message',
+  },
+  {
+    key: 'approvedMatchMessageNotification',
+    label: 'Approved Match Messages',
+    description:
+      'When off, you will still get message alerts while a match is waiting for approval.',
+    matchmakerOnly: true,
   },
   {
     key: 'newMatchApprovalNotification',
-    label: 'Approved Match Notification',
+    label: 'Approved Match',
   },
 ];
 
@@ -196,6 +203,8 @@ const SettingsSections = () => {
   const [user, setUser] = useState(null);
   const [role, setRole] = useState(null);
   const [savedReferrals, setSavedReferrals] = useState([]);
+  /** Matchmakers who linked this dater via referral (inverse of savedReferrals). */
+  const [linkedMatchmakers, setLinkedMatchmakers] = useState([]);
   const [referralCode, setReferralCode] = useState('');
   const [showReferralModal, setShowReferralModal] = useState(false);
   const [referralInput, setReferralInput] = useState('');
@@ -211,6 +220,9 @@ const SettingsSections = () => {
   const [daterInviteLinkLoading, setDaterInviteLinkLoading] = useState(false);
   const [showDaterInviteEmailModal, setShowDaterInviteEmailModal] = useState(false);
   const [daterInviteEmailInput, setDaterInviteEmailInput] = useState('');
+
+  /** Set when a matchmaker taps "Add Dater Account"; cleared on success, confirmed exit, or leaving Settings. */
+  const [addDaterAccountFlowActive, setAddDaterAccountFlowActive] = useState(false);
 
   const [currentEmail, setCurrentEmail] = useState('');
   const [newEmail, setNewEmail] = useState('');
@@ -255,9 +267,11 @@ const SettingsSections = () => {
 
   const visibleNotificationPreferenceItems = useMemo(
     () =>
-      NOTIFICATION_PREFERENCE_ITEMS.filter(
-        (item) => !(item.daterOnly && role === 'matchmaker')
-      ),
+      NOTIFICATION_PREFERENCE_ITEMS.filter((item) => {
+        if (item.daterOnly && role === 'matchmaker') return false;
+        if (item.matchmakerOnly && role === 'user') return false;
+        return true;
+      }),
     [role]
   );
 
@@ -280,7 +294,7 @@ const SettingsSections = () => {
         label: role === 'matchmaker' ? 'Manage Linked Daters' : 'Referral Code',
         description: role === 'matchmaker'
           ? 'Link and manage your connected daters.'
-          : 'Copy, share, or email your referral code.',
+          : 'Share your code and manage who can matchmake for you.',
         icon: 'gift-outline',
       },
       {
@@ -365,6 +379,7 @@ const SettingsSections = () => {
       });
 
       if (data.user.role === 'matchmaker') {
+        setLinkedMatchmakers([]);
         const linkedRes = await fetch(`${API_BASE_URL}/referral/referrals/${data.user.id}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -372,8 +387,20 @@ const SettingsSections = () => {
           const linkedData = await linkedRes.json();
           setSavedReferrals(linkedData.linked_daters || []);
         }
+      } else if (data.user.role === 'user') {
+        setSavedReferrals([]);
+        const mmRes = await fetch(`${API_BASE_URL}/referral/linked_matchmakers`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (mmRes.ok) {
+          const mmData = await mmRes.json();
+          setLinkedMatchmakers(mmData.linked_matchmakers || []);
+        } else {
+          setLinkedMatchmakers([]);
+        }
       } else {
         setSavedReferrals([]);
+        setLinkedMatchmakers([]);
       }
 
       await AsyncStorage.setItem('user', JSON.stringify(data.user));
@@ -423,6 +450,39 @@ const SettingsSections = () => {
     }, [fetchUserProfile])
   );
 
+  const exitSubsection = useCallback(() => {
+    if (
+      activeSection === SECTION_KEYS.MANAGE_ACCOUNTS &&
+      addDaterAccountFlowActive &&
+      role === 'matchmaker'
+    ) {
+      Alert.alert(
+        'Stop creating a dater account?',
+        'If you go back now, you will stop creating a dater account.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Go back',
+            onPress: () => {
+              setActiveSection(null);
+              setEditingPreferences(false);
+              setAddDaterAccountFlowActive(false);
+            },
+          },
+        ],
+        { cancelable: true }
+      );
+      return;
+    }
+    if (activeSection) {
+      if (activeSection === SECTION_KEYS.MANAGE_ACCOUNTS) {
+        setAddDaterAccountFlowActive(false);
+      }
+      setActiveSection(null);
+      setEditingPreferences(false);
+    }
+  }, [activeSection, addDaterAccountFlowActive, role]);
+
   // Subsections are in-screen state; tab navigator would otherwise treat back / swipe as "leave Settings"
   // (e.g. Android back → first tab, horizontal swipe → adjacent tab). Match the in-screen "Back to Settings" row.
   useEffect(() => {
@@ -440,8 +500,7 @@ const SettingsSections = () => {
   useEffect(() => {
     mainTabBackDelegateRef.current = () => {
       if (activeSection) {
-        setActiveSection(null);
-        setEditingPreferences(false);
+        exitSubsection();
         return true;
       }
       return false;
@@ -449,7 +508,7 @@ const SettingsSections = () => {
     return () => {
       mainTabBackDelegateRef.current = null;
     };
-  }, [activeSection]);
+  }, [activeSection, exitSubsection]);
 
   useFocusEffect(
     useCallback(() => {
@@ -457,6 +516,7 @@ const SettingsSections = () => {
         navigation.setOptions({ swipeEnabled: true });
         setActiveSection(null);
         setEditingPreferences(false);
+        setAddDaterAccountFlowActive(false);
       };
     }, [navigation])
   );
@@ -467,12 +527,11 @@ const SettingsSections = () => {
         return undefined;
       }
       const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-        setActiveSection(null);
-        setEditingPreferences(false);
+        exitSubsection();
         return true;
       });
       return () => sub.remove();
-    }, [activeSection])
+    }, [activeSection, exitSubsection])
   );
 
   useEffect(() => {
@@ -680,7 +739,7 @@ const SettingsSections = () => {
     }
   };
 
-  const handleCreateDaterAccount = async () => {
+  const submitCreateDaterAccount = async () => {
     try {
       const token = await AsyncStorage.getItem('token');
       if (!token) {
@@ -688,6 +747,8 @@ const SettingsSections = () => {
         navigation.navigate('Login');
         return;
       }
+
+      setAddDaterAccountFlowActive(true);
 
       const res = await fetch(`${API_BASE_URL}/profile/create_linked_dater`, {
         method: 'POST',
@@ -699,6 +760,7 @@ const SettingsSections = () => {
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
+        setAddDaterAccountFlowActive(false);
         Alert.alert('Error', data.error || 'Failed to create dater account');
         return;
       }
@@ -709,13 +771,40 @@ const SettingsSections = () => {
       }
       await AsyncStorage.setItem('user', JSON.stringify(data.user));
       setContextUser(data.user);
+      setAddDaterAccountFlowActive(false);
       Alert.alert('Success', 'Dater account created successfully');
-      navigation.navigate('CompleteProfile');
+      navigation.navigate('CompleteProfile', { creatingLinkedDater: true });
       fetchUserProfile();
     } catch (err) {
       console.error(err);
+      setAddDaterAccountFlowActive(false);
       Alert.alert('Error', 'Failed to create dater account');
     }
+  };
+
+  const handleCreateDaterAccount = () => {
+    Alert.alert(
+      'Create a dater account?',
+      [
+        'You are about to create a second profile (dater) that uses the same email and password as your matchmaker account. After you confirm, you will complete profile setup in three steps:',
+        '',
+        '1. Setup — Add photos and enter your name, birthdate, gender, height, and a short bio.',
+        '2. Preview — See how your dater profile will look to others.',
+        '3. Preferences — Choose age range, who you want to match with, and your match distance.',
+        '',
+        'You can switch between your matchmaker and dater accounts later from Settings.',
+      ].join('\n'),
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Create dater account',
+          onPress: () => {
+            void submitCreateDaterAccount();
+          },
+        },
+      ],
+      { cancelable: true }
+    );
   };
 
   const handleCreateMatchmakerAccount = () => {
@@ -1125,6 +1214,52 @@ const SettingsSections = () => {
       console.error(err);
       Alert.alert('Error', 'Failed to link referral');
     }
+  };
+
+  const handleDeleteLinkedMatchmaker = (linkedMm) => {
+    Alert.alert(
+      'Remove matchmaker',
+      `Remove ${linkedMm.name || 'this matchmaker'}? They will no longer be able to matchmake for you.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const token = await AsyncStorage.getItem('token');
+              if (!token) {
+                Alert.alert('Error', 'Please log in');
+                navigation.navigate('Login');
+                return;
+              }
+
+              const res = await fetch(`${API_BASE_URL}/referral/dater_unlink_matchmaker`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({ matchmaker_id: linkedMm.id }),
+              });
+
+              const data = await res.json().catch(() => ({}));
+              if (!res.ok) {
+                Alert.alert('Error', data.error || 'Failed to remove matchmaker');
+                return;
+              }
+
+              setLinkedMatchmakers(data.linked_matchmakers || []);
+              Alert.alert('Success', 'Matchmaker removed');
+              fetchUserProfile();
+            } catch (err) {
+              console.error(err);
+              Alert.alert('Error', 'Failed to remove matchmaker');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handleDeleteLinkedDater = (linkedDater) => {
@@ -1615,25 +1750,63 @@ const SettingsSections = () => {
   const renderReferral = () => {
     if (role === 'user') {
       return (
-        <View style={styles.card}>
-          <Text style={styles.cardHeader}>Referral Code</Text>
-          <Text style={styles.cardDescription}>Share your referral code with your matchmaker.</Text>
-          <View style={[styles.referralCodeBox, { borderColor: accentColor }]}>
-            <Text style={[styles.referralCodeText, { color: accentColor }]}>{referralCode || 'No code available'}</Text>
+        <View style={styles.matchmakerReferralStack}>
+          <View style={styles.card}>
+            <Text style={styles.cardHeader}>Referral Code</Text>
+            <Text style={styles.cardDescription}>
+              Share your referral code so a matchmaker can link to you and set up matches.
+            </Text>
+            <View style={[styles.referralCodeBox, { borderColor: accentColor }]}>
+              <Text style={[styles.referralCodeText, { color: accentColor }]}>{referralCode || 'No code available'}</Text>
+            </View>
+            <View style={styles.actionButtonGroup}>
+              <TouchableOpacity style={styles.iconActionBtn} onPress={handleCopyReferralCode}>
+                <Ionicons name="copy-outline" size={20} color={accentColor} />
+                <Text style={[styles.iconActionText, { color: accentColor }]}>Copy Code</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.iconActionBtn} onPress={handleShareReferralCode}>
+                <Ionicons name="share-outline" size={20} color={accentColor} />
+                <Text style={[styles.iconActionText, { color: accentColor }]}>Share Link</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.iconActionBtn} onPress={handleOpenEmailInvite}>
+                <Ionicons name="mail-outline" size={20} color={accentColor} />
+                <Text style={[styles.iconActionText, { color: accentColor }]}>Email Link</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-          <View style={styles.actionButtonGroup}>
-            <TouchableOpacity style={styles.iconActionBtn} onPress={handleCopyReferralCode}>
-              <Ionicons name="copy-outline" size={20} color={accentColor} />
-              <Text style={[styles.iconActionText, { color: accentColor }]}>Copy Code</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.iconActionBtn} onPress={handleShareReferralCode}>
-              <Ionicons name="share-outline" size={20} color={accentColor} />
-              <Text style={[styles.iconActionText, { color: accentColor }]}>Share Link</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.iconActionBtn} onPress={handleOpenEmailInvite}>
-              <Ionicons name="mail-outline" size={20} color={accentColor} />
-              <Text style={[styles.iconActionText, { color: accentColor }]}>Email Link</Text>
-            </TouchableOpacity>
+
+          <View style={styles.mmLinkedCard}>
+            <Text style={styles.mmLinkedListTitle}>Your matchmakers</Text>
+            <Text style={styles.mmInviteSubtitle}>
+              Matchmakers who linked using your code. Remove someone if you do not want them matchmaking for you anymore.
+            </Text>
+            <View style={styles.mmSectionDivider} />
+            {linkedMatchmakers.length > 0 ? (
+              linkedMatchmakers.map((mm, idx) => {
+                const palette = LINKED_DATER_AVATAR_PALETTES[idx % LINKED_DATER_AVATAR_PALETTES.length];
+                return (
+                  <View
+                    key={`${mm.id || idx}-${idx}`}
+                    style={[styles.mmLinkedRow, idx > 0 && styles.mmLinkedRowBorder]}
+                  >
+                    <LinkedDaterRowAvatar name={mm.name} firstImage={mm.first_image} palette={palette} />
+                    <View style={styles.mmLinkedRowText}>
+                      <Text style={styles.mmLinkedName}>{mm.name || 'Matchmaker'}</Text>
+                    </View>
+                    <TouchableOpacity
+                      style={styles.mmLinkedRemove}
+                      onPress={() => handleDeleteLinkedMatchmaker(mm)}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      activeOpacity={0.85}
+                    >
+                      <Ionicons name="close" size={14} color="#B91C1C" />
+                    </TouchableOpacity>
+                  </View>
+                );
+              })
+            ) : (
+              <Text style={styles.mmLinkedEmpty}>No matchmakers linked yet.</Text>
+            )}
           </View>
         </View>
       );
@@ -1889,8 +2062,19 @@ const SettingsSections = () => {
       {notificationsEnabled ? (
         <View style={styles.notificationPreferencesGroup}>
           {visibleNotificationPreferenceItems.map((item) => (
-            <View key={item.key} style={styles.notificationPreferenceRow}>
-              <Text style={styles.notificationLabel}>{item.label}</Text>
+            <View
+              key={item.key}
+              style={[
+                styles.notificationPreferenceRow,
+                item.description ? styles.notificationPreferenceRowAlignTop : null,
+              ]}
+            >
+              <View style={styles.notificationLabelBlock}>
+                <Text style={styles.notificationLabel}>{item.label}</Text>
+                {item.description ? (
+                  <Text style={styles.notificationItemHint}>{item.description}</Text>
+                ) : null}
+              </View>
               <Switch
                 value={Boolean(notificationPreferences?.[item.key])}
                 onValueChange={(value) => setNotificationPreference(item.key, value)}
@@ -1942,9 +2126,8 @@ const SettingsSections = () => {
         >
           <View style={[styles.content, { paddingTop: overlayTopPadding }]}>
             {activeSection ? (
-              <TouchableOpacity style={styles.backRow} onPress={() => setActiveSection(null)}>
-                <Ionicons name="chevron-back-outline" size={20} color={settingsBackAccent} />
-                <Text style={[styles.backText, { color: settingsBackAccent }]}>Back to Settings</Text>
+              <TouchableOpacity style={styles.backRow} onPress={exitSubsection}>
+                <Ionicons name="chevron-back-outline" size={22} color={settingsBackAccent} />
               </TouchableOpacity>
             ) : null}
             {renderActiveSection()}
@@ -1959,8 +2142,7 @@ const SettingsSections = () => {
           failOffsetY={[-32, 32]}
           onHandlerStateChange={({ nativeEvent }) => {
             if (nativeEvent.state === State.END && nativeEvent.translationX > 56) {
-              setActiveSection(null);
-              setEditingPreferences(false);
+              exitSubsection();
             }
           }}
         >
@@ -2206,15 +2388,17 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   backRow: {
+    alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 16,
-  },
-  backText: {
-    color: '#6c5ce7',
-    fontSize: 16,
-    fontWeight: '600',
-    marginLeft: 4,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    position: 'relative',
+    zIndex: 2000,
+    elevation: 50,
+    backgroundColor: 'transparent',
   },
   sectionButton: {
     backgroundColor: '#fff',
@@ -2783,6 +2967,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    gap: 12,
+  },
+  notificationPreferenceRowAlignTop: {
+    alignItems: 'flex-start',
+  },
+  notificationLabelBlock: {
+    flex: 1,
+    minWidth: 0,
+    paddingRight: 4,
+  },
+  notificationItemHint: {
+    marginTop: 4,
+    color: '#6B7280',
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '400',
   },
   permissionWarning: {
     marginTop: 10,

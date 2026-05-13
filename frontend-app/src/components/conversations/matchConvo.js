@@ -211,6 +211,58 @@ const MatchConvo = () => {
   const canSendMore = messageCount < 10;
   const waitingForOtherApproval = matchInfo?.waiting_for_other_approval || false;
 
+  const mediatedChatAsDater =
+    userInfo?.role === "user" &&
+    matchInfo &&
+    (matchInfo.status === "pending_approval" ||
+      matchInfo.message_count !== undefined ||
+      matchInfo.status === "matched");
+  const canRemoveOwnMatchmaker =
+    mediatedChatAsDater &&
+    typeof matchInfo.dater_on_user_id_1_side === "boolean" &&
+    ((matchInfo.dater_on_user_id_1_side &&
+      matchInfo.user_1_matchmaker_involved &&
+      (matchInfo.approved_by_matcher_1 || matchInfo.status === "matched") &&
+      !matchInfo.dater_removed_matcher_1) ||
+      (!matchInfo.dater_on_user_id_1_side &&
+        matchInfo.user_2_matchmaker_involved &&
+        (matchInfo.approved_by_matcher_2 || matchInfo.status === "matched") &&
+        !matchInfo.dater_removed_matcher_2));
+
+  const handleRemoveMyMatchmaker = async () => {
+    if (
+      !window.confirm(
+        "Your matchmaker will no longer see this chat or send puzzles. Continue?"
+      )
+    ) {
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE_URL}/conversation/${matchId}/remove-my-matchmaker`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert(data.message || "Could not remove matchmaker");
+        return;
+      }
+      setMatchInfo((prev) =>
+        prev
+          ? {
+              ...prev,
+              dater_removed_matcher_1: data.dater_removed_matcher_1 ?? prev.dater_removed_matcher_1,
+              dater_removed_matcher_2: data.dater_removed_matcher_2 ?? prev.dater_removed_matcher_2,
+            }
+          : prev
+      );
+      alert("Your matchmaker has been removed from this conversation.");
+    } catch (err) {
+      console.error(err);
+      alert("Something went wrong");
+    }
+  };
+
   if (loading) return <p>Loading conversation...</p>;
 
   return (
@@ -344,6 +396,14 @@ const MatchConvo = () => {
             </button>
           )}
         </div>
+
+        {canRemoveOwnMatchmaker && (
+          <div style={{ padding: "0 16px 16px" }}>
+            <button type="button" className="send-puzzle-button" onClick={handleRemoveMyMatchmaker}>
+              Remove Matchmaker
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

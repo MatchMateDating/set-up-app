@@ -35,7 +35,7 @@
       "expo-notifications"
     ],
     "android": {
-      "versionCode": 17,
+      "versionCode": 23,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"

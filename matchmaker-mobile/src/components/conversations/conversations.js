@@ -23,10 +23,28 @@ import { useMatches } from './hooks/useMatches';
 import { useUserInfo } from './hooks/useUserInfo';
 import { getRoleAccentColor, getRoleBackgroundTint } from '../layout/components/RoleHeaderBanner';
 import { UserContext } from '../../context/UserContext';
+import { useNotifications } from '../../context/NotificationContext';
 
-const MATCH_CARD_COLUMNS = 3;
 const CONTENT_HORIZONTAL_PADDING = 16;
-const MATCH_CARD_COLUMN_GAP = 10;
+
+/** True if the viewing dater removed their own side's matchmaker (`dater_on_user_id_1_side` from GET /match/matches). */
+function currentDaterRemovedOwnMatchmaker(match, currentUserId) {
+  if (!match || !currentUserId) return false;
+  if (typeof match.dater_on_user_id_1_side !== 'boolean') return false;
+  return match.dater_on_user_id_1_side
+    ? !!match.dater_removed_matcher_1
+    : !!match.dater_removed_matcher_2;
+}
+
+/**
+ * For a dater, a row belongs on the "Matchmaker Matches" tab only while their side is still matchmaker-mediated.
+ * After they remove their matchmaker, the same match is listed under "Dater Matches" instead.
+ */
+function isMediatedMatchmakerTabForDater(match, currentUserId) {
+  const mediated = !!match.both_matchmakers_involved || match.linked_dater !== null;
+  if (!mediated) return false;
+  return !currentDaterRemovedOwnMatchmaker(match, currentUserId);
+}
 
 /** True when the counterparty's side had a matchmaker, for list filtering (prefers API field). */
 function isOtherPersonMatchmakerInvolved(match) {
@@ -47,9 +65,7 @@ const Conversations = () => {
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
   const listInnerWidth = windowWidth - CONTENT_HORIZONTAL_PADDING * 2;
-  const matchCardWidth = Math.floor(
-    (listInnerWidth - MATCH_CARD_COLUMN_GAP * (MATCH_CARD_COLUMNS - 1)) / MATCH_CARD_COLUMNS
-  );
+  const matchCardWidth = listInnerWidth;
 
   const { user: contextUser } = useContext(UserContext);
   const [showDaterMatches, setShowDaterMatches] = useState(true);
@@ -57,6 +73,13 @@ const Conversations = () => {
   const [roleHint, setRoleHint] = useState(null);
   const { userInfo, setUserInfo, referrerInfo, setReferrerInfo, loading: userLoading } = useUserInfo(API_BASE_URL);
   const { matches, setMatches, loading: matchesLoading, fetchMatches } = useMatches(API_BASE_URL);
+  const {
+    lastNotificationEvent,
+    notificationsEnabled,
+    expoPushToken,
+    notificationPreferences,
+    isMatchMessageMuted,
+  } = useNotifications();
   const matchedList = Array.isArray(matches) ? matches : (matches?.matched || []);
   const pendingApprovalList = Array.isArray(matches) ? [] : (matches?.pending_approval || []);
   const navigation = useNavigation();
@@ -65,12 +88,27 @@ const Conversations = () => {
   const [conversationFilters, setConversationFilters] = useState({
     requireOtherMatchmaker: false,
     blindOnly: false,
+    notificationsOnOnly: false,
   });
   const [conversationFilterDraft, setConversationFilterDraft] = useState({
     requireOtherMatchmaker: false,
     blindOnly: false,
+    notificationsOnOnly: false,
   });
   const selectedDaterId = userInfo?.referrer_id || userInfo?.referred_by_id || null;
+
+  const showNotificationsOnFilterOption =
+    notificationsEnabled && notificationPreferences.newMessageNotification;
+
+  useEffect(() => {
+    if (notificationPreferences.newMessageNotification) return;
+    setConversationFilters((f) =>
+      f.notificationsOnOnly ? { ...f, notificationsOnOnly: false } : f
+    );
+    setConversationFilterDraft((d) =>
+      d.notificationsOnOnly ? { ...d, notificationsOnOnly: false } : d
+    );
+  }, [notificationPreferences.newMessageNotification]);
 
   useEffect(() => {
     const loadRoleHint = async () => {
@@ -195,6 +233,52 @@ const Conversations = () => {
     }, [])
   );
 
+  // Option B: refresh conversations when a push arrives (no polling for list updates).
+  useEffect(() => {
+    const data = lastNotificationEvent?.data;
+    if (!data) return;
+    if (data.type === 'unmatch' && data.matchId != null) {
+      const mid = parseInt(String(data.matchId), 10);
+      if (!Number.isFinite(mid)) return;
+      setMatches((prev) => {
+        if (Array.isArray(prev)) {
+          return prev.filter((m) => m.match_id !== mid);
+        }
+        return {
+          matched: (prev?.matched || []).filter((m) => m.match_id !== mid),
+          pending_approval: (prev?.pending_approval || []).filter((m) => m.match_id !== mid),
+        };
+      });
+      return;
+    }
+    if (
+      data.type !== 'message' &&
+      data.type !== 'match' &&
+      data.type !== 'blind_match' &&
+      data.type !== 'match_approval' &&
+      data.type !== 'dater_removed_matchmaker'
+    ) {
+      return;
+    }
+    fetchMatches();
+  }, [lastNotificationEvent?.receivedAt, fetchMatches]);
+
+  // Fallback: if push can't be relied on (notifications disabled or no token),
+  // refresh while focused with a light interval so unread counts still update.
+  useFocusEffect(
+    React.useCallback(() => {
+      const canUsePushRefresh = Boolean(notificationsEnabled && expoPushToken);
+      if (canUsePushRefresh) {
+        return () => {};
+      }
+      fetchMatches();
+      const id = setInterval(() => {
+        fetchMatches();
+      }, 8000);
+      return () => clearInterval(id);
+    }, [notificationsEnabled, expoPushToken, fetchMatches])
+  );
+
   // Unread badges use `unread_count` from GET /match/matches (no per-conversation polling).
   const sortMatchesByRecentActivity = (list) => {
     if (!Array.isArray(list) || list.length === 0) return list;
@@ -217,6 +301,12 @@ const Conversations = () => {
       if (conversationFilters.blindOnly && match.blind_match !== 'Blind') {
         return false;
       }
+      if (
+        conversationFilters.notificationsOnOnly &&
+        isMatchMessageMuted(match.match_id)
+      ) {
+        return false;
+      }
       return true;
     });
   };
@@ -234,10 +324,8 @@ const Conversations = () => {
     }
 
     const filteredMatched = matchedList.filter((match) => {
-      if (showDaterMatches) {
-        return !match.both_matchmakers_involved && match.linked_dater === null;
-      }
-      return match.both_matchmakers_involved || match.linked_dater !== null;
+      const inMmTab = isMediatedMatchmakerTabForDater(match, userInfo.id);
+      return showDaterMatches ? !inMmTab : inMmTab;
     });
 
     const filteredPendingApprovals = showDaterMatches ? pendingApprovalList : [];
@@ -425,7 +513,11 @@ const Conversations = () => {
   const filteredMatches = getFilteredMatches();
   const activeConversationFilterCount =
     (conversationFilters.requireOtherMatchmaker ? 1 : 0) +
-    (conversationFilters.blindOnly ? 1 : 0);
+    (conversationFilters.blindOnly ? 1 : 0) +
+    (conversationFilters.notificationsOnOnly &&
+    showNotificationsOnFilterOption
+      ? 1
+      : 0);
   const accentColor = getRoleAccentColor(userInfo?.role || 'matchmaker');
   const backgroundTint = getRoleBackgroundTint(userInfo?.role || 'matchmaker');
   const overlayTopPadding = userInfo?.role === 'matchmaker' ? 140 : 56;
@@ -582,9 +674,6 @@ const Conversations = () => {
               keyboardShouldPersistTaps="handled"
             >
               <Text style={styles.filterSectionLabel}>Conversation type</Text>
-              <Text style={styles.filterSectionSub}>
-                Narrow the list; leave unchecked to show everyone.
-              </Text>
 
               <TouchableOpacity
                 style={styles.filterCheckboxRow}
@@ -610,7 +699,7 @@ const Conversations = () => {
                   ) : null}
                 </View>
                 <Text style={styles.filterCheckboxLabel}>
-                  Other person's matchmaker was involved
+                  Other Matchmaker Involved
                 </Text>
               </TouchableOpacity>
 
@@ -639,6 +728,36 @@ const Conversations = () => {
                 </View>
                 <Text style={styles.filterCheckboxLabel}>Blind match only</Text>
               </TouchableOpacity>
+
+              {showNotificationsOnFilterOption ? (
+                <TouchableOpacity
+                  style={[styles.filterCheckboxRow, { marginTop: 16 }]}
+                  onPress={() =>
+                    setConversationFilterDraft((d) => ({
+                      ...d,
+                      notificationsOnOnly: !d.notificationsOnOnly,
+                    }))
+                  }
+                  activeOpacity={0.7}
+                >
+                  <View
+                    style={[
+                      styles.filterCheckbox,
+                      conversationFilterDraft.notificationsOnOnly && {
+                        backgroundColor: accentColor,
+                        borderColor: accentColor,
+                      },
+                    ]}
+                  >
+                    {conversationFilterDraft.notificationsOnOnly ? (
+                      <Ionicons name="checkmark" size={16} color="#ffffff" />
+                    ) : null}
+                  </View>
+                  <Text style={styles.filterCheckboxLabel}>
+                    Conversations with Notifications
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
             </ScrollView>
             <View
               style={[
@@ -817,9 +936,7 @@ const styles = StyleSheet.create({
     color: '#6b7280',
   },
   matchList: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    columnGap: MATCH_CARD_COLUMN_GAP,
+    flexDirection: 'column',
     rowGap: 16,
     width: '100%',
   },

@@ -13,6 +13,7 @@ NOTIFICATION_PREFERENCE_FIELDS = (
     'new_match_notifications',
     'new_blind_match_notifications',
     'new_message_notifications',
+    'approved_match_message_notifications',
     'new_match_approval_notifications',
 )
 
@@ -105,51 +106,61 @@ def update_notification_preferences(current_user):
         if enabled is None:
             return jsonify({'error': 'enabled field is required'}), 400
         
-        # Explicitly update only the current authenticated user's preference
-        # This ensures we never accidentally update another user's settings
-        user_id = current_user.id
-        user = User.query.get(user_id)
-        
-        if not user:
-            return jsonify({'error': 'User not found'}), 404
-        
-        # Verify this is the same user (extra safety check)
-        if user.id != current_user.id:
-            return jsonify({'error': 'User mismatch detected'}), 403
-        
-        was_enabled = bool(user.notifications_enabled)
-        enabled = bool(enabled)
+        # For linked dater+matchmaker accounts, keep notification settings in sync across both
+        # so users receive pushes for either role regardless of which account is currently active.
+        target_user_ids = [current_user.id]
+        if getattr(current_user, "linked_account_id", None):
+            target_user_ids.append(current_user.linked_account_id)
 
-        # Update only this specific user's notification preference
-        user.notifications_enabled = enabled
-        if not enabled:
-            for field in NOTIFICATION_PREFERENCE_FIELDS:
-                setattr(user, field, False)
-        else:
-            for field in NOTIFICATION_PREFERENCE_FIELDS:
-                if field in data:
-                    value = bool(data.get(field))
-                elif not was_enabled:
-                    value = True
-                else:
-                    existing_value = getattr(user, field, None)
-                    value = True if existing_value is None else bool(existing_value)
-                setattr(user, field, value)
+        enabled = bool(enabled)
+        updated_ids = []
+
+        for uid in target_user_ids:
+            user = User.query.get(uid)
+            if not user:
+                continue
+
+            was_enabled = bool(user.notifications_enabled)
+            user.notifications_enabled = enabled
+
+            if not enabled:
+                for field in NOTIFICATION_PREFERENCE_FIELDS:
+                    setattr(user, field, False)
+            else:
+                for field in NOTIFICATION_PREFERENCE_FIELDS:
+                    if field in data:
+                        value = bool(data.get(field))
+                    elif not was_enabled:
+                        value = True
+                    else:
+                        existing_value = getattr(user, field, None)
+                        value = True if existing_value is None else bool(existing_value)
+                    setattr(user, field, value)
+
+            updated_ids.append(uid)
+
         db.session.commit()
-        
-        # Refresh to ensure we return the updated value
-        db.session.refresh(user)
-        
+
+        # Return the current user's updated view (what the app expects)
+        refreshed = User.query.get(current_user.id)
+        if not refreshed:
+            return jsonify({'error': 'User not found'}), 404
+
         return jsonify({
             'message': 'Notification preferences updated successfully',
-            'notifications_enabled': user.notifications_enabled,
-            'new_match_notifications': user.notification_setting_enabled('new_match_notifications'),
-            'new_blind_match_notifications': user.notification_setting_enabled('new_blind_match_notifications'),
-            'new_message_notifications': user.notification_setting_enabled('new_message_notifications'),
-            'new_match_approval_notifications': user.notification_setting_enabled(
+            'notifications_enabled': refreshed.notifications_enabled,
+            'new_match_notifications': refreshed.notification_setting_enabled('new_match_notifications'),
+            'new_blind_match_notifications': refreshed.notification_setting_enabled('new_blind_match_notifications'),
+            'new_message_notifications': refreshed.notification_setting_enabled('new_message_notifications'),
+            'approved_match_message_notifications': refreshed.notification_setting_enabled(
+                'approved_match_message_notifications'
+            ),
+            'new_match_approval_notifications': refreshed.notification_setting_enabled(
                 'new_match_approval_notifications'
             ),
-            'user_id': user.id  # Include user_id in response for verification
+            'user_id': refreshed.id,
+            'linked_account_updated': len(updated_ids) > 1,
+            'updated_user_ids': updated_ids,
         }), 200
         
     except Exception as e:
@@ -164,8 +175,13 @@ def update_notification_preferences(current_user):
 def register_token(current_user):
     """Register push notification token for the current user (supports multiple devices).
 
-    Uniqueness is (user_id, token): one row per token string. If the same token is posted
-    again with a different platform, the row's platform is updated (e.g. client upgrade).
+    Token rows are stored per account (dater vs matchmaker). For users with a linked
+    account, we also register the same device token on the linked account so that
+    notifications for either role can be delivered even when the app is currently
+    switched to the other role.
+
+    To prevent cross-account leakage on shared test devices, if this token is found
+    attached to *unrelated* user ids, we reassign those rows to the current user.
     """
     try:
         data = request.get_json()
@@ -180,31 +196,47 @@ def register_token(current_user):
         if platform not in ('expo', 'ios', 'android'):
             return jsonify({'error': 'platform must be expo, ios, or android'}), 400
 
-        # Check if this token already exists for this user
-        existing_token = PushToken.query.filter_by(
-            user_id=current_user.id,
-            token=push_token
-        ).first()
-        
-        if existing_token:
-            if (existing_token.platform or 'expo') != platform:
-                existing_token.platform = platform
-                db.session.commit()
-            return jsonify({
-                'message': 'Push token already registered',
-                'push_token': push_token,
-                'platform': existing_token.platform or 'expo',
-            }), 200
-        
-        # Add new token for this user
-        new_token = PushToken(user_id=current_user.id, token=push_token, platform=platform)
-        db.session.add(new_token)
+        allowed_user_ids = {current_user.id}
+        if getattr(current_user, "linked_account_id", None):
+            allowed_user_ids.add(current_user.linked_account_id)
+
+        # If this device token is attached to unrelated users, reassign to the current user
+        # to prevent pushes landing on the wrong phone/session.
+        rows_other_users = PushToken.query.filter(
+            PushToken.token == push_token,
+            PushToken.user_id.notin_(list(allowed_user_ids)),
+        ).all()
+        if rows_other_users:
+            for row in rows_other_users:
+                row.user_id = current_user.id
+                row.platform = platform
+            db.session.commit()
+
+        # Register token for the current user, and also for their linked account (if any).
+        user_ids_to_register = [current_user.id]
+        if getattr(current_user, "linked_account_id", None):
+            user_ids_to_register.append(current_user.linked_account_id)
+
+        # Upsert for each target user id.
+        any_created = False
+        any_updated = False
+        for uid in user_ids_to_register:
+            existing_token = PushToken.query.filter_by(user_id=uid, token=push_token).first()
+            if existing_token:
+                if (existing_token.platform or 'expo') != platform:
+                    existing_token.platform = platform
+                    any_updated = True
+                continue
+            db.session.add(PushToken(user_id=uid, token=push_token, platform=platform))
+            any_created = True
+
         db.session.commit()
         
         return jsonify({
-            'message': 'Push token registered successfully',
+            'message': 'Push token registered successfully' if any_created else 'Push token already registered',
             'push_token': push_token,
             'platform': platform,
+            'linked_account_registered': bool(getattr(current_user, "linked_account_id", None)),
         }), 200
         
     except Exception as e:

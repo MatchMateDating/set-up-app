@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Alert } from 'react-native';
 
@@ -6,7 +6,7 @@ export const useMatches = (API_BASE_URL) => {
   const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchMatches = async () => {
+  const fetchMatches = useCallback(async () => {
     try {
       const token = await AsyncStorage.getItem('token');
       if (!token) {
@@ -47,11 +47,11 @@ export const useMatches = (API_BASE_URL) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [API_BASE_URL]);
 
   useEffect(() => {
     fetchMatches();
-  }, [API_BASE_URL]);
+  }, [fetchMatches]);
 
   return { matches, setMatches, loading, fetchMatches };
 };

@@ -12,6 +12,7 @@ import {
   Modal,
   Keyboard,
   Image,
+  Linking,
 } from 'react-native';
 import axios from 'axios';
 import { useNavigation } from '@react-navigation/native';
@@ -21,6 +22,9 @@ import { UserContext } from '../../context/UserContext';
 import { startLocationWatcher } from './utils/startLocationWatcher';
 import { useNotifications } from '../../context/NotificationContext';
 import { Ionicons } from '@expo/vector-icons';
+
+const PRIVACY_POLICY_URL = 'https://matchmatedating.com/privacy-policy.html';
+const TERMS_AND_CONDITIONS_URL = 'https://matchmatedating.com/terms-and-conditions.html';
 
 const DEFAULT_TEST_EMAIL_DOMAINS = '@test.com,@example.com,@test.local';
 const TEST_EMAIL_DOMAINS = (
@@ -59,6 +63,15 @@ const SignUpScreen = () => {
   const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
   const phoneDigitsOnly = (value) => (value || '').replace(/\D/g, '');
   const isValidPhone = (value) => phoneDigitsOnly(value).length >= 10;
+
+  /** US E.164 (+1xxxxxxxxxx); matches backend normalize_phone_number for Twilio SMS. */
+  const normalizeUsPhoneToE164 = (value) => {
+    let digits = phoneDigitsOnly(value);
+    if (!digits.startsWith('1') && digits.length === 10) {
+      digits = `1${digits}`;
+    }
+    return `+${digits}`;
+  };
 
   /** Prefer email when the value is a valid email; otherwise phone if valid. */
   const getSignUpIdentifierKind = (trimmed) => {
@@ -257,6 +270,8 @@ const SignUpScreen = () => {
 
     const trimmedIdentifier = identifier.trim();
     const registerKind = getSignUpIdentifierKind(trimmedIdentifier);
+    const phoneE164 =
+      registerKind === 'phone' ? normalizeUsPhoneToE164(trimmedIdentifier) : null;
 
     try {
       const payload = {
@@ -268,11 +283,11 @@ const SignUpScreen = () => {
       if (registerKind === 'email') {
         payload.email = trimmedIdentifier;
       } else if (registerKind === 'phone') {
-        payload.phone_number = trimmedIdentifier;
+        payload.phone_number = phoneE164;
       } else {
         Alert.alert(
           'Error',
-          'Please enter a valid email address with at least 10 digits.'
+          'Please enter a valid email address or a US phone number with at least 10 digits.'
         );
         return;
       }
@@ -340,7 +355,7 @@ const SignUpScreen = () => {
           staySignedIn,
           ...(registerKind === 'email'
             ? { email: trimmedIdentifier }
-            : { phone_number: trimmedIdentifier }),
+            : { phone_number: phoneE164 }),
         };
 
         await AsyncStorage.setItem('signupData', JSON.stringify(signupData));
@@ -350,6 +365,8 @@ const SignUpScreen = () => {
           res.data.verification_method || (registerKind === 'phone' ? 'phone' : 'email');
         const sentWhere =
           method === 'phone' ? 'text message at your phone number' : 'email';
+        const verificationDisplayIdentifier =
+          registerKind === 'phone' ? phoneE164 : trimmedIdentifier;
 
         Alert.alert(
           'Success',
@@ -359,7 +376,7 @@ const SignUpScreen = () => {
               text: 'OK',
               onPress: () => {
                 navigation.navigate('EmailVerification', {
-                  identifier: trimmedIdentifier,
+                  identifier: verificationDisplayIdentifier,
                   verificationMethod: method,
                 });
               },
@@ -404,8 +421,6 @@ const SignUpScreen = () => {
             resizeMode="contain"
           />
         </View>
-
-        <Text style={styles.title}>Create Account</Text>
         <Text style={styles.subtitle}>Join the community</Text>
 
         <View style={styles.roleToggleWrapper}>
@@ -429,7 +444,7 @@ const SignUpScreen = () => {
         <TextInput
           ref={identifierRef}
           style={styles.input}
-          placeholder="Email"
+          placeholder="Email or phone number"
           placeholderTextColor="#6b7280"
           value={identifier}
           keyboardType="default"
@@ -565,21 +580,35 @@ const SignUpScreen = () => {
           />
         )}
 
-        <TouchableOpacity
-          style={styles.checkboxContainer}
-          onPress={() => {
-            Keyboard.dismiss();
-            setAgreeToTexts((prev) => !prev);
-          }}
-          activeOpacity={0.7}
-        >
-          <View style={[styles.checkbox, agreeToTexts && styles.checkboxChecked]}>
-            {agreeToTexts && <Text style={styles.checkmark}>✓</Text>}
-          </View>
+        <View style={styles.checkboxContainer}>
+          <TouchableOpacity
+            onPress={() => {
+              Keyboard.dismiss();
+              setAgreeToTexts((prev) => !prev);
+            }}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.checkbox, agreeToTexts && styles.checkboxChecked]}>
+              {agreeToTexts && <Text style={styles.checkmark}>✓</Text>}
+            </View>
+          </TouchableOpacity>
           <Text style={styles.checkboxLabel}>
-            By checking this box, you agree to receive non promotional emails or texts.
+            By checking this box, I agree to receive SMS verification codes and security alerts from matchmate at the phone number I provide. Message & data rates may apply. See our{' '}
+            <Text
+              style={styles.checkboxLink}
+              onPress={() => Linking.openURL(PRIVACY_POLICY_URL)}
+            >
+              Privacy Policy
+            </Text>
+            {' '}and{' '}
+            <Text
+              style={styles.checkboxLink}
+              onPress={() => Linking.openURL(TERMS_AND_CONDITIONS_URL)}
+            >
+              Terms & Conditions
+            </Text>
           </Text>
-        </TouchableOpacity>
+        </View>
 
         <TouchableOpacity
           style={styles.checkboxContainer}
@@ -921,6 +950,11 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14,
     color: '#4a4a68',
+  },
+  checkboxLink: {
+    color: '#6c5ce7',
+    fontWeight: '600',
+    textDecorationLine: 'underline',
   },
   modalOverlay: {
     flex: 1,

@@ -1,6 +1,7 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useContext } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import * as Notifications from 'expo-notifications';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { UserProvider } from './src/context/UserContext';
 import {
   NotificationProvider,
@@ -9,12 +10,15 @@ import {
 import AppNavigator from './src/navigation/AppNavigator';
 import ErrorBoundary from './src/components/ErrorBoundary';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
+import { API_BASE_URL } from './src/env';
+import { UserContext } from './src/context/UserContext';
 
 // This component handles notification responses (taps)
 function NotificationHandler({ navigationRef }) {
   const notificationListener = useRef();
   const responseListener = useRef();
   const handledTapIdsRef = useRef(new Set());
+  const { user, setUser } = useContext(UserContext);
 
   useEffect(() => {
     try {
@@ -31,13 +35,108 @@ function NotificationHandler({ navigationRef }) {
         }
       });
 
-      const navigateFromNotification = (notification) => {
+      const normalizeRole = (role) => {
+        if (role === 'matchmaker') return 'matchmaker';
+        if (role === 'dater') return 'dater';
+        if (role === 'user') return 'dater';
+        return null;
+      };
+
+      const ensureAccountRoleForNotification = async (recipientRole) => {
+        const desired = normalizeRole(recipientRole);
+        if (!desired) return;
+        const current = normalizeRole(user?.role);
+        if (!current || current === desired) return;
+
+        try {
+          const token = await AsyncStorage.getItem('token');
+          if (!token) return;
+
+          const res = await fetch(`${API_BASE_URL}/profile/switch_account`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+          });
+          if (!res.ok) return;
+
+          const data = await res.json().catch(() => null);
+          if (!data?.token || !data?.user) return;
+
+          // Only accept the switch if it matches what the notification expects.
+          const switchedRole = normalizeRole(data.user.role);
+          if (switchedRole !== desired) return;
+
+          await AsyncStorage.setItem('token', data.token);
+          await AsyncStorage.setItem('user', JSON.stringify(data.user));
+          setUser(data.user);
+        } catch (err) {
+          console.error('Error switching account for notification:', err);
+        }
+      };
+
+      /** Multi-roster matchmakers: align selected dater with the push so /conversation and /match/matches agree. */
+      const ensureSelectedLinkedDaterForNotification = async (linkedRaw, actingUser) => {
+        if (linkedRaw == null || linkedRaw === '') return;
+        const linkedDaterId = parseInt(String(linkedRaw), 10);
+        if (!Number.isFinite(linkedDaterId)) return;
+        if (normalizeRole(actingUser?.role) !== 'matchmaker') return;
+
+        const currentSelected = actingUser?.referrer_id ?? actingUser?.referred_by_id ?? null;
+        if (currentSelected != null && Number(currentSelected) === linkedDaterId) return;
+
+        try {
+          const token = await AsyncStorage.getItem('token');
+          if (!token) return;
+
+          const res = await fetch(`${API_BASE_URL}/referral/set_selected_dater`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ selected_dater_id: linkedDaterId }),
+          });
+          if (!res.ok) return;
+
+          const prof = await fetch(`${API_BASE_URL}/profile/`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (!prof.ok) return;
+          const pdata = await prof.json().catch(() => null);
+          if (pdata?.user) {
+            await AsyncStorage.setItem('user', JSON.stringify(pdata.user));
+            setUser(pdata.user);
+          }
+        } catch (err) {
+          console.error('Error selecting linked dater for notification:', err);
+        }
+      };
+
+      const navigateFromNotification = async (notification) => {
         if (!navigationRef.current || !notification) return;
         const reqId = notification.request?.identifier;
         if (reqId && handledTapIdsRef.current.has(reqId)) return;
 
         const data = getNotificationRoutingData(notification);
-        const raw = data?.matchId;
+        await ensureAccountRoleForNotification(data?.recipientRole);
+
+        let actingUser = user;
+        try {
+          const stored = await AsyncStorage.getItem('user');
+          if (stored) {
+            actingUser = JSON.parse(stored);
+          }
+        } catch (_) {
+          /* keep actingUser from context */
+        }
+        await ensureSelectedLinkedDaterForNotification(
+          data?.linkedDaterId ?? data?.linked_dater_id,
+          actingUser
+        );
+
+        const raw = data?.matchId ?? data?.match_id;
         if (raw == null || raw === '') return;
         const matchId = parseInt(String(raw), 10);
         if (!Number.isFinite(matchId)) return;
@@ -71,7 +170,7 @@ function NotificationHandler({ navigationRef }) {
         console.error('Error cleaning up notification listeners:', error);
       }
     };
-  }, []);
+  }, [user?.role, user?.referrer_id, user?.referred_by_id, setUser]);
 
   return null;
 }
