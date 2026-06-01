@@ -2,6 +2,7 @@ import os
 
 from flask import Blueprint, jsonify, request
 from app.models.userDB import User, PushToken
+from app.models.matchMessageMuteDB import MatchMessageMute
 from app import db
 from app.routes.shared import token_required
 from app.services.notification_service import send_notification_to_user
@@ -306,6 +307,63 @@ def test_push(current_user):
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": "Unexpected server error", "details": str(e)}), 500
+
+
+def _parse_match_id_list(raw_ids):
+    """Normalize client match id strings to unique ints (invalid entries skipped)."""
+    if not isinstance(raw_ids, list):
+        return None, 'match_ids must be an array'
+    seen = set()
+    parsed = []
+    for item in raw_ids:
+        if item is None or item == '':
+            continue
+        try:
+            mid = int(item)
+        except (TypeError, ValueError):
+            continue
+        if mid in seen:
+            continue
+        seen.add(mid)
+        parsed.append(mid)
+    return parsed, None
+
+
+@notification_bp.route('/match_mutes', methods=['GET'])
+@token_required
+def get_match_message_mutes(current_user):
+    """Per-match message mute list for the current user (push suppression)."""
+    try:
+        rows = MatchMessageMute.query.filter_by(user_id=current_user.id).all()
+        return jsonify({'match_ids': [str(r.match_id) for r in rows]}), 200
+    except Exception as e:
+        return jsonify({'error': 'Unexpected server error', 'details': str(e)}), 500
+
+
+@notification_bp.route('/match_mutes', methods=['PUT'])
+@token_required
+def update_match_message_mutes(current_user):
+    """Replace the current user's per-match message mute list."""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'Request body must be JSON'}), 400
+
+        match_ids, err = _parse_match_id_list(data.get('match_ids'))
+        if err:
+            return jsonify({'error': err}), 400
+
+        MatchMessageMute.query.filter_by(user_id=current_user.id).delete(
+            synchronize_session='fetch'
+        )
+        for mid in match_ids:
+            db.session.add(MatchMessageMute(user_id=current_user.id, match_id=mid))
+        db.session.commit()
+
+        return jsonify({'match_ids': [str(mid) for mid in match_ids]}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': 'Unexpected server error', 'details': str(e)}), 500
 
 
 @notification_bp.route('/unregister_token', methods=['POST'])

@@ -10,6 +10,7 @@ from sqlalchemy import or_
 
 from app.models.userDB import User, PushToken, ReferredUsers
 from app.models.matchDB import Match
+from app.models.matchMessageMuteDB import MatchMessageMute
 from app import db
 from app.services.push_platforms import (
     InvalidPushToken,
@@ -136,8 +137,41 @@ def _matchmaker_ids_linked_to_dater(dater_id):
     return ids
 
 
-def _deliver_message_push_tokens(target_user, title, body_with_suffix, data, match_id, log_receiver_id):
+def _user_muted_match_message(user_id, match_id):
+    """True if this user muted push alerts for new messages in this match."""
+    if not user_id or match_id is None:
+        return False
+    try:
+        mid = int(match_id)
+    except (TypeError, ValueError):
+        return False
+    return (
+        MatchMessageMute.query.filter_by(user_id=user_id, match_id=mid).first()
+        is not None
+    )
+
+
+def _deliver_message_push_tokens(
+    target_user,
+    title,
+    body_with_suffix,
+    data,
+    match_id,
+    log_receiver_id,
+    *,
+    skip_if_muted=True,
+):
     """Send message push to one user's registered devices."""
+    if skip_if_muted and _user_muted_match_message(
+        getattr(target_user, "id", None), match_id
+    ):
+        logger.debug(
+            "message push skipped: receiver_id=%s muted match_id=%s",
+            log_receiver_id,
+            match_id,
+        )
+        return False
+
     push_tokens = PushToken.query.filter_by(user_id=target_user.id).all()
 
     if not push_tokens:
