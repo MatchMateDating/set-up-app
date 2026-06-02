@@ -771,14 +771,14 @@ def send_new_match_push_to_dater(
     cp = (counterparty_first_name or "Someone").strip() or "Someone"
     if is_matchmaker_mediated:
         if is_blind_match:
-            body = f"you have a new blind matchmaker match with {cp}"
+            body = f"You have a new blind matchmaker match with {cp}"
         else:
-            body = f"you have a new matchmaker match with {cp}"
+            body = f"You have a new matchmaker match with {cp}"
     else:
         if is_blind_match:
-            body = f"you have a new blind match with {cp}"
+            body = f"You have a new blind match with {cp}"
         else:
-            body = f"you have a new match with {cp}"
+            body = f"You have a new match with {cp}"
 
     data = {
         "type": "blind_match" if is_blind_match else "match",

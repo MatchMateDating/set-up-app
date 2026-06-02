@@ -18,6 +18,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { API_BASE_URL } from '../../env';
 import { UserContext } from '../../context/UserContext';
 import { startLocationWatcher } from './utils/startLocationWatcher';
+import { getPostAuthNavigationReset } from '../../navigation/profileCompletionNavigation';
 
 const EmailVerificationScreen = () => {
   const navigation = useNavigation();
@@ -110,30 +111,12 @@ const EmailVerificationScreen = () => {
           {
             text: 'OK',
             onPress: () => {
-              if (res.data.user.role === 'user') {
-                navigation.reset({
-                  index: 0,
-                  routes: [{ name: 'CompleteProfile' }],
-                });
-              } else if (shouldPromptLinkedDater) {
-                navigation.reset({
-                  index: 0,
-                  routes: [
-                    {
-                      name: 'Main',
-                      params: {
-                        screen: 'Settings',
-                        params: { showLinkedDatersOnboarding: true },
-                      },
-                    },
-                  ],
-                });
-              } else {
-                navigation.reset({
-                  index: 0,
-                  routes: [{ name: 'Main' }],
-                });
-              }
+              const shouldPromptLinkedDater =
+                signupData?.role === 'matchmaker' &&
+                !String(signupData?.referral_code || '').trim();
+              navigation.reset(
+                getPostAuthNavigationReset(res.data.user, { shouldPromptLinkedDater })
+              );
             },
           },
         ]);

@@ -18,6 +18,7 @@ import { API_BASE_URL } from '../../env';
 import { UserContext } from '../../context/UserContext';
 import { useNotifications } from '../../context/NotificationContext';
 import { startLocationWatcher } from './utils/startLocationWatcher';
+import { getPostAuthNavigationReset } from '../../navigation/profileCompletionNavigation';
 import { Ionicons } from '@expo/vector-icons';
 
 const LoginScreen = () => {
@@ -33,19 +34,12 @@ const LoginScreen = () => {
   const { setUser } = useContext(UserContext);
   const { enableNotifications } = useNotifications();
 
-  const resetToCompleteProfile = useCallback(() => {
-    navigation.reset({
-      index: 0,
-      routes: [{ name: 'CompleteProfile' }],
-    });
-  }, [navigation]);
-
-  const resetToMainMatches = useCallback(() => {
-    navigation.reset({
-      index: 0,
-      routes: [{ name: 'Main', params: { screen: 'Matches' } }],
-    });
-  }, [navigation]);
+  const navigateAfterLogin = useCallback(
+    (loggedInUser) => {
+      navigation.reset(getPostAuthNavigationReset(loggedInUser));
+    },
+    [navigation]
+  );
 
   const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
   const phoneDigitsOnly = (value) => (value || '').replace(/\D/g, '');
@@ -103,11 +97,7 @@ const LoginScreen = () => {
           if (token && storedUser) {
             const parsedUser = JSON.parse(storedUser);
             setUser(parsedUser);
-            if (parsedUser.role === 'user' && parsedUser.profile_completion_step) {
-              resetToCompleteProfile();
-            } else {
-              resetToMainMatches();
-            }
+            navigation.reset(getPostAuthNavigationReset(parsedUser));
           }
         }
       } catch (err) {
@@ -122,7 +112,7 @@ const LoginScreen = () => {
         clearTimeout(passwordRevealTimeoutRef.current);
       }
     };
-  }, [navigation, setUser, resetToCompleteProfile, resetToMainMatches]);
+  }, [navigation, setUser, navigateAfterLogin]);
 
   const clearPasswordRevealTimer = () => {
     if (passwordRevealTimeoutRef.current) {
@@ -188,11 +178,7 @@ const LoginScreen = () => {
 
       const loggedInUser = res.data.user;
       const navigatePostLogin = () => {
-        if (loggedInUser && loggedInUser.role === 'user' && loggedInUser.profile_completion_step) {
-          resetToCompleteProfile();
-        } else {
-          resetToMainMatches();
-        }
+        navigateAfterLogin(loggedInUser);
       };
 
       const shouldPromptFirstSessionNotifications = Boolean(
@@ -233,10 +219,10 @@ const LoginScreen = () => {
       }
 
       // Check if user needs to complete profile
-      if (loggedInUser && loggedInUser.role === 'user' && loggedInUser.profile_completion_step) {
-        resetToCompleteProfile();
+      if (needsProfileCompletion(loggedInUser)) {
+        navigateAfterLogin(loggedInUser);
       } else {
-        resetToMainMatches();
+        navigation.reset(getPostAuthNavigationReset(loggedInUser));
       }
     } catch (err) {
       const errorMessage = err.response?.data?.error || err.response?.data?.msg || 'Login failed';

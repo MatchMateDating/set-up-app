@@ -274,7 +274,7 @@ const Conversations = () => {
       fetchMatches();
       const id = setInterval(() => {
         fetchMatches();
-      }, 8000);
+      }, 25000);
       return () => clearInterval(id);
     }, [notificationsEnabled, expoPushToken, fetchMatches])
   );

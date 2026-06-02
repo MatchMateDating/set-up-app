@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useState, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, Alert, ScrollView, Image, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, Alert, ScrollView, Image, TouchableOpacity, TextInput } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import { API_BASE_URL } from '../../env';
@@ -18,7 +18,7 @@ import { UserContext } from '../../context/UserContext';
 const ProfilePage = () => {
   const route = useRoute();
   const { userId, matchProfile } = route.params || {};
-  const { user: contextUser, setIsProfileEditing } = useContext(UserContext);
+  const { user: contextUser, setUser: setContextUser, setIsProfileEditing } = useContext(UserContext);
   const [user, setUser] = useState(null);
   const [referrer, setReferrer] = useState(null);
   const [editing, setEditing] = useState(false);
@@ -36,6 +36,12 @@ const ProfilePage = () => {
   const [pendingCropUris, setPendingCropUris] = useState([]);
   const cropCompleteRef = useRef(null);
   const [cropKey, setCropKey] = useState(0);
+  const [matchmakerForm, setMatchmakerForm] = useState({ first_name: '', last_name: '' });
+  const [matchmakerFieldErrors, setMatchmakerFieldErrors] = useState({
+    first_name: '',
+    last_name: '',
+  });
+  const [savingMatchmakerProfile, setSavingMatchmakerProfile] = useState(false);
   const selectedDaterId = user?.referrer_id || user?.referred_by_id || null;
   const linkedDatersSignature = JSON.stringify(user?.linked_daters || []);
 
@@ -231,6 +237,85 @@ const ProfilePage = () => {
     setShowAvatarModal(true);
   };
 
+  useEffect(() => {
+    if (user?.role === 'matchmaker') {
+      setMatchmakerForm({
+        first_name: user.first_name || '',
+        last_name: user.last_name || '',
+      });
+    }
+  }, [user?.role, user?.first_name, user?.last_name]);
+
+  const handleMatchmakerCancel = () => {
+    setMatchmakerFieldErrors({ first_name: '', last_name: '' });
+    setMatchmakerForm({
+      first_name: user?.first_name || '',
+      last_name: user?.last_name || '',
+    });
+    setEditing(false);
+  };
+
+  const handleMatchmakerSave = async () => {
+    const nextErrors = {
+      first_name: !matchmakerForm.first_name?.trim() ? 'First name is required.' : '',
+      last_name: !matchmakerForm.last_name?.trim() ? 'Last name is required.' : '',
+    };
+    setMatchmakerFieldErrors(nextErrors);
+    if (nextErrors.first_name || nextErrors.last_name) {
+      return;
+    }
+
+    setSavingMatchmakerProfile(true);
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) {
+        Alert.alert('Error', 'Please log in');
+        navigation.navigate('Login');
+        return;
+      }
+
+      const res = await fetch(`${API_BASE_URL}/profile/update`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          first_name: matchmakerForm.first_name.trim(),
+          last_name: matchmakerForm.last_name.trim(),
+        }),
+      });
+
+      if (res.status === 401) {
+        const data = await res.json();
+        if (data.error_code === 'TOKEN_EXPIRED') {
+          await AsyncStorage.removeItem('token');
+          Alert.alert('Session expired', 'Please log in again.');
+          navigation.navigate('Login');
+          return;
+        }
+      }
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        Alert.alert('Error', data.error || 'Failed to update profile');
+        return;
+      }
+
+      const updatedUser = await res.json();
+      setUser((prev) => ({ ...prev, ...updatedUser }));
+      setContextUser((prev) => ({ ...prev, ...updatedUser }));
+      await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
+      setEditing(false);
+      setMatchmakerFieldErrors({ first_name: '', last_name: '' });
+    } catch (err) {
+      console.error(err);
+      Alert.alert('Error', 'Failed to update profile');
+    } finally {
+      setSavingMatchmakerProfile(false);
+    }
+  };
+
   const handleSave = () => {
     fetchProfile();
     setEditing(false);
@@ -333,25 +418,99 @@ const ProfilePage = () => {
           />
         )}
 
-        {user.role === 'matchmaker' && referrer && (
+        {user.role === 'matchmaker' && !matchProfile && (
           <>
             <View style={styles.profileHeader}>
-              <TouchableOpacity onPress={handleAvatarClick}>
-              <Image
-                source={ avatarMap[avatar] || avatarMap['avatars/allyson_avatar.png'] }
-                style={styles.avatar}
-              />
+              <TouchableOpacity onPress={handleAvatarClick} disabled={editing}>
+                <Image
+                  source={avatarMap[avatar] || avatarMap['avatars/allyson_avatar.png']}
+                  style={styles.avatar}
+                />
               </TouchableOpacity>
               <View style={styles.profileInfo}>
-                <View style={styles.nameSection}>
-                  <Text style={styles.name}>{user.first_name}</Text>
+                {!editing && (
+                  <View style={styles.nameSection}>
+                    <Text style={styles.name}>{user.first_name || 'Matchmaker'}</Text>
+                  </View>
+                )}
+              </View>
+              {!editing && (
+                <TouchableOpacity
+                  style={styles.editIconButton}
+                  onPress={() => setEditing(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Edit profile"
+                >
+                  <Ionicons name="create-outline" size={24} color={accentColor} />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {editing && (
+              <View style={styles.matchmakerEditCard}>
+                <Text style={styles.label}>First Name</Text>
+                <TextInput
+                  style={styles.input}
+                  value={matchmakerForm.first_name}
+                  onChangeText={(value) => {
+                    setMatchmakerForm((prev) => ({ ...prev, first_name: value }));
+                    if (value.trim()) {
+                      setMatchmakerFieldErrors((prev) => ({ ...prev, first_name: '' }));
+                    }
+                  }}
+                  autoCapitalize="words"
+                  returnKeyType="next"
+                />
+                {Boolean(matchmakerFieldErrors.first_name) && (
+                  <Text style={styles.validationError}>{matchmakerFieldErrors.first_name}</Text>
+                )}
+
+                <Text style={styles.label}>Last Name</Text>
+                <TextInput
+                  style={styles.input}
+                  value={matchmakerForm.last_name}
+                  onChangeText={(value) => {
+                    setMatchmakerForm((prev) => ({ ...prev, last_name: value }));
+                    if (value.trim()) {
+                      setMatchmakerFieldErrors((prev) => ({ ...prev, last_name: '' }));
+                    }
+                  }}
+                  autoCapitalize="words"
+                  returnKeyType="done"
+                />
+                {Boolean(matchmakerFieldErrors.last_name) && (
+                  <Text style={styles.validationError}>{matchmakerFieldErrors.last_name}</Text>
+                )}
+
+                <View style={styles.matchmakerActions}>
+                  {savingMatchmakerProfile ? (
+                    <ActivityIndicator size="small" color={accentColor} />
+                  ) : (
+                    <>
+                      <TouchableOpacity
+                        style={[styles.saveBtn, { backgroundColor: accentColor }]}
+                        onPress={handleMatchmakerSave}
+                      >
+                        <Text style={styles.saveBtnText}>Save</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.cancelBtn, { borderColor: accentColor }]}
+                        onPress={handleMatchmakerCancel}
+                      >
+                        <Text style={[styles.cancelBtnText, { color: accentColor }]}>Cancel</Text>
+                      </TouchableOpacity>
+                    </>
+                  )}
                 </View>
               </View>
-            </View>
-            <View style={styles.embeddedProfile}>
-              <Text style={[styles.subHeader, { color: accentColor }]}>Dater's Profile</Text>
-              <Profile user={referrer} framed={true} editing={false} />
-            </View>
+            )}
+
+            {referrer && (
+              <View style={styles.embeddedProfile}>
+                <Text style={[styles.subHeader, { color: accentColor }]}>Dater's Profile</Text>
+                <Profile user={referrer} framed={true} editing={false} />
+              </View>
+            )}
           </>
         )}
 
@@ -442,6 +601,65 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 16,
     padding: 8,
+  },
+  editIconButton: {
+    marginLeft: 'auto',
+  },
+  matchmakerEditCard: {
+    marginTop: 8,
+    marginBottom: 8,
+    padding: 16,
+    borderRadius: 8,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#ebe7fb',
+  },
+  label: {
+    fontSize: 14,
+    marginBottom: 4,
+    marginTop: 12,
+    color: '#111',
+  },
+  input: {
+    height: 48,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    backgroundColor: '#fff',
+    fontSize: 16,
+  },
+  validationError: {
+    color: '#dc2626',
+    fontSize: 13,
+    marginTop: 4,
+  },
+  matchmakerActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 12,
+    marginTop: 20,
+  },
+  saveBtn: {
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  saveBtnText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  cancelBtn: {
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    backgroundColor: 'transparent',
+  },
+  cancelBtnText: {
+    fontSize: 16,
+    fontWeight: '600',
   },
   avatar: {
     width: 90,

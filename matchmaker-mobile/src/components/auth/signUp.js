@@ -21,6 +21,7 @@ import { API_BASE_URL } from '../../env';
 import { UserContext } from '../../context/UserContext';
 import { startLocationWatcher } from './utils/startLocationWatcher';
 import { useNotifications } from '../../context/NotificationContext';
+import { getPostAuthNavigationReset } from '../../navigation/profileCompletionNavigation';
 import { Ionicons } from '@expo/vector-icons';
 
 const PRIVACY_POLICY_URL = 'https://matchmatedating.com/privacy-policy.html';
@@ -318,30 +319,9 @@ const SignUpScreen = () => {
 
         await new Promise((resolve) => setTimeout(resolve, 100));
 
-        if (role === 'user' && res.data.user.profile_completion_step) {
-          navigation.reset({
-            index: 0,
-            routes: [{ name: 'CompleteProfile' }],
-          });
-        } else if (shouldPromptLinkedDater) {
-          navigation.reset({
-            index: 0,
-            routes: [
-              {
-                name: 'Main',
-                params: {
-                  screen: 'Settings',
-                  params: { showLinkedDatersOnboarding: true },
-                },
-              },
-            ],
-          });
-        } else {
-          navigation.reset({
-            index: 0,
-            routes: [{ name: 'Main', params: { screen: 'Matches' } }],
-          });
-        }
+        navigation.reset(
+          getPostAuthNavigationReset(res.data.user, { shouldPromptLinkedDater })
+        );
 
         Alert.alert('Success', 'Account created successfully! (Test Mode - Auto-verified)');
         return;

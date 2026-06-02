@@ -69,12 +69,21 @@ function normalizeMessages(rawMessages) {
   }));
 }
 
+function getMessageSnapshot(list) {
+  if (!Array.isArray(list) || list.length === 0) {
+    return { count: 0, lastId: null };
+  }
+  const last = list[list.length - 1];
+  return { count: list.length, lastId: last?.id ?? null };
+}
+
 /** Poll interval while chat is open — light on the server vs 3s; keeps MM threads in sync. */
 const CONVERSATION_POLL_MS = 12000;
 /** Two-MM pending: refresh match row so peer approval updates header copy without leaving the thread. */
-const MATCH_META_PENDING_POLL_MS = 3500;
-/** Poll typing indicators — separate from message poll for snappy UX. */
+const MATCH_META_PENDING_POLL_MS = 15000;
+/** Poll typing indicators while the thread is active. */
 const TYPING_POLL_MS = 2500;
+const TYPING_POLL_IDLE_MS = 10000;
 const TYPING_DEBOUNCE_MS = 350;
 /** After this long with no new keystrokes, we report not typing (draft alone does not count). */
 const TYPING_IDLE_CLEAR_MS = 3000;
@@ -105,7 +114,7 @@ const MatchConvo = () => {
   const [approvedByMeLocally, setApprovedByMeLocally] = useState(false);
   const insets = useSafeAreaInsets();
   const keyboardHeightAnim = useSharedValue(0);
-  const { lastNotificationEvent } = useNotifications();
+  const { lastNotificationEvent, notificationsEnabled, expoPushToken } = useNotifications();
 
   const scrollViewRef = useRef(null);
   /** Skip the useFocusEffect fetch that immediately follows the initial mount fetch for this matchId. */
@@ -121,6 +130,14 @@ const MatchConvo = () => {
   const typingDebounceRef = useRef(null);
   const typingIdleClearRef = useRef(null);
   const scrollMetricsRef = useRef({ scrollY: 0, contentH: 0, layoutH: 0 });
+  const senderProfileCacheRef = useRef(new Map());
+  const messageSnapshotRef = useRef({ count: 0, lastId: null });
+  const newMessageTextRef = useRef('');
+  const othersTypingRef = useRef([]);
+
+  useEffect(() => {
+    newMessageTextRef.current = newMessageText;
+  }, [newMessageText]);
 
   const handleScrollViewScroll = useCallback((event) => {
     const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
@@ -260,6 +277,14 @@ const MatchConvo = () => {
           let data = await res.json();
           if (data.length > 0) data = data[0].messages;
           const normalizedMessages = normalizeMessages(data || []);
+          const snapshot = getMessageSnapshot(normalizedMessages);
+          const prev = messageSnapshotRef.current;
+          const unchanged =
+            prev.count === snapshot.count && prev.lastId === snapshot.lastId;
+          if (unchanged) {
+            return;
+          }
+          messageSnapshotRef.current = snapshot;
           setMessages(normalizedMessages);
           await markConversationAsRead();
         }
@@ -339,6 +364,7 @@ const MatchConvo = () => {
     if (matchId == null || matchId === '') return;
     setMatchUser(null);
     setMatchInfo(null);
+    messageSnapshotRef.current = { count: 0, lastId: null };
   }, [matchId]);
 
   useEffect(() => {
@@ -432,7 +458,14 @@ const MatchConvo = () => {
   useEffect(() => {
     if (!matchId || !isFocused) return undefined;
     let cancelled = false;
-    const poll = async () => {
+    let timeoutId = null;
+
+    const scheduleNext = (delayMs) => {
+      if (cancelled) return;
+      timeoutId = setTimeout(runPoll, delayMs);
+    };
+
+    const runPoll = async () => {
       try {
         const token = await AsyncStorage.getItem('token');
         if (!token || cancelled) return;
@@ -441,16 +474,27 @@ const MatchConvo = () => {
         });
         if (!res.ok || cancelled) return;
         const data = await res.json();
-        if (!cancelled) setOthersTyping(Array.isArray(data.typing) ? data.typing : []);
+        const typing = Array.isArray(data.typing) ? data.typing : [];
+        if (cancelled) return;
+        othersTypingRef.current = typing;
+        setOthersTyping(typing);
       } catch {
-        if (!cancelled) setOthersTyping([]);
+        if (!cancelled) {
+          othersTypingRef.current = [];
+          setOthersTyping([]);
+        }
+      } finally {
+        if (cancelled) return;
+        const active =
+          Boolean(newMessageTextRef.current.trim()) || othersTypingRef.current.length > 0;
+        scheduleNext(active ? TYPING_POLL_MS : TYPING_POLL_IDLE_MS);
       }
     };
-    poll();
-    const id = setInterval(poll, TYPING_POLL_MS);
+
+    runPoll();
     return () => {
       cancelled = true;
-      clearInterval(id);
+      if (timeoutId) clearTimeout(timeoutId);
     };
   }, [matchId, isFocused]);
 
@@ -483,6 +527,8 @@ const MatchConvo = () => {
     if (userInfo?.role !== 'matchmaker') return undefined;
     if (matchInfo?.status !== 'pending_approval') return undefined;
     if (!matchInfo?.both_matchmakers_involved) return undefined;
+    if (notificationsEnabled && expoPushToken) return undefined;
+
     const id = setInterval(() => {
       loadMatchMeta();
     }, MATCH_META_PENDING_POLL_MS);
@@ -493,6 +539,8 @@ const MatchConvo = () => {
     userInfo?.role,
     matchInfo?.status,
     matchInfo?.both_matchmakers_involved,
+    notificationsEnabled,
+    expoPushToken,
     loadMatchMeta,
   ]);
 
@@ -506,24 +554,44 @@ const MatchConvo = () => {
         const names = {};
         const roles = {};
         const referrerIds = {};
+        const uncachedIds = [];
+
         for (const id of uniqueIds) {
+          const cached = senderProfileCacheRef.current.get(id);
+          if (cached) {
+            names[id] = cached.first_name;
+            roles[id] = cached.role;
+            referrerIds[id] = cached.referrer_id;
+          } else {
+            uncachedIds.push(id);
+          }
+        }
+
+        for (const id of uncachedIds) {
           try {
             const res = await fetch(`${API_BASE_URL}/profile/${id}`, {
               headers: { Authorization: `Bearer ${token}` },
             });
             if (res.ok) {
               const data = await res.json();
-              names[id] = data.user?.first_name || data.first_name;
-              roles[id] = data.user?.role || data.role;
-              referrerIds[id] = data.user?.referrer_id ?? data.referrer_id ?? null;
+              const profile = {
+                first_name: data.user?.first_name || data.first_name,
+                role: data.user?.role || data.role,
+                referrer_id: data.user?.referrer_id ?? data.referrer_id ?? null,
+              };
+              senderProfileCacheRef.current.set(id, profile);
+              names[id] = profile.first_name;
+              roles[id] = profile.role;
+              referrerIds[id] = profile.referrer_id;
             }
           } catch (err) {
             console.error('Error fetching sender name:', err);
           }
         }
-        setSenderNames(names);
-        setSenderRoles(roles);
-        setSenderReferrerIds(referrerIds);
+
+        setSenderNames((prev) => ({ ...prev, ...names }));
+        setSenderRoles((prev) => ({ ...prev, ...roles }));
+        setSenderReferrerIds((prev) => ({ ...prev, ...referrerIds }));
       } catch (err) {
         console.error('Error fetching names:', err);
       }
@@ -601,7 +669,9 @@ const MatchConvo = () => {
 
       if (res.ok || res.status === 201) {
         const data = await res.json();
-        setMessages(normalizeMessages(data.messages || []));
+        const normalized = normalizeMessages(data.messages || []);
+        messageSnapshotRef.current = getMessageSnapshot(normalized);
+        setMessages(normalized);
         if (typingDebounceRef.current) {
           clearTimeout(typingDebounceRef.current);
           typingDebounceRef.current = null;
@@ -649,36 +719,30 @@ const MatchConvo = () => {
       return 'Matchmaker';
     }
     if (senderRole === 'matchmaker') {
-      const senderLinkedDaterId = senderReferrerIds[msg.sender_id];
       const isDaterViewer = userInfo?.role === 'user';
-      const myLinkedDaterId = isDaterViewer
-        ? userInfo?.id
-        : (userInfo?.referrer_id ?? userInfo?.referred_by_id ?? null);
+      if (isDaterViewer) {
+        return trimmedSenderName ? `${trimmedSenderName} • Matchmaker` : 'Matchmaker';
+      }
+
+      const senderLinkedDaterId = senderReferrerIds[msg.sender_id];
+      const myLinkedDaterId = userInfo?.referrer_id ?? userInfo?.referred_by_id ?? null;
       const isCurrentUsersMatchmaker =
         myLinkedDaterId != null &&
         senderLinkedDaterId != null &&
         Number(senderLinkedDaterId) === Number(myLinkedDaterId);
 
-      let myDaterFirstName = '';
-      if (isDaterViewer) {
-        myDaterFirstName = userInfo?.first_name != null ? String(userInfo.first_name).trim() : '';
-      } else if (userInfo?.role === 'matchmaker') {
-        myDaterFirstName =
-          (matchInfo?.linked_dater?.first_name != null && String(matchInfo.linked_dater.first_name).trim()) ||
-          (referrerInfo?.first_name != null && String(referrerInfo.first_name).trim()) ||
-          '';
-      }
+      let myDaterFirstName =
+        (matchInfo?.linked_dater?.first_name != null && String(matchInfo.linked_dater.first_name).trim()) ||
+        (referrerInfo?.first_name != null && String(referrerInfo.first_name).trim()) ||
+        '';
 
       const otherDaterFirstName =
         matchUser?.first_name != null ? String(matchUser.first_name).trim() : '';
 
-      if (isDaterViewer || userInfo?.role === 'matchmaker') {
-        if (isCurrentUsersMatchmaker) {
-          return myDaterFirstName ? `${myDaterFirstName} • Matchmaker` : 'Matchmaker';
-        }
-        return otherDaterFirstName ? `${otherDaterFirstName} • Matchmaker` : 'Matchmaker';
+      if (isCurrentUsersMatchmaker) {
+        return myDaterFirstName ? `${myDaterFirstName} • Matchmaker` : 'Matchmaker';
       }
-      return 'Matchmaker';
+      return otherDaterFirstName ? `${otherDaterFirstName} • Matchmaker` : 'Matchmaker';
     }
     if (senderRole === 'user' || senderRole === 'dater') {
       return trimmedSenderName ? `${trimmedSenderName} • Dater` : senderName;
@@ -695,9 +759,9 @@ const MatchConvo = () => {
       if (matchInfo?.both_matchmakers_involved && !waitingForOtherApproval) {
         Alert.alert(
           'Confirm Approval',
-          'Once you approve this match, you wont be able to send a message till the other matchmaker approves it',
+          `Once you approve this match, you won't be able to send a message until the other matchmaker approves it`,
           [
-            { text: 'No, dont approve yet', style: 'cancel' },
+            { text: `No, don't approve yet`, style: 'cancel' },
             {
               text: 'Yes, approve',
               onPress: async () => {
@@ -785,7 +849,9 @@ const MatchConvo = () => {
   const typingBannerText = useMemo(() => {
     if (!othersTyping.length) return null;
     const labels = othersTyping.map((t) => {
-      if (t.role === 'matchmaker' && userInfo?.role === 'user') return 'Matchmaker';
+      if (t.role === 'matchmaker' && userInfo?.role === 'user') {
+        return (t.first_name && String(t.first_name).trim()) || 'Matchmaker';
+      }
       return (t.first_name && String(t.first_name).trim()) || 'Someone';
     });
     if (labels.length === 1) return `${labels[0]} is typing…`;

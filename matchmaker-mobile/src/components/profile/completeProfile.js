@@ -42,6 +42,12 @@ import { UserContext } from '../../context/UserContext';
 import { useNotifications } from '../../context/NotificationContext';
 import * as Notifications from 'expo-notifications';
 import ImageCropModal from './components/ImageCropModal';
+import {
+  getRoleAccentColor,
+  getRoleContainerColor,
+} from '../layout/components/RoleHeaderBanner';
+
+const MATCHMAKER_SETUP_STEPS = [{ number: 1, label: 'Setup' }];
 
 const CompleteProfile = () => {
   const navigation = useNavigation();
@@ -151,7 +157,11 @@ const CompleteProfile = () => {
         
         // Restore step if user was in the middle of completing profile
         if (user.profile_completion_step) {
-          setStep(user.profile_completion_step);
+          const nextStep =
+            user.role === 'matchmaker' && !creatingLinkedDater
+              ? 1
+              : user.profile_completion_step;
+          setStep(nextStep);
         }
 
         // Determine height unit from user's unit preference
@@ -195,7 +205,11 @@ const CompleteProfile = () => {
           const user = JSON.parse(userRaw);
           setUser(user);
           if (user.profile_completion_step) {
-            setStep(user.profile_completion_step);
+            const nextStep =
+              user.role === 'matchmaker' && !creatingLinkedDater
+                ? 1
+                : user.profile_completion_step;
+            setStep(nextStep);
           }
           
           const userUnit = user.unit === 'metric' ? 'm' : 'ft';
@@ -234,7 +248,11 @@ const CompleteProfile = () => {
           const user = JSON.parse(userRaw);
           setUser(user);
           if (user.profile_completion_step) {
-            setStep(user.profile_completion_step);
+            const nextStep =
+              user.role === 'matchmaker' && !creatingLinkedDater
+                ? 1
+                : user.profile_completion_step;
+            setStep(nextStep);
           }
         }
       } catch (e) {
@@ -621,6 +639,81 @@ const CompleteProfile = () => {
     saveStepToBackend(2);
   };
 
+  const saveMatchmakerProfile = async () => {
+    setError('');
+
+    if (!formData.first_name.trim()) {
+      return setError('First name is required.');
+    }
+    if (!formData.last_name.trim()) {
+      return setError('Last name is required.');
+    }
+    if (!formData.birthdate) {
+      return setError('Please select your birthdate.');
+    }
+    if (calculateAge(formData.birthdate) < 18) {
+      return setError('You must be at least 18.');
+    }
+
+    setLoading(true);
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) {
+        setError('Session expired. Please log in again.');
+        return;
+      }
+
+      const res = await fetch(`${API_BASE_URL}/profile/update`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          first_name: formData.first_name.trim(),
+          last_name: formData.last_name.trim(),
+          birthdate: formData.birthdate,
+          profile_completion_step: null,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error || 'Failed to save profile');
+        return;
+      }
+
+      const updatedUser = await res.json();
+      await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
+      setContextUser(updatedUser);
+
+      Alert.alert(
+        'Enable Notifications?',
+        'Would you like to receive push notifications for new messages and matches?',
+        [
+          {
+            text: 'Not Now',
+            style: 'cancel',
+            onPress: resetToMainMatches,
+          },
+          {
+            text: 'Enable',
+            onPress: async () => {
+              await requestNotificationPermissions();
+              resetToMainMatches();
+            },
+          },
+        ],
+        { cancelable: false }
+      );
+    } catch (err) {
+      console.error(err);
+      setError('Something went wrong. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleFinish = async () => {
     setError('');
     setLoading(true);
@@ -878,15 +971,29 @@ const CompleteProfile = () => {
     }
   };
 
+  const isMatchmakerProfileSetup = user?.role === 'matchmaker' && !creatingLinkedDater;
+  const setupAccentColor = isMatchmakerProfileSetup
+    ? getRoleAccentColor('matchmaker')
+    : '#ef4d73';
+  const setupHeaderBg = isMatchmakerProfileSetup
+    ? getRoleContainerColor('matchmaker')
+    : '#ffe6ee';
+  const setupScreenBg = isMatchmakerProfileSetup ? '#f5f2ff' : '#ffeef4';
+
   return (
     <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.screen}
+        style={[styles.screen, { backgroundColor: setupScreenBg }]}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
-        <View style={styles.fixedHeader}>
-          <StepIndicator step={step} />
-          {step === 1 && (
+        <View style={[styles.fixedHeader, { backgroundColor: setupHeaderBg }]}>
+          <StepIndicator
+            step={step}
+            steps={isMatchmakerProfileSetup ? MATCHMAKER_SETUP_STEPS : undefined}
+            accentColor={setupAccentColor}
+            headerBackgroundColor={setupHeaderBg}
+          />
+          {step === 1 && !isMatchmakerProfileSetup && (
             <EditToolbar
               formData={formData}
               handleInputChange={handleInputChange}
@@ -919,7 +1026,7 @@ const CompleteProfile = () => {
               <View style={styles.contentLayer}>
                 <Text style={styles.title}>Complete Your Profile</Text>
 
-              {['topRow', 'heroStack'].includes(formData.imageLayout) && (
+              {['topRow', 'heroStack'].includes(formData.imageLayout) && !isMatchmakerProfileSetup && (
                 <>
                   <Text style={styles.label}>Add Images:</Text>
                   <ImageGallery
@@ -958,6 +1065,7 @@ const CompleteProfile = () => {
                     }}
                   />
 
+                  {!isMatchmakerProfileSetup && (
                   <TouchableOpacity
                     style={styles.checkboxRow}
                     onPress={() => update('show_location', !formData.show_location)}
@@ -967,10 +1075,15 @@ const CompleteProfile = () => {
                     </View>
                     <Text style={styles.checkboxLabel}>Show location (e.g. Brooklyn, NY)</Text>
                   </TouchableOpacity>
+                  )}
 
                   <Text style={styles.label}>Birthdate</Text>
                   <TouchableOpacity
-                    style={[styles.field, styles.dateField, showDatePicker && styles.fieldActive]}
+                    style={[
+                      styles.field,
+                      styles.dateField,
+                      showDatePicker && { borderColor: setupAccentColor },
+                    ]}
                     onPress={() => {
                       Keyboard.dismiss();
                       setShowDatePicker(true);
@@ -996,10 +1109,11 @@ const CompleteProfile = () => {
                       update('birthdate', iso);
                       setShowDatePicker(false);
                     }}
-                    accentColor="#ef4d73"
+                    accentColor={setupAccentColor}
                   />
 
-
+              {!isMatchmakerProfileSetup && (
+              <>
               <Text style={styles.label}>Gender</Text>
               <SelectGender
                 selected={formData.gender}
@@ -1062,19 +1176,34 @@ const CompleteProfile = () => {
                   />
                 </View>
               )}
+              </>
+              )}
 
                 {error ? <Text style={styles.error}>{error}</Text> : null}
               </View>
             </View>
             <View style={styles.step1Actions}>
-              <TouchableOpacity style={styles.nextBtn} onPress={saveStep1}>
-                <Text style={styles.nextBtnText}>Next</Text>
-              </TouchableOpacity>
+              {isMatchmakerProfileSetup ? (
+                loading ? (
+                  <ActivityIndicator size="large" color={setupAccentColor} />
+                ) : (
+                  <TouchableOpacity
+                    style={[styles.nextBtn, { backgroundColor: setupAccentColor }]}
+                    onPress={saveMatchmakerProfile}
+                  >
+                    <Text style={styles.nextBtnText}>Continue</Text>
+                  </TouchableOpacity>
+                )
+              ) : (
+                <TouchableOpacity style={styles.nextBtn} onPress={saveStep1}>
+                  <Text style={styles.nextBtnText}>Next</Text>
+                </TouchableOpacity>
+              )}
             </View>
             </View>
           )}
 
-          {step === 2 && (
+          {!isMatchmakerProfileSetup && step === 2 && (
             <View>
               <Text style={styles.title}>Preview</Text>
 
@@ -1132,7 +1261,7 @@ const CompleteProfile = () => {
             </View>
           )}
 
-          {step === 3 && (
+          {!isMatchmakerProfileSetup && step === 3 && (
             <View>
               <Text style={styles.title}>Preferences</Text>
 

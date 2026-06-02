@@ -820,6 +820,17 @@ const SettingsSections = () => {
       return;
     }
 
+    const daterFirstName = String(user?.first_name || '').trim();
+    const daterLastName = String(user?.last_name || '').trim();
+    const daterBirthdate = user?.birthdate;
+    if (!daterFirstName || !daterLastName || !daterBirthdate) {
+      Alert.alert(
+        'Complete your profile first',
+        'Finish your dater profile (name and birthdate) before creating a matchmaker account.'
+      );
+      return;
+    }
+
     const ownReferralCode = String(user?.referral_code || '').trim();
     if (ownReferralCode && trimmedReferralCode.toLowerCase() === ownReferralCode.toLowerCase()) {
       Alert.alert('Error', "You can't use your own referral code to create a matchmaker account");
@@ -859,7 +870,14 @@ const SettingsSections = () => {
       setReferralInput('');
       await waitForNotificationPrefsAfterUserSwitch(data.user.id);
       await promptEnableAllNotificationsForNewLinkedRole('matchmaker');
-      fetchUserProfile();
+      if (data.user?.profile_completion_step) {
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'CompleteProfile' }],
+        });
+      } else {
+        fetchUserProfile();
+      }
     } catch (err) {
       console.error(err);
       Alert.alert('Error', 'Failed to create matchmaker account');
