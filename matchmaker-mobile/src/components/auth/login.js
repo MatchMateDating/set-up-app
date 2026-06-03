@@ -218,12 +218,7 @@ const LoginScreen = () => {
         return;
       }
 
-      // Check if user needs to complete profile
-      if (needsProfileCompletion(loggedInUser)) {
-        navigateAfterLogin(loggedInUser);
-      } else {
-        navigation.reset(getPostAuthNavigationReset(loggedInUser));
-      }
+      navigateAfterLogin(loggedInUser);
     } catch (err) {
       const errorMessage = err.response?.data?.error || err.response?.data?.msg || 'Login failed';
       Alert.alert('Error', errorMessage);
