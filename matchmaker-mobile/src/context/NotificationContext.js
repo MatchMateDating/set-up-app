@@ -55,6 +55,28 @@ export function getNotificationRoutingData(notification) {
   return null;
 }
 
+export function parseTargetUserId(data) {
+  const raw = data?.targetUserId ?? data?.target_user_id;
+  if (raw == null || raw === '') return null;
+  const id = parseInt(String(raw), 10);
+  return Number.isFinite(id) ? id : null;
+}
+
+/** True when a push targets the signed-in user or their same-email linked account. */
+export function notificationTargetsUser(data, actingUser) {
+  const targetId = parseTargetUserId(data);
+  if (targetId == null) return true;
+  if (!actingUser?.id) return true;
+  if (Number(actingUser.id) === targetId) return true;
+  if (
+    actingUser.linked_account_id != null &&
+    Number(actingUser.linked_account_id) === targetId
+  ) {
+    return true;
+  }
+  return false;
+}
+
 // Safety check for API_BASE_URL
 if (!API_BASE_URL) {
   console.error('CRITICAL: API_BASE_URL is not set! App may crash.');
@@ -88,6 +110,22 @@ const setupNotificationHandler = () => {
           matchId === active;
 
         if (type === 'unmatch' || type === 'dater_removed_matchmaker') {
+          return {
+            shouldShowBanner: false,
+            shouldShowList: false,
+            shouldPlaySound: false,
+            shouldSetBadge: false,
+          };
+        }
+
+        let actingUser = null;
+        try {
+          const stored = await AsyncStorage.getItem('user');
+          if (stored) actingUser = JSON.parse(stored);
+        } catch (_) {
+          /* ignore */
+        }
+        if (!notificationTargetsUser(data, actingUser)) {
           return {
             shouldShowBanner: false,
             shouldShowList: false,
@@ -226,7 +264,7 @@ export const NotificationProvider = ({ children }) => {
   const [expoPushToken, setExpoPushToken] = useState(null);
   const [loading, setLoading] = useState(true);
   const [lastNotificationEvent, setLastNotificationEvent] = useState(null);
-  /** Match ids (strings) for which the user chose to suppress message notifications (client-side). */
+  /** Match ids (strings) for which the user chose to suppress message notifications. */
   const [mutedMessageMatchIds, setMutedMessageMatchIds] = useState([]);
 
   // Bubble up push notifications to screens so they can refresh on-demand (no polling).
@@ -247,6 +285,9 @@ export const NotificationProvider = ({ children }) => {
   const isSavingRef = useRef(false);
   const lastSavedPayloadRef = useRef(null);
   const hasLoadedPreferenceRef = useRef(false);
+  const isSavingMutesRef = useRef(false);
+  const lastSavedMutesRef = useRef(null);
+  const hasLoadedMutesRef = useRef(false);
   const registeredTokensRef = useRef(new Set());
   const currentUserIdRef = useRef(null);
   /** Always latest logged-in user id — use after `await` instead of stale `user` closures. */
@@ -260,10 +301,12 @@ export const NotificationProvider = ({ children }) => {
     if (!user?.id) {
       // hard reset when logged out
       hasLoadedPreferenceRef.current = false;
+      hasLoadedMutesRef.current = false;
       setNotificationsEnabled(false);
       setNotificationPreferences({ ...DEFAULT_NOTIFICATION_PREFERENCES });
       setMutedMessageMatchIds([]);
       lastSavedPayloadRef.current = null;
+      lastSavedMutesRef.current = null;
       currentUserIdRef.current = null;
       registeredTokensRef.current.clear();
       setLoading(false);
@@ -274,6 +317,8 @@ export const NotificationProvider = ({ children }) => {
     if (currentUserIdRef.current !== user.id) {
       currentUserIdRef.current = user.id;
       hasLoadedPreferenceRef.current = false;
+      hasLoadedMutesRef.current = false;
+      lastSavedMutesRef.current = null;
       registeredTokensRef.current.clear();
       setLoading(true);
       
@@ -399,25 +444,130 @@ export const NotificationProvider = ({ children }) => {
     }
     let cancelled = false;
     (async () => {
+      let local = [];
       try {
         const raw = await AsyncStorage.getItem(mutedMatchesStorageKey(user.id));
-        if (cancelled) return;
-        if (!raw) {
-          setMutedMessageMatchIds([]);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          local = Array.isArray(parsed) ? parsed.map((x) => String(x)) : [];
+        }
+      } catch {
+        local = [];
+      }
+
+      if (!cancelled && local.length) {
+        setMutedMessageMatchIds(local);
+      }
+
+      try {
+        const token = await AsyncStorage.getItem('token');
+        if (!token || !API_BASE_URL) {
+          if (!cancelled) {
+            setMutedMessageMatchIds(local);
+            lastSavedMutesRef.current = JSON.stringify(local);
+            hasLoadedMutesRef.current = true;
+          }
           return;
         }
-        const parsed = JSON.parse(raw);
-        setMutedMessageMatchIds(
-          Array.isArray(parsed) ? parsed.map((x) => String(x)) : []
-        );
+
+        const res = await fetch(`${API_BASE_URL}/notifications/match_mutes`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (cancelled) return;
+
+        if (res.ok) {
+          const data = await res.json().catch(() => ({}));
+          const remote = Array.isArray(data?.match_ids)
+            ? data.match_ids.map((x) => String(x))
+            : [];
+          const merged = [...new Set([...remote, ...local])];
+          setMutedMessageMatchIds(merged);
+          await AsyncStorage.setItem(
+            mutedMatchesStorageKey(user.id),
+            JSON.stringify(merged)
+          );
+          lastSavedMutesRef.current = JSON.stringify(merged);
+          hasLoadedMutesRef.current = true;
+
+          const remoteSet = new Set(remote);
+          const needsSync =
+            merged.length !== remote.length || merged.some((id) => !remoteSet.has(id));
+          if (needsSync) {
+            await fetch(`${API_BASE_URL}/notifications/match_mutes`, {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({ match_ids: merged }),
+            });
+          }
+          return;
+        }
+
+        if (!cancelled) {
+          setMutedMessageMatchIds(local);
+          lastSavedMutesRef.current = JSON.stringify(local);
+          hasLoadedMutesRef.current = true;
+        }
       } catch {
-        if (!cancelled) setMutedMessageMatchIds([]);
+        if (!cancelled) {
+          setMutedMessageMatchIds(local);
+          lastSavedMutesRef.current = JSON.stringify(local);
+          hasLoadedMutesRef.current = true;
+        }
       }
     })();
     return () => {
       cancelled = true;
     };
   }, [user?.id]);
+
+  useEffect(() => {
+    const payloadString = JSON.stringify(mutedMessageMatchIds);
+    if (
+      !user?.id ||
+      loading ||
+      !hasLoadedMutesRef.current ||
+      isSavingMutesRef.current ||
+      lastSavedMutesRef.current === payloadString ||
+      currentUserIdRef.current !== user.id
+    ) {
+      return;
+    }
+
+    const saveMutes = async () => {
+      const token = await AsyncStorage.getItem('token');
+      if (!token || !API_BASE_URL) return;
+
+      isSavingMutesRef.current = true;
+      const userIdAtSaveStart = user.id;
+      try {
+        const res = await fetch(`${API_BASE_URL}/notifications/match_mutes`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ match_ids: mutedMessageMatchIds }),
+        });
+
+        if (
+          res.ok &&
+          user.id === userIdAtSaveStart &&
+          currentUserIdRef.current === userIdAtSaveStart
+        ) {
+          lastSavedMutesRef.current = payloadString;
+        }
+      } catch (err) {
+        console.warn('Failed to sync per-match message mutes', err);
+      } finally {
+        isSavingMutesRef.current = false;
+      }
+    };
+
+    saveMutes();
+  }, [mutedMessageMatchIds, user?.id, loading]);
 
   /* -------------------------------------------
    * SAVE PREFERENCE TO BACKEND (USER-SCOPED)

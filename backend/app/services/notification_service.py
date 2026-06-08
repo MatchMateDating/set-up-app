@@ -136,8 +136,41 @@ def _matchmaker_ids_linked_to_dater(dater_id):
     return ids
 
 
-def _deliver_message_push_tokens(target_user, title, body_with_suffix, data, match_id, log_receiver_id):
+def _user_muted_match_message(user_id, match_id):
+    """True if this user muted push alerts for new messages in this match."""
+    if not user_id or match_id is None:
+        return False
+    try:
+        mid = int(match_id)
+    except (TypeError, ValueError):
+        return False
+    match = Match.query.get(mid)
+    if not match:
+        return False
+    return match.is_muted_by(user_id)
+
+
+def _deliver_message_push_tokens(
+    target_user,
+    title,
+    body_with_suffix,
+    data,
+    match_id,
+    log_receiver_id,
+    *,
+    skip_if_muted=True,
+):
     """Send message push to one user's registered devices."""
+    if skip_if_muted and _user_muted_match_message(
+        getattr(target_user, "id", None), match_id
+    ):
+        logger.debug(
+            "message push skipped: receiver_id=%s muted match_id=%s",
+            log_receiver_id,
+            match_id,
+        )
+        return False
+
     push_tokens = PushToken.query.filter_by(user_id=target_user.id).all()
 
     if not push_tokens:
@@ -858,7 +891,43 @@ def send_match_notification_to_linked_matchmakers(
     return any_ok
 
 
-def send_approved_match_notification(user_id, title, body, match_id):
+def send_approved_match_push_to_dater(user_id, title, body, match_id):
+    """
+    Push to a dater user row only. Always tags recipientRole=dater and targetUserId so
+    linked-account routing on the device picks the dater account (not the same-email MM).
+    """
+    user = User.query.get(user_id)
+    if not user:
+        return False
+    if not _user_notification_allowed(user, "new_match_approval_notifications"):
+        return False
+
+    data = {
+        "type": "match_approval",
+        "matchId": str(match_id),
+        "recipientRole": "dater",
+        "targetUserId": str(int(user_id)),
+    }
+
+    push_tokens = PushToken.query.filter_by(user_id=user_id).all()
+
+    if not push_tokens:
+        if user.push_token:
+            return send_push_notification(
+                user.push_token, title, body, data, legacy_user=user
+            )
+        return False
+
+    push_tokens = _push_tokens_for_delivery(push_tokens)
+    success_count = 0
+    for token_obj in push_tokens:
+        if send_push_to_token_row(token_obj, title, body, data):
+            success_count += 1
+
+    return success_count > 0
+
+
+def send_approved_match_notification(user_id, title, body, match_id, *, linked_dater_id=None):
     """Push when a pending match is approved (matchmakers or daters)."""
     user = User.query.get(user_id)
     if not user:
@@ -870,7 +939,13 @@ def send_approved_match_notification(user_id, title, body, match_id):
         "type": "match_approval",
         "matchId": str(match_id),
         "recipientRole": _recipient_role_value(user),
+        "targetUserId": str(int(user_id)),
     }
+    if linked_dater_id is not None:
+        try:
+            data["linkedDaterId"] = str(int(linked_dater_id))
+        except (TypeError, ValueError):
+            pass
 
     push_tokens = PushToken.query.filter_by(user_id=user_id).all()
 

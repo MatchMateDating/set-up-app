@@ -16,6 +16,7 @@ import math
 from math import radians, sin, cos, sqrt, atan2
 from app.services.notification_service import (
     send_approved_match_notification,
+    send_approved_match_push_to_dater,
     send_new_match_push_to_dater,
     send_match_notification_to_linked_matchmakers,
     send_unmatch_sync_for_match,
@@ -98,11 +99,22 @@ def _notify_other_matchmaker_peer_approved(match, approving_mm):
 
     # Which side approved?
     approving_side_dater_id = match.user_id_1 if approving_mm.id == m1 else match.user_id_2
+    other_side_dater_id = (
+        match.user_id_2 if approving_side_dater_id == match.user_id_1 else match.user_id_1
+    )
     approving_side_name = d1 if approving_side_dater_id == match.user_id_1 else d2
     other_side_name = d2 if approving_side_dater_id == match.user_id_1 else d1
     try:
-        # Notify the approving matchmaker's linked dater they can speak to the other matchmaker.
-        send_approved_match_notification(
+        # Counterparty dater (e.g. dater 2 when MM1 approves for dater 1): push targets their
+        # user row so linked-account routing lands on email 2, not the approving dater on email 1.
+        send_approved_match_push_to_dater(
+            other_side_dater_id,
+            "New Approved Match",
+            f"You have been approved by {approving_side_name}'s matchmaker.",
+            match.id,
+        )
+
+        send_approved_match_push_to_dater(
             approving_side_dater_id,
             "New Approved Match",
             f"You can speak to {other_side_name}'s matchmaker",
@@ -114,6 +126,7 @@ def _notify_other_matchmaker_peer_approved(match, approving_mm):
             "Match Approval Update",
             f"Approved by {approving_side_name}'s matchmaker. You can speak to {approving_side_name} and approve the match for {other_side_name}.",
             match.id,
+            linked_dater_id=other_side_dater_id,
         )
     except Exception as e:
         print(f'Error sending peer matchmaker approval notification: {e}')
@@ -147,13 +160,13 @@ def _notify_daters_two_matchmakers_fully_approved(match):
         u2 = User.query.get(match.user_id_2)
         other1 = (u2.first_name or "Someone").strip() or "Someone" if u2 else "Someone"
         other2 = (u1.first_name or "Someone").strip() or "Someone" if u1 else "Someone"
-        send_approved_match_notification(
+        send_approved_match_push_to_dater(
             match.user_id_1,
             "Match Approved",
             f"You have been approved by {other1}'s matchmaker",
             match.id,
         )
-        send_approved_match_notification(
+        send_approved_match_push_to_dater(
             match.user_id_2,
             "Match Approved",
             f"{other2} approved by your matchmaker.",
@@ -184,13 +197,13 @@ def _notify_daters_single_matchmaker_fully_approved(match):
         u_other = User.query.get(dater_other)
         other_party_name = (u_other.first_name or "Someone").strip() or "Someone" if u_other else "Someone"
         linked_dater_name = (u_mm.first_name or "Someone").strip() or "Someone" if u_mm else "Someone"
-        send_approved_match_notification(
+        send_approved_match_push_to_dater(
             dater_with_mm,
             'New Approved Match',
             f'{other_party_name} approved by your matchmaker.',
             match.id,
         )
-        send_approved_match_notification(
+        send_approved_match_push_to_dater(
             dater_other,
             'Match Approved',
             f"You have been approved by {linked_dater_name}'s matchmaker.",
@@ -917,18 +930,24 @@ def get_mutual_matches(current_user):
                 user2_matchmaker_involved if current_is_user1 else user1_matchmaker_involved
             )
 
-            # For single-matchmaker pending approvals, only show to the dater who does
-            # NOT have a matchmaker (the direct dater participant). Hide from the
-            # matchmaker-backed dater until approval is complete.
-            single_matchmaker_involved = user1_matchmaker_involved != user2_matchmaker_involved
-            if single_matchmaker_involved:
-                current_user_is_user1 = match.user_id_1 == current_user.id
-                current_user_is_user2 = match.user_id_2 == current_user.id
-                current_user_has_matchmaker = (
-                    (current_user_is_user1 and user1_matchmaker_involved) or
-                    (current_user_is_user2 and user2_matchmaker_involved)
-                )
-                if current_user_has_matchmaker:
+            # Matchmaker-backed daters: hide pending until the other side's matchmaker has
+            # approved (then show on Matchmaker Matches). Single-MM pending stays hidden until
+            # status becomes matched.
+            current_user_is_user1 = match.user_id_1 == current_user.id
+            current_user_is_user2 = match.user_id_2 == current_user.id
+            current_user_has_matchmaker = (
+                (current_user_is_user1 and user1_matchmaker_involved) or
+                (current_user_is_user2 and user2_matchmaker_involved)
+            )
+            if current_user_has_matchmaker:
+                if both_matchmakers_involved:
+                    other_side_mm_approved = (
+                        (current_user_is_user1 and bool(match.approved_by_matcher_2)) or
+                        (current_user_is_user2 and bool(match.approved_by_matcher_1))
+                    )
+                    if not other_side_mm_approved:
+                        continue
+                else:
                     continue
 
             pending_approval_users.append({
