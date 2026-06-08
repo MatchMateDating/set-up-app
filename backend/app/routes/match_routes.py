@@ -92,18 +92,32 @@ def _notify_other_matchmaker_peer_approved(match, approving_mm):
     if not m1 or not m2:
         return
     other_mm_id = m2 if approving_mm.id == m1 else m1
-    dater1 = User.query.get(match.user_id_1)
-    dater2 = User.query.get(match.user_id_2)
-    d1 = (dater1.first_name or "Someone").strip() or "Someone" if dater1 else "Someone"
-    d2 = (dater2.first_name or "Someone").strip() or "Someone" if dater2 else "Someone"
 
-    # Which side approved?
-    approving_side_dater_id = match.user_id_1 if approving_mm.id == m1 else match.user_id_2
+    # Use the approving matchmaker's currently selected linked dater (referred_by_id).
+    # Do not infer from user_id_1/user_id_2 slots — the MM may have switched daters in the UI
+    # after the match was created, and approve_match authorizes against referred_by_id.
+    approving_side_dater_id = approving_mm.referred_by_id
+    if not approving_side_dater_id:
+        return
+    if approving_side_dater_id not in (match.user_id_1, match.user_id_2):
+        return
+
     other_side_dater_id = (
         match.user_id_2 if approving_side_dater_id == match.user_id_1 else match.user_id_1
     )
-    approving_side_name = d1 if approving_side_dater_id == match.user_id_1 else d2
-    other_side_name = d2 if approving_side_dater_id == match.user_id_1 else d1
+
+    approving_dater = User.query.get(approving_side_dater_id)
+    other_dater = User.query.get(other_side_dater_id)
+    approving_side_name = (
+        (approving_dater.first_name or "Someone").strip() or "Someone"
+        if approving_dater
+        else "Someone"
+    )
+    other_side_name = (
+        (other_dater.first_name or "Someone").strip() or "Someone"
+        if other_dater
+        else "Someone"
+    )
     try:
         # Only the approving matchmaker's linked dater is notified on partial approval.
         # The other dater is notified when their own matchmaker approves (or when both have).
