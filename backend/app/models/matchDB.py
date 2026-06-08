@@ -1,3 +1,7 @@
+from datetime import datetime
+
+from sqlalchemy import and_, or_
+
 from app import db
 
 # Association table for match likers
@@ -31,6 +35,11 @@ class Match(db.Model):
     # True = that dater tapped like themselves; False = only their matchmaker liked for them; None = legacy row
     direct_like_as_dater_1 = db.Column(db.Boolean, nullable=True, default=None)
     direct_like_as_dater_2 = db.Column(db.Boolean, nullable=True, default=None)
+    # Per-participant message notification mute timestamps (null = not muted).
+    muted_by_dater_1 = db.Column(db.DateTime, nullable=True)
+    muted_by_dater_2 = db.Column(db.DateTime, nullable=True)
+    muted_by_mm_1 = db.Column(db.DateTime, nullable=True)
+    muted_by_mm_2 = db.Column(db.DateTime, nullable=True)
 
     # relationships to the two users
     user1 = db.relationship('User', foreign_keys=[user_id_1], back_populates='matches_as_user1')
@@ -43,6 +52,56 @@ class Match(db.Model):
         backref=db.backref('liked_matches', lazy='dynamic')
     )
 
+
+    def participant_mute_column(self, user_id):
+        """Return the mute column name for this user on the match, or None."""
+        if user_id is None:
+            return None
+        uid = int(user_id)
+        if self.user_id_1 == uid:
+            return 'muted_by_dater_1'
+        if self.user_id_2 == uid:
+            return 'muted_by_dater_2'
+        if self.matched_by_user_id_1_matcher == uid:
+            return 'muted_by_mm_1'
+        if self.matched_by_user_id_2_matcher == uid:
+            return 'muted_by_mm_2'
+        return None
+
+    def is_muted_by(self, user_id):
+        col = self.participant_mute_column(user_id)
+        return col is not None and getattr(self, col) is not None
+
+    def set_muted_by(self, user_id, muted=True, at=None):
+        col = self.participant_mute_column(user_id)
+        if col is None:
+            return False
+        setattr(self, col, (at or datetime.utcnow()) if muted else None)
+        return True
+
+    @classmethod
+    def _user_mute_filter(cls, user_id):
+        uid = int(user_id)
+        return or_(
+            and_(cls.user_id_1 == uid, cls.muted_by_dater_1.isnot(None)),
+            and_(cls.user_id_2 == uid, cls.muted_by_dater_2.isnot(None)),
+            and_(cls.matched_by_user_id_1_matcher == uid, cls.muted_by_mm_1.isnot(None)),
+            and_(cls.matched_by_user_id_2_matcher == uid, cls.muted_by_mm_2.isnot(None)),
+        )
+
+    @classmethod
+    def muted_match_ids_for_user(cls, user_id):
+        rows = (
+            cls.query.filter(cls._user_mute_filter(user_id))
+            .with_entities(cls.id)
+            .all()
+        )
+        return [str(row[0]) for row in rows]
+
+    @classmethod
+    def clear_mutes_for_user(cls, user_id):
+        for match in cls.query.filter(cls._user_mute_filter(user_id)).all():
+            match.set_muted_by(user_id, muted=False)
 
     def to_dict(self):
         return {
@@ -64,4 +123,8 @@ class Match(db.Model):
             'dater_removed_matcher_2': self.dater_removed_matcher_2,
             'direct_like_as_dater_1': self.direct_like_as_dater_1,
             'direct_like_as_dater_2': self.direct_like_as_dater_2,
+            'muted_by_dater_1': self.muted_by_dater_1.isoformat() if self.muted_by_dater_1 else None,
+            'muted_by_dater_2': self.muted_by_dater_2.isoformat() if self.muted_by_dater_2 else None,
+            'muted_by_mm_1': self.muted_by_mm_1.isoformat() if self.muted_by_mm_1 else None,
+            'muted_by_mm_2': self.muted_by_mm_2.isoformat() if self.muted_by_mm_2 else None,
         }

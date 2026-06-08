@@ -1,8 +1,10 @@
 import os
 
 from flask import Blueprint, jsonify, request
+from datetime import datetime
+
 from app.models.userDB import User, PushToken
-from app.models.matchMessageMuteDB import MatchMessageMute
+from app.models.matchDB import Match
 from app import db
 from app.routes.shared import token_required
 from app.services.notification_service import send_notification_to_user
@@ -201,16 +203,16 @@ def register_token(current_user):
         if getattr(current_user, "linked_account_id", None):
             allowed_user_ids.add(current_user.linked_account_id)
 
-        # If this device token is attached to unrelated users, reassign to the current user
-        # to prevent pushes landing on the wrong phone/session.
+        # If this device token is attached to unrelated users, remove those rows instead of
+        # reassigning them. Reassigning caused pushes for user B to land on a device logged
+        # into user A (common when testing two email/account pairs on one phone).
         rows_other_users = PushToken.query.filter(
             PushToken.token == push_token,
             PushToken.user_id.notin_(list(allowed_user_ids)),
         ).all()
         if rows_other_users:
             for row in rows_other_users:
-                row.user_id = current_user.id
-                row.platform = platform
+                db.session.delete(row)
             db.session.commit()
 
         # Register token for the current user, and also for their linked account (if any).
@@ -334,8 +336,8 @@ def _parse_match_id_list(raw_ids):
 def get_match_message_mutes(current_user):
     """Per-match message mute list for the current user (push suppression)."""
     try:
-        rows = MatchMessageMute.query.filter_by(user_id=current_user.id).all()
-        return jsonify({'match_ids': [str(r.match_id) for r in rows]}), 200
+        match_ids = Match.muted_match_ids_for_user(current_user.id)
+        return jsonify({'match_ids': match_ids}), 200
     except Exception as e:
         return jsonify({'error': 'Unexpected server error', 'details': str(e)}), 500
 
@@ -353,11 +355,13 @@ def update_match_message_mutes(current_user):
         if err:
             return jsonify({'error': err}), 400
 
-        MatchMessageMute.query.filter_by(user_id=current_user.id).delete(
-            synchronize_session='fetch'
-        )
+        user_id = current_user.id
+        Match.clear_mutes_for_user(user_id)
+        muted_at = datetime.utcnow()
         for mid in match_ids:
-            db.session.add(MatchMessageMute(user_id=current_user.id, match_id=mid))
+            match = Match.query.get(mid)
+            if match:
+                match.set_muted_by(user_id, muted=True, at=muted_at)
         db.session.commit()
 
         return jsonify({'match_ids': [str(mid) for mid in match_ids]}), 200

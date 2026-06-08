@@ -53,6 +53,11 @@ def create_app():
     jwt.init_app(app)
     migrate.init_app(app, db)
 
+    with app.app_context():
+        from .db_schema import ensure_match_mute_columns
+
+        ensure_match_mute_columns()
+
     from .routes import register_blueprints
     register_blueprints(app)
 

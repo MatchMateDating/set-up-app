@@ -55,6 +55,28 @@ export function getNotificationRoutingData(notification) {
   return null;
 }
 
+export function parseTargetUserId(data) {
+  const raw = data?.targetUserId ?? data?.target_user_id;
+  if (raw == null || raw === '') return null;
+  const id = parseInt(String(raw), 10);
+  return Number.isFinite(id) ? id : null;
+}
+
+/** True when a push targets the signed-in user or their same-email linked account. */
+export function notificationTargetsUser(data, actingUser) {
+  const targetId = parseTargetUserId(data);
+  if (targetId == null) return true;
+  if (!actingUser?.id) return true;
+  if (Number(actingUser.id) === targetId) return true;
+  if (
+    actingUser.linked_account_id != null &&
+    Number(actingUser.linked_account_id) === targetId
+  ) {
+    return true;
+  }
+  return false;
+}
+
 // Safety check for API_BASE_URL
 if (!API_BASE_URL) {
   console.error('CRITICAL: API_BASE_URL is not set! App may crash.');
@@ -88,6 +110,22 @@ const setupNotificationHandler = () => {
           matchId === active;
 
         if (type === 'unmatch' || type === 'dater_removed_matchmaker') {
+          return {
+            shouldShowBanner: false,
+            shouldShowList: false,
+            shouldPlaySound: false,
+            shouldSetBadge: false,
+          };
+        }
+
+        let actingUser = null;
+        try {
+          const stored = await AsyncStorage.getItem('user');
+          if (stored) actingUser = JSON.parse(stored);
+        } catch (_) {
+          /* ignore */
+        }
+        if (!notificationTargetsUser(data, actingUser)) {
           return {
             shouldShowBanner: false,
             shouldShowList: false,

@@ -6,6 +6,8 @@ import { UserProvider } from './src/context/UserContext';
 import {
   NotificationProvider,
   getNotificationRoutingData,
+  parseTargetUserId,
+  notificationTargetsUser,
 } from './src/context/NotificationContext';
 import AppNavigator from './src/navigation/AppNavigator';
 import ErrorBoundary from './src/components/ErrorBoundary';
@@ -40,6 +42,65 @@ function NotificationHandler({ navigationRef }) {
         if (role === 'dater') return 'dater';
         if (role === 'user') return 'dater';
         return null;
+      };
+
+      const readStoredUser = async () => {
+        try {
+          const stored = await AsyncStorage.getItem('user');
+          if (stored) return JSON.parse(stored);
+        } catch (_) {
+          /* ignore */
+        }
+        return user ?? null;
+      };
+
+      const switchToLinkedAccountIfNeeded = async (actingUser) => {
+        const token = await AsyncStorage.getItem('token');
+        if (!token) return actingUser;
+
+        const res = await fetch(`${API_BASE_URL}/profile/switch_account`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        if (!res.ok) return actingUser;
+
+        const data = await res.json().catch(() => null);
+        if (!data?.token || !data?.user) return actingUser;
+
+        await AsyncStorage.setItem('token', data.token);
+        await AsyncStorage.setItem('user', JSON.stringify(data.user));
+        setUser(data.user);
+        return data.user;
+      };
+
+      const ensureAccountForNotification = async (data) => {
+        let actingUser = await readStoredUser();
+        const targetId = parseTargetUserId(data);
+
+        if (targetId != null) {
+          if (!notificationTargetsUser(data, actingUser)) {
+            return null;
+          }
+          if (actingUser?.id != null && Number(actingUser.id) !== targetId) {
+            if (Number(actingUser.linked_account_id) === targetId) {
+              actingUser = await switchToLinkedAccountIfNeeded(actingUser);
+            }
+          }
+          if (
+            actingUser?.id != null &&
+            Number(actingUser.id) !== targetId &&
+            Number(actingUser.linked_account_id) !== targetId
+          ) {
+            return null;
+          }
+          return actingUser;
+        }
+
+        await ensureAccountRoleForNotification(data?.recipientRole);
+        return readStoredUser();
       };
 
       const ensureAccountRoleForNotification = async (recipientRole) => {
@@ -120,17 +181,9 @@ function NotificationHandler({ navigationRef }) {
         if (reqId && handledTapIdsRef.current.has(reqId)) return;
 
         const data = getNotificationRoutingData(notification);
-        await ensureAccountRoleForNotification(data?.recipientRole);
+        const actingUser = await ensureAccountForNotification(data);
+        if (!actingUser) return;
 
-        let actingUser = user;
-        try {
-          const stored = await AsyncStorage.getItem('user');
-          if (stored) {
-            actingUser = JSON.parse(stored);
-          }
-        } catch (_) {
-          /* keep actingUser from context */
-        }
         await ensureSelectedLinkedDaterForNotification(
           data?.linkedDaterId ?? data?.linked_dater_id,
           actingUser
