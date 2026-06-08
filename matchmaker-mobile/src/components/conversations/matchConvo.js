@@ -30,6 +30,7 @@ import {
 } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { API_BASE_URL } from '../../env';
+import { fetchWithRetry } from '../../utils/fetchWithRetry';
 import { useUserInfo } from './hooks/useUserInfo';
 import { games } from '../puzzles/puzzlesPage';
 import { Ionicons } from '@expo/vector-icons';
@@ -160,13 +161,16 @@ const MatchConvo = () => {
       try {
         const token = await AsyncStorage.getItem('token');
         if (!token || !matchId) return;
-        await fetch(`${API_BASE_URL}/conversation/${matchId}/typing`, {
+        await fetchWithRetry(`${API_BASE_URL}/conversation/${matchId}/typing`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
           body: JSON.stringify({ typing }),
         });
       } catch (err) {
-        console.error('typing indicator:', err);
+        // Non-critical UX signal — avoid noisy errors when the main chat POST still works.
+        if (__DEV__) {
+          console.warn('typing indicator:', err);
+        }
       }
     },
     [matchId]
@@ -469,7 +473,7 @@ const MatchConvo = () => {
       try {
         const token = await AsyncStorage.getItem('token');
         if (!token || cancelled) return;
-        const res = await fetch(`${API_BASE_URL}/conversation/${matchId}/typing`, {
+        const res = await fetchWithRetry(`${API_BASE_URL}/conversation/${matchId}/typing`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!res.ok || cancelled) return;
@@ -656,7 +660,7 @@ const MatchConvo = () => {
         bodyData.puzzle_link = selectedPuzzleLink;
       }
 
-      const res = await fetch(`${API_BASE_URL}/conversation/${matchId}`, {
+      const res = await fetchWithRetry(`${API_BASE_URL}/conversation/${matchId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(bodyData),

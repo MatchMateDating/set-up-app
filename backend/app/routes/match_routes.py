@@ -105,15 +105,8 @@ def _notify_other_matchmaker_peer_approved(match, approving_mm):
     approving_side_name = d1 if approving_side_dater_id == match.user_id_1 else d2
     other_side_name = d2 if approving_side_dater_id == match.user_id_1 else d1
     try:
-        # Counterparty dater (e.g. dater 2 when MM1 approves for dater 1): push targets their
-        # user row so linked-account routing lands on email 2, not the approving dater on email 1.
-        send_approved_match_push_to_dater(
-            other_side_dater_id,
-            "New Approved Match",
-            f"You have been approved by {approving_side_name}'s matchmaker.",
-            match.id,
-        )
-
+        # Only the approving matchmaker's linked dater is notified on partial approval.
+        # The other dater is notified when their own matchmaker approves (or when both have).
         send_approved_match_push_to_dater(
             approving_side_dater_id,
             "New Approved Match",

@@ -17,6 +17,7 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import MultiSlider from '@ptomasroos/react-native-multi-slider';
 import { API_BASE_URL } from '../../env';
+import { fetchWithRetry } from '../../utils/fetchWithRetry';
 import SendNoteModal from './sendNoteModal';
 import ProfileCard from './profileCard';
 import { useProfiles } from './hooks/useProfiles';
@@ -452,7 +453,7 @@ const Match = () => {
         return;
       }
 
-      const res = await fetch(`${API_BASE_URL}/match/like`, {
+      const res = await fetchWithRetry(`${API_BASE_URL}/match/like`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -509,7 +510,7 @@ const Match = () => {
         return;
       }
 
-      const res = await fetch(`${API_BASE_URL}/match/blind_match`, {
+      const res = await fetchWithRetry(`${API_BASE_URL}/match/blind_match`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
