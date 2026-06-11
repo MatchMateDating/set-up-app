@@ -69,13 +69,27 @@ export function notificationTargetsUser(data, actingUser) {
   if (targetId == null) return true;
   if (!actingUser?.id) return true;
   if (Number(actingUser.id) === targetId) return true;
-  if (
+
+  const linkedToTarget =
     actingUser.linked_account_id != null &&
-    Number(actingUser.linked_account_id) === targetId
-  ) {
-    return true;
+    Number(actingUser.linked_account_id) === targetId;
+
+  const recipientRole = data?.recipientRole;
+
+  // Matchmaker-only pushes: never show on a dater login (even linked accounts).
+  if (recipientRole === 'matchmaker') {
+    return actingUser.role === 'matchmaker' && linkedToTarget;
   }
-  return false;
+
+  // Dater-only pushes: only the target dater or their same-email matchmaker login.
+  if (recipientRole === 'dater') {
+    if (actingUser.role === 'matchmaker') {
+      return linkedToTarget;
+    }
+    return false;
+  }
+
+  return linkedToTarget;
 }
 
 // Safety check for API_BASE_URL

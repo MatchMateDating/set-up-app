@@ -891,10 +891,33 @@ def send_match_notification_to_linked_matchmakers(
     return any_ok
 
 
-def send_approved_match_push_to_dater(user_id, title, body, match_id):
+def _deliver_push_to_user_tokens(user_id, user, title, body, data):
+    """Deliver a push to all token rows stored under user_id."""
+    push_tokens = PushToken.query.filter_by(user_id=user_id).all()
+
+    if not push_tokens:
+        if user and user.push_token:
+            return send_push_notification(
+                user.push_token, title, body, data, legacy_user=user
+            )
+        return False
+
+    push_tokens = _push_tokens_for_delivery(push_tokens)
+    success_count = 0
+    for token_obj in push_tokens:
+        if send_push_to_token_row(token_obj, title, body, data):
+            success_count += 1
+
+    return success_count > 0
+
+
+def send_approved_match_push_to_dater(
+    user_id, title, body, match_id, *, approving_mm_id=None
+):
     """
-    Push to a dater user row only. Always tags recipientRole=dater and targetUserId so
-    linked-account routing on the device picks the dater account (not the same-email MM).
+    Push to a specific dater. Tags recipientRole=dater and targetUserId so the client
+    routes to the dater account. Delivers to the dater row, their same-email linked
+    account, and optionally the approving matchmaker row when approving_mm_id is set.
     """
     user = User.query.get(user_id)
     if not user:
@@ -909,22 +932,22 @@ def send_approved_match_push_to_dater(user_id, title, body, match_id):
         "targetUserId": str(int(user_id)),
     }
 
-    push_tokens = PushToken.query.filter_by(user_id=user_id).all()
+    any_ok = _deliver_push_to_user_tokens(user_id, user, title, body, data)
 
-    if not push_tokens:
-        if user.push_token:
-            return send_push_notification(
-                user.push_token, title, body, data, legacy_user=user
-            )
-        return False
+    if user.linked_account_id:
+        linked = User.query.get(user.linked_account_id)
+        if linked and _deliver_push_to_user_tokens(
+            linked.id, linked, title, body, data
+        ):
+            any_ok = True
 
-    push_tokens = _push_tokens_for_delivery(push_tokens)
-    success_count = 0
-    for token_obj in push_tokens:
-        if send_push_to_token_row(token_obj, title, body, data):
-            success_count += 1
+    if approving_mm_id:
+        mm_user = User.query.get(approving_mm_id)
+        if mm_user and getattr(mm_user, "role", None) == "matchmaker":
+            if _deliver_push_to_user_tokens(approving_mm_id, mm_user, title, body, data):
+                any_ok = True
 
-    return success_count > 0
+    return any_ok
 
 
 def send_approved_match_notification(user_id, title, body, match_id, *, linked_dater_id=None):

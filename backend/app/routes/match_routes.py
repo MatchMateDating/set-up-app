@@ -85,7 +85,7 @@ def _send_deferred_blind_match_notification_if_needed(match):
     match.blind_match_deferred_notify_user_id = None
 
 
-def _notify_other_matchmaker_peer_approved(match, approving_mm):
+def _notify_other_matchmaker_peer_approved(match, approving_mm, linked_dater_id):
     """Two matchmakers: the other matchmaker is notified that this one approved first."""
     m1 = match.matched_by_user_id_1_matcher
     m2 = match.matched_by_user_id_2_matcher
@@ -93,10 +93,10 @@ def _notify_other_matchmaker_peer_approved(match, approving_mm):
         return
     other_mm_id = m2 if approving_mm.id == m1 else m1
 
-    # Use the approving matchmaker's currently selected linked dater (referred_by_id).
-    # Do not infer from user_id_1/user_id_2 slots — the MM may have switched daters in the UI
-    # after the match was created, and approve_match authorizes against referred_by_id.
-    approving_side_dater_id = approving_mm.referred_by_id
+    # Notify the dater the approving matchmaker is acting for right now (referred_by_id at
+    # approve time). Do NOT use user_id_1/user_id_2 slots: matched_by_user_id_X_matcher
+    # records who *acted* on that side, which can be the other side's matchmaker.
+    approving_side_dater_id = linked_dater_id
     if not approving_side_dater_id:
         return
     if approving_side_dater_id not in (match.user_id_1, match.user_id_2):
@@ -119,12 +119,12 @@ def _notify_other_matchmaker_peer_approved(match, approving_mm):
         else "Someone"
     )
     try:
-        # Only the approving matchmaker's linked dater is notified on partial approval.
-        # The other dater is notified when their own matchmaker approves (or when both have).
+        # Only the other dater is notified on partial approval — they may join once the
+        # opposing matchmaker has approved (mirrors GET /match/matches visibility for daters).
         send_approved_match_push_to_dater(
-            approving_side_dater_id,
+            other_side_dater_id,
             "New Approved Match",
-            f"You can speak to {other_side_name}'s matchmaker",
+            f"You can speak to {approving_side_name}'s matchmaker",
             match.id,
         )
 
@@ -1135,7 +1135,7 @@ def approve_match(current_user, match_id):
             # One matchmaker has approved, waiting for the other
             db.session.commit()
             match = Match.query.get(match_id)
-            _notify_other_matchmaker_peer_approved(match, current_user)
+            _notify_other_matchmaker_peer_approved(match, current_user, linked_dater_id)
             return jsonify({
                 'message': 'Your approval has been recorded. Waiting for the other matchmaker to approve.', 
                 'match_id': match.id,
