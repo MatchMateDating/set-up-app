@@ -31,6 +31,7 @@ import { useNotifications } from '../../context/NotificationContext';
 import { getRoleAccentColor, getRoleBackgroundTint } from '../layout/components/RoleHeaderBanner';
 import { UserContext } from '../../context/UserContext';
 import { mainTabBackDelegateRef } from '../../navigation/mainTabsBackDelegates';
+import { beginAuthSessionClear, clearAuthSession, resumeAuthSession, shouldSuppressAuthErrors } from '../../utils/authSession';
 
 const SECTION_KEYS = {
   PERSONAL: 'personal',
@@ -328,8 +329,6 @@ const SettingsSections = () => {
     try {
       const token = await AsyncStorage.getItem('token');
       if (!token) {
-        Alert.alert('Error', 'Please log in');
-        navigation.navigate('Login');
         return;
       }
 
@@ -344,13 +343,15 @@ const SettingsSections = () => {
         const data = await res.json();
         if (data.error_code === 'TOKEN_EXPIRED') {
           await AsyncStorage.removeItem('token');
-          Alert.alert('Session expired', 'Please log in again.');
           navigation.navigate('Login');
           return;
         }
+        if (await shouldSuppressAuthErrors()) return;
+        return;
       }
 
       if (!res.ok) {
+        if (await shouldSuppressAuthErrors()) return;
         throw new Error('Failed to fetch user profile');
       }
 
@@ -406,6 +407,7 @@ const SettingsSections = () => {
       await AsyncStorage.setItem('user', JSON.stringify(data.user));
     } catch (err) {
       console.error(err);
+      if (await shouldSuppressAuthErrors()) return;
       Alert.alert('Error', 'Failed to load settings');
     }
   }, [navigation, setContextUser]);
@@ -589,7 +591,6 @@ const SettingsSections = () => {
         const data = await res.json();
         if (data.error_code === 'TOKEN_EXPIRED') {
           await AsyncStorage.removeItem('token');
-          Alert.alert('Session expired', 'Please log in again.');
           navigation.navigate('Login');
           return;
         }
@@ -713,7 +714,6 @@ const SettingsSections = () => {
         const data = await res.json();
         if (data.error_code === 'TOKEN_EXPIRED') {
           await AsyncStorage.removeItem('token');
-          Alert.alert('Session expired', 'Please log in again.');
           navigation.navigate('Login');
           return;
         }
@@ -820,6 +820,17 @@ const SettingsSections = () => {
       return;
     }
 
+    const daterFirstName = String(user?.first_name || '').trim();
+    const daterLastName = String(user?.last_name || '').trim();
+    const daterBirthdate = user?.birthdate;
+    if (!daterFirstName || !daterLastName || !daterBirthdate) {
+      Alert.alert(
+        'Complete your profile first',
+        'Finish your dater profile (name and birthdate) before creating a matchmaker account.'
+      );
+      return;
+    }
+
     const ownReferralCode = String(user?.referral_code || '').trim();
     if (ownReferralCode && trimmedReferralCode.toLowerCase() === ownReferralCode.toLowerCase()) {
       Alert.alert('Error', "You can't use your own referral code to create a matchmaker account");
@@ -859,7 +870,14 @@ const SettingsSections = () => {
       setReferralInput('');
       await waitForNotificationPrefsAfterUserSwitch(data.user.id);
       await promptEnableAllNotificationsForNewLinkedRole('matchmaker');
-      fetchUserProfile();
+      if (data.user?.profile_completion_step) {
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'CompleteProfile' }],
+        });
+      } else {
+        fetchUserProfile();
+      }
     } catch (err) {
       console.error(err);
       Alert.alert('Error', 'Failed to create matchmaker account');
@@ -893,7 +911,6 @@ const SettingsSections = () => {
       await AsyncStorage.setItem('token', data.token);
       await AsyncStorage.setItem('user', JSON.stringify(data.user));
       setContextUser(data.user);
-      Alert.alert('Success', `Switched to ${data.user.role} account`);
       fetchUserProfile();
     } catch (err) {
       console.error(err);
@@ -948,8 +965,6 @@ const SettingsSections = () => {
                 await AsyncStorage.setItem('user', JSON.stringify(data.user));
                 setContextUser(data.user);
               }
-
-              Alert.alert('Success', data.message || `${roleLabel} account deleted successfully`);
               fetchUserProfile();
             } catch (err) {
               console.error(err);
@@ -982,7 +997,6 @@ const SettingsSections = () => {
   const fetchFreshDaterInviteUrl = async () => {
     const token = await AsyncStorage.getItem('token');
     if (!token) {
-      Alert.alert('Error', 'Please log in');
       navigation.navigate('Login');
       return null;
     }
@@ -999,7 +1013,6 @@ const SettingsSections = () => {
       const data = await res.json().catch(() => ({}));
       if (data.error_code === 'TOKEN_EXPIRED') {
         await AsyncStorage.removeItem('token');
-        Alert.alert('Session expired', 'Please log in again.');
         navigation.navigate('Login');
         return null;
       }
@@ -1039,7 +1052,6 @@ const SettingsSections = () => {
       const url = await ensureDaterInviteUrl();
       if (!url) return;
       await Clipboard.setStringAsync(url);
-      Alert.alert('Copied', 'Invite link copied to clipboard.');
     } catch (err) {
       console.error('Error copying dater invite:', err);
       Alert.alert('Error', 'Failed to copy invite link');
@@ -1094,7 +1106,6 @@ const SettingsSections = () => {
         const data = await res.json().catch(() => ({}));
         if (data.error_code === 'TOKEN_EXPIRED') {
           await AsyncStorage.removeItem('token');
-          Alert.alert('Session expired', 'Please log in again.');
           navigation.navigate('Login');
           return;
         }
@@ -1373,9 +1384,8 @@ const SettingsSections = () => {
 
   const handleSignOut = async () => {
     try {
-      await AsyncStorage.removeItem('token');
-      await AsyncStorage.removeItem('user');
-      await AsyncStorage.removeItem('staySignedIn');
+      setContextUser(null);
+      await clearAuthSession();
       navigation.reset({
         index: 0,
         routes: [{ name: 'Login' }],
@@ -1402,8 +1412,10 @@ const SettingsSections = () => {
 
   const confirmDeleteAccount = async () => {
     try {
+      beginAuthSessionClear();
       const token = await AsyncStorage.getItem('token');
       if (!token) {
+        resumeAuthSession();
         Alert.alert('Error', 'Please log in');
         navigation.navigate('Login');
         return;
@@ -1418,27 +1430,19 @@ const SettingsSections = () => {
       });
 
       if (!res.ok) {
+        resumeAuthSession();
         const errorData = await res.json().catch(() => ({}));
         Alert.alert('Error', errorData.error || 'Failed to delete account');
         return;
       }
 
-      await AsyncStorage.removeItem('token');
-      await AsyncStorage.removeItem('user');
-      await AsyncStorage.removeItem('staySignedIn');
+      setContextUser(null);
+      await clearAuthSession();
       setShowDeleteAccountModal(false);
       setDeleteModalForBothRoles(false);
-      Alert.alert('Account Deleted', 'Your account has been permanently deleted.', [
-        {
-          text: 'OK',
-          onPress: () =>
-            navigation.reset({
-              index: 0,
-              routes: [{ name: 'Login' }],
-            }),
-        },
-      ]);
+      navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
     } catch (err) {
+      resumeAuthSession();
       console.error(err);
       Alert.alert('Error', 'Failed to delete account');
     }

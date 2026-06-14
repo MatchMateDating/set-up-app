@@ -23,7 +23,6 @@ export const useProfiles = (API_BASE_URL) => {
           const data = await res.json();
           if (data.error_code === 'TOKEN_EXPIRED') {
             await AsyncStorage.removeItem('token');
-            Alert.alert('Session expired', 'Please log in again.');
           }
           setLoading(false);
           return;

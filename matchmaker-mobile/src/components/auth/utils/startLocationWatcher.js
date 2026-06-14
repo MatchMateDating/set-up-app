@@ -1,5 +1,6 @@
 // Mobile location watcher - requests permission, fetches position, sends to backend
 import * as Location from 'expo-location';
+import { fetchWithRetry } from '../../../utils/fetchWithRetry';
 
 let watchSubscription = null;
 let currentToken = null;
@@ -51,20 +52,39 @@ async function sendLocationUpdate(apiBaseUrl, token, latitude, longitude) {
     if (__DEV__) console.warn('Reverse geocode failed:', e.message);
   }
 
-  const res = await fetch(`${apiBaseUrl}/location/update`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ latitude, longitude, city, state }),
+  try {
+    const res = await fetchWithRetry(
+      `${apiBaseUrl}/location/update`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ latitude, longitude, city, state }),
+      },
+      { retries: 5, baseDelayMs: 600 }
+    );
+    if (res.ok && (city || state)) {
+      notifyLocationUpdated();
+    }
+    if (!res.ok && __DEV__) {
+      console.warn('[Location] update failed:', res.status, await res.text());
+    }
+  } catch (err) {
+    if (__DEV__) {
+      console.warn('[Location] update request failed:', err?.message || err);
+    }
+  }
+}
+
+/** Fire-and-forget wrapper that never surfaces an unhandled rejection. */
+export function safeStartLocationWatcher(apiBaseUrl, token) {
+  startLocationWatcher(apiBaseUrl, token).catch((err) => {
+    if (__DEV__) {
+      console.warn('[Location] watcher failed to start:', err?.message || err);
+    }
   });
-  if (res.ok && (city || state)) {
-    notifyLocationUpdated();
-  }
-  if (!res.ok && __DEV__) {
-    console.warn('[Location] update failed:', res.status, await res.text());
-  }
 }
 
 /**
@@ -116,7 +136,9 @@ export const startLocationWatcher = async (apiBaseUrl, token) => {
         try {
           await sendLocationUpdate(apiBaseUrl, currentToken, latitude, longitude);
         } catch (err) {
-          console.error('Failed to update location:', err);
+          if (__DEV__) {
+            console.warn('Failed to update location:', err);
+          }
         }
       }
     );

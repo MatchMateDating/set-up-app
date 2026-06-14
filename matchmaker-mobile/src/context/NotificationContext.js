@@ -12,6 +12,7 @@ import { AppState, Platform } from 'react-native';
 import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_BASE_URL } from '../env';
+import { fetchWithRetry } from '../utils/fetchWithRetry';
 import { UserContext } from './UserContext';
 
 let activeConversationMatchId = null;
@@ -55,6 +56,42 @@ export function getNotificationRoutingData(notification) {
   return null;
 }
 
+export function parseTargetUserId(data) {
+  const raw = data?.targetUserId ?? data?.target_user_id;
+  if (raw == null || raw === '') return null;
+  const id = parseInt(String(raw), 10);
+  return Number.isFinite(id) ? id : null;
+}
+
+/** True when a push targets the signed-in user or their same-email linked account. */
+export function notificationTargetsUser(data, actingUser) {
+  const targetId = parseTargetUserId(data);
+  if (targetId == null) return true;
+  if (!actingUser?.id) return true;
+  if (Number(actingUser.id) === targetId) return true;
+
+  const linkedToTarget =
+    actingUser.linked_account_id != null &&
+    Number(actingUser.linked_account_id) === targetId;
+
+  const recipientRole = data?.recipientRole;
+
+  // Matchmaker-only pushes: never show on a dater login (even linked accounts).
+  if (recipientRole === 'matchmaker') {
+    return actingUser.role === 'matchmaker' && linkedToTarget;
+  }
+
+  // Dater-only pushes: only the target dater or their same-email matchmaker login.
+  if (recipientRole === 'dater') {
+    if (actingUser.role === 'matchmaker') {
+      return linkedToTarget;
+    }
+    return false;
+  }
+
+  return linkedToTarget;
+}
+
 // Safety check for API_BASE_URL
 if (!API_BASE_URL) {
   console.error('CRITICAL: API_BASE_URL is not set! App may crash.');
@@ -88,6 +125,22 @@ const setupNotificationHandler = () => {
           matchId === active;
 
         if (type === 'unmatch' || type === 'dater_removed_matchmaker') {
+          return {
+            shouldShowBanner: false,
+            shouldShowList: false,
+            shouldPlaySound: false,
+            shouldSetBadge: false,
+          };
+        }
+
+        let actingUser = null;
+        try {
+          const stored = await AsyncStorage.getItem('user');
+          if (stored) actingUser = JSON.parse(stored);
+        } catch (_) {
+          /* ignore */
+        }
+        if (!notificationTargetsUser(data, actingUser)) {
           return {
             shouldShowBanner: false,
             shouldShowList: false,
@@ -226,13 +279,25 @@ export const NotificationProvider = ({ children }) => {
   const [expoPushToken, setExpoPushToken] = useState(null);
   const [loading, setLoading] = useState(true);
   const [lastNotificationEvent, setLastNotificationEvent] = useState(null);
-  /** Match ids (strings) for which the user chose to suppress message notifications (client-side). */
+  /** Match ids (strings) for which the user chose to suppress message notifications. */
   const [mutedMessageMatchIds, setMutedMessageMatchIds] = useState([]);
 
   // Bubble up push notifications to screens so they can refresh on-demand (no polling).
   useEffect(() => {
-    const sub = Notifications.addNotificationReceivedListener((notification) => {
+    const sub = Notifications.addNotificationReceivedListener(async (notification) => {
       const data = getNotificationRoutingData(notification);
+      let actingUser = user;
+      if (!actingUser?.id) {
+        try {
+          const stored = await AsyncStorage.getItem('user');
+          if (stored) actingUser = JSON.parse(stored);
+        } catch (_) {
+          /* ignore */
+        }
+      }
+      if (data && !notificationTargetsUser(data, actingUser)) {
+        return;
+      }
       setLastNotificationEvent({
         data: data || null,
         receivedAt: Date.now(),
@@ -241,14 +306,26 @@ export const NotificationProvider = ({ children }) => {
     return () => {
       sub?.remove?.();
     };
-  }, []);
+  }, [user]);
 
   // refs to prevent loops
   const isSavingRef = useRef(false);
   const lastSavedPayloadRef = useRef(null);
   const hasLoadedPreferenceRef = useRef(false);
+  const isSavingMutesRef = useRef(false);
+  const lastSavedMutesRef = useRef(null);
+  const hasLoadedMutesRef = useRef(false);
   const registeredTokensRef = useRef(new Set());
+  const registerTokenInFlightRef = useRef(new Map());
+  const lastTokenRegisteredAtRef = useRef(new Map());
+  const pushRefreshPromiseRef = useRef(null);
+  const lastPushRefreshAtRef = useRef(0);
   const currentUserIdRef = useRef(null);
+
+  /** Min gap between automatic token refresh runs (cold start / foreground). */
+  const PUSH_REFRESH_COOLDOWN_MS = 60000;
+  /** Min gap before re-POSTing the same token when force-refresh is requested. */
+  const PUSH_TOKEN_REREGISTER_MS = 60000;
   /** Always latest logged-in user id — use after `await` instead of stale `user` closures. */
   const userIdRef = useRef(user?.id ?? null);
   userIdRef.current = user?.id ?? null;
@@ -260,12 +337,18 @@ export const NotificationProvider = ({ children }) => {
     if (!user?.id) {
       // hard reset when logged out
       hasLoadedPreferenceRef.current = false;
+      hasLoadedMutesRef.current = false;
       setNotificationsEnabled(false);
       setNotificationPreferences({ ...DEFAULT_NOTIFICATION_PREFERENCES });
       setMutedMessageMatchIds([]);
       lastSavedPayloadRef.current = null;
+      lastSavedMutesRef.current = null;
       currentUserIdRef.current = null;
       registeredTokensRef.current.clear();
+      registerTokenInFlightRef.current.clear();
+      lastTokenRegisteredAtRef.current.clear();
+      pushRefreshPromiseRef.current = null;
+      lastPushRefreshAtRef.current = 0;
       setLoading(false);
       return;
     }
@@ -274,7 +357,13 @@ export const NotificationProvider = ({ children }) => {
     if (currentUserIdRef.current !== user.id) {
       currentUserIdRef.current = user.id;
       hasLoadedPreferenceRef.current = false;
+      hasLoadedMutesRef.current = false;
+      lastSavedMutesRef.current = null;
       registeredTokensRef.current.clear();
+      registerTokenInFlightRef.current.clear();
+      lastTokenRegisteredAtRef.current.clear();
+      pushRefreshPromiseRef.current = null;
+      lastPushRefreshAtRef.current = 0;
       setLoading(true);
       
       // Fetch the actual notification preference from backend for this user
@@ -316,12 +405,16 @@ export const NotificationProvider = ({ children }) => {
           }
 
           // Fetch user profile to get the actual notifications_enabled value
-          const res = await fetch(`${API_BASE_URL}/profile/`, {
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${token}`,
+          const res = await fetchWithRetry(
+            `${API_BASE_URL}/profile/`,
+            {
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+              },
             },
-          });
+            { retries: 3, baseDelayMs: 400 }
+          );
 
           if (res.ok) {
             const data = await res.json();
@@ -399,25 +492,130 @@ export const NotificationProvider = ({ children }) => {
     }
     let cancelled = false;
     (async () => {
+      let local = [];
       try {
         const raw = await AsyncStorage.getItem(mutedMatchesStorageKey(user.id));
-        if (cancelled) return;
-        if (!raw) {
-          setMutedMessageMatchIds([]);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          local = Array.isArray(parsed) ? parsed.map((x) => String(x)) : [];
+        }
+      } catch {
+        local = [];
+      }
+
+      if (!cancelled && local.length) {
+        setMutedMessageMatchIds(local);
+      }
+
+      try {
+        const token = await AsyncStorage.getItem('token');
+        if (!token || !API_BASE_URL) {
+          if (!cancelled) {
+            setMutedMessageMatchIds(local);
+            lastSavedMutesRef.current = JSON.stringify(local);
+            hasLoadedMutesRef.current = true;
+          }
           return;
         }
-        const parsed = JSON.parse(raw);
-        setMutedMessageMatchIds(
-          Array.isArray(parsed) ? parsed.map((x) => String(x)) : []
-        );
+
+        const res = await fetch(`${API_BASE_URL}/notifications/match_mutes`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (cancelled) return;
+
+        if (res.ok) {
+          const data = await res.json().catch(() => ({}));
+          const remote = Array.isArray(data?.match_ids)
+            ? data.match_ids.map((x) => String(x))
+            : [];
+          const merged = [...new Set([...remote, ...local])];
+          setMutedMessageMatchIds(merged);
+          await AsyncStorage.setItem(
+            mutedMatchesStorageKey(user.id),
+            JSON.stringify(merged)
+          );
+          lastSavedMutesRef.current = JSON.stringify(merged);
+          hasLoadedMutesRef.current = true;
+
+          const remoteSet = new Set(remote);
+          const needsSync =
+            merged.length !== remote.length || merged.some((id) => !remoteSet.has(id));
+          if (needsSync) {
+            await fetch(`${API_BASE_URL}/notifications/match_mutes`, {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({ match_ids: merged }),
+            });
+          }
+          return;
+        }
+
+        if (!cancelled) {
+          setMutedMessageMatchIds(local);
+          lastSavedMutesRef.current = JSON.stringify(local);
+          hasLoadedMutesRef.current = true;
+        }
       } catch {
-        if (!cancelled) setMutedMessageMatchIds([]);
+        if (!cancelled) {
+          setMutedMessageMatchIds(local);
+          lastSavedMutesRef.current = JSON.stringify(local);
+          hasLoadedMutesRef.current = true;
+        }
       }
     })();
     return () => {
       cancelled = true;
     };
   }, [user?.id]);
+
+  useEffect(() => {
+    const payloadString = JSON.stringify(mutedMessageMatchIds);
+    if (
+      !user?.id ||
+      loading ||
+      !hasLoadedMutesRef.current ||
+      isSavingMutesRef.current ||
+      lastSavedMutesRef.current === payloadString ||
+      currentUserIdRef.current !== user.id
+    ) {
+      return;
+    }
+
+    const saveMutes = async () => {
+      const token = await AsyncStorage.getItem('token');
+      if (!token || !API_BASE_URL) return;
+
+      isSavingMutesRef.current = true;
+      const userIdAtSaveStart = user.id;
+      try {
+        const res = await fetch(`${API_BASE_URL}/notifications/match_mutes`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ match_ids: mutedMessageMatchIds }),
+        });
+
+        if (
+          res.ok &&
+          user.id === userIdAtSaveStart &&
+          currentUserIdRef.current === userIdAtSaveStart
+        ) {
+          lastSavedMutesRef.current = payloadString;
+        }
+      } catch (err) {
+        console.warn('Failed to sync per-match message mutes', err);
+      } finally {
+        isSavingMutesRef.current = false;
+      }
+    };
+
+    saveMutes();
+  }, [mutedMessageMatchIds, user?.id, loading]);
 
   /* -------------------------------------------
    * SAVE PREFERENCE TO BACKEND (USER-SCOPED)
@@ -471,7 +669,7 @@ export const NotificationProvider = ({ children }) => {
           return;
         }
 
-        const res = await fetch(
+        const res = await fetchWithRetry(
           `${API_BASE_URL}/notifications/preferences`,
           {
             method: 'PUT',
@@ -480,7 +678,8 @@ export const NotificationProvider = ({ children }) => {
               Authorization: `Bearer ${token}`,
             },
             body: JSON.stringify(payload),
-          }
+          },
+          { retries: 5, baseDelayMs: 600 }
         );
 
         if (res.ok) {
@@ -537,57 +736,84 @@ export const NotificationProvider = ({ children }) => {
         console.warn('registerPushToken: no user id, skipping');
         return;
       }
+
+      const inFlight = registerTokenInFlightRef.current.get(key);
+      if (inFlight) {
+        return inFlight;
+      }
+
       if (!skipDedupe && registeredTokensRef.current.has(key)) {
         return;
       }
 
-      try {
-        const authToken = await AsyncStorage.getItem('token');
-        if (!authToken) {
-          console.warn('registerPushToken: no auth token, skipping');
-          return;
-        }
+      const lastRegisteredAt = lastTokenRegisteredAtRef.current.get(key) ?? 0;
+      if (skipDedupe && Date.now() - lastRegisteredAt < PUSH_TOKEN_REREGISTER_MS) {
+        return;
+      }
 
-        if (!API_BASE_URL) {
-          console.error('API_BASE_URL is not set, skipping token registration');
-          return;
-        }
+      const run = (async () => {
+        try {
+          const authToken = await AsyncStorage.getItem('token');
+          if (!authToken) {
+            console.warn('registerPushToken: no auth token, skipping');
+            return;
+          }
 
-        const body = { push_token: token, platform };
+          if (!API_BASE_URL) {
+            console.error('API_BASE_URL is not set, skipping token registration');
+            return;
+          }
 
-        const res = await fetch(
-          `${API_BASE_URL}/notifications/register_token`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${authToken}`,
+          const body = { push_token: token, platform };
+
+          const res = await fetchWithRetry(
+            `${API_BASE_URL}/notifications/register_token`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${authToken}`,
+              },
+              body: JSON.stringify(body),
             },
-            body: JSON.stringify(body),
-          }
-        );
+            { retries: 5, baseDelayMs: 600 }
+          );
 
-        if (res.ok) {
-          registeredTokensRef.current.add(key);
-          if (__DEV__) {
-            console.log('Push token registered:', platform);
-          }
-        } else {
-          const text = await res.text().catch(() => '');
-          console.warn('registerPushToken failed:', res.status, text);
-          if (res.status === 401) {
-            try {
-              const err = JSON.parse(text);
-              if (err.error_code === 'TOKEN_EXPIRED') {
-                await AsyncStorage.removeItem('token');
+          if (res.ok) {
+            registeredTokensRef.current.add(key);
+            lastTokenRegisteredAtRef.current.set(key, Date.now());
+            if (__DEV__ && !registeredTokensRef.current.has(`logged:${key}`)) {
+              registeredTokensRef.current.add(`logged:${key}`);
+              console.log('Push token registered:', platform);
+            }
+          } else {
+            const text = await res.text().catch(() => '');
+            if (__DEV__) {
+              console.warn('registerPushToken failed:', res.status, text);
+            }
+            if (res.status === 401) {
+              try {
+                const err = JSON.parse(text);
+                if (err.error_code === 'TOKEN_EXPIRED') {
+                  await AsyncStorage.removeItem('token');
+                }
+              } catch (_) {
+                /* ignore */
               }
-            } catch (_) {
-              /* ignore */
             }
           }
+        } catch (err) {
+          if (__DEV__) {
+            console.warn('Push token registration failed:', err);
+          }
         }
-      } catch (err) {
-        console.error('Push token registration failed:', err);
+      })();
+
+      registerTokenInFlightRef.current.set(key, run);
+      try {
+        await run;
+      } finally {
+        registerTokenInFlightRef.current.delete(key);
       }
     },
     [user?.id]
@@ -620,9 +846,16 @@ export const NotificationProvider = ({ children }) => {
             'Missing EAS projectId: cannot get Expo push token; add extra.eas.projectId in app config or use a dev build with native push.'
           );
         } else {
-          const token = await Notifications.getExpoPushTokenAsync({ projectId });
-          setExpoPushToken(token.data);
-          await registerPushToken(token.data, 'expo', { skipDedupe });
+          try {
+            const token = await Notifications.getExpoPushTokenAsync({ projectId });
+            setExpoPushToken(token.data);
+            await registerPushToken(token.data, 'expo', { skipDedupe });
+          } catch (expoTokenErr) {
+            if (__DEV__) {
+              console.warn('Expo push token fetch failed:', expoTokenErr?.message || expoTokenErr);
+              logAndroidFcmSetupHint(expoTokenErr);
+            }
+          }
         }
       } else {
         setExpoPushToken(null);
@@ -631,17 +864,42 @@ export const NotificationProvider = ({ children }) => {
     [registerPushToken]
   );
 
-  const refreshPushTokenRegistration = useCallback(async () => {
-    if (Platform.OS === 'web' || !user?.id) return;
-    const { status } = await Notifications.getPermissionsAsync();
-    if (status !== 'granted') return;
-    try {
-      await fetchPushTokenAndRegister({ skipDedupe: true });
-    } catch (error) {
-      console.error('Push token refresh failed:', error);
-      logAndroidFcmSetupHint(error);
-    }
-  }, [user?.id, fetchPushTokenAndRegister]);
+  const refreshPushTokenRegistration = useCallback(
+    async (options = {}) => {
+      const { force = false } = options;
+      if (Platform.OS === 'web' || !user?.id) return;
+      const { status } = await Notifications.getPermissionsAsync();
+      if (status !== 'granted') return;
+
+      if (
+        !force &&
+        Date.now() - lastPushRefreshAtRef.current < PUSH_REFRESH_COOLDOWN_MS
+      ) {
+        return;
+      }
+
+      if (pushRefreshPromiseRef.current) {
+        return pushRefreshPromiseRef.current;
+      }
+
+      pushRefreshPromiseRef.current = (async () => {
+        try {
+          await fetchPushTokenAndRegister({ skipDedupe: force });
+          lastPushRefreshAtRef.current = Date.now();
+        } catch (error) {
+          if (__DEV__) {
+            console.warn('Push token refresh failed:', error);
+            logAndroidFcmSetupHint(error);
+          }
+        } finally {
+          pushRefreshPromiseRef.current = null;
+        }
+      })();
+
+      return pushRefreshPromiseRef.current;
+    },
+    [user?.id, fetchPushTokenAndRegister]
+  );
 
   /*
    * Store update / migration: once per app version (per user), re-register after a short delay.
@@ -661,11 +919,15 @@ export const NotificationProvider = ({ children }) => {
       await new Promise((r) => setTimeout(r, 1500));
       if (cancelled) return;
 
-      await refreshPushTokenRegistration();
+      await refreshPushTokenRegistration({ force: true });
       await AsyncStorage.setItem(storageKey, appVersion);
     };
 
-    run();
+    run().catch((err) => {
+      if (__DEV__) {
+        console.warn('Push token version sync failed:', err?.message || err);
+      }
+    });
     return () => {
       cancelled = true;
     };
@@ -675,16 +937,26 @@ export const NotificationProvider = ({ children }) => {
   useEffect(() => {
     if (Platform.OS === 'web' || !user?.id || loading) return;
 
+    let foregroundTimer = null;
+
     const run = () => {
       if (!notificationsEnabled) return;
       refreshPushTokenRegistration();
     };
 
-    run();
+    const runAfterDelay = (delayMs = 2000) => {
+      if (foregroundTimer) clearTimeout(foregroundTimer);
+      foregroundTimer = setTimeout(run, delayMs);
+    };
+
+    runAfterDelay(2000);
     const sub = AppState.addEventListener('change', (next) => {
-      if (next === 'active') run();
+      if (next === 'active') runAfterDelay(2000);
     });
-    return () => sub.remove();
+    return () => {
+      if (foregroundTimer) clearTimeout(foregroundTimer);
+      sub.remove();
+    };
   }, [
     notificationsEnabled,
     loading,
@@ -712,8 +984,10 @@ export const NotificationProvider = ({ children }) => {
       try {
         await fetchPushTokenAndRegister({ skipDedupe: false });
       } catch (error) {
-        console.error('Push token registration failed:', error);
-        logAndroidFcmSetupHint(error);
+        if (__DEV__) {
+          console.warn('Push token registration failed:', error);
+          logAndroidFcmSetupHint(error);
+        }
         // On simulators, this often fails - but permissions were granted
         return true;
       }
@@ -733,6 +1007,8 @@ export const NotificationProvider = ({ children }) => {
 
     // Allow re-POST to /register_token on every enable (toggle off/on or retry after failed save).
     registeredTokensRef.current.clear();
+    lastTokenRegisteredAtRef.current.clear();
+    lastPushRefreshAtRef.current = 0;
 
     const userIdAtStart = userIdRef.current;
 

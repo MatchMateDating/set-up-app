@@ -295,6 +295,8 @@ def register():
         if role == 'user':
             user.referral_code = user.generate_referral_code()
             user.profile_completion_step = 1
+        elif role == 'matchmaker':
+            user.profile_completion_step = 1
 
         user.last_active_at = datetime.utcnow()
         db.session.add(user)
@@ -792,7 +794,8 @@ def verify_email():
 
     if role == 'user':
         user.referral_code = user.generate_referral_code()
-        # Set profile completion step to 1 for new users so they start completeProfile
+        user.profile_completion_step = 1
+    elif role == 'matchmaker':
         user.profile_completion_step = 1
 
     # Set verification status

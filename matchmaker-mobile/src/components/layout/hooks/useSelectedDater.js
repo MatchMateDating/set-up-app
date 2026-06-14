@@ -34,7 +34,6 @@ export const useSelectedDater = (API_BASE_URL, userInfo) => {
         const data = await res.json();
         if (data.error_code === 'TOKEN_EXPIRED') {
           await AsyncStorage.removeItem('token');
-          Alert.alert('Session expired', 'Please log in again.');
           return;
         }
       }
@@ -102,7 +101,6 @@ export const useSelectedDater = (API_BASE_URL, userInfo) => {
           const data = await res.json();
           if (data.error_code === 'TOKEN_EXPIRED') {
             await AsyncStorage.removeItem('token');
-            Alert.alert('Session expired', 'Please log in again.');
             return;
           }
         }

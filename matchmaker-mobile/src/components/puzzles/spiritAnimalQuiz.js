@@ -149,7 +149,6 @@ const SpiritAnimalQuiz = () => {
       setSaving(true);
       const token = await AsyncStorage.getItem('token');
       if (!token) {
-        Alert.alert('Error', 'Please log in');
         navigation.navigate('Login');
         return;
       }

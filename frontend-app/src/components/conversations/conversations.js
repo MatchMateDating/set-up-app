@@ -54,17 +54,33 @@ const Conversations = () => {
       return { matched: matchedList, pending_approval: pendingApprovalList };
     }
 
-    // For daters, filter matched list
-    const filteredMatched = matchedList.filter(match => {
-      if (showDaterMatches) {
-        return !match.both_matchmakers_involved && match.linked_dater === null;
-      } else {
-        return match.both_matchmakers_involved || match.linked_dater !== null;
-      }
-    });
-    
-    // Pending approval matches go in dater section
-    return { matched: filteredMatched, pending_approval: pendingApprovalList };
+    const isMediatedForDater = (match) => {
+      const onUser1 = match.dater_on_user_id_1_side;
+      const userSideHasMm =
+        typeof onUser1 === 'boolean'
+          ? (onUser1 ? match.user_1_matchmaker_involved : match.user_2_matchmaker_involved)
+          : false;
+      const removedOwnMm =
+        typeof onUser1 === 'boolean'
+          ? (onUser1 ? match.dater_removed_matcher_1 : match.dater_removed_matcher_2)
+          : false;
+      const mediated =
+        match.both_matchmakers_involved || match.linked_dater !== null || userSideHasMm;
+      return mediated && !removedOwnMm;
+    };
+
+    const onSelectedTab = (match) => {
+      const inMmTab = isMediatedForDater(match);
+      return showDaterMatches ? !inMmTab : inMmTab;
+    };
+
+    const filteredMatched = matchedList.filter(onSelectedTab);
+    const filteredPending = pendingApprovalList.filter(onSelectedTab);
+
+    return {
+      matched: [...filteredMatched, ...filteredPending],
+      pending_approval: [],
+    };
   };
 
   const unmatch = async (matchId) => {
