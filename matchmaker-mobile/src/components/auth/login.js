@@ -17,8 +17,9 @@ import { useNavigation } from '@react-navigation/native';
 import { API_BASE_URL } from '../../env';
 import { UserContext } from '../../context/UserContext';
 import { useNotifications } from '../../context/NotificationContext';
-import { startLocationWatcher } from './utils/startLocationWatcher';
+import { safeStartLocationWatcher } from './utils/startLocationWatcher';
 import { getPostAuthNavigationReset } from '../../navigation/profileCompletionNavigation';
+import { resumeAuthSession } from '../../utils/authSession';
 import { Ionicons } from '@expo/vector-icons';
 
 const LoginScreen = () => {
@@ -96,6 +97,7 @@ const LoginScreen = () => {
           const storedUser = await AsyncStorage.getItem('user');
           if (token && storedUser) {
             const parsedUser = JSON.parse(storedUser);
+            resumeAuthSession();
             setUser(parsedUser);
             navigation.reset(getPostAuthNavigationReset(parsedUser));
           }
@@ -165,6 +167,7 @@ const LoginScreen = () => {
         staySignedIn,
       });
       await AsyncStorage.setItem('staySignedIn', staySignedIn ? 'true' : 'false');
+      resumeAuthSession();
       // Store token in AsyncStorage
       await AsyncStorage.setItem('token', res.data.token);
       if (res.data.user) {
@@ -174,7 +177,7 @@ const LoginScreen = () => {
       }
 
       // Start location watcher for nearby matching (runs in background)
-      startLocationWatcher(API_BASE_URL, res.data.token);
+      safeStartLocationWatcher(API_BASE_URL, res.data.token);
 
       const loggedInUser = res.data.user;
       const navigatePostLogin = () => {

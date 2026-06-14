@@ -393,12 +393,16 @@ export const NotificationProvider = ({ children }) => {
           }
 
           // Fetch user profile to get the actual notifications_enabled value
-          const res = await fetch(`${API_BASE_URL}/profile/`, {
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${token}`,
+          const res = await fetchWithRetry(
+            `${API_BASE_URL}/profile/`,
+            {
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+              },
             },
-          });
+            { retries: 3, baseDelayMs: 400 }
+          );
 
           if (res.ok) {
             const data = await res.json();
@@ -830,9 +834,16 @@ export const NotificationProvider = ({ children }) => {
             'Missing EAS projectId: cannot get Expo push token; add extra.eas.projectId in app config or use a dev build with native push.'
           );
         } else {
-          const token = await Notifications.getExpoPushTokenAsync({ projectId });
-          setExpoPushToken(token.data);
-          await registerPushToken(token.data, 'expo', { skipDedupe });
+          try {
+            const token = await Notifications.getExpoPushTokenAsync({ projectId });
+            setExpoPushToken(token.data);
+            await registerPushToken(token.data, 'expo', { skipDedupe });
+          } catch (expoTokenErr) {
+            if (__DEV__) {
+              console.warn('Expo push token fetch failed:', expoTokenErr?.message || expoTokenErr);
+              logAndroidFcmSetupHint(expoTokenErr);
+            }
+          }
         }
       } else {
         setExpoPushToken(null);
@@ -900,7 +911,11 @@ export const NotificationProvider = ({ children }) => {
       await AsyncStorage.setItem(storageKey, appVersion);
     };
 
-    run();
+    run().catch((err) => {
+      if (__DEV__) {
+        console.warn('Push token version sync failed:', err?.message || err);
+      }
+    });
     return () => {
       cancelled = true;
     };

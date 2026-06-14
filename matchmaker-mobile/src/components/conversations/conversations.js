@@ -24,6 +24,7 @@ import { useUserInfo } from './hooks/useUserInfo';
 import { getRoleAccentColor, getRoleBackgroundTint } from '../layout/components/RoleHeaderBanner';
 import { UserContext } from '../../context/UserContext';
 import { useNotifications } from '../../context/NotificationContext';
+import { shouldSuppressAuthErrors } from '../../utils/authSession';
 
 const CONTENT_HORIZONTAL_PADDING = 16;
 
@@ -180,8 +181,6 @@ const Conversations = () => {
     try {
       const token = await AsyncStorage.getItem('token');
       if (!token) {
-        Alert.alert('Error', 'Please log in');
-        navigation.navigate('Login');
         return;
       }
 
@@ -193,13 +192,15 @@ const Conversations = () => {
         const data = await res.json();
         if (data.error_code === 'TOKEN_EXPIRED') {
           await AsyncStorage.removeItem('token');
-          Alert.alert('Session expired', 'Please log in again.');
           navigation.navigate('Login');
           return;
         }
+        if (await shouldSuppressAuthErrors()) return;
+        return;
       }
 
       if (!res.ok) {
+        if (await shouldSuppressAuthErrors()) return;
         throw new Error('Failed to fetch profile');
       }
 
@@ -208,6 +209,7 @@ const Conversations = () => {
       setReferrer(data.referrer || null);
     } catch (err) {
       console.error('Error loading profile:', err);
+      if (await shouldSuppressAuthErrors()) return;
       Alert.alert('Error', 'Failed to load profile');
     }
   };
@@ -383,7 +385,6 @@ const Conversations = () => {
         const data = await res.json();
         if (data.error_code === 'TOKEN_EXPIRED') {
           await AsyncStorage.removeItem('token');
-          Alert.alert('Session expired', 'Please log in again.');
           navigation.navigate('Login');
           return;
         }
@@ -428,7 +429,6 @@ const Conversations = () => {
         const data = await res.json();
         if (data.error_code === 'TOKEN_EXPIRED') {
           await AsyncStorage.removeItem('token');
-          Alert.alert('Session expired', 'Please log in again.');
           navigation.navigate('Login');
           return;
         }
@@ -481,7 +481,6 @@ const Conversations = () => {
         const data = await res.json();
         if (data.error_code === 'TOKEN_EXPIRED') {
           await AsyncStorage.removeItem('token');
-          Alert.alert('Session expired', 'Please log in again.');
           navigation.navigate('Login');
           return;
         }

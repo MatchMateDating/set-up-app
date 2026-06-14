@@ -1,6 +1,10 @@
+export function isNetworkFailure(err) {
+  const msg = String(err?.message ?? err);
+  return /network request failed|network error/i.test(msg);
+}
+
 const isTransientFetchError = (err) =>
-  err instanceof TypeError &&
-  /network request failed/i.test(String(err?.message ?? err));
+  err instanceof TypeError && isNetworkFailure(err);
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -27,4 +31,4 @@ export async function fetchWithRetry(url, fetchOptions = {}, retryOptions = {}) 
   throw lastErr;
 }
 
-export { isTransientFetchError };
+export { isTransientFetchError, isNetworkFailure as isTransientNetworkError };

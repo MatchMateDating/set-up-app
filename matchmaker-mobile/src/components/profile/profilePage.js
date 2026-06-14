@@ -14,6 +14,7 @@ import { getRoleAccentColor, getRoleBackgroundTint } from '../layout/components/
 
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { UserContext } from '../../context/UserContext';
+import { shouldSuppressAuthErrors } from '../../utils/authSession';
 
 const ProfilePage = () => {
   const route = useRoute();
@@ -59,8 +60,6 @@ const ProfilePage = () => {
     try {
       const token = await AsyncStorage.getItem('token');
       if (!token) {
-        Alert.alert('Error', 'Please log in');
-        navigation.navigate('Login');
         return;
       }
 
@@ -73,13 +72,15 @@ const ProfilePage = () => {
         const data = await res.json();
         if (data.error_code === 'TOKEN_EXPIRED') {
           await AsyncStorage.removeItem('token');
-          Alert.alert('Session expired', 'Please log in again.');
           navigation.navigate('Login');
           return;
         }
+        if (await shouldSuppressAuthErrors()) return;
+        return;
       }
 
       if (!res.ok) {
+        if (await shouldSuppressAuthErrors()) return;
         throw new Error('Failed to fetch profile');
       }
 
@@ -92,6 +93,7 @@ const ProfilePage = () => {
       }
     } catch (err) {
       console.error('Error loading profile:', err);
+      if (await shouldSuppressAuthErrors()) return;
       Alert.alert('Error', 'Failed to load profile');
     } finally {
       setLoading(false);
@@ -185,7 +187,6 @@ const ProfilePage = () => {
         const data = await res.json();
         if (data.error_code === 'TOKEN_EXPIRED') {
           await AsyncStorage.removeItem('token');
-          Alert.alert('Session expired', 'Please log in again.');
           navigation.navigate('Login');
           return;
         }
@@ -290,7 +291,6 @@ const ProfilePage = () => {
         const data = await res.json();
         if (data.error_code === 'TOKEN_EXPIRED') {
           await AsyncStorage.removeItem('token');
-          Alert.alert('Session expired', 'Please log in again.');
           navigation.navigate('Login');
           return;
         }

@@ -251,7 +251,6 @@ const MatchConvo = () => {
           if (data.error_code === 'TOKEN_EXPIRED') {
             await AsyncStorage.removeItem('token');
             if (showErrors) {
-              Alert.alert('Session expired', 'Please log in again.');
               navigation.navigate('Login');
             }
             return;
@@ -971,7 +970,6 @@ const MatchConvo = () => {
                   const data = await blockRes.json();
                   if (data.error_code === 'TOKEN_EXPIRED') {
                     await AsyncStorage.removeItem('token');
-                    Alert.alert('Session expired', 'Please log in again.');
                     navigation.navigate('Login');
                     return;
                   }
@@ -993,7 +991,6 @@ const MatchConvo = () => {
                   const data = await unmatchRes.json();
                   if (data.error_code === 'TOKEN_EXPIRED') {
                     await AsyncStorage.removeItem('token');
-                    Alert.alert('Session expired', 'Please log in again.');
                     navigation.navigate('Login');
                     return;
                   }
@@ -1040,7 +1037,6 @@ const MatchConvo = () => {
         const data = await res.json();
         if (data.error_code === 'TOKEN_EXPIRED') {
           await AsyncStorage.removeItem('token');
-          Alert.alert('Session expired', 'Please log in again.');
           navigation.navigate('Login');
           return;
         }
@@ -1086,7 +1082,6 @@ const MatchConvo = () => {
                   const data = await res.json().catch(() => ({}));
                   if (data.error_code === 'TOKEN_EXPIRED') {
                     await AsyncStorage.removeItem('token');
-                    Alert.alert('Session expired', 'Please log in again.');
                     navigation.navigate('Login');
                   }
                   return;
@@ -1168,7 +1163,6 @@ const MatchConvo = () => {
                   const data = await res.json();
                   if (data.error_code === 'TOKEN_EXPIRED') {
                     await AsyncStorage.removeItem('token');
-                    Alert.alert('Session expired', 'Please log in again.');
                     navigation.navigate('Login');
                   }
                   return;
@@ -1213,7 +1207,6 @@ const MatchConvo = () => {
         const data = await res.json();
         if (data.error_code === 'TOKEN_EXPIRED') {
           await AsyncStorage.removeItem('token');
-          Alert.alert('Session expired', 'Please log in again.');
           navigation.navigate('Login');
           return;
         }
@@ -1251,7 +1244,6 @@ const MatchConvo = () => {
         const data = await res.json();
         if (data.error_code === 'TOKEN_EXPIRED') {
           await AsyncStorage.removeItem('token');
-          Alert.alert('Session expired', 'Please log in again.');
           navigation.navigate('Login');
           return;
         }

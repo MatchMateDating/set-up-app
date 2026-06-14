@@ -52,24 +52,39 @@ async function sendLocationUpdate(apiBaseUrl, token, latitude, longitude) {
     if (__DEV__) console.warn('Reverse geocode failed:', e.message);
   }
 
-  const res = await fetchWithRetry(
-    `${apiBaseUrl}/location/update`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
+  try {
+    const res = await fetchWithRetry(
+      `${apiBaseUrl}/location/update`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ latitude, longitude, city, state }),
       },
-      body: JSON.stringify({ latitude, longitude, city, state }),
-    },
-    { retries: 5, baseDelayMs: 600 }
-  );
-  if (res.ok && (city || state)) {
-    notifyLocationUpdated();
+      { retries: 5, baseDelayMs: 600 }
+    );
+    if (res.ok && (city || state)) {
+      notifyLocationUpdated();
+    }
+    if (!res.ok && __DEV__) {
+      console.warn('[Location] update failed:', res.status, await res.text());
+    }
+  } catch (err) {
+    if (__DEV__) {
+      console.warn('[Location] update request failed:', err?.message || err);
+    }
   }
-  if (!res.ok && __DEV__) {
-    console.warn('[Location] update failed:', res.status, await res.text());
-  }
+}
+
+/** Fire-and-forget wrapper that never surfaces an unhandled rejection. */
+export function safeStartLocationWatcher(apiBaseUrl, token) {
+  startLocationWatcher(apiBaseUrl, token).catch((err) => {
+    if (__DEV__) {
+      console.warn('[Location] watcher failed to start:', err?.message || err);
+    }
+  });
 }
 
 /**

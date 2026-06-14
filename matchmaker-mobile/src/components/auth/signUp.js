@@ -19,7 +19,7 @@ import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_BASE_URL } from '../../env';
 import { UserContext } from '../../context/UserContext';
-import { startLocationWatcher } from './utils/startLocationWatcher';
+import { safeStartLocationWatcher } from './utils/startLocationWatcher';
 import { useNotifications } from '../../context/NotificationContext';
 import { getPostAuthNavigationReset } from '../../navigation/profileCompletionNavigation';
 import { Ionicons } from '@expo/vector-icons';
@@ -315,7 +315,7 @@ const SignUpScreen = () => {
           });
         }
 
-        startLocationWatcher(API_BASE_URL, res.data.token);
+        safeStartLocationWatcher(API_BASE_URL, res.data.token);
 
         await new Promise((resolve) => setTimeout(resolve, 100));
 
@@ -343,26 +343,13 @@ const SignUpScreen = () => {
 
         const method =
           res.data.verification_method || (registerKind === 'phone' ? 'phone' : 'email');
-        const sentWhere =
-          method === 'phone' ? 'text message at your phone number' : 'email';
         const verificationDisplayIdentifier =
           registerKind === 'phone' ? phoneE164 : trimmedIdentifier;
 
-        Alert.alert(
-          'Success',
-          `Verification code sent! Please check your ${sentWhere} for the verification code.`,
-          [
-            {
-              text: 'OK',
-              onPress: () => {
-                navigation.navigate('EmailVerification', {
-                  identifier: verificationDisplayIdentifier,
-                  verificationMethod: method,
-                });
-              },
-            },
-          ]
-        );
+        navigation.navigate('EmailVerification', {
+          identifier: verificationDisplayIdentifier,
+          verificationMethod: method,
+        });
       } else {
         Alert.alert('Error', 'Failed to send verification code. Please try again.');
       }
