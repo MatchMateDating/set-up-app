@@ -35,7 +35,6 @@ const AvatarSelectorModal = ({ onSelect, onClose, userId }) => {
         const data = await response.json();
         if (data.error_code === 'TOKEN_EXPIRED') {
           await AsyncStorage.removeItem('token');
-          Alert.alert('Session expired', 'Please log in again.');
           navigation.navigate('Login');
           return;
         }

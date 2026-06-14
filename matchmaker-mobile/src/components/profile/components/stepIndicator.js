@@ -1,30 +1,35 @@
 import React from 'react';
 import { View, Text, StyleSheet, Platform, StatusBar } from 'react-native';
 
-const StepIndicator = ({ step }) => {
-  const steps = [
-    { number: 1, label: 'Setup' },
-    { number: 2, label: 'Preview' },
-    { number: 3, label: 'Preferences' },
-  ];
+const DATER_STEPS = [
+  { number: 1, label: 'Setup' },
+  { number: 2, label: 'Preview' },
+  { number: 3, label: 'Preferences' },
+];
 
+const StepIndicator = ({
+  step,
+  steps = DATER_STEPS,
+  accentColor = '#ef4d73',
+  headerBackgroundColor = '#ffe6ee',
+}) => {
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: headerBackgroundColor }]}>
       {steps.map((s) => {
         const isActive = step === s.number;
 
         return (
-          <View key={s.number} style={styles.stepItem}>
+          <View key={s.number} style={[styles.stepItem, isActive && styles.stepItemActive]}>
             <View
               style={[
                 styles.stepNumber,
-                isActive && styles.stepNumberActive,
+                isActive && { borderColor: accentColor },
               ]}
             >
               <Text
                 style={[
                   styles.stepNumberText,
-                  isActive && styles.stepNumberTextActive,
+                  isActive && { fontWeight: '700', color: accentColor },
                 ]}
               >
                 {s.number}
@@ -34,7 +39,7 @@ const StepIndicator = ({ step }) => {
             <Text
               style={[
                 styles.stepLabel,
-                isActive && styles.stepLabelActive,
+                isActive && { opacity: 1, fontWeight: '600', color: accentColor },
               ]}
             >
               {s.label}
@@ -52,16 +57,18 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 24, // RN now supports gap on iOS+Android
+    gap: 24,
     paddingTop: Platform.OS === 'ios' ? 50 : (StatusBar.currentHeight || 24) + 12,
     paddingBottom: 12,
     paddingHorizontal: 20,
-    backgroundColor: '#ffe6ee',
     opacity: 0.95,
   },
   stepItem: {
     alignItems: 'center',
     opacity: 0.4,
+  },
+  stepItemActive: {
+    opacity: 1,
   },
   stepNumber: {
     width: 32,
@@ -72,25 +79,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  stepNumberActive: {
-    borderColor: '#ef4d73',
-  },
   stepNumberText: {
     fontSize: 14,
     color: '#444',
-  },
-  stepNumberTextActive: {
-    fontWeight: '700',
-    color: '#ef4d73',
   },
   stepLabel: {
     marginTop: 4,
     fontSize: 12,
     color: '#444',
-  },
-  stepLabelActive: {
-    opacity: 1,
-    fontWeight: '600',
-    color: '#ef4d73',
   },
 });

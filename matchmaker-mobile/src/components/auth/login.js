@@ -17,7 +17,9 @@ import { useNavigation } from '@react-navigation/native';
 import { API_BASE_URL } from '../../env';
 import { UserContext } from '../../context/UserContext';
 import { useNotifications } from '../../context/NotificationContext';
-import { startLocationWatcher } from './utils/startLocationWatcher';
+import { safeStartLocationWatcher } from './utils/startLocationWatcher';
+import { getPostAuthNavigationReset } from '../../navigation/profileCompletionNavigation';
+import { resumeAuthSession } from '../../utils/authSession';
 import { Ionicons } from '@expo/vector-icons';
 
 const LoginScreen = () => {
@@ -33,19 +35,12 @@ const LoginScreen = () => {
   const { setUser } = useContext(UserContext);
   const { enableNotifications } = useNotifications();
 
-  const resetToCompleteProfile = useCallback(() => {
-    navigation.reset({
-      index: 0,
-      routes: [{ name: 'CompleteProfile' }],
-    });
-  }, [navigation]);
-
-  const resetToMainMatches = useCallback(() => {
-    navigation.reset({
-      index: 0,
-      routes: [{ name: 'Main', params: { screen: 'Matches' } }],
-    });
-  }, [navigation]);
+  const navigateAfterLogin = useCallback(
+    (loggedInUser) => {
+      navigation.reset(getPostAuthNavigationReset(loggedInUser));
+    },
+    [navigation]
+  );
 
   const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
   const phoneDigitsOnly = (value) => (value || '').replace(/\D/g, '');
@@ -102,12 +97,9 @@ const LoginScreen = () => {
           const storedUser = await AsyncStorage.getItem('user');
           if (token && storedUser) {
             const parsedUser = JSON.parse(storedUser);
+            resumeAuthSession();
             setUser(parsedUser);
-            if (parsedUser.role === 'user' && parsedUser.profile_completion_step) {
-              resetToCompleteProfile();
-            } else {
-              resetToMainMatches();
-            }
+            navigation.reset(getPostAuthNavigationReset(parsedUser));
           }
         }
       } catch (err) {
@@ -122,7 +114,7 @@ const LoginScreen = () => {
         clearTimeout(passwordRevealTimeoutRef.current);
       }
     };
-  }, [navigation, setUser, resetToCompleteProfile, resetToMainMatches]);
+  }, [navigation, setUser, navigateAfterLogin]);
 
   const clearPasswordRevealTimer = () => {
     if (passwordRevealTimeoutRef.current) {
@@ -175,6 +167,7 @@ const LoginScreen = () => {
         staySignedIn,
       });
       await AsyncStorage.setItem('staySignedIn', staySignedIn ? 'true' : 'false');
+      resumeAuthSession();
       // Store token in AsyncStorage
       await AsyncStorage.setItem('token', res.data.token);
       if (res.data.user) {
@@ -184,15 +177,11 @@ const LoginScreen = () => {
       }
 
       // Start location watcher for nearby matching (runs in background)
-      startLocationWatcher(API_BASE_URL, res.data.token);
+      safeStartLocationWatcher(API_BASE_URL, res.data.token);
 
       const loggedInUser = res.data.user;
       const navigatePostLogin = () => {
-        if (loggedInUser && loggedInUser.role === 'user' && loggedInUser.profile_completion_step) {
-          resetToCompleteProfile();
-        } else {
-          resetToMainMatches();
-        }
+        navigateAfterLogin(loggedInUser);
       };
 
       const shouldPromptFirstSessionNotifications = Boolean(
@@ -232,12 +221,7 @@ const LoginScreen = () => {
         return;
       }
 
-      // Check if user needs to complete profile
-      if (loggedInUser && loggedInUser.role === 'user' && loggedInUser.profile_completion_step) {
-        resetToCompleteProfile();
-      } else {
-        resetToMainMatches();
-      }
+      navigateAfterLogin(loggedInUser);
     } catch (err) {
       const errorMessage = err.response?.data?.error || err.response?.data?.msg || 'Login failed';
       Alert.alert('Error', errorMessage);

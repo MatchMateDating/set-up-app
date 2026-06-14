@@ -57,8 +57,10 @@ def _pending_mm_removed_from_thread(match, mm_user_id):
 
 def _should_skip_message_push_pending_dater_awaits_mm(match, receiver_id, receiver):
     """
-    pending_approval: do not push messages to a dater whose matchmaker has not approved yet —
-    they are not in the live Dater↔Dater conversation until that approval.
+    pending_approval: do not push messages to a dater who is not yet in the live
+    Dater↔Dater conversation. Mirrors get_mutual_matches visibility for daters:
+    with matchmakers on both sides, the other side's matchmaker must have approved;
+    with only one matchmaker involved, daters stay out until status becomes matched.
     """
     if not match or match.status != "pending_approval":
         return False
@@ -66,15 +68,17 @@ def _should_skip_message_push_pending_dater_awaits_mm(match, receiver_id, receiv
         return False
     if receiver_id == match.user_id_1:
         has_mm = bool(match.matched_by_user_id_1_matcher)
-        approved = bool(match.approved_by_matcher_1)
+        other_mm_approved = bool(match.approved_by_matcher_2)
     elif receiver_id == match.user_id_2:
         has_mm = bool(match.matched_by_user_id_2_matcher)
-        approved = bool(match.approved_by_matcher_2)
+        other_mm_approved = bool(match.approved_by_matcher_1)
     else:
         return False
     if not has_mm:
         return False
-    return not approved
+    if _match_two_matchmakers(match):
+        return not other_mm_approved
+    return True
 
 
 def _msg_display_first_name(user):
@@ -111,6 +115,16 @@ def _match_two_matchmakers(match):
     )
 
 
+def _matchmaker_involved_in_match(match, mm_user_id):
+    """True if this matchmaker user mediated this match (not merely linked to a dater on roster)."""
+    if not match or not mm_user_id:
+        return False
+    return mm_user_id in (
+        match.matched_by_user_id_1_matcher,
+        match.matched_by_user_id_2_matcher,
+    )
+
+
 def _matchmaker_approved_match_message_pushes_enabled(mm_user):
     """Matchmaker-only: off = no push for new messages in fully approved (matched) chats; pending approval unchanged."""
     if not mm_user:
@@ -136,8 +150,48 @@ def _matchmaker_ids_linked_to_dater(dater_id):
     return ids
 
 
-def _deliver_message_push_tokens(target_user, title, body_with_suffix, data, match_id, log_receiver_id):
+def _user_muted_match_message(user_id, match_id):
+    """True if this user muted push alerts for new messages in this match."""
+    if not user_id or match_id is None:
+        return False
+    try:
+        mid = int(match_id)
+    except (TypeError, ValueError):
+        return False
+    match = Match.query.get(mid)
+    if not match:
+        return False
+    return match.is_muted_by(user_id)
+
+
+def _deliver_message_push_tokens(
+    target_user,
+    title,
+    body_with_suffix,
+    data,
+    match_id,
+    log_receiver_id,
+    *,
+    skip_if_muted=True,
+):
     """Send message push to one user's registered devices."""
+    data = dict(data or {})
+    if log_receiver_id is not None:
+        try:
+            data["targetUserId"] = str(int(log_receiver_id))
+        except (TypeError, ValueError):
+            pass
+
+    if skip_if_muted and _user_muted_match_message(
+        getattr(target_user, "id", None), match_id
+    ):
+        logger.debug(
+            "message push skipped: receiver_id=%s muted match_id=%s",
+            log_receiver_id,
+            match_id,
+        )
+        return False
+
     push_tokens = PushToken.query.filter_by(user_id=target_user.id).all()
 
     if not push_tokens:
@@ -531,7 +585,9 @@ def send_message_notification(
     puzzle_type=None,
 ):
     """
-    Notify the receiving dater and any matchmakers linked to that dater (tokens are on MM accounts).
+    Notify the receiving dater and any matchmakers who mediated this match on the receiver's
+    side (or the sender's side for pending/approved mediated threads). Rosters alone do not
+    qualify — matched_by_user_id_*_matcher must be set for that matchmaker on this match.
     auth_sender_id: authenticated User.id of the sender; skips notifying that matchmaker when they sent.
     """
     dater_receiver = User.query.get(receiver_id)
@@ -554,7 +610,7 @@ def send_message_notification(
     )
     if skip_dater_push:
         logger.debug(
-            "message push to dater skipped: receiver_id=%s pending_approval, matchmaker not approved yet match_id=%s",
+            "message push to dater skipped: receiver_id=%s not in pending_approval conversation yet match_id=%s",
             receiver_id,
             match_id,
         )
@@ -631,6 +687,8 @@ def send_message_notification(
 
     linked_name = _msg_display_first_name(dater_receiver)
     for mm_id in _matchmaker_ids_linked_to_dater(receiver_id):
+        if not _matchmaker_involved_in_match(match, mm_id):
+            continue
         if _pending_mm_removed_from_thread(match, mm_id):
             continue
         if auth_sender_id is not None and mm_id == auth_sender_id:
@@ -674,6 +732,8 @@ def send_message_notification(
     if match and match.status == "pending_approval" and auth_sender_role == "user":
         sender_name = _msg_display_first_name(sender)
         for mm_id in _matchmaker_ids_linked_to_dater(sender_id):
+            if not _matchmaker_involved_in_match(match, mm_id):
+                continue
             if _pending_mm_removed_from_thread(match, mm_id):
                 continue
             if mm_id in notified_mm_ids:
@@ -701,6 +761,8 @@ def send_message_notification(
     if match and match.status == "matched" and _match_has_dedicated_matchmaker(match) and auth_sender_role == "user":
         sender_name = _msg_display_first_name(sender)
         for mm_id in _matchmaker_ids_linked_to_dater(sender_id):
+            if not _matchmaker_involved_in_match(match, mm_id):
+                continue
             if mm_id in notified_mm_ids:
                 continue
             mm = User.query.get(mm_id)
@@ -771,14 +833,14 @@ def send_new_match_push_to_dater(
     cp = (counterparty_first_name or "Someone").strip() or "Someone"
     if is_matchmaker_mediated:
         if is_blind_match:
-            body = f"you have a new blind matchmaker match with {cp}"
+            body = f"You have a new blind matchmaker match with {cp}"
         else:
-            body = f"you have a new matchmaker match with {cp}"
+            body = f"You have a new matchmaker match with {cp}"
     else:
         if is_blind_match:
-            body = f"you have a new blind match with {cp}"
+            body = f"You have a new blind match with {cp}"
         else:
-            body = f"you have a new match with {cp}"
+            body = f"You have a new match with {cp}"
 
     data = {
         "type": "blind_match" if is_blind_match else "match",
@@ -858,7 +920,66 @@ def send_match_notification_to_linked_matchmakers(
     return any_ok
 
 
-def send_approved_match_notification(user_id, title, body, match_id):
+def _deliver_push_to_user_tokens(user_id, user, title, body, data):
+    """Deliver a push to all token rows stored under user_id."""
+    push_tokens = PushToken.query.filter_by(user_id=user_id).all()
+
+    if not push_tokens:
+        if user and user.push_token:
+            return send_push_notification(
+                user.push_token, title, body, data, legacy_user=user
+            )
+        return False
+
+    push_tokens = _push_tokens_for_delivery(push_tokens)
+    success_count = 0
+    for token_obj in push_tokens:
+        if send_push_to_token_row(token_obj, title, body, data):
+            success_count += 1
+
+    return success_count > 0
+
+
+def send_approved_match_push_to_dater(
+    user_id, title, body, match_id, *, approving_mm_id=None
+):
+    """
+    Push to a specific dater. Tags recipientRole=dater and targetUserId so the client
+    routes to the dater account. Delivers to the dater row, their same-email linked
+    account, and optionally the approving matchmaker row when approving_mm_id is set.
+    """
+    user = User.query.get(user_id)
+    if not user:
+        return False
+    if not _user_notification_allowed(user, "new_match_approval_notifications"):
+        return False
+
+    data = {
+        "type": "match_approval",
+        "matchId": str(match_id),
+        "recipientRole": "dater",
+        "targetUserId": str(int(user_id)),
+    }
+
+    any_ok = _deliver_push_to_user_tokens(user_id, user, title, body, data)
+
+    if user.linked_account_id:
+        linked = User.query.get(user.linked_account_id)
+        if linked and _deliver_push_to_user_tokens(
+            linked.id, linked, title, body, data
+        ):
+            any_ok = True
+
+    if approving_mm_id:
+        mm_user = User.query.get(approving_mm_id)
+        if mm_user and getattr(mm_user, "role", None) == "matchmaker":
+            if _deliver_push_to_user_tokens(approving_mm_id, mm_user, title, body, data):
+                any_ok = True
+
+    return any_ok
+
+
+def send_approved_match_notification(user_id, title, body, match_id, *, linked_dater_id=None):
     """Push when a pending match is approved (matchmakers or daters)."""
     user = User.query.get(user_id)
     if not user:
@@ -870,7 +991,13 @@ def send_approved_match_notification(user_id, title, body, match_id):
         "type": "match_approval",
         "matchId": str(match_id),
         "recipientRole": _recipient_role_value(user),
+        "targetUserId": str(int(user_id)),
     }
+    if linked_dater_id is not None:
+        try:
+            data["linkedDaterId"] = str(int(linked_dater_id))
+        except (TypeError, ValueError):
+            pass
 
     push_tokens = PushToken.query.filter_by(user_id=user_id).all()
 

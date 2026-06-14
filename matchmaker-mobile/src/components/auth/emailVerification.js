@@ -17,7 +17,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { API_BASE_URL } from '../../env';
 import { UserContext } from '../../context/UserContext';
-import { startLocationWatcher } from './utils/startLocationWatcher';
+import { safeStartLocationWatcher } from './utils/startLocationWatcher';
+import { getPostAuthNavigationReset } from '../../navigation/profileCompletionNavigation';
+import { resumeAuthSession } from '../../utils/authSession';
+import { isNetworkFailure } from '../../utils/fetchWithRetry';
 
 const EmailVerificationScreen = () => {
   const navigation = useNavigation();
@@ -30,6 +33,10 @@ const EmailVerificationScreen = () => {
   // Get identifier (email or phone) and verification method from route params
   const identifier = route.params?.identifier || route.params?.email || '';
   const verificationMethod = route.params?.verificationMethod || (identifier.includes('@') ? 'email' : 'phone');
+
+  useEffect(() => {
+    resumeAuthSession();
+  }, []);
 
   // Check if signup data exists on component mount
   useEffect(() => {
@@ -98,53 +105,30 @@ const EmailVerificationScreen = () => {
         // Store user data and token
         await AsyncStorage.setItem('token', res.data.token);
         await AsyncStorage.setItem('user', JSON.stringify(res.data.user));
+        resumeAuthSession();
         setUser(res.data.user);
 
-        // Start location watcher for nearby matching
-        startLocationWatcher(API_BASE_URL, res.data.token);
-
-        const verificationType = verificationMethod === 'phone' ? 'Phone number' : 'Email';
         const shouldPromptLinkedDater =
           signupData?.role === 'matchmaker' && !String(signupData?.referral_code || '').trim();
-        Alert.alert('Success', `${verificationType} verified successfully!`, [
-          {
-            text: 'OK',
-            onPress: () => {
-              if (res.data.user.role === 'user') {
-                navigation.reset({
-                  index: 0,
-                  routes: [{ name: 'CompleteProfile' }],
-                });
-              } else if (shouldPromptLinkedDater) {
-                navigation.reset({
-                  index: 0,
-                  routes: [
-                    {
-                      name: 'Main',
-                      params: {
-                        screen: 'Settings',
-                        params: { showLinkedDatersOnboarding: true },
-                      },
-                    },
-                  ],
-                });
-              } else {
-                navigation.reset({
-                  index: 0,
-                  routes: [{ name: 'Main' }],
-                });
-              }
-            },
-          },
-        ]);
+        navigation.reset(
+          getPostAuthNavigationReset(res.data.user, { shouldPromptLinkedDater })
+        );
+
+        // Defer non-critical background work until after navigation settles.
+        setTimeout(() => {
+          safeStartLocationWatcher(API_BASE_URL, res.data.token);
+        }, 500);
       } else {
         Alert.alert('Error', 'Verification failed. Please try again.');
       }
     } catch (err) {
-      Alert.alert(
-        'Error',
-        err.response?.data?.msg || 'Verification failed. Please check your code and try again.'
-      );
+      const fallback = 'Verification failed. Please check your code and try again.';
+      const message =
+        err.response?.data?.msg ||
+        (isNetworkFailure(err)
+          ? 'Could not reach the server. Check your connection and try again.'
+          : fallback);
+      Alert.alert('Error', message);
     } finally {
       setLoading(false);
     }
@@ -190,7 +174,6 @@ const EmailVerificationScreen = () => {
 
         const method = res.data.verification_method || verificationMethod;
         const methodText = method === 'phone' ? 'text message' : 'email';
-        Alert.alert('Success', `Verification code sent! Please check your ${methodText}.`);
       } else {
         Alert.alert('Error', 'Failed to send verification code. Please try again.');
       }

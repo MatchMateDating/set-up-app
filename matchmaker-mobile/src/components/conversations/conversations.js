@@ -24,6 +24,7 @@ import { useUserInfo } from './hooks/useUserInfo';
 import { getRoleAccentColor, getRoleBackgroundTint } from '../layout/components/RoleHeaderBanner';
 import { UserContext } from '../../context/UserContext';
 import { useNotifications } from '../../context/NotificationContext';
+import { shouldSuppressAuthErrors } from '../../utils/authSession';
 
 const CONTENT_HORIZONTAL_PADDING = 16;
 
@@ -36,14 +37,31 @@ function currentDaterRemovedOwnMatchmaker(match, currentUserId) {
     : !!match.dater_removed_matcher_2;
 }
 
+/** True when the viewing dater's side of the match still has a matchmaker involved. */
+function currentDaterHasMatchmakerOnSide(match) {
+  if (!match || typeof match.dater_on_user_id_1_side !== 'boolean') return false;
+  return match.dater_on_user_id_1_side
+    ? !!match.user_1_matchmaker_involved
+    : !!match.user_2_matchmaker_involved;
+}
+
 /**
  * For a dater, a row belongs on the "Matchmaker Matches" tab only while their side is still matchmaker-mediated.
  * After they remove their matchmaker, the same match is listed under "Dater Matches" instead.
  */
 function isMediatedMatchmakerTabForDater(match, currentUserId) {
-  const mediated = !!match.both_matchmakers_involved || match.linked_dater !== null;
+  const mediated =
+    !!match.both_matchmakers_involved ||
+    match.linked_dater !== null ||
+    currentDaterHasMatchmakerOnSide(match);
   if (!mediated) return false;
   return !currentDaterRemovedOwnMatchmaker(match, currentUserId);
+}
+
+/** Route a dater-visible match row to Dater Matches vs Matchmaker Matches. */
+function isDaterMatchesTabForDater(match, currentUserId, showDaterMatches) {
+  const inMmTab = isMediatedMatchmakerTabForDater(match, currentUserId);
+  return showDaterMatches ? !inMmTab : inMmTab;
 }
 
 /** True when the counterparty's side had a matchmaker, for list filtering (prefers API field). */
@@ -163,8 +181,6 @@ const Conversations = () => {
     try {
       const token = await AsyncStorage.getItem('token');
       if (!token) {
-        Alert.alert('Error', 'Please log in');
-        navigation.navigate('Login');
         return;
       }
 
@@ -176,13 +192,15 @@ const Conversations = () => {
         const data = await res.json();
         if (data.error_code === 'TOKEN_EXPIRED') {
           await AsyncStorage.removeItem('token');
-          Alert.alert('Session expired', 'Please log in again.');
           navigation.navigate('Login');
           return;
         }
+        if (await shouldSuppressAuthErrors()) return;
+        return;
       }
 
       if (!res.ok) {
+        if (await shouldSuppressAuthErrors()) return;
         throw new Error('Failed to fetch profile');
       }
 
@@ -191,6 +209,7 @@ const Conversations = () => {
       setReferrer(data.referrer || null);
     } catch (err) {
       console.error('Error loading profile:', err);
+      if (await shouldSuppressAuthErrors()) return;
       Alert.alert('Error', 'Failed to load profile');
     }
   };
@@ -274,7 +293,7 @@ const Conversations = () => {
       fetchMatches();
       const id = setInterval(() => {
         fetchMatches();
-      }, 8000);
+      }, 25000);
       return () => clearInterval(id);
     }, [notificationsEnabled, expoPushToken, fetchMatches])
   );
@@ -323,12 +342,13 @@ const Conversations = () => {
       };
     }
 
-    const filteredMatched = matchedList.filter((match) => {
-      const inMmTab = isMediatedMatchmakerTabForDater(match, userInfo.id);
-      return showDaterMatches ? !inMmTab : inMmTab;
-    });
+    const filteredMatched = matchedList.filter((match) =>
+      isDaterMatchesTabForDater(match, userInfo.id, showDaterMatches)
+    );
 
-    const filteredPendingApprovals = showDaterMatches ? pendingApprovalList : [];
+    const filteredPendingApprovals = pendingApprovalList.filter((match) =>
+      isDaterMatchesTabForDater(match, userInfo.id, showDaterMatches)
+    );
     const combined = [...filteredMatched, ...filteredPendingApprovals];
 
     return {
@@ -365,7 +385,6 @@ const Conversations = () => {
         const data = await res.json();
         if (data.error_code === 'TOKEN_EXPIRED') {
           await AsyncStorage.removeItem('token');
-          Alert.alert('Session expired', 'Please log in again.');
           navigation.navigate('Login');
           return;
         }
@@ -410,7 +429,6 @@ const Conversations = () => {
         const data = await res.json();
         if (data.error_code === 'TOKEN_EXPIRED') {
           await AsyncStorage.removeItem('token');
-          Alert.alert('Session expired', 'Please log in again.');
           navigation.navigate('Login');
           return;
         }
@@ -463,7 +481,6 @@ const Conversations = () => {
         const data = await res.json();
         if (data.error_code === 'TOKEN_EXPIRED') {
           await AsyncStorage.removeItem('token');
-          Alert.alert('Session expired', 'Please log in again.');
           navigation.navigate('Login');
           return;
         }

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Alert } from 'react-native';
+import { shouldSuppressAuthErrors } from '../../../utils/authSession';
 
 export const useUserInfo = (API_BASE_URL) => {
   const [userInfo, setUserInfo] = useState(null);
@@ -24,13 +25,12 @@ export const useUserInfo = (API_BASE_URL) => {
           const data = await res.json();
           if (data.error_code === 'TOKEN_EXPIRED') {
             await AsyncStorage.removeItem('token');
-            Alert.alert('Session expired', 'Please log in again.');
           }
-          setLoading(false);
           return;
         }
 
         if (!res.ok) {
+          if (await shouldSuppressAuthErrors()) return;
           throw new Error('Failed to fetch user info');
         }
 
@@ -39,6 +39,7 @@ export const useUserInfo = (API_BASE_URL) => {
         setReferrerInfo(data.referrer);
       } catch (err) {
         console.error('Error fetching user info:', err);
+        if (await shouldSuppressAuthErrors()) return;
         Alert.alert('Error', 'Failed to load user info');
       } finally {
         setLoading(false);

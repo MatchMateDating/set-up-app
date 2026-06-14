@@ -22,6 +22,7 @@ import BirthdatePickerModal, {
 import HeightPickerModal from './components/HeightPickerModal';
 import * as ImagePicker from 'expo-image-picker';
 import { API_BASE_URL } from '../../env';
+import { fetchWithRetry, isNetworkFailure } from '../../utils/fetchWithRetry';
 import {
   calculateAge,
   convertFtInToMetersCm,
@@ -42,6 +43,18 @@ import { UserContext } from '../../context/UserContext';
 import { useNotifications } from '../../context/NotificationContext';
 import * as Notifications from 'expo-notifications';
 import ImageCropModal from './components/ImageCropModal';
+import {
+  getRoleAccentColor,
+  getRoleContainerColor,
+} from '../layout/components/RoleHeaderBanner';
+
+const MATCHMAKER_SETUP_STEPS = [{ number: 1, label: 'Setup' }];
+const PROFILE_UPDATE_RETRY = { retries: 3, baseDelayMs: 400 };
+
+const getProfileSaveErrorMessage = (err, fallback) =>
+  isNetworkFailure(err)
+    ? 'Could not reach the server. Check your connection and try again.'
+    : fallback;
 
 const CompleteProfile = () => {
   const navigation = useNavigation();
@@ -111,134 +124,155 @@ const CompleteProfile = () => {
     show_location: false,
   });
 
-  const saveStepToBackend = async (stepNumber) => {
-    try {
-      const token = await AsyncStorage.getItem('token');
-      if (!token) return;
+  const updateProfile = useCallback(async (payload) => {
+    const token = await AsyncStorage.getItem('token');
+    if (!token) {
+      const err = new Error('NO_TOKEN');
+      throw err;
+    }
 
-      await fetch(`${API_BASE_URL}/profile/update`, {
+    const res = await fetchWithRetry(
+      `${API_BASE_URL}/profile/update`,
+      {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ profile_completion_step: stepNumber }),
-      });
+        body: JSON.stringify(payload),
+      },
+      PROFILE_UPDATE_RETRY
+    );
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      const err = new Error(data.error || data.msg || 'Profile update failed');
+      err.apiError = data;
+      throw err;
+    }
+
+    return res.json();
+  }, []);
+
+  const saveStepToBackend = async (stepNumber) => {
+    try {
+      await updateProfile({ profile_completion_step: stepNumber });
     } catch (err) {
-      console.error('Error saving step:', err);
-      // Don't show error to user - this is a background operation
+      if (!isNetworkFailure(err) && __DEV__) {
+        console.warn('Error saving profile step:', err);
+      }
     }
   };
+
+  // Parse height from backend format (e.g., "5'10\"" or "1m 78cm") to formData format
+  const parseHeight = React.useCallback((heightString, unit) => {
+    if (!heightString) return { heightFeet: '0', heightInches: '0', heightMeters: '0', heightCentimeters: '0' };
+    
+    if (unit === 'ft' || heightString.includes("'")) {
+      // Parse format like "5'10\""
+      const match = heightString.match(/(\d+)'(\d+)"/);
+      if (match) {
+        return {
+          heightFeet: match[1],
+          heightInches: match[2],
+          heightMeters: '0',
+          heightCentimeters: '0',
+        };
+      }
+    } else if (unit === 'm' || heightString.includes('m')) {
+      // Parse format like "1m 78cm"
+      const match = heightString.match(/(\d+)m\s*(\d+)cm/);
+      if (match) {
+        return {
+          heightFeet: '0',
+          heightInches: '0',
+          heightMeters: match[1],
+          heightCentimeters: match[2],
+        };
+      }
+    }
+    return { heightFeet: '0', heightInches: '0', heightMeters: '0', heightCentimeters: '0' };
+  }, []);
+
+  const applyUserFromProfile = React.useCallback((profileUser) => {
+    if (!profileUser) return;
+
+    setUser(profileUser);
+
+    if (profileUser.profile_completion_step) {
+      const nextStep =
+        profileUser.role === 'matchmaker' && !creatingLinkedDater
+          ? 1
+          : profileUser.profile_completion_step;
+      setStep(nextStep);
+    }
+
+    const userUnit = profileUser.unit === 'metric' ? 'm' : 'ft';
+    setHeightUnit(userUnit);
+    const parsedHeight = parseHeight(profileUser.height, userUnit);
+    const radiusMiles = profileUser.match_radius || 50;
+    const radiusInUserUnit = userUnit === 'm' ? milesToKm(radiusMiles) : radiusMiles;
+
+    setFormData((prev) => ({
+      ...prev,
+      first_name: profileUser.first_name ?? '',
+      last_name: profileUser.last_name ?? '',
+      birthdate: profileUser.birthdate ?? defaultBirthdate,
+      gender: profileUser.gender ?? '',
+      bio: profileUser.bio ?? '',
+      heightFeet: parsedHeight.heightFeet,
+      heightInches: parsedHeight.heightInches,
+      heightMeters: parsedHeight.heightMeters,
+      heightCentimeters: parsedHeight.heightCentimeters,
+      preferredAgeMin: profileUser.preferredAgeMin?.toString() ?? '18',
+      preferredAgeMax: profileUser.preferredAgeMax?.toString() ?? '50',
+      preferredGenders: profileUser.preferredGenders ?? [],
+      matchWithAll: profileUser.match_radius >= 9999,
+      matchRadius:
+        profileUser.match_radius >= 9999
+          ? 500
+          : userUnit === 'm'
+            ? milesToKm(profileUser.match_radius || 50)
+            : profileUser.match_radius || 50,
+      imageLayout: profileUser.imageLayout ?? 'grid',
+      profileStyle: profileUser.profileStyle ?? 'classic',
+      fontFamily: profileUser.fontFamily ?? 'Arial',
+      show_location: profileUser.show_location ?? false,
+    }));
+
+    if (profileUser.images && profileUser.images.length > 0) {
+      setImages(profileUser.images);
+    }
+  }, [creatingLinkedDater, defaultBirthdate, parseHeight]);
 
   const getSignUpData = async () => {
     setLoading(true);
     try {
+      const userRaw = await AsyncStorage.getItem('user');
+      if (userRaw) {
+        applyUserFromProfile(JSON.parse(userRaw));
+      }
+
       const token = await AsyncStorage.getItem('token');
       if (!token) {
-        setLoading(false);
         return;
       }
 
-      // Fetch fresh user data from backend
-      const res = await fetch(`${API_BASE_URL}/profile/`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await fetchWithRetry(
+        `${API_BASE_URL}/profile/`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+        { retries: 3, baseDelayMs: 400 }
+      );
 
       if (res.ok) {
         const data = await res.json();
-        const user = data.user;
-        setUser(user);
-        
-        // Restore step if user was in the middle of completing profile
-        if (user.profile_completion_step) {
-          setStep(user.profile_completion_step);
-        }
-
-        // Determine height unit from user's unit preference
-        const userUnit = user.unit === 'metric' ? 'm' : 'ft';
-        setHeightUnit(userUnit);
-
-        // Parse height from backend format
-        const parsedHeight = parseHeight(user.height, userUnit);
-
-        // Load existing user data into form
-        setFormData(prev => ({
-          ...prev,
-          first_name: user.first_name ?? '',
-          last_name: user.last_name ?? '',
-          birthdate: user.birthdate ?? defaultBirthdate,
-          gender: user.gender ?? '',
-          bio: user.bio ?? '',
-          heightFeet: parsedHeight.heightFeet,
-          heightInches: parsedHeight.heightInches,
-          heightMeters: parsedHeight.heightMeters,
-          heightCentimeters: parsedHeight.heightCentimeters,
-          preferredAgeMin: user.preferredAgeMin?.toString() ?? '18',
-          preferredAgeMax: user.preferredAgeMax?.toString() ?? '50',
-          preferredGenders: user.preferredGenders ?? [],
-          matchWithAll: (user.match_radius >= 9999),
-          matchRadius: user.match_radius >= 9999 ? 500 : (userUnit === 'm' ? milesToKm(user.match_radius || 50) : (user.match_radius || 50)),
-          imageLayout: user.imageLayout ?? 'grid',
-          profileStyle: user.profileStyle ?? 'classic',
-          fontFamily: user.fontFamily ?? 'Arial',
-          show_location: user.show_location ?? false,
-        }));
-
-        // Load images if available
-        if (user.images && user.images.length > 0) {
-          setImages(user.images);
-        }
-      } else {
-        // Fallback to AsyncStorage
-        const userRaw = await AsyncStorage.getItem('user');
-        if (userRaw) {
-          const user = JSON.parse(userRaw);
-          setUser(user);
-          if (user.profile_completion_step) {
-            setStep(user.profile_completion_step);
-          }
-          
-          const userUnit = user.unit === 'metric' ? 'm' : 'ft';
-          setHeightUnit(userUnit);
-          const parsedHeight = parseHeight(user.height, userUnit);
-          const radiusMiles = user.match_radius || 50;
-          const radiusInUserUnit = userUnit === 'm' ? milesToKm(radiusMiles) : radiusMiles;
-          setFormData(prev => ({
-            ...prev,
-            first_name: user.first_name ?? '',
-            last_name: user.last_name ?? '',
-            birthdate: user.birthdate ?? defaultBirthdate,
-            gender: user.gender ?? '',
-            bio: user.bio ?? '',
-            heightFeet: parsedHeight.heightFeet,
-            heightInches: parsedHeight.heightInches,
-            heightMeters: parsedHeight.heightMeters,
-            heightCentimeters: parsedHeight.heightCentimeters,
-            preferredAgeMin: user.preferredAgeMin?.toString() ?? '18',
-            preferredAgeMax: user.preferredAgeMax?.toString() ?? '50',
-            preferredGenders: user.preferredGenders ?? [],
-          matchRadius: radiusInUserUnit,
-          imageLayout: user.imageLayout ?? 'grid',
-          show_location: user.show_location ?? false,
-            profileStyle: user.profileStyle ?? 'classic',
-            fontFamily: user.fontFamily ?? 'Arial',
-          }));
-        }
+        applyUserFromProfile(data.user);
       }
     } catch (err) {
-      console.error(err);
-      // Fallback to AsyncStorage on error
-      try {
-        const userRaw = await AsyncStorage.getItem('user');
-        if (userRaw) {
-          const user = JSON.parse(userRaw);
-          setUser(user);
-          if (user.profile_completion_step) {
-            setStep(user.profile_completion_step);
-          }
-        }
-      } catch (e) {
-        console.error('Error reading from AsyncStorage:', e);
+      if (!isNetworkFailure(err) && __DEV__) {
+        console.warn('Error loading profile after signup:', err);
       }
     } finally {
       setLoading(false);
@@ -334,59 +368,20 @@ const CompleteProfile = () => {
     });
   }, [navigation, creatingLinkedDater, step, abandonCreatingLinkedDater]);
 
-  // Parse height from backend format (e.g., "5'10\"" or "1m 78cm") to formData format
-  const parseHeight = React.useCallback((heightString, unit) => {
-    if (!heightString) return { heightFeet: '0', heightInches: '0', heightMeters: '0', heightCentimeters: '0' };
-    
-    if (unit === 'ft' || heightString.includes("'")) {
-      // Parse format like "5'10\""
-      const match = heightString.match(/(\d+)'(\d+)"/);
-      if (match) {
-        return {
-          heightFeet: match[1],
-          heightInches: match[2],
-          heightMeters: '0',
-          heightCentimeters: '0',
-        };
-      }
-    } else if (unit === 'm' || heightString.includes('m')) {
-      // Parse format like "1m 78cm"
-      const match = heightString.match(/(\d+)m\s*(\d+)cm/);
-      if (match) {
-        return {
-          heightFeet: '0',
-          heightInches: '0',
-          heightMeters: match[1],
-          heightCentimeters: match[2],
-        };
-      }
-    }
-    return { heightFeet: '0', heightInches: '0', heightMeters: '0', heightCentimeters: '0' };
-  }, []);
-
   // Auto-save form data to backend (debounced)
   const autoSaveFormData = React.useRef(null);
   const saveFormDataToBackend = async (dataToSave, stepNumber = null) => {
     try {
-      const token = await AsyncStorage.getItem('token');
-      if (!token) return;
-
       const payload = { ...dataToSave };
       if (stepNumber !== null) {
         payload.profile_completion_step = stepNumber;
       }
-
-      await fetch(`${API_BASE_URL}/profile/update`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
-      });
+      await updateProfile(payload);
     } catch (err) {
-      console.error('Error auto-saving form data:', err);
-      // Don't show error to user - this is a background operation
+      // Background auto-save: ignore transient network failures (LogBox treats console.error as a crash).
+      if (!isNetworkFailure(err) && __DEV__) {
+        console.warn('Error auto-saving form data:', err);
+      }
     }
   };
 
@@ -590,35 +585,83 @@ const CompleteProfile = () => {
 
     // Save all step 1 data to backend
     try {
-      const token = await AsyncStorage.getItem('token');
-      if (token) {
-        const height = formatHeight(formData, heightUnit);
-        await fetch(`${API_BASE_URL}/profile/update`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            first_name: formData.first_name.trim(),
-            last_name: formData.last_name.trim(),
-            birthdate: formData.birthdate,
-            gender: formData.gender,
-            bio: (formData.bio || '').trim().slice(0, 100),
-            height: height,
-            unit: heightUnit === 'ft' ? 'imperial' : 'metric',
-            show_location: formData.show_location ?? false,
-            profile_completion_step: 2,
-          }),
-        });
-      }
+      await updateProfile({
+        first_name: formData.first_name.trim(),
+        last_name: formData.last_name.trim(),
+        birthdate: formData.birthdate,
+        gender: formData.gender,
+        bio: (formData.bio || '').trim().slice(0, 100),
+        height: formatHeight(formData, heightUnit),
+        unit: heightUnit === 'ft' ? 'imperial' : 'metric',
+        show_location: formData.show_location ?? false,
+        profile_completion_step: 2,
+      });
     } catch (err) {
-      console.error('Error saving step 1 data:', err);
-      // Don't block user from proceeding, but log the error
+      if (!isNetworkFailure(err) && __DEV__) {
+        console.warn('Error saving step 1 data:', err);
+      }
     }
 
     setStep(2);
     saveStepToBackend(2);
+  };
+
+  const saveMatchmakerProfile = async () => {
+    setError('');
+
+    if (!formData.first_name.trim()) {
+      return setError('First name is required.');
+    }
+    if (!formData.last_name.trim()) {
+      return setError('Last name is required.');
+    }
+    if (!formData.birthdate) {
+      return setError('Please select your birthdate.');
+    }
+    if (calculateAge(formData.birthdate) < 18) {
+      return setError('You must be at least 18.');
+    }
+
+    setLoading(true);
+    try {
+      const updatedUser = await updateProfile({
+        first_name: formData.first_name.trim(),
+        last_name: formData.last_name.trim(),
+        birthdate: formData.birthdate,
+        profile_completion_step: null,
+      });
+
+      await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
+      setContextUser(updatedUser);
+
+      Alert.alert(
+        'Enable Notifications?',
+        'Would you like to receive push notifications for new messages and matches?',
+        [
+          {
+            text: 'Not Now',
+            style: 'cancel',
+            onPress: resetToMainMatches,
+          },
+          {
+            text: 'Enable',
+            onPress: async () => {
+              await requestNotificationPermissions();
+              resetToMainMatches();
+            },
+          },
+        ],
+        { cancelable: false }
+      );
+    } catch (err) {
+      if (err?.message === 'NO_TOKEN') {
+        setError('Session expired. Please log in again.');
+      } else {
+        setError(getProfileSaveErrorMessage(err, 'Something went wrong. Please try again.'));
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleFinish = async () => {
@@ -664,23 +707,7 @@ const CompleteProfile = () => {
         profile_completion_step: null, // Clear step when profile is completed
       };
 
-      const updateRes = await fetch(`${API_BASE_URL}/profile/update`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(profilePayload),
-      });
-
-      if (!updateRes.ok) {
-        const updateError = await updateRes.json();
-        setError(updateError.msg || "Profile update failed");
-        return;
-      }
-
-      // Get the updated user data from the response
-      const updatedUser = await updateRes.json();
+      const updatedUser = await updateProfile(profilePayload);
       
       // Update AsyncStorage and UserContext with the updated user (including unit)
       await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
@@ -711,8 +738,11 @@ const CompleteProfile = () => {
       );
 
     } catch (err) {
-      console.error(err);
-      setError("Something went wrong during submission.");
+      if (err?.message === 'NO_TOKEN') {
+        setError('Session expired. Please log in again.');
+      } else {
+        setError(getProfileSaveErrorMessage(err, 'Something went wrong during submission.'));
+      }
     } finally {
       setLoading(false);
     }
@@ -736,8 +766,9 @@ const CompleteProfile = () => {
           try {
             await enableNotifications();
           } catch (err) {
-            console.error('Error enabling notifications:', err);
-            // This is okay - user can enable notifications later in settings
+            if (!isNetworkFailure(err) && __DEV__) {
+              console.warn('Error enabling notifications:', err);
+            }
           }
         }, 500);
       } else {
@@ -745,8 +776,9 @@ const CompleteProfile = () => {
         console.log('User denied notification permissions during profile completion');
       }
     } catch (error) {
-      console.error('Error requesting notification permissions during profile completion:', error);
-      // Don't block navigation if notification request fails
+      if (!isNetworkFailure(error) && __DEV__) {
+        console.warn('Error requesting notification permissions during profile completion:', error);
+      }
     }
   };
 
@@ -778,7 +810,6 @@ const CompleteProfile = () => {
         const data = await res.json();
         if (data.error_code === 'TOKEN_EXPIRED') {
           await AsyncStorage.removeItem('token');
-          Alert.alert('Session expired', 'Please log in again.');
           resetToLogin();
           return;
         }
@@ -851,7 +882,6 @@ const CompleteProfile = () => {
         const data = await response.json();
         if (data.error_code === 'TOKEN_EXPIRED') {
           await AsyncStorage.removeItem('token');
-          Alert.alert('Session expired', 'Please log in again.');
           resetToLogin();
           return;
         }
@@ -878,15 +908,29 @@ const CompleteProfile = () => {
     }
   };
 
+  const isMatchmakerProfileSetup = user?.role === 'matchmaker' && !creatingLinkedDater;
+  const setupAccentColor = isMatchmakerProfileSetup
+    ? getRoleAccentColor('matchmaker')
+    : '#ef4d73';
+  const setupHeaderBg = isMatchmakerProfileSetup
+    ? getRoleContainerColor('matchmaker')
+    : '#ffe6ee';
+  const setupScreenBg = isMatchmakerProfileSetup ? '#f5f2ff' : '#ffeef4';
+
   return (
     <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.screen}
+        style={[styles.screen, { backgroundColor: setupScreenBg }]}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
-        <View style={styles.fixedHeader}>
-          <StepIndicator step={step} />
-          {step === 1 && (
+        <View style={[styles.fixedHeader, { backgroundColor: setupHeaderBg }]}>
+          <StepIndicator
+            step={step}
+            steps={isMatchmakerProfileSetup ? MATCHMAKER_SETUP_STEPS : undefined}
+            accentColor={setupAccentColor}
+            headerBackgroundColor={setupHeaderBg}
+          />
+          {step === 1 && !isMatchmakerProfileSetup && (
             <EditToolbar
               formData={formData}
               handleInputChange={handleInputChange}
@@ -919,7 +963,7 @@ const CompleteProfile = () => {
               <View style={styles.contentLayer}>
                 <Text style={styles.title}>Complete Your Profile</Text>
 
-              {['topRow', 'heroStack'].includes(formData.imageLayout) && (
+              {['topRow', 'heroStack'].includes(formData.imageLayout) && !isMatchmakerProfileSetup && (
                 <>
                   <Text style={styles.label}>Add Images:</Text>
                   <ImageGallery
@@ -958,6 +1002,7 @@ const CompleteProfile = () => {
                     }}
                   />
 
+                  {!isMatchmakerProfileSetup && (
                   <TouchableOpacity
                     style={styles.checkboxRow}
                     onPress={() => update('show_location', !formData.show_location)}
@@ -967,10 +1012,15 @@ const CompleteProfile = () => {
                     </View>
                     <Text style={styles.checkboxLabel}>Show location (e.g. Brooklyn, NY)</Text>
                   </TouchableOpacity>
+                  )}
 
                   <Text style={styles.label}>Birthdate</Text>
                   <TouchableOpacity
-                    style={[styles.field, styles.dateField, showDatePicker && styles.fieldActive]}
+                    style={[
+                      styles.field,
+                      styles.dateField,
+                      showDatePicker && { borderColor: setupAccentColor },
+                    ]}
                     onPress={() => {
                       Keyboard.dismiss();
                       setShowDatePicker(true);
@@ -996,10 +1046,11 @@ const CompleteProfile = () => {
                       update('birthdate', iso);
                       setShowDatePicker(false);
                     }}
-                    accentColor="#ef4d73"
+                    accentColor={setupAccentColor}
                   />
 
-
+              {!isMatchmakerProfileSetup && (
+              <>
               <Text style={styles.label}>Gender</Text>
               <SelectGender
                 selected={formData.gender}
@@ -1062,19 +1113,34 @@ const CompleteProfile = () => {
                   />
                 </View>
               )}
+              </>
+              )}
 
                 {error ? <Text style={styles.error}>{error}</Text> : null}
               </View>
             </View>
             <View style={styles.step1Actions}>
-              <TouchableOpacity style={styles.nextBtn} onPress={saveStep1}>
-                <Text style={styles.nextBtnText}>Next</Text>
-              </TouchableOpacity>
+              {isMatchmakerProfileSetup ? (
+                loading ? (
+                  <ActivityIndicator size="large" color={setupAccentColor} />
+                ) : (
+                  <TouchableOpacity
+                    style={[styles.nextBtn, { backgroundColor: setupAccentColor }]}
+                    onPress={saveMatchmakerProfile}
+                  >
+                    <Text style={styles.nextBtnText}>Continue</Text>
+                  </TouchableOpacity>
+                )
+              ) : (
+                <TouchableOpacity style={styles.nextBtn} onPress={saveStep1}>
+                  <Text style={styles.nextBtnText}>Next</Text>
+                </TouchableOpacity>
+              )}
             </View>
             </View>
           )}
 
-          {step === 2 && (
+          {!isMatchmakerProfileSetup && step === 2 && (
             <View>
               <Text style={styles.title}>Preview</Text>
 
@@ -1100,28 +1166,19 @@ const CompleteProfile = () => {
                 </TouchableOpacity>
 
                 <TouchableOpacity style={styles.nextBtn} onPress={async () => {
-                  // Save preferences before moving to step 3
                   try {
-                    const token = await AsyncStorage.getItem('token');
-                    if (token) {
-                      await fetch(`${API_BASE_URL}/profile/update`, {
-                        method: 'PUT',
-                        headers: {
-                          'Content-Type': 'application/json',
-                          Authorization: `Bearer ${token}`,
-                        },
-                        body: JSON.stringify({
-                          preferredAgeMin: formData.preferredAgeMin ? parseInt(formData.preferredAgeMin, 10) : 18,
-                          preferredAgeMax: formData.preferredAgeMax ? parseInt(formData.preferredAgeMax, 10) : 50,
-                          preferredGenders: formData.preferredGenders ?? [],
-                          match_radius: formData.matchWithAll ? 9999 : (heightUnit === 'ft' ? (Number(formData.matchRadius) ?? 50) : (kmToMiles(Number(formData.matchRadius)) ?? 31)),
-                          show_location: formData.show_location ?? false,
-                          profile_completion_step: 3,
-                        }),
-                      });
-                    }
+                    await updateProfile({
+                      preferredAgeMin: formData.preferredAgeMin ? parseInt(formData.preferredAgeMin, 10) : 18,
+                      preferredAgeMax: formData.preferredAgeMax ? parseInt(formData.preferredAgeMax, 10) : 50,
+                      preferredGenders: formData.preferredGenders ?? [],
+                      match_radius: formData.matchWithAll ? 9999 : (heightUnit === 'ft' ? (Number(formData.matchRadius) ?? 50) : (kmToMiles(Number(formData.matchRadius)) ?? 31)),
+                      show_location: formData.show_location ?? false,
+                      profile_completion_step: 3,
+                    });
                   } catch (err) {
-                    console.error('Error saving preferences:', err);
+                    if (!isNetworkFailure(err) && __DEV__) {
+                      console.warn('Error saving preferences:', err);
+                    }
                   }
                   setStep(3);
                   saveStepToBackend(3);
@@ -1132,7 +1189,7 @@ const CompleteProfile = () => {
             </View>
           )}
 
-          {step === 3 && (
+          {!isMatchmakerProfileSetup && step === 3 && (
             <View>
               <Text style={styles.title}>Preferences</Text>
 

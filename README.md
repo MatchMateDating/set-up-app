@@ -216,7 +216,7 @@ matchmatedating-app/
 ### Mobile App (`.env` in `matchmaker-mobile/` directory)
 - `EXPO_PUBLIC_API_BASE_URL` - Backend API URL
   - Production: `https://matchmatedating-app-production.up.railway.app`
-  - Local: `http://127.0.0.1:5000` (iOS Simulator) or `http://10.0.2.2:5000` (Android Emulator) or `http://YOUR_LOCAL_IP:5000` (Physical device)
+  - Local: `http://127.0.0.1:5000` (iOS Simulator) or `http://10.0.2.2:5000` (Android  Emulator) or `http://YOUR_LOCAL_IP:5000` (Physical device)
 
 ### Web Frontend (`.env.local` in `frontend-app/` directory)
 - `REACT_APP_API_BASE_URL` - Backend API URL

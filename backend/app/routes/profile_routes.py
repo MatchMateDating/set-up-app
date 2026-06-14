@@ -81,6 +81,8 @@ def update_profile(current_user):
                 'imageLayout', 'match_radius', 'unit', 'profile_completion_step',
                 'show_location'
             ]
+        elif current_user.role == 'matchmaker':
+            allowed_fields = ['first_name', 'last_name', 'birthdate', 'profile_completion_step']
         else:
             return jsonify({'error': 'You are not allowed to update this profile'}), 403
 
@@ -90,15 +92,26 @@ def update_profile(current_user):
 
             value = data[field]
 
+            if field in ('first_name', 'last_name') and current_user.role == 'matchmaker':
+                trimmed = (value or '').strip() if isinstance(value, str) else ''
+                if field == 'first_name' and not trimmed:
+                    return jsonify({'error': 'First name is required'}), 400
+                setattr(current_user, field, trimmed or None)
+                continue
+
             if field == 'birthdate':
                 try:
                     birthdate = datetime.strptime(value, '%Y-%m-%d').date()
+                    age = calculate_age(birthdate)
+                    if age < 18:
+                        return jsonify({'error': 'You must be at least 18.'}), 400
                     current_user.birthdate = birthdate
-                    current_user.age = calculate_age(birthdate)
+                    current_user.age = age
                 except (ValueError, TypeError):
                     return jsonify({
                         'error': 'Invalid birthdate format. Use YYYY-MM-DD'
                     }), 400
+                continue
 
             elif field in ['preferredAgeMin', 'preferredAgeMax', 'match_radius', 'profile_completion_step']:
                 if field == 'profile_completion_step':
@@ -489,6 +502,11 @@ def create_linked_matchmaker(current_user):
             last_name=current_user.last_name or None,
             referred_by_id=referrer.id
         )
+        new_matchmaker.birthdate = current_user.birthdate
+        if new_matchmaker.birthdate:
+            new_matchmaker.age = calculate_age(new_matchmaker.birthdate)
+        if not (new_matchmaker.first_name and new_matchmaker.last_name and new_matchmaker.birthdate):
+            new_matchmaker.profile_completion_step = 1
         # Copy password hash (same password)
         new_matchmaker.password_hash = current_user.password_hash
         
