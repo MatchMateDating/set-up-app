@@ -284,8 +284,20 @@ export const NotificationProvider = ({ children }) => {
 
   // Bubble up push notifications to screens so they can refresh on-demand (no polling).
   useEffect(() => {
-    const sub = Notifications.addNotificationReceivedListener((notification) => {
+    const sub = Notifications.addNotificationReceivedListener(async (notification) => {
       const data = getNotificationRoutingData(notification);
+      let actingUser = user;
+      if (!actingUser?.id) {
+        try {
+          const stored = await AsyncStorage.getItem('user');
+          if (stored) actingUser = JSON.parse(stored);
+        } catch (_) {
+          /* ignore */
+        }
+      }
+      if (data && !notificationTargetsUser(data, actingUser)) {
+        return;
+      }
       setLastNotificationEvent({
         data: data || null,
         receivedAt: Date.now(),
@@ -294,7 +306,7 @@ export const NotificationProvider = ({ children }) => {
     return () => {
       sub?.remove?.();
     };
-  }, []);
+  }, [user]);
 
   // refs to prevent loops
   const isSavingRef = useRef(false);

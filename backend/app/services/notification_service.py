@@ -57,8 +57,10 @@ def _pending_mm_removed_from_thread(match, mm_user_id):
 
 def _should_skip_message_push_pending_dater_awaits_mm(match, receiver_id, receiver):
     """
-    pending_approval: do not push messages to a dater whose matchmaker has not approved yet —
-    they are not in the live Dater↔Dater conversation until that approval.
+    pending_approval: do not push messages to a dater who is not yet in the live
+    Dater↔Dater conversation. Mirrors get_mutual_matches visibility for daters:
+    with matchmakers on both sides, the other side's matchmaker must have approved;
+    with only one matchmaker involved, daters stay out until status becomes matched.
     """
     if not match or match.status != "pending_approval":
         return False
@@ -66,15 +68,17 @@ def _should_skip_message_push_pending_dater_awaits_mm(match, receiver_id, receiv
         return False
     if receiver_id == match.user_id_1:
         has_mm = bool(match.matched_by_user_id_1_matcher)
-        approved = bool(match.approved_by_matcher_1)
+        other_mm_approved = bool(match.approved_by_matcher_2)
     elif receiver_id == match.user_id_2:
         has_mm = bool(match.matched_by_user_id_2_matcher)
-        approved = bool(match.approved_by_matcher_2)
+        other_mm_approved = bool(match.approved_by_matcher_1)
     else:
         return False
     if not has_mm:
         return False
-    return not approved
+    if _match_two_matchmakers(match):
+        return not other_mm_approved
+    return True
 
 
 def _msg_display_first_name(user):
@@ -161,6 +165,13 @@ def _deliver_message_push_tokens(
     skip_if_muted=True,
 ):
     """Send message push to one user's registered devices."""
+    data = dict(data or {})
+    if log_receiver_id is not None:
+        try:
+            data["targetUserId"] = str(int(log_receiver_id))
+        except (TypeError, ValueError):
+            pass
+
     if skip_if_muted and _user_muted_match_message(
         getattr(target_user, "id", None), match_id
     ):
@@ -587,7 +598,7 @@ def send_message_notification(
     )
     if skip_dater_push:
         logger.debug(
-            "message push to dater skipped: receiver_id=%s pending_approval, matchmaker not approved yet match_id=%s",
+            "message push to dater skipped: receiver_id=%s not in pending_approval conversation yet match_id=%s",
             receiver_id,
             match_id,
         )
