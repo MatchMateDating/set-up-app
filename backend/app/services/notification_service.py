@@ -115,6 +115,16 @@ def _match_two_matchmakers(match):
     )
 
 
+def _matchmaker_involved_in_match(match, mm_user_id):
+    """True if this matchmaker user mediated this match (not merely linked to a dater on roster)."""
+    if not match or not mm_user_id:
+        return False
+    return mm_user_id in (
+        match.matched_by_user_id_1_matcher,
+        match.matched_by_user_id_2_matcher,
+    )
+
+
 def _matchmaker_approved_match_message_pushes_enabled(mm_user):
     """Matchmaker-only: off = no push for new messages in fully approved (matched) chats; pending approval unchanged."""
     if not mm_user:
@@ -575,7 +585,9 @@ def send_message_notification(
     puzzle_type=None,
 ):
     """
-    Notify the receiving dater and any matchmakers linked to that dater (tokens are on MM accounts).
+    Notify the receiving dater and any matchmakers who mediated this match on the receiver's
+    side (or the sender's side for pending/approved mediated threads). Rosters alone do not
+    qualify — matched_by_user_id_*_matcher must be set for that matchmaker on this match.
     auth_sender_id: authenticated User.id of the sender; skips notifying that matchmaker when they sent.
     """
     dater_receiver = User.query.get(receiver_id)
@@ -675,6 +687,8 @@ def send_message_notification(
 
     linked_name = _msg_display_first_name(dater_receiver)
     for mm_id in _matchmaker_ids_linked_to_dater(receiver_id):
+        if not _matchmaker_involved_in_match(match, mm_id):
+            continue
         if _pending_mm_removed_from_thread(match, mm_id):
             continue
         if auth_sender_id is not None and mm_id == auth_sender_id:
@@ -718,6 +732,8 @@ def send_message_notification(
     if match and match.status == "pending_approval" and auth_sender_role == "user":
         sender_name = _msg_display_first_name(sender)
         for mm_id in _matchmaker_ids_linked_to_dater(sender_id):
+            if not _matchmaker_involved_in_match(match, mm_id):
+                continue
             if _pending_mm_removed_from_thread(match, mm_id):
                 continue
             if mm_id in notified_mm_ids:
@@ -745,6 +761,8 @@ def send_message_notification(
     if match and match.status == "matched" and _match_has_dedicated_matchmaker(match) and auth_sender_role == "user":
         sender_name = _msg_display_first_name(sender)
         for mm_id in _matchmaker_ids_linked_to_dater(sender_id):
+            if not _matchmaker_involved_in_match(match, mm_id):
+                continue
             if mm_id in notified_mm_ids:
                 continue
             mm = User.query.get(mm_id)
