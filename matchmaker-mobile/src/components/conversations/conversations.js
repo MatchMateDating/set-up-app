@@ -298,13 +298,19 @@ const Conversations = () => {
     }, [notificationsEnabled, expoPushToken, fetchMatches])
   );
 
-  // Unread badges use `unread_count` from GET /match/matches (no per-conversation polling).
+  const getLastMessageTimestamp = (match) => {
+    const t = match?.last_message_time;
+    if (!t) return 0;
+    const ms = Date.parse(t);
+    return Number.isFinite(ms) ? ms : 0;
+  };
+
   const sortMatchesByRecentActivity = (list) => {
     if (!Array.isArray(list) || list.length === 0) return list;
     return [...list].sort((a, b) => {
-      const ub = Number(b.unread_count) || 0;
-      const ua = Number(a.unread_count) || 0;
-      if (ub !== ua) return ub - ua;
+      const tb = getLastMessageTimestamp(b);
+      const ta = getLastMessageTimestamp(a);
+      if (tb !== ta) return tb - ta;
       const idb = Number(b.match_id) || 0;
       const ida = Number(a.match_id) || 0;
       return idb - ida;
@@ -400,7 +406,6 @@ const Conversations = () => {
             pending_approval: (matches?.pending_approval || []).filter(match => match.match_id !== matchId)
           });
         }
-        Alert.alert('Success', 'Unmatched successfully');
       } else {
         const data = await res.json();
         Alert.alert('Error', data.message || 'Failed to unmatch');
@@ -456,7 +461,6 @@ const Conversations = () => {
           };
         }
       });
-      Alert.alert('Success', 'Match revealed');
     } catch (err) {
       console.error('Error revealing match:', err);
       Alert.alert('Error', 'Something went wrong revealing the match');
@@ -508,7 +512,6 @@ const Conversations = () => {
           };
         }
       });
-      Alert.alert('Success', 'Match hidden');
     } catch (err) {
       console.error('Error hiding match:', err);
       Alert.alert('Error', 'Something went wrong hiding the match');

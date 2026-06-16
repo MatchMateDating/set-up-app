@@ -1307,7 +1307,6 @@ const SettingsSections = () => {
               }
 
               setSavedReferrals(data.linked_daters || []);
-              Alert.alert('Success', 'Linked dater removed successfully');
               fetchUserProfile();
             } catch (err) {
               console.error(err);
