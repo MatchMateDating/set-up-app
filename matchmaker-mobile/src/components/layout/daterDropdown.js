@@ -1,12 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   Image,
-  Modal,
-  Pressable,
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -21,8 +19,6 @@ const DaterDropdown = ({ userInfo, onDaterChange, showLabel = false }) => {
   const [linkedDaters, setLinkedDaters] = useState([]);
   const [selectedDater, setSelectedDater] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [menuLayout, setMenuLayout] = useState(null);
-  const anchorRef = useRef(null);
 
   useEffect(() => {
     if (userInfo && userInfo.role === 'matchmaker') {
@@ -149,18 +145,7 @@ const DaterDropdown = ({ userInfo, onDaterChange, showLabel = false }) => {
   };
 
   const handleToggleOpen = () => {
-    if (open) {
-      setOpen(false);
-      return;
-    }
-    anchorRef.current?.measureInWindow((x, y, width, height) => {
-      setMenuLayout({ x, y: y + height + 4, width });
-      setOpen(true);
-    });
-  };
-
-  const closeMenu = () => {
-    setOpen(false);
+    setOpen((prev) => !prev);
   };
 
   if (!userInfo || userInfo.role !== 'matchmaker' || loading) {
@@ -196,7 +181,7 @@ const DaterDropdown = ({ userInfo, onDaterChange, showLabel = false }) => {
     <View style={styles.wrapper}>
       {showLabel ? <Text style={styles.label}>YOU&apos;RE CHOOSING FOR</Text> : null}
 
-      <View style={styles.dropdownAnchor} ref={anchorRef} collapsable={false}>
+      <View style={styles.dropdownAnchor}>
         {isMulti ? (
           <TouchableOpacity
             style={[styles.header, open && styles.headerOpen]}
@@ -221,49 +206,35 @@ const DaterDropdown = ({ userInfo, onDaterChange, showLabel = false }) => {
             </Text>
           </View>
         )}
-      </View>
 
-      {open && isMulti && menuLayout ? (
-        <Modal visible transparent animationType="fade" onRequestClose={closeMenu}>
-          <View style={styles.modalRoot}>
-            <Pressable style={StyleSheet.absoluteFill} onPress={closeMenu} />
-            <View
-              style={[
-                styles.menu,
-                {
-                  top: menuLayout.y,
-                  left: menuLayout.x,
-                  width: menuLayout.width,
-                },
-              ]}
-            >
-              {linkedDaters.map((dater, index) => {
-                const isSelected = selectedDater?.id === dater.id;
-                return (
-                  <View key={dater.id}>
-                    {index > 0 ? <View style={styles.divider} /> : null}
-                    <TouchableOpacity
-                      style={styles.option}
-                      onPress={() => handleDaterSelect(dater)}
-                      activeOpacity={0.7}
-                    >
-                      {renderAvatar(dater, 'sm')}
-                      <Text style={styles.optionName} numberOfLines={1}>
-                        {dater.name}
-                      </Text>
-                      {isSelected ? (
-                        <Ionicons name="checkmark" size={20} color={ACCENT_PURPLE} />
-                      ) : (
-                        <View style={styles.checkPlaceholder} />
-                      )}
-                    </TouchableOpacity>
-                  </View>
-                );
-              })}
-            </View>
+        {open && isMulti ? (
+          <View style={styles.menu}>
+            {linkedDaters.map((dater, index) => {
+              const isSelected = selectedDater?.id === dater.id;
+              return (
+                <View key={dater.id}>
+                  {index > 0 ? <View style={styles.divider} /> : null}
+                  <TouchableOpacity
+                    style={styles.option}
+                    onPress={() => handleDaterSelect(dater)}
+                    activeOpacity={0.7}
+                  >
+                    {renderAvatar(dater, 'sm')}
+                    <Text style={styles.optionName} numberOfLines={1}>
+                      {dater.name}
+                    </Text>
+                    {isSelected ? (
+                      <Ionicons name="checkmark" size={20} color={ACCENT_PURPLE} />
+                    ) : (
+                      <View style={styles.checkPlaceholder} />
+                    )}
+                  </TouchableOpacity>
+                </View>
+              );
+            })}
           </View>
-        </Modal>
-      ) : null}
+        ) : null}
+      </View>
     </View>
   );
 };
@@ -341,11 +312,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#9ca3af',
   },
-  modalRoot: {
-    flex: 1,
-  },
   menu: {
-    position: 'absolute',
+    marginTop: 4,
     backgroundColor: '#ffffff',
     borderRadius: 15,
     shadowColor: '#000',

@@ -27,7 +27,8 @@ import {
   calculateAge,
   convertFtInToMetersCm,
   convertMetersCmToFtIn,
-  formatHeight
+  formatHeight,
+  normalizeImageLayout,
 } from './utils/profileUtils';
 
 import Profile from './profile';
@@ -118,7 +119,7 @@ const CompleteProfile = () => {
     bio: '',
     matchRadius: 50,
     matchWithAll: false,
-    imageLayout: 'grid',
+    imageLayout: 'topRow',
     profileStyle: 'classic',
     fontFamily: 'Arial',
     show_location: false,
@@ -234,7 +235,7 @@ const CompleteProfile = () => {
           : userUnit === 'm'
             ? milesToKm(profileUser.match_radius || 50)
             : profileUser.match_radius || 50,
-      imageLayout: profileUser.imageLayout ?? 'grid',
+      imageLayout: normalizeImageLayout(profileUser.imageLayout),
       profileStyle: profileUser.profileStyle ?? 'classic',
       fontFamily: profileUser.fontFamily ?? 'Arial',
       show_location: profileUser.show_location ?? false,
@@ -702,7 +703,7 @@ const CompleteProfile = () => {
         show_location: formData.show_location ?? false,
         profileStyle: formData.profileStyle,
         fontFamily: formData.fontFamily,
-        imageLayout: formData.imageLayout,
+        imageLayout: normalizeImageLayout(formData.imageLayout),
         unit: heightUnit === 'ft' ? 'imperial' : 'metric',
         profile_completion_step: null, // Clear step when profile is completed
       };
@@ -971,7 +972,7 @@ const CompleteProfile = () => {
                     editing={true}
                     onDeleteImage={handleDeleteImage}
                     onPlaceholderClick={handlePlaceholderClick}
-                    layout={formData.imageLayout}
+                    layout={normalizeImageLayout(formData.imageLayout)}
                   />
                 </>
               )}
@@ -1109,7 +1110,7 @@ const CompleteProfile = () => {
                     editing={true}
                     onDeleteImage={handleDeleteImage}
                     onPlaceholderClick={handlePlaceholderClick}
-                    layout={formData.imageLayout}
+                    layout={normalizeImageLayout(formData.imageLayout)}
                   />
                 </View>
               )}

@@ -9,12 +9,18 @@ import {
   Dimensions,
 } from 'react-native';
 import HorizontalPhotoScrollView from '../profile/components/HorizontalPhotoScrollView';
+import PixelClouds from '../profile/components/PixelClouds';
+import PixelFlowers from '../profile/components/PixelFlowers';
+import PixelCactus from '../profile/components/PixelCactus';
 import { Ionicons } from '@expo/vector-icons';
 import { API_BASE_URL } from '../../env';
 import {
   calculateAge,
   convertHeightForViewer,
   getImageUrl,
+  getProfileThemeBackground,
+  normalizeImageLayout,
+  PROFILE_THEME_STYLES,
 } from '../profile/utils/profileUtils';
 import CompatibilityScore from './compatibilityScore';
 import ImageLightboxModal from '../profile/components/ImageLightboxModal';
@@ -27,6 +33,7 @@ const HERO_STACK_MAIN_HEIGHT = Math.round(IMAGE_WIDTH * 0.88);
 const HERO_STACK_THUMB_GAP = 8;
 const HERO_STACK_THUMB_PADDING = 12;
 const HERO_STACK_MAX_THUMB_SIZE = 64;
+const VERTICAL_GAP = 8;
 /** Visible hero strip when previewing a card behind another noted card. */
 const STACK_ALIGNED_CARD_TOP_HEIGHT = 48;
 
@@ -37,6 +44,8 @@ const ProfileCard = ({
   onSkip,
   isStackPreview = false,
   stackPreviewAligned = false,
+  blendWithBackground = false,
+  hideProfileThumbnail = false,
   // Optional; ignored (no “Linked dater” UI). Keeps older bundles / callers stable.
   isLinkedDater = false,
 }) => {
@@ -94,11 +103,21 @@ const ProfileCard = ({
 
   const canSkipProfile = ['matchmaker', 'user', 'dater'].includes(userInfo?.role);
   const showCompatibility = profile?.ai_score !== undefined && profile?.ai_score !== null;
-  const isHeroStackLayout = profile?.imageLayout === 'heroStack' && imageUris.length > 0;
+  const imageLayout = normalizeImageLayout(profile?.imageLayout);
+  const profileStyle = profile?.profileStyle || 'classic';
+  const themeStyle = PROFILE_THEME_STYLES[profileStyle] || PROFILE_THEME_STYLES.classic;
+  const themeBackgroundColor = getProfileThemeBackground(profileStyle);
+  const isHeroStackLayout = imageLayout === 'heroStack' && imageUris.length > 0;
+  const isVerticalLayout = imageLayout === 'vertical' && imageUris.length > 0;
+  const verticalSectionHeight =
+    imageUris.length * IMAGE_WIDTH +
+    Math.max(0, imageUris.length - 1) * VERTICAL_GAP;
   const isDaterView = userInfo?.role === 'user';
   const accentColor = isDaterView ? '#ef4d73' : '#6c5ce7';
   const tagBackgroundColor = isDaterView ? '#ffe8ee' : '#efe7ff';
   const tagBorderColor = isDaterView ? '#ffd6e3' : '#ddd6fe';
+  const blendBorderColor = isDaterView ? 'rgba(239, 77, 115, 0.08)' : 'rgba(108, 92, 231, 0.08)';
+  const cardSurfaceColor = themeBackgroundColor;
   const heroStackSelectedBorderColor = accentColor;
   const heroStackThumbSize =
     imageUris.length > 1 ? HERO_STACK_MAX_THUMB_SIZE : 0;
@@ -135,6 +154,7 @@ const ProfileCard = ({
     const noteBubbleStyles = [
       styles.noteBubble,
       styles.noteBubbleInCard,
+      { backgroundColor: cardSurfaceColor },
       isStackPreview && styles.noteBubbleStackPreview,
     ];
     const labelStyles = [
@@ -149,7 +169,7 @@ const ProfileCard = ({
 
     if (isStackPreview && !stackPreviewAligned) {
       return (
-        <View style={styles.noteWrapperInCard}>
+        <View style={[styles.noteWrapperInCard, { backgroundColor: cardSurfaceColor }]}>
           <View style={noteBubbleStyles}>
             <Text style={labelStyles}>
               {noteAuthorLabel}
@@ -160,7 +180,7 @@ const ProfileCard = ({
     }
 
     return (
-      <View style={styles.noteWrapperInCard}>
+      <View style={[styles.noteWrapperInCard, { backgroundColor: cardSurfaceColor }]}>
         <View style={noteBubbleStyles}>
           <Text style={[labelStyles, styles.noteLabelSpacing]}>
             {noteAuthorLabel}
@@ -240,6 +260,23 @@ const ProfileCard = ({
     </>
   );
 
+  const renderVerticalImages = () => (
+    <View style={[styles.verticalContainer, { gap: VERTICAL_GAP }]}>
+      {imageUris.map((uri, index) => (
+        <TouchableOpacity
+          key={`${uri}-${index}`}
+          activeOpacity={0.92}
+          onPress={() => openLightbox(index)}
+          accessibilityRole="button"
+          accessibilityLabel={`Enlarge photo ${index + 1}`}
+          style={[styles.verticalImageWrap, { backgroundColor: cardSurfaceColor }]}
+        >
+          <Image source={{ uri }} style={styles.verticalImage} resizeMode="cover" />
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+
   const renderHeroStackImages = () => (
     <View style={styles.heroStackContainer}>
       <TouchableOpacity
@@ -259,7 +296,7 @@ const ProfileCard = ({
       </TouchableOpacity>
 
       {imageUris.length > 1 ? (
-        <View style={styles.heroStackThumbRowBackground}>
+        <View style={[styles.heroStackThumbRowBackground, { backgroundColor: cardSurfaceColor }]}>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -286,7 +323,7 @@ const ProfileCard = ({
                     height: heroStackThumbSize,
                     borderColor: isSelected
                       ? heroStackSelectedBorderColor
-                      : '#ffffff',
+                      : cardSurfaceColor,
                   },
                 ]}
               >
@@ -310,39 +347,43 @@ const ProfileCard = ({
 
   const renderInfoSection = () => (
     <View style={styles.infoSection}>
-      <View style={styles.userHeader}>
-        {firstImageUri ? (
-          isStackPreview ? (
-            <View style={styles.thumbnail}>
-              <Image
-                source={{ uri: firstImageUri }}
-                style={styles.thumbnailImage}
-                resizeMode="cover"
-              />
-            </View>
+      <View style={[styles.userHeader, hideProfileThumbnail && styles.userHeaderNoAvatar]}>
+        {!hideProfileThumbnail ? (
+          firstImageUri ? (
+            isStackPreview ? (
+              <View style={styles.thumbnail}>
+                <Image
+                  source={{ uri: firstImageUri }}
+                  style={styles.thumbnailImage}
+                  resizeMode="cover"
+                />
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={styles.thumbnail}
+                activeOpacity={0.85}
+                onPress={() => openLightbox(0)}
+                accessibilityRole="button"
+                accessibilityLabel="Enlarge profile photo"
+              >
+                <Image
+                  source={{ uri: firstImageUri }}
+                  style={styles.thumbnailImage}
+                  resizeMode="cover"
+                />
+              </TouchableOpacity>
+            )
           ) : (
-            <TouchableOpacity
-              style={styles.thumbnail}
-              activeOpacity={0.85}
-              onPress={() => openLightbox(0)}
-              accessibilityRole="button"
-              accessibilityLabel="Enlarge profile photo"
-            >
-              <Image
-                source={{ uri: firstImageUri }}
-                style={styles.thumbnailImage}
-                resizeMode="cover"
-              />
-            </TouchableOpacity>
+            <View style={styles.thumbnail}>
+              <Text style={[styles.thumbnailFallback, { color: accentColor }]}>
+                {(profile.first_name || '?').charAt(0).toUpperCase()}
+              </Text>
+            </View>
           )
-        ) : (
-          <View style={styles.thumbnail}>
-            <Text style={[styles.thumbnailFallback, { color: accentColor }]}>
-              {(profile.first_name || '?').charAt(0).toUpperCase()}
-            </Text>
-          </View>
-        )}
-        <Text style={styles.nameText}>{nameLine}</Text>
+        ) : null}
+        <Text style={[styles.nameText, hideProfileThumbnail && styles.nameTextStandalone]}>
+          {nameLine}
+        </Text>
       </View>
 
       {profile.bio?.trim() ? (
@@ -377,48 +418,80 @@ const ProfileCard = ({
   );
 
   const cardContent = (
-    <View style={[styles.cardOuter, isStackPreview && styles.cardOuterStackPreview]}>
+    <View
+      style={[
+        styles.cardOuter,
+        isStackPreview && styles.cardOuterStackPreview,
+        blendWithBackground && styles.cardOuterBlended,
+      ]}
+    >
       <View
-        style={[styles.card, isStackPreview && styles.cardStackPreview]}
+        style={[
+          styles.card,
+          themeStyle,
+          isStackPreview && styles.cardStackPreview,
+          blendWithBackground && styles.cardBlended,
+          blendWithBackground && { borderColor: blendBorderColor },
+        ]}
       >
-        {showNoteInCard ? renderNoteSlot() : null}
+        <View style={styles.themeLayer} pointerEvents="none">
+          {profileStyle === 'pixelCloud' && <PixelClouds />}
+          {profileStyle === 'pixelFlower' && <PixelFlowers />}
+          {profileStyle === 'pixelCactus' && <PixelCactus />}
+        </View>
 
-        {!isNoteOnlyPreview ? (
-          <>
-            <View
-              style={[
-                styles.imageSection,
-                showNoteInCard && styles.imageSectionBelowNote,
-                isStackPreview && stackPreviewAligned && styles.imageSectionStackPreviewAligned,
-                isStackPreview && !isNoteOnlyPreview && styles.imageSectionStackPreviewMuted,
-                isHeroStackLayout &&
-                  !stackPreviewAligned && { height: heroStackSectionHeight },
-              ]}
-            >
-              {imageUris.length > 0 ? (
-                isHeroStackLayout ? renderHeroStackImages() : renderCarouselImages()
-              ) : (
-                <View style={styles.heroPlaceholder}>
-                  <Ionicons name="person" size={64} color="#d1d5db" />
-                </View>
-              )}
+        <View style={styles.contentLayer}>
+          {showNoteInCard ? renderNoteSlot() : null}
 
-              {renderImageOverlays()}
-            </View>
+          {!isNoteOnlyPreview ? (
+            <>
+              <View
+                style={[
+                  styles.imageSection,
+                  { backgroundColor: cardSurfaceColor },
+                  showNoteInCard && styles.imageSectionBelowNote,
+                  isStackPreview && stackPreviewAligned && styles.imageSectionStackPreviewAligned,
+                  isStackPreview && !isNoteOnlyPreview && styles.imageSectionStackPreviewMuted,
+                  isHeroStackLayout &&
+                    !stackPreviewAligned && { height: heroStackSectionHeight },
+                  isVerticalLayout &&
+                    !stackPreviewAligned && { height: verticalSectionHeight },
+                ]}
+              >
+                {imageUris.length > 0 ? (
+                  isHeroStackLayout
+                    ? renderHeroStackImages()
+                    : isVerticalLayout
+                      ? renderVerticalImages()
+                      : renderCarouselImages()
+                ) : (
+                  <View
+                    style={[
+                      styles.heroPlaceholder,
+                      { backgroundColor: cardSurfaceColor },
+                    ]}
+                  >
+                    <Ionicons name="person" size={64} color="#d1d5db" />
+                  </View>
+                )}
 
-            {!isStackPreview ? (
-              <>
-                {renderInfoSection()}
-                <ImageLightboxModal
-                  uris={imageUris}
-                  index={lightboxIndex}
-                  onIndexChange={setLightboxIndex}
-                  onClose={() => setLightboxIndex(null)}
-                />
-              </>
-            ) : null}
-          </>
-        ) : null}
+                {renderImageOverlays()}
+              </View>
+
+              {!isStackPreview ? (
+                <>
+                  {renderInfoSection()}
+                  <ImageLightboxModal
+                    uris={imageUris}
+                    index={lightboxIndex}
+                    onIndexChange={setLightboxIndex}
+                    onClose={() => setLightboxIndex(null)}
+                  />
+                </>
+              ) : null}
+            </>
+          ) : null}
+        </View>
       </View>
     </View>
   );
@@ -429,27 +502,42 @@ const ProfileCard = ({
 const styles = StyleSheet.create({
   cardOuter: {
     marginBottom: 12,
-  },
-  cardOuterStackPreview: {
-    marginBottom: 0,
-  },
-  card: {
-    backgroundColor: '#ffffff',
     borderRadius: 24,
-    overflow: 'hidden',
+    backgroundColor: 'transparent',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.08,
     shadowRadius: 20,
     elevation: 6,
   },
-  cardStackPreview: {
+  cardOuterStackPreview: {
+    marginBottom: 0,
     shadowOpacity: 0,
     shadowRadius: 0,
     elevation: 0,
   },
+  cardOuterBlended: {
+    marginBottom: 0,
+  },
+  card: {
+    position: 'relative',
+    borderRadius: 24,
+    overflow: 'hidden',
+  },
+  themeLayer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 0,
+  },
+  contentLayer: {
+    position: 'relative',
+    zIndex: 1,
+  },
+  cardStackPreview: {},
+  cardBlended: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(239, 77, 115, 0.08)',
+  },
   noteBubbleStackPreview: {
-    backgroundColor: '#f3f4f6',
     shadowOpacity: 0.04,
   },
   noteLabelStackPreview: {
@@ -466,11 +554,8 @@ const styles = StyleSheet.create({
     maxHeight: STACK_ALIGNED_CARD_TOP_HEIGHT,
     overflow: 'hidden',
   },
-  noteWrapperInCard: {
-    backgroundColor: '#ffffff',
-  },
+  noteWrapperInCard: {},
   noteBubble: {
-    backgroundColor: '#ffffff',
     paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: 14,
@@ -502,7 +587,6 @@ const styles = StyleSheet.create({
   imageSection: {
     width: '100%',
     height: IMAGE_HEIGHT,
-    backgroundColor: '#f3f4f6',
     position: 'relative',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
@@ -511,6 +595,23 @@ const styles = StyleSheet.create({
   heroImage: {
     width: IMAGE_WIDTH,
     height: IMAGE_HEIGHT,
+  },
+  verticalContainer: {
+    width: '100%',
+    alignItems: 'center',
+    alignSelf: 'stretch',
+  },
+  verticalImageWrap: {
+    width: '100%',
+    aspectRatio: 1,
+    alignSelf: 'center',
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  verticalImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 12,
   },
   heroStackContainer: {
     width: '100%',
@@ -526,7 +627,6 @@ const styles = StyleSheet.create({
   },
   heroStackThumbRowBackground: {
     width: '100%',
-    backgroundColor: '#ffffff',
   },
   heroStackThumbRow: {
     flexDirection: 'row',
@@ -553,7 +653,6 @@ const styles = StyleSheet.create({
     height: IMAGE_HEIGHT,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#f3f4f6',
   },
   compatibilityBadge: {
     position: 'absolute',
@@ -616,6 +715,9 @@ const styles = StyleSheet.create({
     gap: 10,
     marginBottom: 10,
   },
+  userHeaderNoAvatar: {
+    marginBottom: 8,
+  },
   thumbnail: {
     width: 40,
     height: 40,
@@ -638,6 +740,9 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
     color: '#111827',
+  },
+  nameTextStandalone: {
+    flex: 0,
   },
   bioText: {
     fontSize: 15,

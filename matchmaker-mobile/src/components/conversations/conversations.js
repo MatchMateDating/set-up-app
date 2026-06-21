@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   Modal,
   Pressable,
+  Dimensions,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -27,6 +28,7 @@ import { useNotifications } from '../../context/NotificationContext';
 import { shouldSuppressAuthErrors } from '../../utils/authSession';
 
 const CONTENT_HORIZONTAL_PADDING = 16;
+const FILTER_SHEET_BG = '#f3f4f6';
 
 /** True if the viewing dater removed their own side's matchmaker (`dater_on_user_id_1_side` from GET /match/matches). */
 function currentDaterRemovedOwnMatchmaker(match, currentUserId) {
@@ -564,7 +566,7 @@ const Conversations = () => {
           <View style={[styles.screenHeader, { paddingTop: headerTopPadding }]}>
             <View style={styles.headerSpacer} />
             <TouchableOpacity
-              style={styles.filterButtonInline}
+              style={[styles.filterButton, styles.filterButtonMatchmaker]}
               onPress={() => {
                 setConversationFilterDraft({ ...conversationFilters });
                 setShowConversationFilter(true);
@@ -583,14 +585,18 @@ const Conversations = () => {
         </>
       ) : (
         <TouchableOpacity
-          style={[styles.filterButton, { top: filterButtonTop }]}
+          style={[
+            styles.filterButton,
+            styles.filterButtonDater,
+            { top: filterButtonTop },
+          ]}
           onPress={() => {
             setConversationFilterDraft({ ...conversationFilters });
             setShowConversationFilter(true);
           }}
           accessibilityLabel="Open conversation filters"
         >
-          <Ionicons name="options-outline" size={24} color="#1f2937" />
+          <Ionicons name="options-outline" size={22} color="#374151" />
           {activeConversationFilterCount > 0 ? (
             <View style={[styles.filterBadge, { backgroundColor: accentColor }]}>
               <Text style={styles.filterBadgeText}>{activeConversationFilterCount}</Text>
@@ -698,7 +704,7 @@ const Conversations = () => {
       <Modal
         visible={showConversationFilter}
         transparent
-        animationType="none"
+        animationType="slide"
         onRequestClose={dismissConversationFilter}
       >
         <View style={styles.filterModalRoot}>
@@ -707,19 +713,30 @@ const Conversations = () => {
             onPress={dismissConversationFilter}
             accessibilityLabel="Close conversation filters"
           />
-          <View style={styles.filterDrawer}>
-            <View style={styles.filterDrawerHeader}>
-              <Text style={styles.filterDrawerTitle}>Filters</Text>
-              <TouchableOpacity onPress={dismissConversationFilter} hitSlop={12}>
-                <Ionicons name="close" size={26} color="#374151" />
+          <View
+            style={[
+              styles.filterBottomSheet,
+              { maxHeight: Dimensions.get('window').height * 0.72 },
+            ]}
+          >
+            <View style={styles.filterSheetHeader}>
+              <Text style={styles.filterSheetTitle}>Filter</Text>
+              <TouchableOpacity
+                style={styles.filterSheetClose}
+                onPress={dismissConversationFilter}
+                hitSlop={12}
+                accessibilityLabel="Close filter"
+              >
+                <Ionicons name="close" size={22} color="#9ca3af" />
               </TouchableOpacity>
             </View>
             <ScrollView
               style={styles.filterScroll}
               contentContainerStyle={styles.filterScrollContent}
               keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
             >
-              <Text style={styles.filterSectionLabel}>Conversation type</Text>
+              <Text style={styles.filterSectionLabel}>CONVERSATION TYPE</Text>
 
               <TouchableOpacity
                 style={styles.filterCheckboxRow}
@@ -734,14 +751,13 @@ const Conversations = () => {
                 <View
                   style={[
                     styles.filterCheckbox,
-                    conversationFilterDraft.requireOtherMatchmaker && {
-                      backgroundColor: accentColor,
-                      borderColor: accentColor,
-                    },
+                    { borderColor: accentColor },
+                    conversationFilterDraft.requireOtherMatchmaker &&
+                      styles.filterCheckboxChecked,
                   ]}
                 >
                   {conversationFilterDraft.requireOtherMatchmaker ? (
-                    <Ionicons name="checkmark" size={16} color="#ffffff" />
+                    <Ionicons name="checkmark" size={16} color={accentColor} />
                   ) : null}
                 </View>
                 <Text style={styles.filterCheckboxLabel}>
@@ -750,7 +766,7 @@ const Conversations = () => {
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.filterCheckboxRow, { marginTop: 16 }]}
+                style={styles.filterCheckboxRow}
                 onPress={() =>
                   setConversationFilterDraft((d) => ({
                     ...d,
@@ -762,14 +778,12 @@ const Conversations = () => {
                 <View
                   style={[
                     styles.filterCheckbox,
-                    conversationFilterDraft.blindOnly && {
-                      backgroundColor: accentColor,
-                      borderColor: accentColor,
-                    },
+                    { borderColor: accentColor },
+                    conversationFilterDraft.blindOnly && styles.filterCheckboxChecked,
                   ]}
                 >
                   {conversationFilterDraft.blindOnly ? (
-                    <Ionicons name="checkmark" size={16} color="#ffffff" />
+                    <Ionicons name="checkmark" size={16} color={accentColor} />
                   ) : null}
                 </View>
                 <Text style={styles.filterCheckboxLabel}>Blind match only</Text>
@@ -777,7 +791,7 @@ const Conversations = () => {
 
               {showNotificationsOnFilterOption ? (
                 <TouchableOpacity
-                  style={[styles.filterCheckboxRow, { marginTop: 16 }]}
+                  style={styles.filterCheckboxRow}
                   onPress={() =>
                     setConversationFilterDraft((d) => ({
                       ...d,
@@ -789,14 +803,13 @@ const Conversations = () => {
                   <View
                     style={[
                       styles.filterCheckbox,
-                      conversationFilterDraft.notificationsOnOnly && {
-                        backgroundColor: accentColor,
-                        borderColor: accentColor,
-                      },
+                      { borderColor: accentColor },
+                      conversationFilterDraft.notificationsOnOnly &&
+                        styles.filterCheckboxChecked,
                     ]}
                   >
                     {conversationFilterDraft.notificationsOnOnly ? (
-                      <Ionicons name="checkmark" size={16} color="#ffffff" />
+                      <Ionicons name="checkmark" size={16} color={accentColor} />
                     ) : null}
                   </View>
                   <Text style={styles.filterCheckboxLabel}>
@@ -807,13 +820,14 @@ const Conversations = () => {
             </ScrollView>
             <View
               style={[
-                styles.filterDrawerFooter,
-                { paddingBottom: 28 + insets.bottom },
+                styles.filterSheetFooter,
+                { paddingBottom: 20 + insets.bottom },
               ]}
             >
               <TouchableOpacity
                 style={[styles.filterSaveButton, { backgroundColor: accentColor }]}
                 onPress={saveConversationFilters}
+                accessibilityLabel="Save filters"
               >
                 <Text style={styles.filterSaveButtonText}>Save</Text>
               </TouchableOpacity>
@@ -846,19 +860,6 @@ const styles = StyleSheet.create({
     paddingBottom: 4,
     minHeight: 71,
   },
-  filterButtonInline: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: '#ffffff',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 3,
-  },
   scrollView: {
     flex: 1,
     backgroundColor: 'transparent',
@@ -868,20 +869,33 @@ const styles = StyleSheet.create({
     paddingTop: 0,
   },
   filterButton: {
-    position: 'absolute',
-    left: 16,
-    zIndex: 50,
-    width: 46,
-    height: 46,
-    borderRadius: 23,
+    width: 44,
+    height: 44,
+    borderRadius: 12,
     backgroundColor: '#ffffff',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    elevation: 4,
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#f3e8ee',
+  },
+  filterButtonDater: {
+    position: 'absolute',
+    right: 20,
+    zIndex: 50,
+    borderRadius: 14,
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+  },
+  filterButtonMatchmaker: {
+    borderRadius: 12,
+    borderWidth: 0,
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
   },
   filterBadge: {
     position: 'absolute',
@@ -901,74 +915,73 @@ const styles = StyleSheet.create({
   },
   filterModalRoot: {
     flex: 1,
+    justifyContent: 'flex-end',
   },
   filterBackdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
   },
-  filterDrawer: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    bottom: 0,
-    width: '86%',
-    maxWidth: 360,
-    backgroundColor: '#ffffff',
+  filterBottomSheet: {
+    backgroundColor: FILTER_SHEET_BG,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
     shadowColor: '#000',
-    shadowOffset: { width: -4, height: 0 },
-    shadowOpacity: 0.18,
-    shadowRadius: 12,
-    elevation: 16,
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 20,
   },
-  filterDrawerHeader: {
-    flexDirection: 'row',
+  filterSheetHeader: {
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 56,
+    justifyContent: 'center',
+    paddingTop: 20,
     paddingBottom: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#e5e7eb',
   },
-  filterDrawerTitle: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#111827',
+  filterSheetTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#374151',
+    letterSpacing: 0.2,
+  },
+  filterSheetClose: {
+    position: 'absolute',
+    right: 20,
+    top: 18,
+    padding: 4,
   },
   filterScroll: {
-    flex: 1,
+    flexGrow: 0,
   },
   filterScrollContent: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
     paddingTop: 20,
-    paddingBottom: 24,
+    paddingBottom: 8,
   },
   filterSectionLabel: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1f2937',
-    marginBottom: 6,
-  },
-  filterSectionSub: {
     fontSize: 13,
+    fontWeight: '700',
     color: '#6b7280',
-    marginBottom: 12,
-    lineHeight: 18,
+    letterSpacing: 0.8,
+    marginBottom: 6,
   },
   filterCheckboxRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 8,
+    marginTop: 4,
   },
   filterCheckbox: {
     width: 22,
     height: 22,
-    borderRadius: 6,
+    borderRadius: 5,
     borderWidth: 2,
-    borderColor: '#d1d5db',
     marginRight: 12,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: '#ffffff',
+  },
+  filterCheckboxChecked: {
     backgroundColor: '#ffffff',
   },
   filterCheckboxLabel: {
@@ -977,8 +990,8 @@ const styles = StyleSheet.create({
     color: '#374151',
     fontWeight: '500',
   },
-  filterDrawerFooter: {
-    paddingHorizontal: 20,
+  filterSheetFooter: {
+    paddingHorizontal: 24,
     paddingTop: 16,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: '#e5e7eb',

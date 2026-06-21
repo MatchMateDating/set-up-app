@@ -1,4 +1,22 @@
 // utils/profileUtils.js
+export const PROFILE_THEME_STYLES = {
+  pixelCloud: { backgroundColor: '#87CEEB' },
+  pixelFlower: { backgroundColor: '#F2F6FF' },
+  pixelCactus: { backgroundColor: '#FFEBF3' },
+  classic: { backgroundColor: '#FFFFFF' },
+  minimal: { backgroundColor: '#FFFFFF' },
+  bold: { backgroundColor: '#F5F3FF' },
+  constitution: { backgroundColor: '#FDF5D9' },
+};
+
+export const getProfileThemeBackground = (profileStyle) =>
+  (PROFILE_THEME_STYLES[profileStyle] || PROFILE_THEME_STYLES.classic).backgroundColor;
+
+export const normalizeImageLayout = (layout) => {
+  if (!layout || layout === 'grid') return 'topRow';
+  return layout;
+};
+
 export const calculateAge = (birthdate) => {
   if (!birthdate) return '';
   const birthDateObj = new Date(birthdate);

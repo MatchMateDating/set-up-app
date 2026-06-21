@@ -35,7 +35,7 @@ const CARD_STACK_PADDING_TOP = 14;
 const MATCHMAKER_CARD_STACK_PADDING_TOP = 32;
 const STACK_PREVIEW_PEEK = 12;
 const STACK_PREVIEW_PEEK_WITH_NOTE = 16;
-const STACK_PREVIEW_PEEK_OFFSET = -2;
+const STACK_PREVIEW_PEEK_OFFSET = 0;
 const STACK_PREVIEW_ALIGNED_LIFT = 8;
 const STACK_PREVIEW_SCALE = 0.96;
 const STACK_PREVIEW_INSET = 10;
@@ -888,6 +888,7 @@ const Match = () => {
               <SendNoteModal
                 onClose={() => setShowNoteModal(false)}
                 onSend={handleSendNote}
+                accentColor={accentColor}
               />
             )}
           </>
