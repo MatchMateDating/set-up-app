@@ -1043,7 +1043,6 @@ const MatchConvo = () => {
       }
 
       if (res.ok) {
-        Alert.alert('Success', 'Match removed successfully');
         navigation.navigate('Main', { screen: 'Conversations' });
       } else {
         const data = await res.json();
@@ -1169,7 +1168,6 @@ const MatchConvo = () => {
                 }
 
                 if (res.ok) {
-                  Alert.alert('Success', 'Match removed successfully');
                   navigation.navigate('Main', { screen: 'Conversations' });
                 } else {
                   const data = await res.json();
