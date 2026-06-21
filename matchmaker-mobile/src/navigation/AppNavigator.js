@@ -45,10 +45,11 @@ function MainTabs() {
     activeTabName === 'Matches' ||
     (role === 'matchmaker' &&
       (activeTabName === 'Profile' || activeTabName === 'Conversations'));
-  const hideDaterDropdown =
+  const showDaterDropdown =
     role === 'matchmaker' &&
-    (activeTabName === 'Matches' ||
-      activeTabName === 'Profile' ||
+    !isProfileEditing &&
+    (activeTabName === 'Profile' ||
+      activeTabName === 'Matches' ||
       activeTabName === 'Conversations');
 
   const handleOverlayDaterChange = async () => {
@@ -83,7 +84,7 @@ function MainTabs() {
               <RoleHeaderBanner role={role} />
             </View>
           )}
-          {role === 'matchmaker' && !hideDaterDropdown && (
+          {showDaterDropdown && (
             <View style={styles.dropdownOverlay}>
               <DaterDropdown
                 userInfo={user}
@@ -200,6 +201,6 @@ const styles = StyleSheet.create({
   },
   dropdownOverlay: {
     paddingHorizontal: 16,
-    marginTop: 12,
+    marginTop: 52,
   },
 });

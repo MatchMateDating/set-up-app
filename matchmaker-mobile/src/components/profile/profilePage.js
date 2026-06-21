@@ -351,29 +351,6 @@ const ProfilePage = () => {
     }, [setIsProfileEditing])
   );
 
-  const handleDaterChange = async () => {
-    try {
-      const token = await AsyncStorage.getItem('token');
-      if (!token) return;
-
-      const res = await fetch(`${API_BASE_URL}/profile/`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) return;
-
-      const data = await res.json();
-      if (data?.user) {
-        setUser(data.user);
-        setContextUser(data.user);
-      }
-      if (data?.referrer) {
-        setReferrer(data.referrer);
-      }
-    } catch (err) {
-      console.error('Error refreshing user after dater change:', err);
-    }
-  };
-
   if (loading) {
     const loadingColor = getRoleAccentColor(user?.role || 'matchmaker');
     return (
@@ -396,6 +373,7 @@ const ProfilePage = () => {
   const backgroundTint = getRoleBackgroundTint(user.role);
   const isMatchmaker = user.role === 'matchmaker';
   const showMatchmakerChrome = isMatchmaker && !matchProfile && !editing;
+  const useSharedDaterDropdown = showMatchmakerChrome && route.name === 'Profile';
   const screenBackground = showMatchmakerChrome ? MATCHMAKER_SCREEN_BG : backgroundTint;
   const headerTopPadding = showMatchmakerChrome ? insets.top + 4 : insets.top + 8;
   const contentTopPadding = showMatchmakerChrome
@@ -454,11 +432,15 @@ const ProfilePage = () => {
             </TouchableOpacity>
           </View>
           <View style={styles.choosingSection}>
-            <DaterDropdown
-              userInfo={user}
-              onDaterChange={handleDaterChange}
-              showLabel
-            />
+            {useSharedDaterDropdown ? null : (
+              <DaterDropdown
+                userInfo={user}
+                onDaterChange={async () => {
+                  await fetchProfile();
+                }}
+                showLabel
+              />
+            )}
           </View>
         </>
       ) : null}
@@ -668,7 +650,7 @@ const styles = StyleSheet.create({
   choosingSection: {
     paddingHorizontal: 20,
     paddingBottom: 4,
-    zIndex: 10,
+    minHeight: 71,
   },
   loadingContainer: {
     flex: 1,

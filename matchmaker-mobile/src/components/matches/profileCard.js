@@ -90,6 +90,7 @@ const ProfileCard = ({
     profile?.matched_by_matcher_user_1 ||
     profile?.matched_by_matcher_user_2
   );
+  const noteAuthorLabel = hasMatchmakerMediation ? 'Matchmaker' : 'Dater';
 
   const canSkipProfile = ['matchmaker', 'user', 'dater'].includes(userInfo?.role);
   const showCompatibility = profile?.ai_score !== undefined && profile?.ai_score !== null;
@@ -138,6 +139,7 @@ const ProfileCard = ({
     ];
     const labelStyles = [
       styles.noteLabel,
+      { color: accentColor },
       isStackPreview && styles.noteLabelStackPreview,
     ];
     const textStyles = [
@@ -150,7 +152,7 @@ const ProfileCard = ({
         <View style={styles.noteWrapperInCard}>
           <View style={noteBubbleStyles}>
             <Text style={labelStyles}>
-              {hasMatchmakerMediation ? 'Matchmaker' : 'Note'}
+              {noteAuthorLabel}
             </Text>
           </View>
         </View>
@@ -161,7 +163,7 @@ const ProfileCard = ({
       <View style={styles.noteWrapperInCard}>
         <View style={noteBubbleStyles}>
           <Text style={[labelStyles, styles.noteLabelSpacing]}>
-            {hasMatchmakerMediation ? 'Matchmaker' : 'Note'}
+            {noteAuthorLabel}
           </Text>
           <Text
             style={textStyles}
@@ -487,7 +489,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 1.1,
-    color: '#ef4d73',
     textTransform: 'uppercase',
   },
   noteLabelSpacing: {

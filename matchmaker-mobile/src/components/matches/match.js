@@ -25,20 +25,18 @@ import { useUserInfo } from './hooks/useUserInfo';
 import { startLocationWatcher, stopLocationWatcher } from '../auth/utils/startLocationWatcher';
 import { getImageUrl, heightStringToCm, convertHeightForViewer, normalizeHeightUnit } from '../profile/utils/profileUtils';
 import { getRoleAccentColor } from '../layout/components/RoleHeaderBanner';
-import DaterDropdown from '../layout/daterDropdown';
 import { UserContext } from '../../context/UserContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const MATCH_SCREEN_BG = '#fff5f7';
 const MATCHMAKER_SCREEN_BG = '#f3f4f6';
 const CARD_STACK_PADDING_TOP = 14;
-const MATCHMAKER_CARD_STACK_PADDING_TOP = 6;
+/** Fixed reserve above the current card — fits peek + both-notes preview for matchmakers. */
+const MATCHMAKER_CARD_STACK_PADDING_TOP = 32;
 const STACK_PREVIEW_PEEK = 12;
 const STACK_PREVIEW_PEEK_WITH_NOTE = 16;
 const STACK_PREVIEW_PEEK_OFFSET = -2;
 const STACK_PREVIEW_ALIGNED_LIFT = 8;
-/** Minimal space above cards so a both-notes preview clears the dater dropdown. */
-const MATCHMAKER_BOTH_NOTES_PREVIEW_PADDING = STACK_PREVIEW_ALIGNED_LIFT + 12;
 const STACK_PREVIEW_SCALE = 0.96;
 const STACK_PREVIEW_INSET = 10;
 const HEIGHT_SLIDER_MIN_CM = 0;
@@ -373,6 +371,7 @@ const Match = () => {
   useEffect(() => {
     if (userInfo && userInfo.role === 'matchmaker') {
       fetchProfiles();
+      fetchProfile();
       setCurrentIndex(0); // Reset to first profile
     }
   }, [selectedDaterId]);
@@ -785,29 +784,6 @@ const Match = () => {
     setShowFilterSidebar(false);
   };
 
-  const handleDaterChange = async () => {
-    try {
-      const token = await AsyncStorage.getItem('token');
-      if (!token) return;
-
-      const res = await fetch(`${API_BASE_URL}/profile/`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) return;
-
-      const data = await res.json();
-      if (data?.user) {
-        setContextUser(data.user);
-        setUserInfo(data.user);
-      }
-      if (data?.referrer) {
-        setReferrer(data.referrer);
-      }
-    } catch (err) {
-      console.error('Error refreshing user after dater change:', err);
-    }
-  };
-
   return (
     <View style={[styles.container, { backgroundColor: screenBackground }]}>
       <View
@@ -843,15 +819,7 @@ const Match = () => {
           ) : null}
         </TouchableOpacity>
       </View>
-      {isMatchmaker ? (
-        <View style={styles.choosingSection}>
-          <DaterDropdown
-            userInfo={userInfo || contextUser}
-            onDaterChange={handleDaterChange}
-            showLabel
-          />
-        </View>
-      ) : null}
+      {isMatchmaker ? <View style={styles.choosingSection} /> : null}
       <ScrollView
         style={[
           styles.scrollView,
@@ -861,10 +829,6 @@ const Match = () => {
           styles.content,
           isDater && styles.contentDater,
           isMatchmaker && styles.contentMatchmaker,
-          isMatchmaker &&
-            bothNotesPreview &&
-            upcomingProfile &&
-            styles.contentMatchmakerBothNotesPreview,
           isProfilesEmptyState && styles.contentGrow,
         ]}
         removeClippedSubviews={!(isMatchmaker && bothNotesPreview && upcomingProfile)}
@@ -876,10 +840,7 @@ const Match = () => {
             <View
               style={[
                 styles.cardStack,
-                upcomingProfile &&
-                  !bothNotesPreview && {
-                    paddingTop: cardStackPreviewPadding,
-                  },
+                { paddingTop: cardStackPreviewPadding },
                 bothNotesPreview && styles.cardStackBothNotesPreview,
               ]}
             >
@@ -1249,6 +1210,7 @@ const styles = StyleSheet.create({
   choosingSection: {
     paddingHorizontal: 20,
     paddingBottom: 4,
+    minHeight: 71,
   },
   headerLogo: {
     width: 44,
@@ -1280,9 +1242,6 @@ const styles = StyleSheet.create({
   contentMatchmaker: {
     paddingTop: 0,
     paddingBottom: 120,
-  },
-  contentMatchmakerBothNotesPreview: {
-    paddingTop: MATCHMAKER_BOTH_NOTES_PREVIEW_PADDING,
   },
   contentGrow: {
     flexGrow: 1,

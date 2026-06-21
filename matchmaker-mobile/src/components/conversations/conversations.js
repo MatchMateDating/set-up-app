@@ -22,7 +22,6 @@ import ToggleConversationsMatcher from './toggleConversationsMatcher';
 import { useMatches } from './hooks/useMatches';
 import { useUserInfo } from './hooks/useUserInfo';
 import { getRoleAccentColor, getRoleBackgroundTint } from '../layout/components/RoleHeaderBanner';
-import DaterDropdown from '../layout/daterDropdown';
 import { UserContext } from '../../context/UserContext';
 import { useNotifications } from '../../context/NotificationContext';
 import { shouldSuppressAuthErrors } from '../../utils/authSession';
@@ -519,30 +518,6 @@ const Conversations = () => {
     }
   };
 
-  const handleDaterChange = async () => {
-    try {
-      const token = await AsyncStorage.getItem('token');
-      if (!token) return;
-
-      const res = await fetch(`${API_BASE_URL}/profile/`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) return;
-
-      const data = await res.json();
-      if (data?.user) {
-        setContextUser(data.user);
-        setUserInfo(data.user);
-      }
-      if (data?.referrer) {
-        setReferrer(data.referrer);
-      }
-      await fetchMatches();
-    } catch (err) {
-      console.error('Error refreshing user after dater change:', err);
-    }
-  };
-
   if (loading) {
     const loadingRole = userInfo?.role || roleHint || 'user';
     const loadingColor = getRoleAccentColor(loadingRole);
@@ -604,13 +579,7 @@ const Conversations = () => {
               ) : null}
             </TouchableOpacity>
           </View>
-          <View style={styles.choosingSection}>
-            <DaterDropdown
-              userInfo={userInfo || contextUser}
-              onDaterChange={handleDaterChange}
-              showLabel
-            />
-          </View>
+          <View style={styles.choosingSection} />
         </>
       ) : (
         <TouchableOpacity
@@ -875,7 +844,7 @@ const styles = StyleSheet.create({
   choosingSection: {
     paddingHorizontal: 20,
     paddingBottom: 4,
-    zIndex: 10,
+    minHeight: 71,
   },
   filterButtonInline: {
     width: 44,
