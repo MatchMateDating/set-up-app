@@ -403,6 +403,7 @@ const ProfilePage = () => {
         onScroll={(event) => {
           parentScrollOffsetYRef.current = event.nativeEvent.contentOffset.y;
         }}
+        nestedScrollEnabled
       >
         {user.role === 'user' && (
           <Profile

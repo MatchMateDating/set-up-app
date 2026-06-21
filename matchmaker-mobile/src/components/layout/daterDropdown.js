@@ -5,7 +5,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {API_BASE_URL } from '../../env';
 import { getImageUrl } from '../profile/utils/profileUtils';
 
-const DaterDropdown = ({ userInfo, onDaterChange }) => {
+const DaterDropdown = ({ userInfo, onDaterChange, variant = 'default' }) => {
+  const isMatchScreen = variant === 'matchScreen';
   const [open, setOpen] = useState(false);
   const [linkedDaters, setLinkedDaters] = useState([]);
   const [selectedDater, setSelectedDater] = useState(null);
@@ -155,10 +156,22 @@ const DaterDropdown = ({ userInfo, onDaterChange }) => {
     return null;
   }
 
+  const headerSingleStyle = [
+    styles.headerSingle,
+    isMatchScreen && styles.headerSingleMatchScreen,
+  ];
+  const headerStyle = [
+    styles.header,
+    isMatchScreen && styles.headerMatchScreen,
+    open && styles.headerOpen,
+  ];
+  const imageStyle = [styles.image, isMatchScreen && styles.imageMatchScreen];
+  const nameStyle = [styles.name, isMatchScreen && styles.nameMatchScreen];
+
   if (linkedDaters.length === 0) {
     return (
       <View style={styles.container}>
-        <View style={styles.headerSingle}>
+        <View style={headerSingleStyle}>
           <Text style={styles.placeholder}>No daters available</Text>
         </View>
       </View>
@@ -170,14 +183,14 @@ const DaterDropdown = ({ userInfo, onDaterChange }) => {
   return (
     <View style={styles.container}>
       {linkedDaters.length === 1 ? (
-        <View style={styles.headerSingle}>
+        <View style={headerSingleStyle}>
           {selected?.first_image ? (
             <>
               <Image
                 source={{ uri: getImageUrl(selected.first_image, API_BASE_URL) }}
-                style={styles.image}
+                style={imageStyle}
               />
-              <Text style={styles.name}>{selected.name}</Text>
+              <Text style={nameStyle}>{selected.name}</Text>
             </>
           ) : (
             <Text style={styles.placeholder}>Select a dater</Text>
@@ -186,16 +199,16 @@ const DaterDropdown = ({ userInfo, onDaterChange }) => {
       ) : (
         <>
           <TouchableOpacity
-            style={[styles.header, open && styles.headerOpen]}
+            style={headerStyle}
             onPress={() => setOpen(!open)}
           >
             {selected?.first_image ? (
               <>
                 <Image
                   source={{ uri: getImageUrl(selected.first_image, API_BASE_URL) }}
-                  style={styles.image}
+                  style={imageStyle}
                 />
-                <Text style={styles.name}>{selected.name}</Text>
+                <Text style={nameStyle}>{selected.name}</Text>
               </>
             ) : (
               <Text style={styles.placeholder}>Select a dater</Text>
@@ -307,6 +320,40 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#222',
     flex: 1,
+  },
+  headerMatchScreen: {
+    borderRadius: 16,
+    borderWidth: 0,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    minHeight: 52,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  headerSingleMatchScreen: {
+    borderRadius: 16,
+    borderWidth: 0,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    minHeight: 52,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  imageMatchScreen: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+  },
+  nameMatchScreen: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
   },
   placeholder: {
     fontSize: 14,

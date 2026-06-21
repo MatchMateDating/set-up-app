@@ -1,8 +1,9 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { View, Image, StyleSheet, TouchableOpacity, ScrollView, Text, Pressable } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { View, Image, StyleSheet, TouchableOpacity, Text, Pressable } from 'react-native';
 import { API_BASE_URL } from '../../env';
 import { Ionicons } from '@expo/vector-icons';
 import { getImageUrl } from './utils/profileUtils';
+import HorizontalPhotoScrollView from './components/HorizontalPhotoScrollView';
 
 const ImageGallery = ({
   images = [],
@@ -131,11 +132,7 @@ const ImageGallery = ({
     );
   };
 
-  useEffect(() => {
-    if (isTopRow && !editing && topRowScrollRef.current) {
-      topRowScrollRef.current.scrollTo({ x: 0, y: 0, animated: false });
-    }
-  }, [isTopRow, editing, images.length]);
+  const topRowResetKey = `${images.length}-${editing}-${topRowViewportWidth}`;
 
   return (
     isTopRow ? (
@@ -149,19 +146,16 @@ const ImageGallery = ({
             }
           }}
         >
-          <ScrollView
+          <HorizontalPhotoScrollView
             ref={topRowScrollRef}
-            horizontal
-            pagingEnabled
-            snapToInterval={topRowSize}
-            snapToAlignment="start"
-            decelerationRate="fast"
-            showsHorizontalScrollIndicator={false}
+            itemWidth={topRowViewportWidth > 0 ? topRowViewportWidth : topRowSize}
+            resetKey={topRowResetKey}
+            style={styles.topRowScrollView}
             contentContainerStyle={containerStyle}
           >
             {images.map(renderImage)}
             {renderPlaceholder()}
-          </ScrollView>
+          </HorizontalPhotoScrollView>
         </View>
         {editing && (
           <View pointerEvents="none" style={styles.scrollHint}>
@@ -239,6 +233,9 @@ const styles = StyleSheet.create({
     gap: 0,
   },
   topRowViewport: {
+    width: '100%',
+  },
+  topRowScrollView: {
     width: '100%',
   },
   scrollHint: {

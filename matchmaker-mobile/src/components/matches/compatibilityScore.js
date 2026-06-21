@@ -2,15 +2,20 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Modal } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-export default function CompatibilityScore({ score }) {
+export default function CompatibilityScore({ score, variant = 'default' }) {
   const [showTooltip, setShowTooltip] = useState(false);
+  const isOverlay = variant === 'overlay';
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.compatibilityText}>Compatibility: {score}%</Text>
-      <TouchableOpacity onPress={() => setShowTooltip(true)}>
-        <Ionicons name="help-circle-outline" size={20} color="#6c5ce7" />
-      </TouchableOpacity>
+    <View style={[styles.container, isOverlay && styles.overlayContainer]}>
+      <Text style={[styles.compatibilityText, isOverlay && styles.overlayText]}>
+        Compatibility: {score}%
+      </Text>
+      {!isOverlay ? (
+        <TouchableOpacity onPress={() => setShowTooltip(true)}>
+          <Ionicons name="help-circle-outline" size={20} color="#6c5ce7" />
+        </TouchableOpacity>
+      ) : null}
 
       <Modal
         visible={showTooltip}
@@ -46,10 +51,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
+  overlayContainer: {
+    backgroundColor: 'rgba(55, 65, 81, 0.72)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
   compatibilityText: {
     fontSize: 16,
     fontWeight: '600',
     color: '#222',
+  },
+  overlayText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#ffffff',
   },
   modalOverlay: {
     flex: 1,

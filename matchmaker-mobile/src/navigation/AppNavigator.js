@@ -1,4 +1,4 @@
-import React, { useContext } from 'react';
+import React, { useContext, useState } from 'react';
 import { View, StyleSheet, Platform } from 'react-native';
 import { useIsFocused, useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -40,6 +40,9 @@ function MainTabs() {
   const { user, setUser, isProfileEditing } = useContext(UserContext);
   const role = user?.role || 'matchmaker';
   const accentColor = getRoleAccentColor(role);
+  const [activeTabName, setActiveTabName] = useState('Profile');
+  const hideRoleBanner = activeTabName === 'Matches';
+  const hideDaterDropdown = role === 'matchmaker' && activeTabName === 'Matches';
 
   const handleOverlayDaterChange = async () => {
     try {
@@ -68,12 +71,12 @@ function MainTabs() {
     >
       <View style={styles.mainTabsContainer}>
         <View pointerEvents="box-none" style={[styles.topOverlay, { top: insets.top + 4 }]}>
-          {!isProfileEditing && (
+          {!isProfileEditing && !hideRoleBanner && (
             <View pointerEvents="none" style={styles.roleBadgeOverlay}>
               <RoleHeaderBanner role={role} />
             </View>
           )}
-          {role === 'matchmaker' && (
+          {role === 'matchmaker' && !hideDaterDropdown && (
             <View style={styles.dropdownOverlay}>
               <DaterDropdown userInfo={user} onDaterChange={handleOverlayDaterChange} />
             </View>
@@ -81,6 +84,14 @@ function MainTabs() {
         </View>
         <Tab.Navigator
           tabBarPosition="bottom"
+          screenListeners={{
+            state: (e) => {
+              const state = e.data.state;
+              if (state?.routes?.length) {
+                setActiveTabName(state.routes[state.index]?.name ?? 'Profile');
+              }
+            },
+          }}
           screenOptions={({ route }) => ({
             swipeEnabled: true,
             animationEnabled: true,
@@ -106,6 +117,19 @@ function MainTabs() {
             tabBarStyle: {
               height: 56 + bottomInset,
               paddingBottom: bottomInset,
+              backgroundColor: '#ffffff',
+              borderTopWidth: 0,
+              ...(role === 'user'
+                ? {
+                    borderTopLeftRadius: 22,
+                    borderTopRightRadius: 22,
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: -2 },
+                    shadowOpacity: 0.06,
+                    shadowRadius: 8,
+                    elevation: 8,
+                  }
+                : {}),
             },
             tabBarPressColor: role === 'user' ? 'rgba(239, 77, 115, 0.12)' : 'rgba(108, 92, 231, 0.12)',
             tabBarActiveTintColor: accentColor,
