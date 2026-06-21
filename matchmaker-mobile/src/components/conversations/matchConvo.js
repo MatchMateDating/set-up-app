@@ -513,7 +513,10 @@ const MatchConvo = () => {
     if (t === 'match_approval') {
       loadMatchMeta();
     }
-  }, [lastNotificationEvent?.receivedAt, matchId, exitConversationDueToAccessLoss, loadMatchMeta]);
+    if (t === 'message') {
+      loadConversationMessages({ showErrors: false });
+    }
+  }, [lastNotificationEvent?.receivedAt, matchId, exitConversationDueToAccessLoss, loadMatchMeta, loadConversationMessages]);
 
   // While chat is open, poll so both matchmakers see new messages without leaving.
   useEffect(() => {
@@ -648,15 +651,39 @@ const MatchConvo = () => {
   const sendMessage = async () => {
     if (!newMessageText.trim() && !selectedPuzzleLink) return;
 
+    const optimisticText = newMessageText.trim();
+    const optimisticPuzzleType = selectedPuzzleLink ? selectedPuzzleType : null;
+    const optimisticPuzzleLink = selectedPuzzleLink || null;
+    const optimisticId = `optimistic-${Date.now()}`;
+
+    // Clear inputs and show message immediately before waiting for server
+    setNewMessageText('');
+    setSelectedPuzzleLink('');
+    setMessages((prev) => {
+      const optimistic = {
+        id: optimisticId,
+        sender_id: userInfo?.id,
+        receiver_id: null,
+        text: optimisticText || null,
+        read: false,
+        puzzle_type: optimisticPuzzleType,
+        puzzle_link: optimisticPuzzleLink,
+        timestamp: new Date().toISOString(),
+        _optimistic: true,
+      };
+      return [...prev, optimistic];
+    });
+    InteractionManager.runAfterInteractions(() => scrollToBottom(true));
+
     try {
       const token = await AsyncStorage.getItem('token');
       if (!token) return navigation.navigate('Login');
 
       const bodyData = {};
-      if (newMessageText.trim()) bodyData.message = newMessageText.trim();
-      if (selectedPuzzleLink) {
-        bodyData.puzzle_type = selectedPuzzleType;
-        bodyData.puzzle_link = selectedPuzzleLink;
+      if (optimisticText) bodyData.message = optimisticText;
+      if (optimisticPuzzleLink) {
+        bodyData.puzzle_type = optimisticPuzzleType;
+        bodyData.puzzle_link = optimisticPuzzleLink;
       }
 
       const res = await fetchWithRetry(`${API_BASE_URL}/conversation/${matchId}`, {
@@ -666,12 +693,15 @@ const MatchConvo = () => {
       });
 
       if (res.status === 403) {
+        // Roll back the optimistic message
+        setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
         exitConversationDueToAccessLoss();
         return;
       }
 
       if (res.ok || res.status === 201) {
         const data = await res.json();
+        // Replace optimistic message with confirmed server state
         const normalized = normalizeMessages(data.messages || []);
         messageSnapshotRef.current = getMessageSnapshot(normalized);
         setMessages(normalized);
@@ -681,8 +711,6 @@ const MatchConvo = () => {
         }
         clearTypingIdleClearTimer();
         postTyping(false);
-        setNewMessageText('');
-        setSelectedPuzzleLink('');
         InteractionManager.runAfterInteractions(() => {
           scrollToBottom(true);
         });
@@ -700,10 +728,14 @@ const MatchConvo = () => {
           }
         }
       } else {
+        // Roll back the optimistic message on server error
+        setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
         const errorData = await res.json().catch(() => ({}));
         Alert.alert('Error', errorData.error || 'Failed to send message');
       }
     } catch (err) {
+      // Roll back the optimistic message on network error
+      setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
       console.error(err);
       Alert.alert('Error', 'Failed to send message');
     }
