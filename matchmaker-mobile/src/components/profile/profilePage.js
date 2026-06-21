@@ -11,12 +11,16 @@ import { Ionicons } from '@expo/vector-icons';
 import { EditToolbar } from './components/editToolbar';
 import ImageCropModal from './components/ImageCropModal';
 import { getRoleAccentColor, getRoleBackgroundTint } from '../layout/components/RoleHeaderBanner';
+import DaterDropdown from '../layout/daterDropdown';
 
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { UserContext } from '../../context/UserContext';
 import { shouldSuppressAuthErrors } from '../../utils/authSession';
 
+const MATCHMAKER_SCREEN_BG = '#f3f4f6';
+
 const ProfilePage = () => {
+  const insets = useSafeAreaInsets();
   const route = useRoute();
   const { userId, matchProfile } = route.params || {};
   const { user: contextUser, setUser: setContextUser, setIsProfileEditing } = useContext(UserContext);
@@ -347,6 +351,29 @@ const ProfilePage = () => {
     }, [setIsProfileEditing])
   );
 
+  const handleDaterChange = async () => {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) return;
+
+      const res = await fetch(`${API_BASE_URL}/profile/`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return;
+
+      const data = await res.json();
+      if (data?.user) {
+        setUser(data.user);
+        setContextUser(data.user);
+      }
+      if (data?.referrer) {
+        setReferrer(data.referrer);
+      }
+    } catch (err) {
+      console.error('Error refreshing user after dater change:', err);
+    }
+  };
+
   if (loading) {
     const loadingColor = getRoleAccentColor(user?.role || 'matchmaker');
     return (
@@ -367,17 +394,24 @@ const ProfilePage = () => {
 
   const accentColor = getRoleAccentColor(user.role);
   const backgroundTint = getRoleBackgroundTint(user.role);
-  const overlayTopPadding = !matchProfile
-    ? (editing ? (user.role === 'matchmaker' ? 28 : 20) : (user.role === 'matchmaker' ? 96 : 56))
-    : 0;
+  const isMatchmaker = user.role === 'matchmaker';
+  const showMatchmakerChrome = isMatchmaker && !matchProfile && !editing;
+  const screenBackground = showMatchmakerChrome ? MATCHMAKER_SCREEN_BG : backgroundTint;
+  const headerTopPadding = showMatchmakerChrome ? insets.top + 4 : insets.top + 8;
+  const contentTopPadding = showMatchmakerChrome
+    ? 0
+    : editing
+      ? 0
+      : isMatchmaker
+        ? 12
+        : 56;
 
   return (
-    <SafeAreaView
+    <View
       style={[
         styles.container,
         editing && styles.containerWithToolbar,
-        { backgroundColor: backgroundTint },
-        { paddingTop: overlayTopPadding },
+        { backgroundColor: screenBackground },
       ]}
     >
       {matchProfile && !editing && (
@@ -396,9 +430,46 @@ const ProfilePage = () => {
         />
       )}
 
+      {showMatchmakerChrome ? (
+        <>
+          <View
+            style={[
+              styles.screenHeader,
+              styles.screenHeaderMatchmaker,
+              { paddingTop: headerTopPadding },
+            ]}
+          >
+            <Image
+              source={require('../../../assets/matchmate_logo.png')}
+              style={styles.headerLogo}
+              accessibilityLabel="Matchmate logo"
+            />
+            <TouchableOpacity
+              style={styles.headerActionButton}
+              onPress={() => setEditing(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Edit profile"
+            >
+              <Ionicons name="create-outline" size={22} color="#374151" />
+            </TouchableOpacity>
+          </View>
+          <View style={styles.choosingSection}>
+            <DaterDropdown
+              userInfo={user}
+              onDaterChange={handleDaterChange}
+              showLabel
+            />
+          </View>
+        </>
+      ) : null}
+
       <ScrollView
         ref={scrollViewRef}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[
+          styles.content,
+          showMatchmakerChrome && styles.contentMatchmaker,
+          !showMatchmakerChrome && { paddingTop: contentTopPadding },
+        ]}
         scrollEventThrottle={16}
         onScroll={(event) => {
           parentScrollOffsetYRef.current = event.nativeEvent.contentOffset.y;
@@ -435,16 +506,6 @@ const ProfilePage = () => {
                   </View>
                 )}
               </View>
-              {!editing && (
-                <TouchableOpacity
-                  style={styles.editIconButton}
-                  onPress={() => setEditing(true)}
-                  accessibilityRole="button"
-                  accessibilityLabel="Edit profile"
-                >
-                  <Ionicons name="create-outline" size={24} color={accentColor} />
-                </TouchableOpacity>
-              )}
             </View>
 
             {editing && (
@@ -555,7 +616,7 @@ const ProfilePage = () => {
           cropCompleteRef.current = null;
         }}
       />
-    </SafeAreaView>
+    </View>
   );
 };
 
@@ -572,13 +633,42 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
     paddingHorizontal: 16,
   },
-  dropdownContainer: {
-    position: 'absolute',
-    top: 50,
-    left: 20,
-    right: 20,
-    zIndex: 100,
-    marginBottom: 16,
+  contentMatchmaker: {
+    paddingTop: 0,
+    paddingHorizontal: 20,
+  },
+  screenHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingBottom: 8,
+  },
+  screenHeaderMatchmaker: {
+    backgroundColor: 'transparent',
+  },
+  headerLogo: {
+    width: 44,
+    height: 44,
+    resizeMode: 'contain',
+  },
+  headerActionButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#ffffff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  choosingSection: {
+    paddingHorizontal: 20,
+    paddingBottom: 4,
+    zIndex: 10,
   },
   loadingContainer: {
     flex: 1,
@@ -602,9 +692,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 16,
     padding: 8,
-  },
-  editIconButton: {
-    marginLeft: 'auto',
   },
   matchmakerEditCard: {
     marginTop: 8,
@@ -693,12 +780,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#6c5ce7',
     marginBottom: 16,
-  },
-  daterDropdownWrapper: {
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 8,
-    zIndex: 10,
   },
   backButton: {
     flexDirection: 'row',

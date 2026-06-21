@@ -22,6 +22,7 @@ import ToggleConversationsMatcher from './toggleConversationsMatcher';
 import { useMatches } from './hooks/useMatches';
 import { useUserInfo } from './hooks/useUserInfo';
 import { getRoleAccentColor, getRoleBackgroundTint } from '../layout/components/RoleHeaderBanner';
+import DaterDropdown from '../layout/daterDropdown';
 import { UserContext } from '../../context/UserContext';
 import { useNotifications } from '../../context/NotificationContext';
 import { shouldSuppressAuthErrors } from '../../utils/authSession';
@@ -85,7 +86,7 @@ const Conversations = () => {
   const listInnerWidth = windowWidth - CONTENT_HORIZONTAL_PADDING * 2;
   const matchCardWidth = listInnerWidth;
 
-  const { user: contextUser } = useContext(UserContext);
+  const { user: contextUser, setUser: setContextUser } = useContext(UserContext);
   const [showDaterMatches, setShowDaterMatches] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [roleHint, setRoleHint] = useState(null);
@@ -518,6 +519,30 @@ const Conversations = () => {
     }
   };
 
+  const handleDaterChange = async () => {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) return;
+
+      const res = await fetch(`${API_BASE_URL}/profile/`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return;
+
+      const data = await res.json();
+      if (data?.user) {
+        setContextUser(data.user);
+        setUserInfo(data.user);
+      }
+      if (data?.referrer) {
+        setReferrer(data.referrer);
+      }
+      await fetchMatches();
+    } catch (err) {
+      console.error('Error refreshing user after dater change:', err);
+    }
+  };
+
   if (loading) {
     const loadingRole = userInfo?.role || roleHint || 'user';
     const loadingColor = getRoleAccentColor(loadingRole);
@@ -540,9 +565,10 @@ const Conversations = () => {
       : 0);
   const accentColor = getRoleAccentColor(userInfo?.role || 'matchmaker');
   const backgroundTint = getRoleBackgroundTint(userInfo?.role || 'matchmaker');
-  const overlayTopPadding = userInfo?.role === 'matchmaker' ? 140 : 56;
-  const filterButtonTop =
-    userInfo?.role === 'matchmaker' ? insets.top + 6 : overlayTopPadding + 8;
+  const isMatchmaker = userInfo?.role === 'matchmaker';
+  const isDater = userInfo?.role === 'user';
+  const headerTopPadding = isMatchmaker ? insets.top + 4 : 56;
+  const filterButtonTop = isDater ? headerTopPadding + 8 : undefined;
   const isPendingEmptyState =
     userInfo?.role === 'matchmaker' &&
     showDaterMatches &&
@@ -557,26 +583,57 @@ const Conversations = () => {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: backgroundTint, paddingTop: overlayTopPadding }]}>
-      <TouchableOpacity
-        style={[styles.filterButton, { top: filterButtonTop }]}
-        onPress={() => {
-          setConversationFilterDraft({ ...conversationFilters });
-          setShowConversationFilter(true);
-        }}
-        accessibilityLabel="Open conversation filters"
-      >
-        <Ionicons name="options-outline" size={24} color="#1f2937" />
-        {activeConversationFilterCount > 0 ? (
-          <View style={[styles.filterBadge, { backgroundColor: accentColor }]}>
-            <Text style={styles.filterBadgeText}>{activeConversationFilterCount}</Text>
+    <View style={[styles.container, { backgroundColor: backgroundTint }]}>
+      {isMatchmaker ? (
+        <>
+          <View style={[styles.screenHeader, { paddingTop: headerTopPadding }]}>
+            <View style={styles.headerSpacer} />
+            <TouchableOpacity
+              style={styles.filterButtonInline}
+              onPress={() => {
+                setConversationFilterDraft({ ...conversationFilters });
+                setShowConversationFilter(true);
+              }}
+              accessibilityLabel="Open conversation filters"
+            >
+              <Ionicons name="options-outline" size={22} color="#374151" />
+              {activeConversationFilterCount > 0 ? (
+                <View style={[styles.filterBadge, { backgroundColor: accentColor }]}>
+                  <Text style={styles.filterBadgeText}>{activeConversationFilterCount}</Text>
+                </View>
+              ) : null}
+            </TouchableOpacity>
           </View>
-        ) : null}
-      </TouchableOpacity>
+          <View style={styles.choosingSection}>
+            <DaterDropdown
+              userInfo={userInfo || contextUser}
+              onDaterChange={handleDaterChange}
+              showLabel
+            />
+          </View>
+        </>
+      ) : (
+        <TouchableOpacity
+          style={[styles.filterButton, { top: filterButtonTop }]}
+          onPress={() => {
+            setConversationFilterDraft({ ...conversationFilters });
+            setShowConversationFilter(true);
+          }}
+          accessibilityLabel="Open conversation filters"
+        >
+          <Ionicons name="options-outline" size={24} color="#1f2937" />
+          {activeConversationFilterCount > 0 ? (
+            <View style={[styles.filterBadge, { backgroundColor: accentColor }]}>
+              <Text style={styles.filterBadgeText}>{activeConversationFilterCount}</Text>
+            </View>
+          ) : null}
+        </TouchableOpacity>
+      )}
       <ScrollView
-        style={styles.scrollView}
+        style={[styles.scrollView, isMatchmaker && styles.scrollViewMatchmaker]}
         contentContainerStyle={[
           styles.content,
+          isMatchmaker && styles.contentMatchmaker,
           (isPendingEmptyState || isDaterEmptyState) && styles.contentGrow,
         ]}
       >
@@ -803,12 +860,43 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fafafa',
-    paddingTop: 24,
+  },
+  screenHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingBottom: 4,
+  },
+  headerSpacer: {
+    width: 44,
+    height: 44,
+  },
+  choosingSection: {
+    paddingHorizontal: 20,
+    paddingBottom: 4,
+    zIndex: 10,
+  },
+  filterButtonInline: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#ffffff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
   },
   scrollView: {
     flex: 1,
     backgroundColor: 'transparent',
     paddingTop: 50,
+  },
+  scrollViewMatchmaker: {
+    paddingTop: 0,
   },
   filterButton: {
     position: 'absolute',
@@ -940,6 +1028,9 @@ const styles = StyleSheet.create({
     paddingTop: 20,
     paddingBottom: 20,
     paddingHorizontal: 16,
+  },
+  contentMatchmaker: {
+    paddingTop: 8,
   },
   contentGrow: {
     flexGrow: 1,

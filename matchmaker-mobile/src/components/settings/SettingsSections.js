@@ -1220,7 +1220,6 @@ const SettingsSections = () => {
       setSavedReferrals((prev) => [...prev, newDater]);
       setReferralCode('');
       await fetchUserProfile();
-      Alert.alert('Success', 'Referral code linked successfully');
     } catch (err) {
       console.error(err);
       Alert.alert('Error', 'Failed to link referral');

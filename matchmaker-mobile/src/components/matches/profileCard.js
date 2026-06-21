@@ -37,13 +37,11 @@ const ProfileCard = ({
   onSkip,
   isStackPreview = false,
   stackPreviewAligned = false,
-  onCardTopOffsetChange,
   // Optional; ignored (no “Linked dater” UI). Keeps older bundles / callers stable.
   isLinkedDater = false,
 }) => {
   const [photoIndex, setPhotoIndex] = useState(0);
   const [lightboxIndex, setLightboxIndex] = useState(null);
-  const [noteDismissed, setNoteDismissed] = useState(false);
   const scrollRef = useRef(null);
 
   const viewerUnit = preferredViewerUnit || userInfo?.unit;
@@ -124,7 +122,6 @@ const ProfileCard = ({
   useEffect(() => {
     setLightboxIndex(null);
     setPhotoIndex(0);
-    setNoteDismissed(false);
     if (!isHeroStackLayout) {
       scrollRef.current?.scrollTo({ x: 0, animated: false });
     }
@@ -133,30 +130,26 @@ const ProfileCard = ({
   const renderNoteSlot = () => {
     const hasNote = Boolean(profile.note?.trim());
     if (!hasNote) return null;
-    if (!isStackPreview && noteDismissed) return null;
 
-    if (isStackPreview && stackPreviewAligned) {
-      return (
-        <View style={styles.noteWrapper}>
-          <View style={[styles.noteBubble, styles.noteBubbleStackPreview]}>
-            <View style={styles.noteHeader}>
-              <Text style={[styles.noteLabel, styles.noteLabelStackPreview]}>
-                {hasMatchmakerMediation ? 'Matchmaker' : 'Note'}
-              </Text>
-            </View>
-            <Text style={[styles.noteText, styles.noteTextStackPreview]} numberOfLines={3}>
-              {profile.note}
-            </Text>
-          </View>
-        </View>
-      );
-    }
+    const noteBubbleStyles = [
+      styles.noteBubble,
+      styles.noteBubbleInCard,
+      isStackPreview && styles.noteBubbleStackPreview,
+    ];
+    const labelStyles = [
+      styles.noteLabel,
+      isStackPreview && styles.noteLabelStackPreview,
+    ];
+    const textStyles = [
+      styles.noteText,
+      isStackPreview && styles.noteTextStackPreview,
+    ];
 
-    if (isStackPreview) {
+    if (isStackPreview && !stackPreviewAligned) {
       return (
-        <View style={styles.notePreviewStrip}>
-          <View style={[styles.noteBubblePreview, styles.noteBubbleStackPreview]}>
-            <Text style={[styles.noteLabel, styles.noteLabelStackPreview]}>
+        <View style={styles.noteWrapperInCard}>
+          <View style={noteBubbleStyles}>
+            <Text style={labelStyles}>
               {hasMatchmakerMediation ? 'Matchmaker' : 'Note'}
             </Text>
           </View>
@@ -165,24 +158,17 @@ const ProfileCard = ({
     }
 
     return (
-      <View>
-        <View style={styles.noteWrapper}>
-          <View style={styles.noteBubble}>
-            <View style={styles.noteHeader}>
-              <Text style={styles.noteLabel}>
-                {hasMatchmakerMediation ? 'Matchmaker' : 'Note'}
-              </Text>
-              <TouchableOpacity
-                style={styles.noteCloseButton}
-                onPress={() => setNoteDismissed(true)}
-                accessibilityLabel="Dismiss note"
-                hitSlop={8}
-              >
-                <Ionicons name="close" size={16} color="#b0b8c4" />
-              </TouchableOpacity>
-            </View>
-            <Text style={styles.noteText}>{profile.note}</Text>
-          </View>
+      <View style={styles.noteWrapperInCard}>
+        <View style={noteBubbleStyles}>
+          <Text style={[labelStyles, styles.noteLabelSpacing]}>
+            {hasMatchmakerMediation ? 'Matchmaker' : 'Note'}
+          </Text>
+          <Text
+            style={textStyles}
+            numberOfLines={isStackPreview && stackPreviewAligned ? 3 : undefined}
+          >
+            {profile.note}
+          </Text>
         </View>
       </View>
     );
@@ -318,6 +304,7 @@ const ProfileCard = ({
 
   const hasNote = Boolean(profile.note?.trim());
   const isNoteOnlyPreview = isStackPreview && hasNote && !stackPreviewAligned;
+  const showNoteInCard = hasNote && (!isStackPreview || stackPreviewAligned || isNoteOnlyPreview);
 
   const renderInfoSection = () => (
     <View style={styles.infoSection}>
@@ -389,50 +376,48 @@ const ProfileCard = ({
 
   const cardContent = (
     <View style={[styles.cardOuter, isStackPreview && styles.cardOuterStackPreview]}>
-      {renderNoteSlot()}
-
-      {isNoteOnlyPreview ? null : (
       <View
         style={[styles.card, isStackPreview && styles.cardStackPreview]}
-        onLayout={
-          onCardTopOffsetChange
-            ? (event) => onCardTopOffsetChange(event.nativeEvent.layout.y)
-            : undefined
-        }
       >
-      <View
-        style={[
-          styles.imageSection,
-          isStackPreview && stackPreviewAligned && styles.imageSectionStackPreviewAligned,
-          isStackPreview && !isNoteOnlyPreview && styles.imageSectionStackPreviewMuted,
-          isHeroStackLayout &&
-            !stackPreviewAligned && { height: heroStackSectionHeight },
-        ]}
-      >
-        {imageUris.length > 0 ? (
-          isHeroStackLayout ? renderHeroStackImages() : renderCarouselImages()
-        ) : (
-          <View style={styles.heroPlaceholder}>
-            <Ionicons name="person" size={64} color="#d1d5db" />
-          </View>
-        )}
+        {showNoteInCard ? renderNoteSlot() : null}
 
-        {renderImageOverlays()}
-      </View>
+        {!isNoteOnlyPreview ? (
+          <>
+            <View
+              style={[
+                styles.imageSection,
+                showNoteInCard && styles.imageSectionBelowNote,
+                isStackPreview && stackPreviewAligned && styles.imageSectionStackPreviewAligned,
+                isStackPreview && !isNoteOnlyPreview && styles.imageSectionStackPreviewMuted,
+                isHeroStackLayout &&
+                  !stackPreviewAligned && { height: heroStackSectionHeight },
+              ]}
+            >
+              {imageUris.length > 0 ? (
+                isHeroStackLayout ? renderHeroStackImages() : renderCarouselImages()
+              ) : (
+                <View style={styles.heroPlaceholder}>
+                  <Ionicons name="person" size={64} color="#d1d5db" />
+                </View>
+              )}
 
-      {!isStackPreview ? (
-        <>
-          {renderInfoSection()}
-          <ImageLightboxModal
-            uris={imageUris}
-            index={lightboxIndex}
-            onIndexChange={setLightboxIndex}
-            onClose={() => setLightboxIndex(null)}
-          />
-        </>
-      ) : null}
+              {renderImageOverlays()}
+            </View>
+
+            {!isStackPreview ? (
+              <>
+                {renderInfoSection()}
+                <ImageLightboxModal
+                  uris={imageUris}
+                  index={lightboxIndex}
+                  onIndexChange={setLightboxIndex}
+                  onClose={() => setLightboxIndex(null)}
+                />
+              </>
+            ) : null}
+          </>
+        ) : null}
       </View>
-      )}
     </View>
   );
 
@@ -479,48 +464,24 @@ const styles = StyleSheet.create({
     maxHeight: STACK_ALIGNED_CARD_TOP_HEIGHT,
     overflow: 'hidden',
   },
-  noteWrapper: {
-    marginBottom: 10,
-    paddingLeft: 2,
-  },
-  notePreviewStrip: {
-    paddingLeft: 2,
-    marginTop: 2,
-  },
-  noteBubblePreview: {
-    flex: 1,
+  noteWrapperInCard: {
     backgroundColor: '#ffffff',
-    borderTopLeftRadius: 18,
-    borderTopRightRadius: 18,
-    borderBottomLeftRadius: 4,
-    borderBottomRightRadius: 4,
-    paddingHorizontal: 12,
-    paddingTop: 8,
-    paddingBottom: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 14,
-    elevation: 4,
   },
   noteBubble: {
-    flex: 1,
     backgroundColor: '#ffffff',
-    borderRadius: 18,
     paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: 14,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 14,
-    elevation: 4,
   },
-  noteHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 6,
+  noteBubbleInCard: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#f3f4f6',
+  },
+  imageSectionBelowNote: {
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
   },
   noteLabel: {
     fontSize: 11,
@@ -529,10 +490,8 @@ const styles = StyleSheet.create({
     color: '#ef4d73',
     textTransform: 'uppercase',
   },
-  noteCloseButton: {
-    padding: 2,
-    marginTop: -2,
-    marginRight: -2,
+  noteLabelSpacing: {
+    marginBottom: 6,
   },
   noteText: {
     color: '#374151',

@@ -83,7 +83,6 @@ const Match = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showNoteModal, setShowNoteModal] = useState(false);
-  const [cardTopOffset, setCardTopOffset] = useState(0);
   const [showMatchModal, setShowMatchModal] = useState(false);
   const [matchModalData, setMatchModalData] = useState(null);
   const [referrer, setReferrer] = useState(null);
@@ -208,12 +207,6 @@ const Match = () => {
     () => filterProfilesList(profiles),
     [profiles, filterProfilesList]
   );
-
-  const activeProfileId = filteredProfiles[currentIndex]?.id ?? null;
-
-  useEffect(() => {
-    setCardTopOffset(0);
-  }, [activeProfileId]);
 
   useEffect(() => {
     setCurrentIndex((i) => {
@@ -771,11 +764,7 @@ const Match = () => {
   const stackPreviewHeight = upcomingHasNote ? STACK_PREVIEW_PEEK_WITH_NOTE : STACK_PREVIEW_PEEK;
   const stackPreviewTop = bothNotesPreview
     ? -STACK_PREVIEW_ALIGNED_LIFT
-    : cardStackPreviewPadding + cardTopOffset - stackPreviewHeight + STACK_PREVIEW_PEEK_OFFSET;
-  const stackPreviewMaskHeight =
-    upcomingProfile && !upcomingHasNote && !bothNotesPreview
-      ? Math.max(0, cardTopOffset - STACK_PREVIEW_PEEK)
-      : 0;
+    : cardStackPreviewPadding - stackPreviewHeight + STACK_PREVIEW_PEEK_OFFSET;
 
   const dismissFilterSheet = () => {
     setFilterDraft({ ...matchFilters });
@@ -856,11 +845,10 @@ const Match = () => {
       </View>
       {isMatchmaker ? (
         <View style={styles.choosingSection}>
-          <Text style={styles.choosingLabel}>YOU&apos;RE CHOOSING FOR</Text>
           <DaterDropdown
             userInfo={userInfo || contextUser}
             onDaterChange={handleDaterChange}
-            variant="matchScreen"
+            showLabel
           />
         </View>
       ) : null}
@@ -922,17 +910,6 @@ const Match = () => {
                       />
                     </View>
                   </View>
-                  <View
-                    style={[
-                      styles.stackPreviewNoteMask,
-                      {
-                        top: cardStackPreviewPadding,
-                        height: stackPreviewMaskHeight,
-                        backgroundColor: screenBackground,
-                      },
-                    ]}
-                    pointerEvents="none"
-                  />
                 </>
               ) : null}
               <View style={styles.currentCard}>
@@ -943,7 +920,6 @@ const Match = () => {
                     userInfo?.role === 'matchmaker' ? referrer?.unit : undefined
                   }
                   onSkip={nextProfile}
-                  onCardTopOffsetChange={setCardTopOffset}
                 />
               </View>
             </View>
@@ -1274,13 +1250,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 4,
   },
-  choosingLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    letterSpacing: 1.2,
-    color: '#9ca3af',
-    marginBottom: 4,
-  },
   headerLogo: {
     width: 44,
     height: 44,
@@ -1337,12 +1306,6 @@ const styles = StyleSheet.create({
   stackPreviewScaled: {
     transform: [{ scale: STACK_PREVIEW_SCALE }],
     transformOrigin: 'top center',
-  },
-  stackPreviewNoteMask: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    zIndex: 1,
   },
   currentCard: {
     position: 'relative',

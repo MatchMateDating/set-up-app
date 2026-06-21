@@ -1,16 +1,28 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, Modal, ScrollView, Alert } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Image,
+  Modal,
+  Pressable,
+  Alert,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {API_BASE_URL } from '../../env';
+import { API_BASE_URL } from '../../env';
 import { getImageUrl } from '../profile/utils/profileUtils';
 
-const DaterDropdown = ({ userInfo, onDaterChange, variant = 'default' }) => {
-  const isMatchScreen = variant === 'matchScreen';
+const ACCENT_PURPLE = '#6c5ce7';
+
+const DaterDropdown = ({ userInfo, onDaterChange, showLabel = false }) => {
   const [open, setOpen] = useState(false);
   const [linkedDaters, setLinkedDaters] = useState([]);
   const [selectedDater, setSelectedDater] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [menuLayout, setMenuLayout] = useState(null);
+  const anchorRef = useRef(null);
 
   useEffect(() => {
     if (userInfo && userInfo.role === 'matchmaker') {
@@ -19,8 +31,6 @@ const DaterDropdown = ({ userInfo, onDaterChange, variant = 'default' }) => {
     }
   }, [userInfo?.id, userInfo?.referred_by_id, JSON.stringify(userInfo?.linked_daters || []), API_BASE_URL]);
 
-  // Update selected dater when userInfo.referrer_id or linkedDaters changes
-  // This ensures the dropdown stays in sync when navigating between pages
   useEffect(() => {
     if (!userInfo || userInfo.role !== 'matchmaker' || linkedDaters.length === 0) {
       return;
@@ -30,20 +40,16 @@ const DaterDropdown = ({ userInfo, onDaterChange, variant = 'default' }) => {
     let targetDater = null;
 
     if (currentSelectedId) {
-      targetDater = linkedDaters.find(d => d.id === parseInt(currentSelectedId));
-      // If referrer_id doesn't match any dater, fallback to first dater
+      targetDater = linkedDaters.find((d) => d.id === parseInt(currentSelectedId));
       if (!targetDater && linkedDaters.length > 0) {
         targetDater = linkedDaters[0];
       }
     } else if (linkedDaters.length > 0) {
-      // If referrer_id is null/undefined, use first dater
       targetDater = linkedDaters[0];
     }
 
-    // Always update to ensure sync - React will handle preventing unnecessary re-renders
     if (targetDater) {
-      setSelectedDater(prev => {
-        // Only update if different to avoid unnecessary re-renders
+      setSelectedDater((prev) => {
         if (!prev || prev.id !== targetDater.id) {
           return targetDater;
         }
@@ -80,19 +86,15 @@ const DaterDropdown = ({ userInfo, onDaterChange, variant = 'default' }) => {
         setSelectedDater(null);
       }
 
-      // Set selected dater based on userInfo.referrer_id
-      // The useEffect will handle syncing when userInfo changes
       const currentSelectedId = userInfo.referrer_id;
       if (currentSelectedId) {
-        const selected = daters.find(d => d.id === parseInt(currentSelectedId));
+        const selected = daters.find((d) => d.id === parseInt(currentSelectedId));
         if (selected) {
           setSelectedDater(selected);
         } else if (daters.length > 0) {
-          // Fallback to first dater if referrer_id doesn't match
           setSelectedDater(daters[0]);
         }
       } else if (daters.length > 0) {
-        // Set to first dater if referrer_id is null/undefined
         setSelectedDater(daters[0]);
       }
     } catch (err) {
@@ -134,44 +136,42 @@ const DaterDropdown = ({ userInfo, onDaterChange, variant = 'default' }) => {
         return;
       }
 
-      // Immediately update the selected dater for instant UI feedback
       setSelectedDater(dater);
       setOpen(false);
-      
-      // Call onDaterChange to refresh userInfo on all pages
+
       if (onDaterChange) {
         onDaterChange(dater.id);
       }
-      
-      // Also refresh userInfo in the dropdown's context by triggering a re-fetch
-      // This ensures the dropdown stays in sync even if parent components don't update
-      // We'll let the useEffect handle the sync when userInfo updates
     } catch (err) {
       console.error('Error setting selected dater:', err);
       Alert.alert('Error', 'Failed to set selected dater');
     }
   };
 
+  const handleToggleOpen = () => {
+    if (open) {
+      setOpen(false);
+      return;
+    }
+    anchorRef.current?.measureInWindow((x, y, width, height) => {
+      setMenuLayout({ x, y: y + height + 4, width });
+      setOpen(true);
+    });
+  };
+
+  const closeMenu = () => {
+    setOpen(false);
+  };
+
   if (!userInfo || userInfo.role !== 'matchmaker' || loading) {
     return null;
   }
 
-  const headerSingleStyle = [
-    styles.headerSingle,
-    isMatchScreen && styles.headerSingleMatchScreen,
-  ];
-  const headerStyle = [
-    styles.header,
-    isMatchScreen && styles.headerMatchScreen,
-    open && styles.headerOpen,
-  ];
-  const imageStyle = [styles.image, isMatchScreen && styles.imageMatchScreen];
-  const nameStyle = [styles.name, isMatchScreen && styles.nameMatchScreen];
-
   if (linkedDaters.length === 0) {
     return (
-      <View style={styles.container}>
-        <View style={headerSingleStyle}>
+      <View style={styles.wrapper}>
+        {showLabel ? <Text style={styles.label}>YOU&apos;RE CHOOSING FOR</Text> : null}
+        <View style={styles.headerSingle}>
           <Text style={styles.placeholder}>No daters available</Text>
         </View>
       </View>
@@ -179,178 +179,160 @@ const DaterDropdown = ({ userInfo, onDaterChange, variant = 'default' }) => {
   }
 
   const selected = selectedDater || linkedDaters[0];
+  const isMulti = linkedDaters.length > 1;
+
+  const renderAvatar = (dater, size = 'md') => (
+    dater?.first_image ? (
+      <Image
+        source={{ uri: getImageUrl(dater.first_image, API_BASE_URL) }}
+        style={size === 'sm' ? styles.avatarSm : styles.avatar}
+      />
+    ) : (
+      <View style={[size === 'sm' ? styles.avatarSm : styles.avatar, styles.avatarPlaceholder]} />
+    )
+  );
 
   return (
-    <View style={styles.container}>
-      {linkedDaters.length === 1 ? (
-        <View style={headerSingleStyle}>
-          {selected?.first_image ? (
-            <>
-              <Image
-                source={{ uri: getImageUrl(selected.first_image, API_BASE_URL) }}
-                style={imageStyle}
-              />
-              <Text style={nameStyle}>{selected.name}</Text>
-            </>
-          ) : (
-            <Text style={styles.placeholder}>Select a dater</Text>
-          )}
-        </View>
-      ) : (
-        <>
+    <View style={styles.wrapper}>
+      {showLabel ? <Text style={styles.label}>YOU&apos;RE CHOOSING FOR</Text> : null}
+
+      <View style={styles.dropdownAnchor} ref={anchorRef} collapsable={false}>
+        {isMulti ? (
           <TouchableOpacity
-            style={headerStyle}
-            onPress={() => setOpen(!open)}
+            style={[styles.header, open && styles.headerOpen]}
+            onPress={handleToggleOpen}
+            activeOpacity={0.85}
           >
-            {selected?.first_image ? (
-              <>
-                <Image
-                  source={{ uri: getImageUrl(selected.first_image, API_BASE_URL) }}
-                  style={imageStyle}
-                />
-                <Text style={nameStyle}>{selected.name}</Text>
-              </>
-            ) : (
-              <Text style={styles.placeholder}>Select a dater</Text>
-            )}
+            {renderAvatar(selected)}
+            <Text style={styles.name} numberOfLines={1}>
+              {selected?.name || 'Select a dater'}
+            </Text>
             <Ionicons
               name={open ? 'chevron-up' : 'chevron-down'}
-              size={16}
+              size={18}
               color="#9ca3af"
-              style={styles.chevron}
             />
           </TouchableOpacity>
+        ) : (
+          <View style={styles.headerSingle}>
+            {renderAvatar(selected)}
+            <Text style={styles.name} numberOfLines={1}>
+              {selected?.name || 'Select a dater'}
+            </Text>
+          </View>
+        )}
+      </View>
 
-          <Modal
-            visible={open}
-            transparent={true}
-            animationType="fade"
-            onRequestClose={() => setOpen(false)}
-          >
-            <TouchableOpacity
-              style={styles.modalOverlay}
-              activeOpacity={1}
-              onPress={() => setOpen(false)}
+      {open && isMulti && menuLayout ? (
+        <Modal visible transparent animationType="fade" onRequestClose={closeMenu}>
+          <View style={styles.modalRoot}>
+            <Pressable style={StyleSheet.absoluteFill} onPress={closeMenu} />
+            <View
+              style={[
+                styles.menu,
+                {
+                  top: menuLayout.y,
+                  left: menuLayout.x,
+                  width: menuLayout.width,
+                },
+              ]}
             >
-              <View style={styles.menu}>
-                <ScrollView>
-                  {linkedDaters.map((dater) => (
+              {linkedDaters.map((dater, index) => {
+                const isSelected = selectedDater?.id === dater.id;
+                return (
+                  <View key={dater.id}>
+                    {index > 0 ? <View style={styles.divider} /> : null}
                     <TouchableOpacity
-                      key={dater.id}
-                      style={[
-                        styles.option,
-                        selectedDater?.id === dater.id && styles.optionActive,
-                      ]}
+                      style={styles.option}
                       onPress={() => handleDaterSelect(dater)}
+                      activeOpacity={0.7}
                     >
-                      {dater.first_image ? (
-                        <Image
-                          source={{ uri: getImageUrl(dater.first_image, API_BASE_URL) }}
-                          style={styles.image}
-                        />
-                      ) : (
-                        <View style={[styles.image, styles.imagePlaceholder]} />
-                      )}
-                      <Text
-                        style={[
-                          styles.optionName,
-                          selectedDater?.id === dater.id && styles.optionNameActive,
-                        ]}
-                      >
+                      {renderAvatar(dater, 'sm')}
+                      <Text style={styles.optionName} numberOfLines={1}>
                         {dater.name}
                       </Text>
+                      {isSelected ? (
+                        <Ionicons name="checkmark" size={20} color={ACCENT_PURPLE} />
+                      ) : (
+                        <View style={styles.checkPlaceholder} />
+                      )}
                     </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-            </TouchableOpacity>
-          </Modal>
-        </>
-      )}
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        </Modal>
+      ) : null}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  wrapper: {
     position: 'relative',
     zIndex: 10,
+  },
+  label: {
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 1.2,
+    color: '#9ca3af',
+    marginBottom: 4,
+  },
+  dropdownAnchor: {
+    position: 'relative',
+    zIndex: 20,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    minHeight: 42,
+    borderRadius: 15,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    minHeight: 52,
+    gap: 10,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    elevation: 3,
   },
   headerOpen: {
-    borderColor: '#8b5cf6',
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
   },
   headerSingle: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    minHeight: 42,
-  },
-  image: {
-    width: 30,
-    height: 30,
     borderRadius: 15,
-    marginRight: 8,
-  },
-  imagePlaceholder: {
-    backgroundColor: '#f3f4f6',
-  },
-  name: {
-    fontSize: 14,
-    color: '#222',
-    flex: 1,
-  },
-  headerMatchScreen: {
-    borderRadius: 16,
-    borderWidth: 0,
     paddingHorizontal: 14,
     paddingVertical: 10,
     minHeight: 52,
+    gap: 10,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
     shadowRadius: 10,
     elevation: 3,
   },
-  headerSingleMatchScreen: {
-    borderRadius: 16,
-    borderWidth: 0,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    minHeight: 52,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    elevation: 3,
-  },
-  imageMatchScreen: {
+  avatar: {
     width: 36,
     height: 36,
     borderRadius: 18,
   },
-  nameMatchScreen: {
+  avatarSm: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+  },
+  avatarPlaceholder: {
+    backgroundColor: '#f3f4f6',
+  },
+  name: {
+    flex: 1,
     fontSize: 16,
     fontWeight: '700',
     color: '#111827',
@@ -359,47 +341,41 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#9ca3af',
   },
-  chevron: {
-    marginLeft: 6,
-  },
-  modalOverlay: {
+  modalRoot: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-start',
-    paddingTop: 100,
-    paddingHorizontal: 20,
   },
   menu: {
+    position: 'absolute',
     backgroundColor: '#ffffff',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderRadius: 15,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
-    shadowRadius: 20,
-    elevation: 5,
-    maxHeight: 300,
+    shadowRadius: 16,
+    elevation: 8,
+    overflow: 'hidden',
   },
   option: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-  },
-  optionActive: {
-    backgroundColor: '#f3e8ff',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 10,
   },
   optionName: {
-    fontSize: 14,
-    color: '#222',
     flex: 1,
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#111827',
   },
-  optionNameActive: {
-    color: '#6b21a8',
-    fontWeight: '600',
+  checkPlaceholder: {
+    width: 20,
+  },
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: '#e5e7eb',
+    marginHorizontal: 14,
   },
 });
 
 export default DaterDropdown;
-

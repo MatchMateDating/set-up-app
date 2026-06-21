@@ -41,8 +41,15 @@ function MainTabs() {
   const role = user?.role || 'matchmaker';
   const accentColor = getRoleAccentColor(role);
   const [activeTabName, setActiveTabName] = useState('Profile');
-  const hideRoleBanner = activeTabName === 'Matches';
-  const hideDaterDropdown = role === 'matchmaker' && activeTabName === 'Matches';
+  const hideRoleBanner =
+    activeTabName === 'Matches' ||
+    (role === 'matchmaker' &&
+      (activeTabName === 'Profile' || activeTabName === 'Conversations'));
+  const hideDaterDropdown =
+    role === 'matchmaker' &&
+    (activeTabName === 'Matches' ||
+      activeTabName === 'Profile' ||
+      activeTabName === 'Conversations');
 
   const handleOverlayDaterChange = async () => {
     try {
@@ -78,7 +85,11 @@ function MainTabs() {
           )}
           {role === 'matchmaker' && !hideDaterDropdown && (
             <View style={styles.dropdownOverlay}>
-              <DaterDropdown userInfo={user} onDaterChange={handleOverlayDaterChange} />
+              <DaterDropdown
+                userInfo={user}
+                onDaterChange={handleOverlayDaterChange}
+                showLabel
+              />
             </View>
           )}
         </View>
