@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -54,12 +54,26 @@ const ProfileInfoCard = ({
 }) => {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showHeightModal, setShowHeightModal] = useState(false);
+  const firstNameRef = useRef(null);
+  const lastNameRef = useRef(null);
   const accentColor = getRoleAccentColor(user?.role || 'matchmaker');
   const editAccentColor = editing ? '#ef4d73' : accentColor;
   const isBlendedPage = Boolean(pageBackgroundColor);
   const isThemedEdit = editing && isBlendedPage;
   const locationText = [user.city, user.state].filter(Boolean).join(', ');
   const birthParts = parseBirthdateParts(formData.birthdate);
+  const birthdateFieldParts =
+    heightUnit === 'ft'
+      ? [
+          { key: 'month', value: birthParts.month, placeholder: 'MM' },
+          { key: 'day', value: birthParts.day, placeholder: 'DD' },
+          { key: 'year', value: birthParts.year, placeholder: 'YYYY' },
+        ]
+      : [
+          { key: 'day', value: birthParts.day, placeholder: 'DD' },
+          { key: 'month', value: birthParts.month, placeholder: 'MM' },
+          { key: 'year', value: birthParts.year, placeholder: 'YYYY' },
+        ];
   const fontFamily =
     formData.profileStyle === 'constitution' ? 'Pinyon Script' : formData.fontFamily;
   const imageLayout = normalizeImageLayout(formData.imageLayout);
@@ -87,8 +101,9 @@ const ProfileInfoCard = ({
     </Text>
   );
 
-  const renderInput = (props) => (
+  const renderInput = ({ ref, style, ...props }) => (
     <TextInput
+      ref={ref}
       {...props}
       style={[
         isThemedEdit ? styles.editInput : styles.input,
@@ -96,7 +111,7 @@ const ProfileInfoCard = ({
           borderColor: isThemedEdit ? '#E5E7EB' : DATER_SURFACE_BORDER,
         },
         fieldBackgroundStyle,
-        props.style,
+        style,
         { fontFamily },
       ]}
     />
@@ -185,8 +200,12 @@ const ProfileInfoCard = ({
 
       {renderEditLabel('Name', !TOP_IMAGE_LAYOUTS.includes(imageLayout))}
       {renderInput({
+        ref: firstNameRef,
         value: formData.first_name,
         onChangeText: (v) => update('first_name', v),
+        returnKeyType: 'next',
+        onSubmitEditing: () => lastNameRef.current?.focus(),
+        blurOnSubmit: false,
       })}
       {Boolean(fieldErrors?.first_name) && (
         <Text style={styles.validationError}>{fieldErrors.first_name}</Text>
@@ -194,8 +213,10 @@ const ProfileInfoCard = ({
 
       {renderEditLabel('Last Name')}
       {renderInput({
+        ref: lastNameRef,
         value: formData.last_name,
         onChangeText: (v) => update('last_name', v),
+        returnKeyType: 'done',
       })}
       {Boolean(fieldErrors?.last_name) && (
         <Text style={styles.validationError}>{fieldErrors.last_name}</Text>
@@ -237,60 +258,6 @@ const ProfileInfoCard = ({
           </Text>
         </View>
       ) : null}
-
-      {renderEditLabel('Birthdate')}
-      <View style={styles.birthdateRow}>
-        {[
-          { key: 'day', value: birthParts.day, placeholder: 'DD' },
-          { key: 'month', value: birthParts.month, placeholder: 'MM' },
-          { key: 'year', value: birthParts.year, placeholder: 'YYYY' },
-        ].map((part) => (
-          <TouchableOpacity
-            key={part.key}
-            style={[
-              isThemedEdit ? styles.editInput : styles.input,
-              styles.birthdatePart,
-              isBlendedPage && {
-                borderColor: isThemedEdit ? '#E5E7EB' : DATER_SURFACE_BORDER,
-              },
-              fieldBackgroundStyle,
-            ]}
-            onPress={() => setShowDatePicker(true)}
-            activeOpacity={0.8}
-          >
-            <Text
-              style={[
-                part.value ? styles.dateText : styles.datePlaceholder,
-                { fontFamily },
-              ]}
-            >
-              {part.value || part.placeholder}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-      {Boolean(fieldErrors?.birthdate) && (
-        <Text style={styles.validationError}>{fieldErrors.birthdate}</Text>
-      )}
-
-      <BirthdatePickerModal
-        visible={showDatePicker}
-        birthdateIso={formData.birthdate || ''}
-        onRequestClose={() => setShowDatePicker(false)}
-        onSave={(iso) => {
-          update('birthdate', iso);
-          setShowDatePicker(false);
-        }}
-        accentColor={editAccentColor}
-      />
-
-      {renderEditLabel('Gender')}
-      <SelectGender
-        selected={formData.gender}
-        onChange={(v) => update('gender', v)}
-        accentColor={editAccentColor}
-        surfaceColor={isThemedEdit ? '#ffffff' : isBlendedPage ? themeBackgroundColor : undefined}
-      />
 
       {renderEditLabel('Height')}
       <View style={styles.heightUnitRow}>
@@ -350,6 +317,56 @@ const ProfileInfoCard = ({
       {Boolean(fieldErrors?.height) && (
         <Text style={styles.validationError}>{fieldErrors.height}</Text>
       )}
+
+      {renderEditLabel('Birthdate')}
+      <View style={styles.birthdateRow}>
+        {birthdateFieldParts.map((part) => (
+          <TouchableOpacity
+            key={part.key}
+            style={[
+              isThemedEdit ? styles.editInput : styles.input,
+              styles.birthdatePart,
+              isBlendedPage && {
+                borderColor: isThemedEdit ? '#E5E7EB' : DATER_SURFACE_BORDER,
+              },
+              fieldBackgroundStyle,
+            ]}
+            onPress={() => setShowDatePicker(true)}
+            activeOpacity={0.8}
+          >
+            <Text
+              style={[
+                part.value ? styles.dateText : styles.datePlaceholder,
+                { fontFamily },
+              ]}
+            >
+              {part.value || part.placeholder}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+      {Boolean(fieldErrors?.birthdate) && (
+        <Text style={styles.validationError}>{fieldErrors.birthdate}</Text>
+      )}
+
+      <BirthdatePickerModal
+        visible={showDatePicker}
+        birthdateIso={formData.birthdate || ''}
+        onRequestClose={() => setShowDatePicker(false)}
+        onSave={(iso) => {
+          update('birthdate', iso);
+          setShowDatePicker(false);
+        }}
+        accentColor={editAccentColor}
+      />
+
+      {renderEditLabel('Gender')}
+      <SelectGender
+        selected={formData.gender}
+        onChange={(v) => update('gender', v)}
+        accentColor={editAccentColor}
+        surfaceColor={isThemedEdit ? '#ffffff' : isBlendedPage ? themeBackgroundColor : undefined}
+      />
 
       {renderEditLabel('About Me')}
       {renderInput({

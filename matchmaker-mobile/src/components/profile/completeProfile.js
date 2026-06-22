@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext, useCallback } from 'react';
+import React, { useState, useEffect, useContext, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -890,8 +890,62 @@ const CompleteProfile = () => {
   const isDaterBlendedLayout = !isMatchmakerProfileSetup && step >= 1 && step <= 3;
   const screenBg = isDaterBlendedLayout ? DATER_SCREEN_BG : setupScreenBg;
   const headerBg = isDaterBlendedLayout ? DATER_SCREEN_BG : setupHeaderBg;
-  const fixedFooterPaddingBottom = Math.max(insets.bottom, 8) + 16;
+  const bottomInset = Math.max(insets.bottom, 8);
+  const stepFooterVerticalPadding = 16;
+  const stepFooterHeight = 56 + bottomInset + stepFooterVerticalPadding * 2;
   const hasFixedFooter = step === 1 || isDaterPreviewStep;
+  const keyboardAvoidingEnabled = step === 1 || step === 3;
+
+  const previewProfile = useMemo(
+    () => ({
+      id: user?.id,
+      first_name: formData.first_name,
+      last_name: formData.last_name,
+      birthdate: formData.birthdate,
+      gender: formData.gender,
+      bio: formData.bio,
+      city: user?.city ?? '',
+      state: user?.state ?? '',
+      show_location: formData.show_location,
+      images,
+      height: formatHeight(formData, heightUnit),
+      unit: heightUnit === 'ft' ? 'imperial' : 'metric',
+      imageLayout: normalizeImageLayout(formData.imageLayout),
+      profileStyle: formData.profileStyle,
+    }),
+    [
+      user?.id,
+      user?.city,
+      user?.state,
+      formData.first_name,
+      formData.last_name,
+      formData.birthdate,
+      formData.gender,
+      formData.bio,
+      formData.show_location,
+      formData.imageLayout,
+      formData.profileStyle,
+      images,
+      heightUnit,
+      formData.heightFeet,
+      formData.heightInches,
+      formData.heightMeters,
+      formData.heightCentimeters,
+    ]
+  );
+
+  const previewUserInfo = useMemo(
+    () => ({
+      role: 'user',
+      unit: heightUnit === 'ft' ? 'imperial' : 'metric',
+    }),
+    [heightUnit]
+  );
+
+  const goBackToStep1 = useCallback(() => {
+    setStep(1);
+    saveStepToBackend(1);
+  }, []);
 
   const proceedToStep3 = async () => {
     try {
@@ -917,9 +971,11 @@ const CompleteProfile = () => {
   };
 
   return (
-    <KeyboardAvoidingView
+    <View style={[styles.screen, { backgroundColor: screenBg }]}>
+      <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={[styles.screen, { backgroundColor: screenBg }]}
+        style={styles.screenBody}
+        enabled={keyboardAvoidingEnabled}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
         <View style={[styles.fixedHeader, { backgroundColor: headerBg }]}>
@@ -945,7 +1001,7 @@ const CompleteProfile = () => {
           contentContainerStyle={[
             styles.container,
             isDaterBlendedLayout && step !== 1 && styles.containerPreview,
-            hasFixedFooter && { paddingBottom: fixedFooterPaddingBottom + 72 },
+            hasFixedFooter && { paddingBottom: stepFooterHeight + 8 },
           ]}
           keyboardShouldPersistTaps="handled"
           scrollEventThrottle={16}
@@ -1061,26 +1117,8 @@ const CompleteProfile = () => {
           {!isMatchmakerProfileSetup && step === 2 && (
             <View>
               <ProfileCard
-                profile={{
-                  id: user?.id,
-                  first_name: formData.first_name,
-                  last_name: formData.last_name,
-                  birthdate: formData.birthdate,
-                  gender: formData.gender,
-                  bio: formData.bio,
-                  city: user?.city ?? '',
-                  state: user?.state ?? '',
-                  show_location: formData.show_location,
-                  images,
-                  height: formatHeight(formData, heightUnit),
-                  unit: heightUnit === 'ft' ? 'imperial' : 'metric',
-                  imageLayout: normalizeImageLayout(formData.imageLayout),
-                  profileStyle: formData.profileStyle,
-                }}
-                userInfo={{
-                  role: 'user',
-                  unit: heightUnit === 'ft' ? 'imperial' : 'metric',
-                }}
+                profile={previewProfile}
+                userInfo={previewUserInfo}
                 blendWithBackground
               />
             </View>
@@ -1190,59 +1228,66 @@ const CompleteProfile = () => {
             </View>
           )}
         </ScrollView>
+      </KeyboardAvoidingView>
 
-        {step === 1 && (
-          <View
-            style={[
-              styles.stepFooter,
-              { backgroundColor: screenBg, paddingBottom: fixedFooterPaddingBottom },
-            ]}
-          >
+      {step === 1 && (
+        <View
+          style={[
+            styles.stepFooter,
+            {
+              backgroundColor: screenBg,
+              paddingBottom: bottomInset + stepFooterVerticalPadding,
+            },
+          ]}
+        >
             {isMatchmakerProfileSetup ? (
               loading ? (
                 <ActivityIndicator size="large" color={setupAccentColor} />
               ) : (
                 <TouchableOpacity
-                  style={[styles.nextBtn, styles.stepFooterBtn, { backgroundColor: setupAccentColor }]}
+                  style={[styles.stepFooterPrimaryBtn, { backgroundColor: setupAccentColor }]}
                   onPress={saveMatchmakerProfile}
                 >
                   <Text style={styles.nextBtnText}>Continue</Text>
                 </TouchableOpacity>
               )
             ) : (
-              <TouchableOpacity style={[styles.nextBtn, styles.stepFooterBtn]} onPress={saveStep1}>
+              <TouchableOpacity style={styles.stepFooterPrimaryBtn} onPress={saveStep1}>
                 <Text style={styles.nextBtnText}>Next</Text>
               </TouchableOpacity>
             )}
           </View>
         )}
 
-        {isDaterPreviewStep && (
-          <View
-            style={[
-              styles.stepFooter,
-              { backgroundColor: screenBg, paddingBottom: fixedFooterPaddingBottom },
-            ]}
-          >
-            <View style={[styles.rowBetween, styles.stepFooterActions]}>
-              <TouchableOpacity
-                style={[styles.secondaryBtn, styles.stepFooterBtn]}
-                onPress={() => {
-                  setStep(1);
-                  saveStepToBackend(1);
-                }}
-              >
-                <Text style={styles.secondaryBtnText}>Back</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.nextBtn, styles.stepFooterBtn]}
-                onPress={proceedToStep3}
-              >
-                <Text style={styles.nextBtnText}>Next</Text>
-              </TouchableOpacity>
-            </View>
+      {isDaterPreviewStep && (
+        <View
+          style={[
+            styles.stepFooter,
+            {
+              backgroundColor: screenBg,
+              minHeight: stepFooterHeight,
+              paddingBottom: bottomInset + stepFooterVerticalPadding,
+            },
+          ]}
+        >
+          <View style={styles.stepFooterRow}>
+            <TouchableOpacity
+              style={styles.stepFooterSecondaryBtn}
+              onPress={goBackToStep1}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.secondaryBtnText}>Back</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.stepFooterActionBtn}
+              onPress={proceedToStep3}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.nextBtnText}>Next</Text>
+            </TouchableOpacity>
           </View>
-        )}
+        </View>
+      )}
 
       <ImageCropModal
         key={cropKey}
@@ -1256,7 +1301,7 @@ const CompleteProfile = () => {
           setPendingCropQueue([]);
         }}
       />
-    </KeyboardAvoidingView>
+    </View>
   );
 };
 
@@ -1290,6 +1335,9 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: '#ffeef4',
+  },
+  screenBody: {
+    flex: 1,
   },
   fixedHeader: {
     backgroundColor: '#ffe6ee',
@@ -1398,15 +1446,38 @@ const styles = StyleSheet.create({
   },
   stepFooter: {
     paddingHorizontal: 20,
-    paddingTop: 12,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: 'rgba(0, 0, 0, 0.06)',
+    paddingTop: 16,
+    justifyContent: 'center',
   },
-  stepFooterActions: {
-    marginTop: 0,
+  stepFooterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
-  stepFooterBtn: {
-    marginTop: 0,
+  stepFooterPrimaryBtn: {
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: '#ef4d73',
+    justifyContent: 'center',
+    alignItems: 'center',
+    alignSelf: 'stretch',
+  },
+  stepFooterSecondaryBtn: {
+    flex: 1,
+    height: 48,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#ef4d73',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  stepFooterActionBtn: {
+    flex: 1,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: '#ef4d73',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   nextBtn: {
     backgroundColor: '#ef4d73',
