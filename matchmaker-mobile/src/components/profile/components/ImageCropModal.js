@@ -740,7 +740,7 @@ const styles = StyleSheet.create({
   doneText: {
     fontSize: 17,
     fontWeight: '700',
-    color: '#6c5ce7',
+    color: '#ef4d73',
   },
   disabledText: {
     opacity: 0.4,
