@@ -36,7 +36,7 @@ import { games } from '../puzzles/puzzlesPage';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 import { getImageUrl } from '../profile/utils/profileUtils';
-import { getRoleAccentColor } from '../layout/components/RoleHeaderBanner';
+import { DATER_SCREEN_BG, getRoleAccentColor } from '../layout/components/RoleHeaderBanner';
 import { runOnJS } from 'react-native-reanimated';
 import { setActiveMatchId, useNotifications } from '../../context/NotificationContext';
 import { UserContext } from '../../context/UserContext';
@@ -58,6 +58,29 @@ function formatMessageTimestamp(isoString) {
     return `Yesterday, ${d.toLocaleTimeString([], timeOpt)}`;
   }
   return d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ', ' + d.toLocaleTimeString([], timeOpt);
+}
+
+function formatBubbleTime(isoString) {
+  if (!isoString) return '';
+  const d = new Date(isoString);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function formatDateSeparator(isoString) {
+  if (!isoString) return '';
+  const d = new Date(isoString);
+  if (Number.isNaN(d.getTime())) return '';
+  const day = d.getDate();
+  const month = d.toLocaleDateString([], { month: 'short' }).toUpperCase();
+  return `${day} ${month}`;
+}
+
+function getDateKey(isoString) {
+  if (!isoString) return '';
+  const d = new Date(isoString);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toDateString();
 }
 
 function normalizeMessages(rawMessages) {
@@ -880,6 +903,10 @@ const MatchConvo = () => {
   const isBlindFromMatchInfo = hasBlindValueFromMatchInfo && matchInfo?.blind_match === 'Blind';
   const effectiveIsBlind = hasBlindValueFromMatchInfo ? isBlindFromMatchInfo : !!isBlind;
   const accentColor = getRoleAccentColor(userInfo?.role || 'matchmaker');
+  const isDaterToDaterChat =
+    userInfo?.role === 'user' && matchInfo?.status === 'matched';
+  const daterAccent = getRoleAccentColor('user');
+  const canSendDaterMessage = Boolean(newMessageText.trim() || selectedPuzzleLink);
 
   const typingBannerText = useMemo(() => {
     if (!othersTyping.length) return null;
@@ -893,6 +920,85 @@ const MatchConvo = () => {
     if (labels.length === 2) return `${labels[0]} and ${labels[1]} are typing…`;
     return `${labels.slice(0, -1).join(', ')}, and ${labels[labels.length - 1]} are typing…`;
   }, [othersTyping, userInfo?.role]);
+
+  const quizForName = useMemo(() => {
+    if (userInfo?.role === 'matchmaker') {
+      const linked =
+        matchInfo?.linked_dater?.first_name != null
+          ? String(matchInfo.linked_dater.first_name).trim()
+          : '';
+      if (linked) return linked;
+      const referrer =
+        referrerInfo?.first_name != null ? String(referrerInfo.first_name).trim() : '';
+      if (referrer) return referrer;
+    }
+    const self =
+      contextUser?.first_name != null
+        ? String(contextUser.first_name).trim()
+        : userInfo?.first_name != null
+          ? String(userInfo.first_name).trim()
+          : '';
+    return self || null;
+  }, [
+    userInfo?.role,
+    userInfo?.first_name,
+    contextUser?.first_name,
+    matchInfo?.linked_dater?.first_name,
+    referrerInfo?.first_name,
+  ]);
+
+  const openPuzzle = useCallback(
+    (puzzleLink) => {
+      if (!puzzleLink) return;
+      AsyncStorage.setItem('activeMatchId', matchId.toString());
+      navigation.navigate(puzzleLink, {
+        matchId: matchId.toString(),
+        forName: quizForName,
+      });
+    },
+    [matchId, navigation, quizForName]
+  );
+
+  const resolvePuzzleLink = useCallback((msg) => {
+    if (msg?.puzzle_link) return msg.puzzle_link;
+    const game = games.find((g) => g.name === msg?.puzzle_type);
+    return game?.path || null;
+  }, []);
+
+  const renderPuzzlePlayButton = useCallback(
+    (msg, mine, { dater = false } = {}) => {
+      const puzzleLink = resolvePuzzleLink(msg);
+      if (!msg?.puzzle_type || !puzzleLink) return null;
+
+      const label = `Click here to play "${msg.puzzle_type}"`;
+      const accent = dater ? daterAccent : accentColor;
+
+      if (dater) {
+        return (
+          <TouchableOpacity
+            style={[styles.daterPuzzlePlayBtn, mine ? styles.daterPuzzlePlayBtnMine : styles.daterPuzzlePlayBtnTheirs]}
+            onPress={() => openPuzzle(puzzleLink)}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="extension-puzzle-outline" size={16} color={accent} />
+            <Text style={[styles.daterPuzzlePlayBtnText, { color: accent }]}>{label}</Text>
+          </TouchableOpacity>
+        );
+      }
+
+      return (
+        <TouchableOpacity
+          style={[styles.puzzlePlayBtn, mine ? styles.puzzlePlayBtnMine : styles.puzzlePlayBtnTheirs]}
+          onPress={() => openPuzzle(puzzleLink)}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="game-controller-outline" size={18} color={accent} />
+          <Text style={[styles.puzzlePlayBtnText, { color: accent }]}>{label}</Text>
+        </TouchableOpacity>
+      );
+    },
+    [accentColor, daterAccent, openPuzzle, resolvePuzzleLink]
+  );
 
   // Matchmakers see this when both are involved and one approval is still outstanding.
   const showSpeakingWithMatchmakerForMatchmaker =
@@ -1075,7 +1181,6 @@ const MatchConvo = () => {
       }
 
       if (res.ok) {
-        Alert.alert('Success', 'Match removed successfully');
         navigation.navigate('Main', { screen: 'Conversations' });
       } else {
         const data = await res.json();
@@ -1201,7 +1306,6 @@ const MatchConvo = () => {
                 }
 
                 if (res.ok) {
-                  Alert.alert('Success', 'Match removed successfully');
                   navigation.navigate('Main', { screen: 'Conversations' });
                 } else {
                   const data = await res.json();
@@ -1297,10 +1401,48 @@ const MatchConvo = () => {
 
   return (
     <KeyboardAvoidingView
-        style={styles.container}
+        style={[styles.container, isDaterToDaterChat && styles.daterContainer]}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
       <Animated.View style={[{ flex: 1 }, animatedStyle]}>
+      {isDaterToDaterChat ? (
+        <View style={[styles.daterHeader, { paddingTop: insets.top + 8 }]}>
+          <TouchableOpacity style={styles.daterBackButton} onPress={goBackToConversations}>
+            <Ionicons name="chevron-back" size={26} color="#9ca3af" />
+          </TouchableOpacity>
+
+          {matchUser ? (
+            <TouchableOpacity
+              style={styles.daterHeaderProfile}
+              disabled={effectiveIsBlind}
+              activeOpacity={0.7}
+              onPress={() => navigation.navigate('ProfilePage', { userId: matchUser.id, matchProfile: true })}
+            >
+              {matchUser.first_image ? (
+                <Image
+                  source={{ uri: getImageUrl(matchUser.first_image, API_BASE_URL) }}
+                  style={styles.daterHeaderAvatar}
+                  blurRadius={effectiveIsBlind ? 40 : 0}
+                />
+              ) : (
+                <View style={[styles.daterHeaderAvatarPlaceholder, { backgroundColor: daterAccent }]}>
+                  <Text style={styles.placeholderText}>{matchUser.first_name?.[0] || '?'}</Text>
+                </View>
+              )}
+              <View style={styles.daterHeaderTextBlock}>
+                <Text style={styles.daterHeaderName}>{matchUser.first_name || `Match ${matchId}`}</Text>
+                <Text style={[styles.daterRoleLabel, { color: daterAccent }]}>DATER</Text>
+              </View>
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.daterHeaderProfile} />
+          )}
+
+          <TouchableOpacity style={styles.daterMenuButton} onPress={() => setMenuVisible(true)}>
+            <Ionicons name="ellipsis-vertical" size={20} color="#6b7280" />
+          </TouchableOpacity>
+        </View>
+      ) : (
       <View style={styles.header}>
         <View style={styles.headerTopRow}>
           <TouchableOpacity style={styles.backButton} onPress={goBackToConversations}>
@@ -1368,6 +1510,7 @@ const MatchConvo = () => {
           </TouchableOpacity>
         )}
       </View>
+      )}
 
       {/* Message countdown banner for matchmakers */}
       {userInfo?.role === 'matchmaker' && isPendingApproval && (
@@ -1395,10 +1538,10 @@ const MatchConvo = () => {
 
       <ScrollView
         ref={scrollViewRef}
-        style={{ flex: 1 }}
+        style={[{ flex: 1 }, isDaterToDaterChat && styles.daterMessagesScroll]}
         contentContainerStyle={{
-          ...styles.messagesContent,
-          paddingBottom: selectedPuzzleLink ? 1 : 0, // extra space if a puzzle is selected
+          ...(isDaterToDaterChat ? styles.daterMessagesContent : styles.messagesContent),
+          paddingBottom: selectedPuzzleLink ? 1 : 0,
         }}
         onScroll={handleScrollViewScroll}
         scrollEventThrottle={100}
@@ -1432,7 +1575,46 @@ const MatchConvo = () => {
         }}
       >
         {messages.length === 0 ? (
-          <Text style={styles.emptyText}>No messages yet. Say hi!</Text>
+          <Text style={[styles.emptyText, isDaterToDaterChat && styles.daterEmptyText]}>No messages yet. Say hi!</Text>
+        ) : isDaterToDaterChat ? (
+          (() => {
+            const elements = [];
+            let lastDateKey = null;
+
+            messages.forEach((msg, index) => {
+              const dateKey = getDateKey(msg.timestamp);
+              if (dateKey && dateKey !== lastDateKey) {
+                elements.push(
+                  <Text key={`date-${dateKey}-${index}`} style={styles.daterDateSeparator}>
+                    {formatDateSeparator(msg.timestamp)}
+                  </Text>
+                );
+                lastDateKey = dateKey;
+              }
+
+              const mine = isMine(msg);
+              const messageKey = msg.id ?? `${msg.sender_id || 'unknown'}-${msg.timestamp || index}-${index}`;
+
+              elements.push(
+                <View
+                  key={messageKey}
+                  style={[styles.daterMessageRow, mine ? styles.daterMessageRowMine : styles.daterMessageRowTheirs]}
+                >
+                  <View style={[styles.daterBubble, mine ? styles.daterBubbleMine : styles.daterBubbleTheirs]}>
+                    {msg.text ? (
+                      <Text style={[styles.daterMessageText, mine && styles.daterMessageTextMine]}>{msg.text}</Text>
+                    ) : null}
+                    {msg.puzzle_type ? renderPuzzlePlayButton(msg, mine, { dater: true }) : null}
+                  </View>
+                  <Text style={[styles.daterBubbleTime, mine && styles.daterBubbleTimeMine]}>
+                    {formatBubbleTime(msg.timestamp)}
+                  </Text>
+                </View>
+              );
+            });
+
+            return elements;
+          })()
         ) : (
           messages.map((msg, index) => {
             const mine = isMine(msg);
@@ -1443,15 +1625,7 @@ const MatchConvo = () => {
               <View key={messageKey} style={[styles.messageBubble, mine ? [styles.mine, { backgroundColor: accentColor }] : styles.theirs]}>
                 {!mine && <Text style={[styles.senderLabel, { color: accentColor }]}>{senderLabel}</Text>}
                 {msg.text && <Text style={[styles.messageText, mine && { color: '#fff' }]}>{msg.text}</Text>}
-                {msg.puzzle_type && (
-                  <TouchableOpacity style={styles.puzzleBubble} onPress={() => {
-                    AsyncStorage.setItem('activeMatchId', matchId.toString());
-                    navigation.navigate(msg.puzzle_link, { matchId: matchId.toString() });
-                  }}>
-                    <Ionicons name="game-controller-outline" size={20} color={accentColor} />
-                    <Text style={[styles.puzzleText, { color: accentColor }]}>Play {msg.puzzle_type}</Text>
-                  </TouchableOpacity>
-                )}
+                {msg.puzzle_type ? renderPuzzlePlayButton(msg, mine) : null}
                 <Text style={[styles.timestamp, mine && userInfo?.role === 'user' && styles.timestampMineDater]}>
                   {formatMessageTimestamp(msg.timestamp)}
                 </Text>
@@ -1460,20 +1634,49 @@ const MatchConvo = () => {
           })
         )}
         {typingBannerText ? (
-          <Text style={styles.typingIndicatorInScroll}>{typingBannerText}</Text>
+          <Text style={[styles.typingIndicatorInScroll, isDaterToDaterChat && styles.daterTypingIndicator]}>
+            {typingBannerText}
+          </Text>
         ) : null}
       </ScrollView>
 
       {selectedPuzzleLink ? (
-        <View style={styles.selectedPuzzlePreview}>
-          <Ionicons name="game-controller-outline" size={20} color={accentColor} />
-          <Text style={[styles.selectedPuzzleText, { color: accentColor }]}>{selectedPuzzleType}</Text>
+        <View style={[styles.selectedPuzzlePreview, isDaterToDaterChat && styles.daterSelectedPuzzlePreview]}>
+          <Ionicons name={isDaterToDaterChat ? 'extension-puzzle-outline' : 'game-controller-outline'} size={20} color={isDaterToDaterChat ? daterAccent : accentColor} />
+          <Text style={[styles.selectedPuzzleText, { color: isDaterToDaterChat ? daterAccent : accentColor }]}>{selectedPuzzleType}</Text>
           <TouchableOpacity onPress={() => { setSelectedPuzzleLink(''); setSelectedPuzzleType(games[0].name); }}>
             <Ionicons name="close" size={20} color="#666" />
           </TouchableOpacity>
         </View>
       ) : null}
 
+      {isDaterToDaterChat ? (
+        <View style={[styles.daterComposerRow, { paddingBottom: androidActionsBottomPadding }]}>
+          <View style={styles.daterComposerPill}>
+            <TextInput
+              style={styles.daterComposerInput}
+              value={newMessageText}
+              onChangeText={handleComposerChange}
+              placeholder="Message..."
+              placeholderTextColor="#9ca3af"
+              multiline
+            />
+            <TouchableOpacity
+              style={[styles.daterSendCircle, { backgroundColor: daterAccent }, !canSendDaterMessage && styles.daterSendCircleDisabled]}
+              onPress={sendMessage}
+              disabled={!canSendDaterMessage}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="paper-plane" size={16} color="#fff" style={styles.daterSendIcon} />
+            </TouchableOpacity>
+          </View>
+          <TouchableOpacity style={styles.daterPuzzleButton} onPress={() => setPuzzleSheetOpen(true)}>
+            <Ionicons name="extension-puzzle-outline" size={16} color={daterAccent} />
+            <Text style={[styles.daterPuzzleButtonText, { color: daterAccent }]}>Puzzle</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <>
       {userInfo?.role !== 'matchmaker' && (
         <TextInput
           style={styles.messageInput}
@@ -1517,32 +1720,48 @@ const MatchConvo = () => {
           <Text style={[styles.sendPuzzleButtonText, { color: accentColor }]}>Puzzle</Text>
         </TouchableOpacity>
       </View>
+        </>
+      )}
       </Animated.View>
 
       <Modal visible={puzzleSheetOpen} transparent animationType="slide" onRequestClose={() => setPuzzleSheetOpen(false)}>
         <Pressable style={styles.overlay} onPress={() => setPuzzleSheetOpen(false)} />
         <View style={[styles.sheet, { paddingBottom: androidSheetBottomPadding }]}>
-          <Text style={styles.sheetTitle}>Choose a Puzzle</Text>
+          <View style={styles.sheetHeader}>
+            <Text style={styles.sheetTitle}>Choose a Puzzle</Text>
+            <TouchableOpacity
+              style={styles.sheetCloseButton}
+              onPress={() => setPuzzleSheetOpen(false)}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Ionicons name="close" size={22} color="#374151" />
+            </TouchableOpacity>
+          </View>
           <FlatList
             data={games}
             keyExtractor={(item) => item.path}
-            renderItem={({ item }) => {
-              const isSelected = item.path === selectedPuzzleLink;
-              return (
-                <TouchableOpacity
-                  style={[styles.sheetItem, isSelected && styles.sheetItemSelected]}
-                  onPress={() => {
-                    setSelectedPuzzleType(item.name);
-                    setSelectedPuzzleLink(item.path);
-                    setPuzzleSheetOpen(false);
-                    setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 20);
-                  }}
-                >
-                  <Text style={[styles.sheetItemText, isSelected && styles.sheetItemTextSelected, isSelected && { color: accentColor }]}>{item.name}</Text>
-                  {isSelected && <Ionicons name="checkmark" size={20} color={accentColor} />}
-                </TouchableOpacity>
-              );
-            }}
+            contentContainerStyle={styles.sheetListContent}
+            scrollEnabled={false}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={styles.puzzleOptionCard}
+                activeOpacity={0.75}
+                onPress={() => {
+                  setSelectedPuzzleType(item.name);
+                  setSelectedPuzzleLink(item.path);
+                  setPuzzleSheetOpen(false);
+                  setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 20);
+                }}
+              >
+                <View style={[styles.puzzleOptionIconWrap, { backgroundColor: item.iconBg }]}>
+                  <Text style={styles.puzzleOptionIcon}>{item.icon}</Text>
+                </View>
+                <View style={styles.puzzleOptionTextBlock}>
+                  <Text style={styles.puzzleOptionTitle}>{item.name}</Text>
+                  <Text style={styles.puzzleOptionDescription}>{item.description}</Text>
+                </View>
+              </TouchableOpacity>
+            )}
           />
         </View>
       </Modal>
@@ -1701,8 +1920,27 @@ const styles = StyleSheet.create({
   theirs: { alignSelf: 'flex-start', backgroundColor: '#fff' },
   senderLabel: { fontSize: 12, fontWeight: '600', color: '#6c5ce7', marginBottom: 4 },
   messageText: { fontSize: 16, color: '#222' },
-  puzzleBubble: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8, padding: 8, backgroundColor: '#fafafa', borderRadius: 8 },
-  puzzleText: { fontSize: 14, color: '#6c5ce7', fontWeight: '600' },
+  puzzlePlayBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    backgroundColor: '#f3f4f6',
+  },
+  puzzlePlayBtnMine: {
+    backgroundColor: '#fff',
+  },
+  puzzlePlayBtnTheirs: {
+    backgroundColor: '#f3f4f6',
+  },
+  puzzlePlayBtnText: {
+    fontSize: 14,
+    fontWeight: '600',
+    flexShrink: 1,
+  },
   timestamp: { fontSize: 11, color: '#999', marginTop: 4 },
   timestampMineDater: { color: '#d1d5db' },
   selectedPuzzlePreview: {
@@ -1724,12 +1962,72 @@ const styles = StyleSheet.create({
   sendPuzzleButton: { flexDirection: 'row', alignItems: 'center', gap: 6, padding: 12, borderRadius: 20, backgroundColor: '#fafafa', borderWidth: 1, borderColor: '#6c5ce7' },
   sendPuzzleButtonText: { color: '#6c5ce7', fontSize: 14, fontWeight: '600' },
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
-  sheet: { backgroundColor: '#fff', padding: 16, borderTopLeftRadius: 16, borderTopRightRadius: 16, maxHeight: '50%' },
-  sheetTitle: { fontSize: 18, fontWeight: '700', marginBottom: 12, textAlign: 'center' },
-  sheetItem: { padding: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  sheetItemSelected: { backgroundColor: '#fafafa', borderRadius: 8 },
-  sheetItemText: { fontSize: 16, color: '#222' },
-  sheetItemTextSelected: { fontWeight: '700', color: '#6c5ce7' },
+  sheet: {
+    backgroundColor: '#F5F5F5',
+    paddingTop: 20,
+    paddingHorizontal: 20,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '55%',
+  },
+  sheetHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+    position: 'relative',
+  },
+  sheetTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
+    textAlign: 'center',
+  },
+  sheetCloseButton: {
+    position: 'absolute',
+    right: 0,
+    top: -2,
+    padding: 4,
+  },
+  sheetListContent: {
+    gap: 12,
+    paddingBottom: 8,
+  },
+  puzzleOptionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#ECECEC',
+    padding: 14,
+    gap: 14,
+  },
+  puzzleOptionIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  puzzleOptionIcon: {
+    fontSize: 24,
+  },
+  puzzleOptionTextBlock: {
+    flex: 1,
+    minWidth: 0,
+  },
+  puzzleOptionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 2,
+  },
+  puzzleOptionDescription: {
+    fontSize: 13,
+    color: '#6b7280',
+    lineHeight: 18,
+  },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fafafa' },
   loadingText: { marginTop: 12, fontSize: 16, color: '#6b7280' },
   leftEdgeSwipeHitArea: {
@@ -1740,6 +2038,215 @@ const styles = StyleSheet.create({
     width: 28,
     zIndex: 1200,
     backgroundColor: 'transparent',
+  },
+  daterContainer: {
+    backgroundColor: DATER_SCREEN_BG,
+  },
+  daterHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    paddingHorizontal: 12,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e8e8e8',
+    gap: 8,
+  },
+  daterBackButton: {
+    padding: 4,
+    marginRight: 2,
+  },
+  daterHeaderProfile: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    minWidth: 0,
+  },
+  daterHeaderAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+  },
+  daterHeaderAvatarPlaceholder: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  daterHeaderTextBlock: {
+    flex: 1,
+    minWidth: 0,
+  },
+  daterHeaderName: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  daterRoleLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.6,
+    marginTop: 1,
+  },
+  daterMenuButton: {
+    padding: 8,
+  },
+  daterMessagesScroll: {
+    backgroundColor: DATER_SCREEN_BG,
+  },
+  daterMessagesContent: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 8,
+  },
+  daterEmptyText: {
+    color: '#9ca3af',
+  },
+  daterDateSeparator: {
+    textAlign: 'center',
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#9ca3af',
+    letterSpacing: 0.4,
+    marginBottom: 16,
+    marginTop: 4,
+  },
+  daterMessageRow: {
+    marginBottom: 16,
+    maxWidth: '78%',
+  },
+  daterMessageRowMine: {
+    alignSelf: 'flex-end',
+    alignItems: 'flex-end',
+  },
+  daterMessageRowTheirs: {
+    alignSelf: 'flex-start',
+    alignItems: 'flex-start',
+  },
+  daterBubble: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    maxWidth: '100%',
+  },
+  daterBubbleMine: {
+    backgroundColor: '#ef4d73',
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+    borderBottomLeftRadius: 18,
+    borderBottomRightRadius: 4,
+  },
+  daterBubbleTheirs: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+    borderBottomLeftRadius: 4,
+    borderBottomRightRadius: 18,
+  },
+  daterMessageText: {
+    fontSize: 16,
+    lineHeight: 22,
+    color: '#1f2937',
+  },
+  daterMessageTextMine: {
+    color: '#fff',
+  },
+  daterPuzzlePlayBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+  },
+  daterPuzzlePlayBtnMine: {
+    backgroundColor: '#fff',
+  },
+  daterPuzzlePlayBtnTheirs: {
+    backgroundColor: '#FFF0F4',
+  },
+  daterPuzzlePlayBtnText: {
+    fontSize: 13,
+    fontWeight: '600',
+    flexShrink: 1,
+  },
+  daterBubbleTime: {
+    fontSize: 11,
+    color: '#9ca3af',
+    marginTop: 4,
+    marginLeft: 4,
+  },
+  daterBubbleTimeMine: {
+    marginLeft: 0,
+    marginRight: 4,
+  },
+  daterTypingIndicator: {
+    textAlign: 'center',
+    color: '#9ca3af',
+  },
+  daterSelectedPuzzlePreview: {
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#fadce6',
+  },
+  daterComposerRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    backgroundColor: '#fff',
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+  },
+  daterComposerPill: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    backgroundColor: '#f3f4f6',
+    borderRadius: 24,
+    paddingLeft: 16,
+    paddingRight: 4,
+    paddingVertical: 4,
+    minHeight: 44,
+  },
+  daterComposerInput: {
+    flex: 1,
+    fontSize: 16,
+    color: '#111827',
+    paddingVertical: 8,
+    maxHeight: 100,
+  },
+  daterSendCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+  daterSendCircleDisabled: {
+    opacity: 0.45,
+  },
+  daterSendIcon: {
+    marginLeft: 2,
+    marginTop: 1,
+  },
+  daterPuzzleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#ffe6ee',
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+    borderRadius: 20,
+    marginBottom: 2,
+  },
+  daterPuzzleButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
 

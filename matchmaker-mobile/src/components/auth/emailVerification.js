@@ -1,4 +1,4 @@
-import React, { useState, useContext, useEffect } from 'react';
+import React, { useState, useContext, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -29,6 +29,8 @@ const EmailVerificationScreen = () => {
   const [verificationToken, setVerificationToken] = useState('');
   const [loading, setLoading] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
+  const [codeInputFocused, setCodeInputFocused] = useState(false);
+  const codeInputRef = useRef(null);
 
   // Get identifier (email or phone) and verification method from route params
   const identifier = route.params?.identifier || route.params?.email || '';
@@ -225,17 +227,36 @@ const EmailVerificationScreen = () => {
           Please enter the verification code from your {verificationMethod === 'phone' ? 'text message' : 'email'} to continue.
         </Text>
 
-        <TextInput
-          style={styles.input}
-          placeholder="Enter verification code"
-          placeholderTextColor="#6b7280"
-          value={verificationToken}
-          onChangeText={setVerificationToken}
-          autoCapitalize="none"
-          autoCorrect={false}
-          keyboardType="default"
-          editable={!loading}
-        />
+        <View style={styles.inputWrapper}>
+          <TextInput
+            ref={codeInputRef}
+            style={[styles.input, verificationToken ? styles.inputWithCode : null]}
+            value={verificationToken}
+            onChangeText={setVerificationToken}
+            onFocus={() => {
+              setCodeInputFocused(true);
+              if (!verificationToken) {
+                requestAnimationFrame(() => {
+                  codeInputRef.current?.setNativeProps({
+                    selection: { start: 0, end: 0 },
+                  });
+                });
+              }
+            }}
+            onBlur={() => setCodeInputFocused(false)}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="default"
+            editable={!loading}
+            textAlign="center"
+            selectionColor="#6c5ce7"
+          />
+          {!verificationToken && !codeInputFocused ? (
+            <View style={styles.inputPlaceholder} pointerEvents="none">
+              <Text style={styles.inputPlaceholderText}>Enter verification code</Text>
+            </View>
+          ) : null}
+        </View>
 
         <TouchableOpacity
           style={[styles.verifyBtn, loading && styles.verifyBtnDisabled]}
@@ -323,18 +344,35 @@ const styles = StyleSheet.create({
     color: '#6b7280',
     lineHeight: 21,
   },
-  input: {
+  inputWrapper: {
+    position: 'relative',
+    marginBottom: 16,
     borderWidth: 1,
     borderColor: '#e0e0e0',
+    borderRadius: 10,
+    backgroundColor: '#fafafa',
+    minHeight: 48,
+  },
+  inputPlaceholder: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1,
+  },
+  inputPlaceholderText: {
+    fontSize: 16,
+    color: '#6b7280',
+  },
+  input: {
     paddingVertical: 14,
     paddingHorizontal: 16,
-    marginBottom: 16,
-    borderRadius: 10,
     fontSize: 16,
-    textAlign: 'center',
-    letterSpacing: 2,
     color: '#1a1a2e',
-    backgroundColor: '#fafafa',
+    backgroundColor: 'transparent',
+    minHeight: 48,
+  },
+  inputWithCode: {
+    letterSpacing: 2,
   },
   verifyBtn: {
     backgroundColor: '#6c5ce7',

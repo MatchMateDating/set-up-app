@@ -24,7 +24,7 @@ class User(db.Model):
     height = db.Column(db.String(10), nullable=True)
     fontFamily = db.Column(db.String(50), nullable=True, default='Arial')
     profileStyle = db.Column(db.String(20), nullable=True, default='classic')
-    imageLayout = db.Column(db.String(20), nullable=True, default='grid')
+    imageLayout = db.Column(db.String(20), nullable=True, default='topRow')
     avatar = db.Column(db.String(255), nullable=True)
     latitude = db.Column(db.Float, nullable=True)
     longitude = db.Column(db.Float, nullable=True)
@@ -173,7 +173,7 @@ class User(db.Model):
             "height": self.height,
             "fontFamily": self.fontFamily,
             "profileStyle": self.profileStyle,
-            "imageLayout": self.imageLayout,
+            "imageLayout": 'topRow' if self.imageLayout in (None, 'grid') else self.imageLayout,
             "images": [image.to_dict() for image in self.images],
             "preferredAgeMin": self.preferredAgeMin,
             "preferredAgeMax": self.preferredAgeMax,

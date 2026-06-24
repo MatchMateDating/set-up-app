@@ -17,14 +17,15 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import { API_BASE_URL } from '../../env';
-import { calculateAge, convertFtInToMetersCm, convertMetersCmToFtIn, formatHeight, getImageUrl, convertHeightForViewer } from './utils/profileUtils';
+import { calculateAge, convertFtInToMetersCm, convertMetersCmToFtIn, formatHeight, getImageUrl, convertHeightForViewer, normalizeImageLayout } from './utils/profileUtils';
 import ProfileInfoCard from './profileInfoCard';
+import ProfileCard from '../matches/profileCard';
 import PixelClouds from './components/PixelClouds';
 import PixelFlowers from './components/PixelFlowers';
 import PixelCactus from './components/PixelCactus';
 import { Ionicons } from '@expo/vector-icons';
 import { UserContext } from '../../context/UserContext';
-import { getRoleAccentColor } from '../layout/components/RoleHeaderBanner';
+import { DATER_SCREEN_BG, getRoleAccentColor } from '../layout/components/RoleHeaderBanner';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width: LIGHTBOX_WIN_W, height: LIGHTBOX_WIN_H } = Dimensions.get('window');
@@ -41,6 +42,7 @@ const Profile = ({
   parentScrollOffsetYRef,
   onRequestCrop,
   enableImageLightbox = false,
+  usePageLayout = false,
 }) => {
   const { setUser } = useContext(UserContext);
   const insets = useSafeAreaInsets();
@@ -61,7 +63,7 @@ const Profile = ({
     bio: '',
     fontFamily: 'Arial',
     profileStyle: 'classic',
-    imageLayout: 'grid',
+    imageLayout: 'topRow',
     show_location: false
   });
 
@@ -77,6 +79,11 @@ const Profile = ({
   const navigation = useNavigation();
   const scrollViewRef = useRef(null);
   const scrollOffsetYRef = useRef(0);
+  const onEditingFormDataRef = useRef(onEditingFormData);
+
+  useEffect(() => {
+    onEditingFormDataRef.current = onEditingFormData;
+  }, [onEditingFormData]);
 
   useEffect(() => {
     if (user) {
@@ -96,7 +103,7 @@ const Profile = ({
         preferredGenders: user.preferredGenders || [],
         fontFamily: user.fontFamily || 'Arial',
         profileStyle: user.profileStyle || 'classic',
-        imageLayout: user.imageLayout || 'grid',
+        imageLayout: normalizeImageLayout(user.imageLayout),
         show_location: user.show_location ?? false
       };
 
@@ -132,15 +139,6 @@ const Profile = ({
       }
     }
   }, [user]);
-
-  useEffect(() => {
-    if (editing && onEditingFormData) {
-      onEditingFormData({ formData, handleInputChange });
-    } else if (!editing && onEditingFormData) {
-      // Clear form data when editing is turned off
-      onEditingFormData(null);
-    }
-  }, [editing, formData, handleInputChange, onEditingFormData]);
 
   const handlePlaceholderClick = async () => {
     if (!editing) return;
@@ -314,7 +312,7 @@ const Profile = ({
         preferredGenders: formData.preferredGenders,
         fontFamily: formData.fontFamily,
         profileStyle: formData.profileStyle,
-        imageLayout: formData.imageLayout,
+        imageLayout: normalizeImageLayout(formData.imageLayout),
         show_location: formData.show_location,
         unit: heightUnit === 'ft' ? 'imperial' : 'metric',
       };
@@ -398,6 +396,22 @@ const Profile = ({
     setEditing(false);
   };
 
+  useEffect(() => {
+    const notify = onEditingFormDataRef.current;
+    if (!notify) return;
+
+    if (editing) {
+      notify({
+        formData,
+        handleInputChange,
+        handleFormSubmit,
+        handleCancel,
+      });
+    } else {
+      notify(null);
+    }
+  }, [editing, formData, handleInputChange]);
+
   const lightboxUris = useMemo(
     () =>
       (images || [])
@@ -475,6 +489,8 @@ const Profile = ({
     ''
   ).trim();
   const accentColor = getRoleAccentColor(user?.role || 'matchmaker');
+  const showInternalHeader = user.role === 'user' && !usePageLayout;
+  const showProfileCard = user.role === 'user' && usePageLayout && !editing;
   const openImageLightbox =
     enableImageLightbox && !editing
       ? (uri) => {
@@ -484,19 +500,23 @@ const Profile = ({
         }
       : undefined;
 
-  return (
+  const profileBodyStyle = [
+    styles.container,
+    framed && styles.framed,
+    !usePageLayout && formData.profileStyle === 'pixelCloud' && styles.pixelCloud,
+    !usePageLayout && formData.profileStyle === 'pixelFlower' && styles.pixelFlower,
+    !usePageLayout && formData.profileStyle === 'minimal' && styles.minimal,
+    !usePageLayout && formData.profileStyle === 'bold' && styles.bold,
+    !usePageLayout && formData.profileStyle === 'classic' && styles.classic,
+    usePageLayout && styles.pageLayoutContainer,
+  ];
+
+  const profileBody = (
     <>
-      <ScrollView
-        ref={scrollViewRef}
-        scrollEventThrottle={16}
-        onScroll={(event) => {
-          scrollOffsetYRef.current = event.nativeEvent.contentOffset.y;
-        }}
-        style={[styles.container, framed && styles.framed, formData.profileStyle === 'pixelCloud' && styles.pixelCloud, formData.profileStyle === 'pixelFlower' && styles.pixelFlower, formData.profileStyle === 'minimal' && styles.minimal, formData.profileStyle === 'bold' && styles.bold, formData.profileStyle === 'classic' && styles.classic]}>
-          {formData.profileStyle === 'pixelCloud' && <PixelClouds />}
-          {formData.profileStyle === 'pixelFlower' && <PixelFlowers />}
-          {formData.profileStyle === 'pixelCactus' && <PixelCactus />}
-          {user.role === 'user' && (
+          {!usePageLayout && formData.profileStyle === 'pixelCloud' && <PixelClouds />}
+          {!usePageLayout && formData.profileStyle === 'pixelFlower' && <PixelFlowers />}
+          {!usePageLayout && formData.profileStyle === 'pixelCactus' && <PixelCactus />}
+          {showInternalHeader && (
         <View style={styles.profileHeader}>
           <View style={styles.headerLeft}>
             <View style={styles.avatarCircle}>
@@ -557,7 +577,20 @@ const Profile = ({
         </View>
       )}
 
-      {user.role === 'user' && (
+      {showProfileCard ? (
+        <ProfileCard
+          profile={{
+            ...user,
+            images,
+            imageLayout: normalizeImageLayout(formData.imageLayout),
+            profileStyle: formData.profileStyle,
+          }}
+          userInfo={user}
+          blendWithBackground
+        />
+      ) : null}
+
+      {user.role === 'user' && !showProfileCard && (
           <ProfileInfoCard
             user={user}
             formData={formData}
@@ -576,6 +609,7 @@ const Profile = ({
             imageError={imageError}
             fieldErrors={fieldErrors}
             profileStyle={formData.profileStyle}
+            pageBackgroundColor={usePageLayout ? DATER_SCREEN_BG : undefined}
             scrollToBottom={(target, calendarBottomYInWindow) => {
                 const ref = parentScrollRef || scrollViewRef;
                 const activeScrollOffset =
@@ -600,8 +634,26 @@ const Profile = ({
           />
       )}
 
-      </ScrollView>
-      {editing && user.role === 'user' && (
+    </>
+  );
+
+  return (
+    <>
+      {usePageLayout ? (
+        <View style={profileBodyStyle}>{profileBody}</View>
+      ) : (
+        <ScrollView
+          ref={scrollViewRef}
+          scrollEventThrottle={16}
+          onScroll={(event) => {
+            scrollOffsetYRef.current = event.nativeEvent.contentOffset.y;
+          }}
+          style={profileBodyStyle}
+        >
+          {profileBody}
+        </ScrollView>
+      )}
+      {editing && user.role === 'user' && !usePageLayout && (
         <View style={styles.actionsOutsideCard}>
           <View style={styles.actions}>
             <TouchableOpacity style={[styles.saveBtn, { backgroundColor: accentColor }]} onPress={handleFormSubmit}>
@@ -841,6 +893,15 @@ const styles = StyleSheet.create({
   },
   classic: {
     backgroundColor: '#FFFFFF',
+  },
+  pageLayoutContainer: {
+    flex: 0,
+    flexGrow: 0,
+    backgroundColor: DATER_SCREEN_BG,
+    padding: 0,
+    borderRadius: 0,
+    borderWidth: 0,
+    overflow: 'visible',
   },
   imageLightboxRoot: {
     flex: 1,

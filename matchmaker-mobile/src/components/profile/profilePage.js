@@ -1,48 +1,51 @@
 import React, { useContext, useEffect, useState, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, Alert, ScrollView, Image, TouchableOpacity, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, Alert, ScrollView, Image, TouchableOpacity } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import { API_BASE_URL } from '../../env';
 import { subscribeToLocationUpdated } from '../auth/utils/startLocationWatcher';
 import Profile from './profile';
-import AvatarSelectorModal from './avatarSelectorModal';
-import { avatarMap } from './avatarSelectorModal';
+import ProfileCard from '../matches/profileCard';
 import { Ionicons } from '@expo/vector-icons';
 import { EditToolbar } from './components/editToolbar';
 import ImageCropModal from './components/ImageCropModal';
-import { getRoleAccentColor, getRoleBackgroundTint } from '../layout/components/RoleHeaderBanner';
+import {
+  DATER_SCREEN_BG,
+  getRoleAccentColor,
+  getRoleBackgroundTint,
+} from '../layout/components/RoleHeaderBanner';
+import DaterDropdown from '../layout/daterDropdown';
 
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { UserContext } from '../../context/UserContext';
 import { shouldSuppressAuthErrors } from '../../utils/authSession';
 
+const MATCHMAKER_SCREEN_BG = '#f3f4f6';
+/** Same reserve above the profile card as on the Matches tab. */
+const MATCHMAKER_CARD_STACK_PADDING_TOP = 32;
+
 const ProfilePage = () => {
+  const insets = useSafeAreaInsets();
   const route = useRoute();
   const { userId, matchProfile } = route.params || {};
-  const { user: contextUser, setUser: setContextUser, setIsProfileEditing } = useContext(UserContext);
+  const { user: contextUser, setIsProfileEditing } = useContext(UserContext);
   const [user, setUser] = useState(null);
   const [referrer, setReferrer] = useState(null);
   const [editing, setEditing] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [showAvatarModal, setShowAvatarModal] = useState(false);
-  const [avatar, setAvatar] = useState(null);
   const [profileFormData, setProfileFormData] = useState(null);
   const [profileHandleInputChange, setProfileHandleInputChange] = useState(null);
+  const [profileEditActions, setProfileEditActions] = useState(null);
   const [hasInitializedDater, setHasInitializedDater] = useState(false);
   const navigation = useNavigation();
   const scrollViewRef = useRef(null);
   const parentScrollOffsetYRef = useRef(0);
+  const profileEditActionsRef = useRef(null);
   const [cropModalVisible, setCropModalVisible] = useState(false);
   const [selectedImageUri, setSelectedImageUri] = useState(null);
   const [pendingCropUris, setPendingCropUris] = useState([]);
   const cropCompleteRef = useRef(null);
   const [cropKey, setCropKey] = useState(0);
-  const [matchmakerForm, setMatchmakerForm] = useState({ first_name: '', last_name: '' });
-  const [matchmakerFieldErrors, setMatchmakerFieldErrors] = useState({
-    first_name: '',
-    last_name: '',
-  });
-  const [savingMatchmakerProfile, setSavingMatchmakerProfile] = useState(false);
   const selectedDaterId = user?.referrer_id || user?.referred_by_id || null;
   const linkedDatersSignature = JSON.stringify(user?.linked_daters || []);
 
@@ -87,10 +90,6 @@ const ProfilePage = () => {
       const data = await res.json();
       setUser(data.user);
       setReferrer(data.referrer || null);
-      
-      if (data.user?.role === 'matchmaker') {
-        setAvatar(data.user.avatar || 'avatars/allyson_avatar.png');
-      }
     } catch (err) {
       console.error('Error loading profile:', err);
       if (await shouldSuppressAuthErrors()) return;
@@ -234,102 +233,52 @@ const ProfilePage = () => {
     }, [matchProfile])
   );
 
-  const handleAvatarClick = () => {
-    setShowAvatarModal(true);
-  };
-
-  useEffect(() => {
-    if (user?.role === 'matchmaker') {
-      setMatchmakerForm({
-        first_name: user.first_name || '',
-        last_name: user.last_name || '',
-      });
-    }
-  }, [user?.role, user?.first_name, user?.last_name]);
-
-  const handleMatchmakerCancel = () => {
-    setMatchmakerFieldErrors({ first_name: '', last_name: '' });
-    setMatchmakerForm({
-      first_name: user?.first_name || '',
-      last_name: user?.last_name || '',
-    });
-    setEditing(false);
-  };
-
-  const handleMatchmakerSave = async () => {
-    const nextErrors = {
-      first_name: !matchmakerForm.first_name?.trim() ? 'First name is required.' : '',
-      last_name: !matchmakerForm.last_name?.trim() ? 'Last name is required.' : '',
-    };
-    setMatchmakerFieldErrors(nextErrors);
-    if (nextErrors.first_name || nextErrors.last_name) {
-      return;
-    }
-
-    setSavingMatchmakerProfile(true);
-    try {
-      const token = await AsyncStorage.getItem('token');
-      if (!token) {
-        Alert.alert('Error', 'Please log in');
-        navigation.navigate('Login');
-        return;
-      }
-
-      const res = await fetch(`${API_BASE_URL}/profile/update`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          first_name: matchmakerForm.first_name.trim(),
-          last_name: matchmakerForm.last_name.trim(),
-        }),
-      });
-
-      if (res.status === 401) {
-        const data = await res.json();
-        if (data.error_code === 'TOKEN_EXPIRED') {
-          await AsyncStorage.removeItem('token');
-          navigation.navigate('Login');
-          return;
-        }
-      }
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        Alert.alert('Error', data.error || 'Failed to update profile');
-        return;
-      }
-
-      const updatedUser = await res.json();
-      setUser((prev) => ({ ...prev, ...updatedUser }));
-      setContextUser((prev) => ({ ...prev, ...updatedUser }));
-      await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
-      setEditing(false);
-      setMatchmakerFieldErrors({ first_name: '', last_name: '' });
-    } catch (err) {
-      console.error(err);
-      Alert.alert('Error', 'Failed to update profile');
-    } finally {
-      setSavingMatchmakerProfile(false);
-    }
-  };
-
   const handleSave = () => {
     fetchProfile();
     setEditing(false);
     setProfileFormData(null);
     setProfileHandleInputChange(null);
+    setProfileEditActions(null);
+    profileEditActionsRef.current = null;
   };
 
-  const handleEditingFormData = (data) => {
+  const handleEditingFormData = useCallback((data) => {
     if (data) {
-      setProfileFormData(data.formData);
-      setProfileHandleInputChange(() => data.handleInputChange);
+      setProfileFormData((prev) => {
+        if (prev === data.formData) return prev;
+        if (prev && JSON.stringify(prev) === JSON.stringify(data.formData)) return prev;
+        return data.formData;
+      });
+
+      setProfileHandleInputChange((prev) => {
+        if (prev === data.handleInputChange) return prev;
+        return data.handleInputChange;
+      });
+
+      if (profileEditActionsRef.current) {
+        profileEditActionsRef.current.onSave = data.handleFormSubmit;
+        profileEditActionsRef.current.onCancel = data.handleCancel;
+      } else {
+        const actions = {
+          onSave: data.handleFormSubmit,
+          onCancel: data.handleCancel,
+        };
+        profileEditActionsRef.current = actions;
+        setProfileEditActions(actions);
+      }
     } else {
+      profileEditActionsRef.current = null;
       setProfileFormData(null);
       setProfileHandleInputChange(null);
+      setProfileEditActions(null);
+    }
+  }, []);
+
+  const handleEditBack = () => {
+    if (profileEditActions?.onCancel) {
+      profileEditActions.onCancel();
+    } else {
+      setEditing(false);
     }
   };
 
@@ -348,9 +297,10 @@ const ProfilePage = () => {
   );
 
   if (loading) {
-    const loadingColor = getRoleAccentColor(user?.role || 'matchmaker');
+    const loadingColor = getRoleAccentColor(user?.role || contextUser?.role || 'matchmaker');
+    const loadingBg = getRoleBackgroundTint(user?.role || contextUser?.role || 'matchmaker');
     return (
-      <View style={styles.loadingContainer}>
+      <View style={[styles.loadingContainer, { backgroundColor: loadingBg }]}>
         <ActivityIndicator size="large" color={loadingColor} />
         <Text style={styles.loadingText}>Loading user profile...</Text>
       </View>
@@ -367,17 +317,35 @@ const ProfilePage = () => {
 
   const accentColor = getRoleAccentColor(user.role);
   const backgroundTint = getRoleBackgroundTint(user.role);
-  const overlayTopPadding = !matchProfile
-    ? (editing ? (user.role === 'matchmaker' ? 28 : 20) : (user.role === 'matchmaker' ? 96 : 56))
-    : 0;
+  const isMatchmaker = user.role === 'matchmaker';
+  const isDater = user.role === 'user';
+  const showMatchmakerChrome = isMatchmaker && !matchProfile && !editing;
+  const showDaterChrome = isDater && !matchProfile && !editing;
+  const showDaterEditChrome = isDater && !matchProfile && editing;
+  const useSharedDaterDropdown = showMatchmakerChrome && route.name === 'Profile';
+  const screenBackground = showMatchmakerChrome
+    ? MATCHMAKER_SCREEN_BG
+    : showDaterChrome || (isDater && !matchProfile)
+      ? DATER_SCREEN_BG
+      : backgroundTint;
+  const headerTopPadding = showMatchmakerChrome || showDaterChrome ? insets.top + 4 : insets.top + 8;
+  const bottomInset = Math.max(insets.bottom, 8);
+  const editFooterVerticalPadding = 16;
+  const tabBarReplacementHeight = 56 + bottomInset + editFooterVerticalPadding * 2;
+  const contentTopPadding = showMatchmakerChrome || showDaterChrome
+    ? 0
+    : editing
+      ? 0
+      : isMatchmaker
+        ? 12
+        : 56;
 
   return (
-    <SafeAreaView
+    <View
       style={[
         styles.container,
         editing && styles.containerWithToolbar,
-        { backgroundColor: backgroundTint },
-        { paddingTop: overlayTopPadding },
+        { backgroundColor: screenBackground },
       ]}
     >
       {matchProfile && !editing && (
@@ -387,22 +355,116 @@ const ProfilePage = () => {
         </TouchableOpacity>
       )}
       
-      {editing && profileFormData && profileHandleInputChange && (
-        <EditToolbar
-          formData={profileFormData}
-          handleInputChange={profileHandleInputChange}
-          editing={editing}
-          extendToTop={true}
-        />
-      )}
+      {showDaterEditChrome ? (
+        <View style={[styles.editFixedTop, { paddingTop: headerTopPadding }]}>
+          <View style={styles.editHeader}>
+            <TouchableOpacity
+              style={styles.editHeaderBack}
+              onPress={handleEditBack}
+              accessibilityRole="button"
+              accessibilityLabel="Back"
+            >
+              <Ionicons name="chevron-back" size={24} color="#374151" />
+            </TouchableOpacity>
+            <Text style={styles.editHeaderTitle}>Edit Profile</Text>
+            <View style={styles.editHeaderSide} />
+          </View>
+          {profileFormData && profileHandleInputChange ? (
+            <EditToolbar
+              formData={profileFormData}
+              handleInputChange={profileHandleInputChange}
+              editing={editing}
+              accentColorOverride={accentColor}
+              sticky
+            />
+          ) : null}
+        </View>
+      ) : null}
+
+      {showMatchmakerChrome ? (
+        <>
+          <View
+            style={[
+              styles.screenHeader,
+              styles.screenHeaderMatchmaker,
+              { paddingTop: headerTopPadding },
+            ]}
+          >
+            <View style={styles.headerSide}>
+              <Image
+                source={require('../../../assets/matchmate_logo.png')}
+                style={styles.headerLogo}
+                accessibilityLabel="Matchmate logo"
+              />
+            </View>
+            <Text style={styles.headerTitle}>Dater Profile</Text>
+            <View style={[styles.headerSide, styles.headerSideRight]} />
+          </View>
+          <View style={styles.choosingSection}>
+            {!useSharedDaterDropdown ? (
+              <DaterDropdown
+                userInfo={user}
+                onDaterChange={async () => {
+                  await fetchProfile();
+                }}
+                showLabel
+              />
+            ) : null}
+          </View>
+        </>
+      ) : null}
+
+      {showDaterChrome ? (
+        <View
+          style={[
+            styles.screenHeader,
+            styles.screenHeaderDater,
+            { paddingTop: headerTopPadding },
+          ]}
+        >
+          <View style={styles.headerSide}>
+            <Image
+              source={require('../../../assets/matchmate_logo.png')}
+              style={styles.headerLogo}
+              accessibilityLabel="Matchmate logo"
+            />
+          </View>
+          <Text style={styles.headerTitle}>Your Profile</Text>
+          <View style={[styles.headerSide, styles.headerSideRight]}>
+            <TouchableOpacity
+              style={styles.headerActionButton}
+              onPress={() => setEditing(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Edit profile"
+            >
+              <Ionicons name="create-outline" size={22} color={accentColor} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : null}
 
       <ScrollView
         ref={scrollViewRef}
-        contentContainerStyle={styles.content}
+        style={[
+          showMatchmakerChrome || showDaterEditChrome ? styles.scrollView : undefined,
+          isDater && !matchProfile ? { backgroundColor: DATER_SCREEN_BG } : undefined,
+        ]}
+        contentContainerStyle={[
+          styles.content,
+          showMatchmakerChrome && styles.contentMatchmaker,
+          isDater && !matchProfile && !showDaterEditChrome && styles.contentDater,
+          showDaterEditChrome && styles.contentDaterEdit,
+          !showMatchmakerChrome && !showDaterChrome && !showDaterEditChrome && !(isDater && !matchProfile) && {
+            paddingTop: contentTopPadding,
+          },
+        ]}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
         onScroll={(event) => {
           parentScrollOffsetYRef.current = event.nativeEvent.contentOffset.y;
         }}
+        nestedScrollEnabled
       >
         {user.role === 'user' && (
           <Profile
@@ -415,116 +477,64 @@ const ProfilePage = () => {
             parentScrollRef={scrollViewRef}
             parentScrollOffsetYRef={parentScrollOffsetYRef}
             onRequestCrop={handleRequestCrop}
+            usePageLayout={showDaterChrome || (isDater && !matchProfile && editing)}
           />
         )}
 
         {user.role === 'matchmaker' && !matchProfile && (
-          <>
-            <View style={styles.profileHeader}>
-              <TouchableOpacity onPress={handleAvatarClick} disabled={editing}>
-                <Image
-                  source={avatarMap[avatar] || avatarMap['avatars/allyson_avatar.png']}
-                  style={styles.avatar}
+          referrer ? (
+            <View
+              style={[
+                styles.cardStack,
+                { paddingTop: MATCHMAKER_CARD_STACK_PADDING_TOP },
+              ]}
+            >
+              <View style={styles.currentCard}>
+                <ProfileCard
+                  profile={referrer}
+                  userInfo={user}
+                  blendWithBackground
+                  hideProfileThumbnail
                 />
-              </TouchableOpacity>
-              <View style={styles.profileInfo}>
-                {!editing && (
-                  <View style={styles.nameSection}>
-                    <Text style={styles.name}>{user.first_name || 'Matchmaker'}</Text>
-                  </View>
-                )}
               </View>
-              {!editing && (
-                <TouchableOpacity
-                  style={styles.editIconButton}
-                  onPress={() => setEditing(true)}
-                  accessibilityRole="button"
-                  accessibilityLabel="Edit profile"
-                >
-                  <Ionicons name="create-outline" size={24} color={accentColor} />
-                </TouchableOpacity>
-              )}
             </View>
-
-            {editing && (
-              <View style={styles.matchmakerEditCard}>
-                <Text style={styles.label}>First Name</Text>
-                <TextInput
-                  style={styles.input}
-                  value={matchmakerForm.first_name}
-                  onChangeText={(value) => {
-                    setMatchmakerForm((prev) => ({ ...prev, first_name: value }));
-                    if (value.trim()) {
-                      setMatchmakerFieldErrors((prev) => ({ ...prev, first_name: '' }));
-                    }
-                  }}
-                  autoCapitalize="words"
-                  returnKeyType="next"
-                />
-                {Boolean(matchmakerFieldErrors.first_name) && (
-                  <Text style={styles.validationError}>{matchmakerFieldErrors.first_name}</Text>
-                )}
-
-                <Text style={styles.label}>Last Name</Text>
-                <TextInput
-                  style={styles.input}
-                  value={matchmakerForm.last_name}
-                  onChangeText={(value) => {
-                    setMatchmakerForm((prev) => ({ ...prev, last_name: value }));
-                    if (value.trim()) {
-                      setMatchmakerFieldErrors((prev) => ({ ...prev, last_name: '' }));
-                    }
-                  }}
-                  autoCapitalize="words"
-                  returnKeyType="done"
-                />
-                {Boolean(matchmakerFieldErrors.last_name) && (
-                  <Text style={styles.validationError}>{matchmakerFieldErrors.last_name}</Text>
-                )}
-
-                <View style={styles.matchmakerActions}>
-                  {savingMatchmakerProfile ? (
-                    <ActivityIndicator size="small" color={accentColor} />
-                  ) : (
-                    <>
-                      <TouchableOpacity
-                        style={[styles.saveBtn, { backgroundColor: accentColor }]}
-                        onPress={handleMatchmakerSave}
-                      >
-                        <Text style={styles.saveBtnText}>Save</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[styles.cancelBtn, { borderColor: accentColor }]}
-                        onPress={handleMatchmakerCancel}
-                      >
-                        <Text style={[styles.cancelBtnText, { color: accentColor }]}>Cancel</Text>
-                      </TouchableOpacity>
-                    </>
-                  )}
-                </View>
-              </View>
-            )}
-
-            {referrer && (
-              <View style={styles.embeddedProfile}>
-                <Text style={[styles.subHeader, { color: accentColor }]}>Dater's Profile</Text>
-                <Profile user={referrer} framed={true} editing={false} />
-              </View>
-            )}
-          </>
-        )}
-
-        {showAvatarModal && (
-          <AvatarSelectorModal
-            onSelect={(selectedAvatar) => {
-              setAvatar(selectedAvatar);
-              setShowAvatarModal(false);
-            }}
-            userId={user.id}
-            onClose={() => setShowAvatarModal(false)}
-          />
+          ) : (
+            <View style={styles.noDaterCard}>
+              <Text style={styles.noDaterText}>No dater selected</Text>
+            </View>
+          )
         )}
       </ScrollView>
+
+      {showDaterEditChrome && profileEditActions ? (
+        <View
+          style={[
+            styles.editFooter,
+            {
+              height: tabBarReplacementHeight,
+              paddingTop: editFooterVerticalPadding,
+              paddingBottom: bottomInset + editFooterVerticalPadding,
+            },
+          ]}
+        >
+          <TouchableOpacity
+            style={styles.editCancelBtn}
+            onPress={profileEditActions.onCancel}
+            accessibilityRole="button"
+            accessibilityLabel="Cancel editing"
+          >
+            <Text style={styles.editCancelBtnText}>Cancel</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.editSaveBtn, { backgroundColor: accentColor }]}
+            onPress={profileEditActions.onSave}
+            accessibilityRole="button"
+            accessibilityLabel="Save profile"
+          >
+            <Text style={styles.editSaveBtnText}>Save</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
 
       <ImageCropModal
         key={cropKey}
@@ -554,14 +564,13 @@ const ProfilePage = () => {
           cropCompleteRef.current = null;
         }}
       />
-    </SafeAreaView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fafafa',
   },
   containerWithToolbar: {
     paddingTop: 0,
@@ -571,19 +580,145 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
     paddingHorizontal: 16,
   },
-  dropdownContainer: {
-    position: 'absolute',
-    top: 50,
-    left: 20,
-    right: 20,
-    zIndex: 100,
-    marginBottom: 16,
+  contentMatchmaker: {
+    paddingTop: 0,
+    paddingHorizontal: 20,
+    paddingBottom: 120,
+  },
+  contentDater: {
+    paddingTop: 12,
+    paddingHorizontal: 20,
+    paddingBottom: 110,
+  },
+  contentDaterEdit: {
+    paddingTop: 8,
+    paddingHorizontal: 20,
+    paddingBottom: 12,
+  },
+  editFixedTop: {
+    backgroundColor: DATER_SCREEN_BG,
+    zIndex: 10,
+  },
+  editHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingBottom: 4,
+  },
+  editHeaderBack: {
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'flex-start',
+  },
+  editHeaderTitle: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  editHeaderSide: {
+    width: 44,
+  },
+  editFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 20,
+    backgroundColor: DATER_SCREEN_BG,
+  },
+  editCancelBtn: {
+    flex: 1,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: '#E5E7EB',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  editCancelBtnText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#374151',
+  },
+  editSaveBtn: {
+    flex: 1,
+    height: 48,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  editSaveBtnText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#ffffff',
+  },
+  screenHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingBottom: 8,
+  },
+  screenHeaderMatchmaker: {
+    backgroundColor: 'transparent',
+    paddingBottom: 0,
+  },
+  screenHeaderDater: {
+    backgroundColor: 'transparent',
+  },
+  headerSide: {
+    width: 44,
+    alignItems: 'flex-start',
+  },
+  headerSideRight: {
+    alignItems: 'flex-end',
+  },
+  headerTitle: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  headerLogo: {
+    width: 44,
+    height: 44,
+    resizeMode: 'contain',
+  },
+  headerActionButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#ffffff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  choosingSection: {
+    paddingHorizontal: 20,
+    paddingBottom: 4,
+    minHeight: 71,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  cardStack: {
+    position: 'relative',
+  },
+  currentCard: {
+    position: 'relative',
+    zIndex: 2,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#fafafa',
   },
   loadingText: {
     marginTop: 12,
@@ -596,108 +731,16 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 20,
   },
-  profileHeader: {
-    flexDirection: 'row',
+  noDaterCard: {
+    marginTop: 24,
+    padding: 24,
+    borderRadius: 24,
+    backgroundColor: '#ffffff',
     alignItems: 'center',
-    gap: 16,
-    padding: 8,
   },
-  editIconButton: {
-    marginLeft: 'auto',
-  },
-  matchmakerEditCard: {
-    marginTop: 8,
-    marginBottom: 8,
-    padding: 16,
-    borderRadius: 8,
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#ebe7fb',
-  },
-  label: {
-    fontSize: 14,
-    marginBottom: 4,
-    marginTop: 12,
-    color: '#111',
-  },
-  input: {
-    height: 48,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    backgroundColor: '#fff',
+  noDaterText: {
     fontSize: 16,
-  },
-  validationError: {
-    color: '#dc2626',
-    fontSize: 13,
-    marginTop: 4,
-  },
-  matchmakerActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 12,
-    marginTop: 20,
-  },
-  saveBtn: {
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 10,
-  },
-  saveBtnText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  cancelBtn: {
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-    backgroundColor: 'transparent',
-  },
-  cancelBtnText: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  avatar: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    borderWidth: 3,
-    borderColor: '#f0f0f0',
-  },
-  profileInfo: {
-    flex: 1,
-  },
-  nameSection: {
-    marginBottom: 4,
-  },
-  name: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#222',
-  },
-  embeddedProfile: {
-    marginTop: 20,
-    padding: 16,
-    borderWidth: 2,
-    borderColor: '#ebe7fb',
-    borderRadius: 8,
-    backgroundColor: '#ffffff',
-  },
-  subHeader: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#6c5ce7',
-    marginBottom: 16,
-  },
-  daterDropdownWrapper: {
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 8,
-    zIndex: 10,
+    color: '#6b7280',
   },
   backButton: {
     flexDirection: 'row',

@@ -2,9 +2,12 @@ import React from 'react';
 import { View, Text, StyleSheet, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
+export const DATER_SCREEN_BG = '#fff5f7';
+export const DATER_SURFACE_BORDER = '#fadce6';
+
 export const getRoleAccentColor = (role) => (role === 'user' ? '#ef4d73' : '#6c5ce7');
 export const getRoleBackgroundTint = (role) =>
-  role === 'user' ? 'rgba(239, 77, 115, 0.08)' : 'rgba(108, 92, 231, 0.08)';
+  role === 'user' ? DATER_SCREEN_BG : 'rgba(108, 92, 231, 0.08)';
 
 /** Light pill/section background behind dater (rose) vs matchmaker (violet) accents. */
 export const getRoleContainerColor = (role) => (role === 'user' ? '#ffe6ee' : '#efe7ff');

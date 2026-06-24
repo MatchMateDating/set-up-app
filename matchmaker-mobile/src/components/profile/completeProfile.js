@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext, useCallback } from 'react';
+import React, { useState, useEffect, useContext, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -14,12 +14,11 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Slider from '@react-native-community/slider';
-import ImageGallery from './images';
 import BirthdatePickerModal, {
   MONTHS_ABBR,
 } from './components/BirthdatePickerModal';
-import HeightPickerModal from './components/HeightPickerModal';
 import * as ImagePicker from 'expo-image-picker';
 import { API_BASE_URL } from '../../env';
 import { fetchWithRetry, isNetworkFailure } from '../../utils/fetchWithRetry';
@@ -27,12 +26,13 @@ import {
   calculateAge,
   convertFtInToMetersCm,
   convertMetersCmToFtIn,
-  formatHeight
+  formatHeight,
+  normalizeImageLayout,
 } from './utils/profileUtils';
 
-import Profile from './profile';
+import ProfileInfoCard from './profileInfoCard';
+import ProfileCard from '../matches/profileCard';
 import StepIndicator from './components/stepIndicator';
-import SelectGender from './components/selectGender';
 import MultiSelectGender from './components/multiSelectGender';
 import MultiSlider from '@ptomasroos/react-native-multi-slider';
 import { EditToolbar } from './components/editToolbar';
@@ -44,6 +44,7 @@ import { useNotifications } from '../../context/NotificationContext';
 import * as Notifications from 'expo-notifications';
 import ImageCropModal from './components/ImageCropModal';
 import {
+  DATER_SCREEN_BG,
   getRoleAccentColor,
   getRoleContainerColor,
 } from '../layout/components/RoleHeaderBanner';
@@ -59,6 +60,7 @@ const getProfileSaveErrorMessage = (err, fallback) =>
 const CompleteProfile = () => {
   const navigation = useNavigation();
   const route = useRoute();
+  const insets = useSafeAreaInsets();
   const creatingLinkedDater = route.params?.creatingLinkedDater === true;
   const allowLinkedDaterExitRef = React.useRef(false);
   const resetToMainMatches = useCallback(() => {
@@ -94,7 +96,6 @@ const CompleteProfile = () => {
   const [user, setUser] = useState(null);
   const [images, setImages] = useState([]);
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [showHeightModal, setShowHeightModal] = useState(false);
   const [cropModalVisible, setCropModalVisible] = useState(false);
   /** Queue of items to crop (multi-select order); width/height from picker when available for Android orientation accuracy */
   const [pendingCropQueue, setPendingCropQueue] = useState([]);
@@ -118,7 +119,7 @@ const CompleteProfile = () => {
     bio: '',
     matchRadius: 50,
     matchWithAll: false,
-    imageLayout: 'grid',
+    imageLayout: 'topRow',
     profileStyle: 'classic',
     fontFamily: 'Arial',
     show_location: false,
@@ -234,7 +235,7 @@ const CompleteProfile = () => {
           : userUnit === 'm'
             ? milesToKm(profileUser.match_radius || 50)
             : profileUser.match_radius || 50,
-      imageLayout: profileUser.imageLayout ?? 'grid',
+      imageLayout: normalizeImageLayout(profileUser.imageLayout),
       profileStyle: profileUser.profileStyle ?? 'classic',
       fontFamily: profileUser.fontFamily ?? 'Arial',
       show_location: profileUser.show_location ?? false,
@@ -473,32 +474,11 @@ const CompleteProfile = () => {
     });
   };
 
-  /** Single merge so step-1 height auto-save sees feet+inches or m+cm together */
-  const updateHeightBatch = (patch) => {
-    setFormData((prev) => {
-      const newData = { ...prev, ...patch };
-      if (step === 1) {
-        if (autoSaveFormData.current) {
-          clearTimeout(autoSaveFormData.current);
-        }
-        autoSaveFormData.current = setTimeout(() => {
-          const height = formatHeight(newData, heightUnit);
-          saveFormDataToBackend({
-            height,
-            unit: heightUnit === 'ft' ? 'imperial' : 'metric',
-          });
-        }, 1000);
-      }
-      return newData;
-    });
-    setShowHeightModal(false);
-  };
-
   const handleInputChange = (e) => {
-      const name = e.target?.name || e.name;
-      const value = e.target?.value !== undefined ? e.target.value : e.value;
-      setFormData((prev) => ({ ...prev, [name]: value }));
-    };
+    const name = e.target?.name || e.name;
+    const value = e.target?.value !== undefined ? e.target.value : e.value;
+    update(name, value);
+  };
 
   const handleUnitToggle = () => {
     if (heightUnit === 'ft') {
@@ -702,7 +682,7 @@ const CompleteProfile = () => {
         show_location: formData.show_location ?? false,
         profileStyle: formData.profileStyle,
         fontFamily: formData.fontFamily,
-        imageLayout: formData.imageLayout,
+        imageLayout: normalizeImageLayout(formData.imageLayout),
         unit: heightUnit === 'ft' ? 'imperial' : 'metric',
         profile_completion_step: null, // Clear step when profile is completed
       };
@@ -781,16 +761,6 @@ const CompleteProfile = () => {
       }
     }
   };
-
-  const setUserHeight = () => {
-    if (heightUnit == "ft" && (formData.heightFeet || formData.heightInches)) {
-      return `${formData.heightFeet}'${formData.heightInches}"`;
-    } else if (heightUnit == "m" && (formData.heightMeters || formData.heightCentimeters)) {
-      return `${formData.heightMeters}m ${formData.heightCentimeters}cm`
-    } else {
-      return "0'0\"";
-    }
-  }
 
   const handleDeleteImage = async (imageId) => {
     try {
@@ -916,19 +886,104 @@ const CompleteProfile = () => {
     ? getRoleContainerColor('matchmaker')
     : '#ffe6ee';
   const setupScreenBg = isMatchmakerProfileSetup ? '#f5f2ff' : '#ffeef4';
+  const isDaterPreviewStep = !isMatchmakerProfileSetup && step === 2;
+  const isDaterBlendedLayout = !isMatchmakerProfileSetup && step >= 1 && step <= 3;
+  const screenBg = isDaterBlendedLayout ? DATER_SCREEN_BG : setupScreenBg;
+  const headerBg = isDaterBlendedLayout ? DATER_SCREEN_BG : setupHeaderBg;
+  const bottomInset = Math.max(insets.bottom, 8);
+  const stepFooterVerticalPadding = 16;
+  const stepFooterHeight = 56 + bottomInset + stepFooterVerticalPadding * 2;
+  const hasFixedFooter = step === 1 || isDaterPreviewStep;
+  const keyboardAvoidingEnabled = step === 1 || step === 3;
+
+  const previewProfile = useMemo(
+    () => ({
+      id: user?.id,
+      first_name: formData.first_name,
+      last_name: formData.last_name,
+      birthdate: formData.birthdate,
+      gender: formData.gender,
+      bio: formData.bio,
+      city: user?.city ?? '',
+      state: user?.state ?? '',
+      show_location: formData.show_location,
+      images,
+      height: formatHeight(formData, heightUnit),
+      unit: heightUnit === 'ft' ? 'imperial' : 'metric',
+      imageLayout: normalizeImageLayout(formData.imageLayout),
+      profileStyle: formData.profileStyle,
+    }),
+    [
+      user?.id,
+      user?.city,
+      user?.state,
+      formData.first_name,
+      formData.last_name,
+      formData.birthdate,
+      formData.gender,
+      formData.bio,
+      formData.show_location,
+      formData.imageLayout,
+      formData.profileStyle,
+      images,
+      heightUnit,
+      formData.heightFeet,
+      formData.heightInches,
+      formData.heightMeters,
+      formData.heightCentimeters,
+    ]
+  );
+
+  const previewUserInfo = useMemo(
+    () => ({
+      role: 'user',
+      unit: heightUnit === 'ft' ? 'imperial' : 'metric',
+    }),
+    [heightUnit]
+  );
+
+  const goBackToStep1 = useCallback(() => {
+    setStep(1);
+    saveStepToBackend(1);
+  }, []);
+
+  const proceedToStep3 = async () => {
+    try {
+      await updateProfile({
+        preferredAgeMin: formData.preferredAgeMin ? parseInt(formData.preferredAgeMin, 10) : 18,
+        preferredAgeMax: formData.preferredAgeMax ? parseInt(formData.preferredAgeMax, 10) : 50,
+        preferredGenders: formData.preferredGenders ?? [],
+        match_radius: formData.matchWithAll
+          ? 9999
+          : heightUnit === 'ft'
+            ? Number(formData.matchRadius) ?? 50
+            : kmToMiles(Number(formData.matchRadius)) ?? 31,
+        show_location: formData.show_location ?? false,
+        profile_completion_step: 3,
+      });
+    } catch (err) {
+      if (!isNetworkFailure(err) && __DEV__) {
+        console.warn('Error saving preferences:', err);
+      }
+    }
+    setStep(3);
+    saveStepToBackend(3);
+  };
 
   return (
-    <KeyboardAvoidingView
+    <View style={[styles.screen, { backgroundColor: screenBg }]}>
+      <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={[styles.screen, { backgroundColor: setupScreenBg }]}
+        style={styles.screenBody}
+        enabled={keyboardAvoidingEnabled}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
-        <View style={[styles.fixedHeader, { backgroundColor: setupHeaderBg }]}>
+        <View style={[styles.fixedHeader, { backgroundColor: headerBg }]}>
           <StepIndicator
             step={step}
             steps={isMatchmakerProfileSetup ? MATCHMAKER_SETUP_STEPS : undefined}
             accentColor={setupAccentColor}
-            headerBackgroundColor={setupHeaderBg}
+            headerBackgroundColor={headerBg}
           />
           {step === 1 && !isMatchmakerProfileSetup && (
             <EditToolbar
@@ -936,12 +991,18 @@ const CompleteProfile = () => {
               handleInputChange={handleInputChange}
               editing={true}
               accentColorOverride="#ef4d73"
+              sticky
             />
           )}
         </View>
         <ScrollView
           ref={scrollRef}
-          contentContainerStyle={styles.container}
+          style={{ flex: 1, backgroundColor: screenBg }}
+          contentContainerStyle={[
+            styles.container,
+            isDaterBlendedLayout && step !== 1 && styles.containerPreview,
+            hasFixedFooter && { paddingBottom: stepFooterHeight + 8 },
+          ]}
           keyboardShouldPersistTaps="handled"
           scrollEventThrottle={16}
           onScroll={(event) => {
@@ -951,241 +1012,115 @@ const CompleteProfile = () => {
 
           {step === 1 && (
             <View>
-              <View style={[
-                  styles.stepContainer,
-                  themeStyles[formData.profileStyle],
-              ]}>
-                <View style={styles.themeLayer}>
-                  {formData.profileStyle === 'pixelCloud' && <PixelClouds />}
-                  {formData.profileStyle === 'pixelFlower' && <PixelFlowers />}
-                  {formData.profileStyle === 'pixelCactus' && <PixelCactus />}
-                </View>
-              <View style={styles.contentLayer}>
-                <Text style={styles.title}>Complete Your Profile</Text>
-
-              {['topRow', 'heroStack'].includes(formData.imageLayout) && !isMatchmakerProfileSetup && (
+              {!isMatchmakerProfileSetup ? (
                 <>
-                  <Text style={styles.label}>Add Images:</Text>
-                  <ImageGallery
-                    images={images}
+                  <ProfileInfoCard
+                    user={{
+                      role: 'user',
+                      city: user?.city ?? '',
+                      state: user?.state ?? '',
+                    }}
+                    formData={formData}
                     editing={true}
+                    heightUnit={heightUnit}
+                    viewerUnit={heightUnit}
+                    onInputChange={handleInputChange}
+                    onUnitToggle={handleUnitToggle}
+                    onSubmit={() => {}}
+                    onCancel={() => {}}
+                    calculateAge={calculateAge}
+                    images={images}
                     onDeleteImage={handleDeleteImage}
                     onPlaceholderClick={handlePlaceholderClick}
-                    layout={formData.imageLayout}
+                    pageBackgroundColor={DATER_SCREEN_BG}
                   />
+                  {error ? <Text style={styles.error}>{error}</Text> : null}
                 </>
-              )}
+              ) : (
+                <View style={[styles.stepContainer, themeStyles[formData.profileStyle]]}>
+                  <View style={styles.themeLayer}>
+                    {formData.profileStyle === 'pixelCloud' && <PixelClouds />}
+                    {formData.profileStyle === 'pixelFlower' && <PixelFlowers />}
+                    {formData.profileStyle === 'pixelCactus' && <PixelCactus />}
+                  </View>
+                  <View style={styles.contentLayer}>
+                    <Text style={styles.title}>Complete Your Profile</Text>
 
-                  <Text style={styles.label}>First Name</Text>
-                  <TextInput
-                    ref={firstNameRef}
-                    style={styles.input}
-                    value={formData.first_name}
-                    onChangeText={(v) => update("first_name", v)}
-                    returnKeyType="next"
-                    onSubmitEditing={() => {
-                      lastNameRef.current?.focus();
-                    }}
-                    blurOnSubmit={false}
-                  />
+                    <Text style={styles.label}>First Name</Text>
+                    <TextInput
+                      ref={firstNameRef}
+                      style={styles.input}
+                      value={formData.first_name}
+                      onChangeText={(v) => update('first_name', v)}
+                      returnKeyType="next"
+                      onSubmitEditing={() => {
+                        lastNameRef.current?.focus();
+                      }}
+                      blurOnSubmit={false}
+                    />
 
-                  <Text style={styles.label}>Last Name</Text>
-                  <TextInput
-                    ref={lastNameRef}
-                    style={styles.input}
-                    value={formData.last_name}
-                    onChangeText={(v) => update("last_name", v)}
-                    returnKeyType="done"
-                    onSubmitEditing={() => {
-                      lastNameRef.current?.blur();
-                      setShowDatePicker(true);
-                    }}
-                  />
+                    <Text style={styles.label}>Last Name</Text>
+                    <TextInput
+                      ref={lastNameRef}
+                      style={styles.input}
+                      value={formData.last_name}
+                      onChangeText={(v) => update('last_name', v)}
+                      returnKeyType="done"
+                      onSubmitEditing={() => {
+                        lastNameRef.current?.blur();
+                        setShowDatePicker(true);
+                      }}
+                    />
 
-                  {!isMatchmakerProfileSetup && (
-                  <TouchableOpacity
-                    style={styles.checkboxRow}
-                    onPress={() => update('show_location', !formData.show_location)}
-                  >
-                    <View style={[styles.checkbox, formData.show_location && styles.checkboxChecked]}>
-                      {formData.show_location && <Text style={styles.checkmark}>✓</Text>}
-                    </View>
-                    <Text style={styles.checkboxLabel}>Show location (e.g. Brooklyn, NY)</Text>
-                  </TouchableOpacity>
-                  )}
+                    <Text style={styles.label}>Birthdate</Text>
+                    <TouchableOpacity
+                      style={[
+                        styles.field,
+                        styles.dateField,
+                        showDatePicker && { borderColor: setupAccentColor },
+                      ]}
+                      onPress={() => {
+                        Keyboard.dismiss();
+                        setShowDatePicker(true);
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[styles.dateText, !formData.birthdate && styles.placeholderText]}>
+                        {formData.birthdate
+                          ? (() => {
+                              const [y, m, d] = formData.birthdate.split('-').map(Number);
+                              const dt = new Date(y, m - 1, d);
+                              return `${MONTHS_ABBR[dt.getMonth()]} ${dt.getDate()}, ${dt.getFullYear()}`;
+                            })()
+                          : 'Birthday'}
+                      </Text>
+                    </TouchableOpacity>
 
-                  <Text style={styles.label}>Birthdate</Text>
-                  <TouchableOpacity
-                    style={[
-                      styles.field,
-                      styles.dateField,
-                      showDatePicker && { borderColor: setupAccentColor },
-                    ]}
-                    onPress={() => {
-                      Keyboard.dismiss();
-                      setShowDatePicker(true);
-                    }}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={[styles.dateText, !formData.birthdate && styles.placeholderText]}>
-                      {formData.birthdate
-                        ? (() => {
-                            const [y, m, d] = formData.birthdate.split('-').map(Number);
-                            const dt = new Date(y, m - 1, d);
-                            return `${MONTHS_ABBR[dt.getMonth()]} ${dt.getDate()}, ${dt.getFullYear()}`;
-                          })()
-                        : 'Birthday'}
-                    </Text>
-                  </TouchableOpacity>
+                    <BirthdatePickerModal
+                      visible={showDatePicker}
+                      birthdateIso={formData.birthdate || ''}
+                      onRequestClose={() => setShowDatePicker(false)}
+                      onSave={(iso) => {
+                        update('birthdate', iso);
+                        setShowDatePicker(false);
+                      }}
+                      accentColor={setupAccentColor}
+                    />
 
-                  <BirthdatePickerModal
-                    visible={showDatePicker}
-                    birthdateIso={formData.birthdate || ''}
-                    onRequestClose={() => setShowDatePicker(false)}
-                    onSave={(iso) => {
-                      update('birthdate', iso);
-                      setShowDatePicker(false);
-                    }}
-                    accentColor={setupAccentColor}
-                  />
-
-              {!isMatchmakerProfileSetup && (
-              <>
-              <Text style={styles.label}>Gender</Text>
-              <SelectGender
-                selected={formData.gender}
-                onChange={(value) => update("gender", value)}
-                accentColor="#ef4d73"
-              />
-
-              <Text style={styles.label}>Height ({heightUnit})</Text>
-              <TouchableOpacity
-                style={[styles.field, styles.dateField, showHeightModal && styles.fieldActive]}
-                onPress={() => {
-                  Keyboard.dismiss();
-                  setShowHeightModal(true);
-                }}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.dateText}>
-                  {formatHeight(formData, heightUnit)}
-                </Text>
-              </TouchableOpacity>
-
-              <HeightPickerModal
-                visible={showHeightModal}
-                heightUnit={heightUnit}
-                heightFeet={formData.heightFeet}
-                heightInches={formData.heightInches}
-                heightMeters={formData.heightMeters}
-                heightCentimeters={formData.heightCentimeters}
-                onRequestClose={() => setShowHeightModal(false)}
-                onSave={updateHeightBatch}
-                accentColor="#ef4d73"
-              />
-
-              <TouchableOpacity onPress={handleUnitToggle}>
-                <Text style={styles.toggle}>Switch to {heightUnit === 'ft' ? 'meters' : 'feet'}</Text>
-              </TouchableOpacity>
-
-              <Text style={styles.label}>About Me</Text>
-              <TextInput
-                style={[styles.input, styles.aboutInput]}
-                value={formData.bio}
-                onChangeText={(v) => update('bio', (v || '').slice(0, 100))}
-                placeholder="Tell people a little about yourself"
-                placeholderTextColor="#9CA3AF"
-                multiline
-                maxLength={100}
-                textAlignVertical="top"
-              />
-              <Text style={styles.charCount}>{(formData.bio || '').length}/100</Text>
-
-              {!['topRow', 'heroStack'].includes(formData.imageLayout) && (
-                <View style={styles.step1ImagesSection}>
-                  <Text style={styles.label}>Add Images:</Text>
-                  <ImageGallery
-                    images={images}
-                    editing={true}
-                    onDeleteImage={handleDeleteImage}
-                    onPlaceholderClick={handlePlaceholderClick}
-                    layout={formData.imageLayout}
-                  />
+                    {error ? <Text style={styles.error}>{error}</Text> : null}
+                  </View>
                 </View>
               )}
-              </>
-              )}
-
-                {error ? <Text style={styles.error}>{error}</Text> : null}
-              </View>
-            </View>
-            <View style={styles.step1Actions}>
-              {isMatchmakerProfileSetup ? (
-                loading ? (
-                  <ActivityIndicator size="large" color={setupAccentColor} />
-                ) : (
-                  <TouchableOpacity
-                    style={[styles.nextBtn, { backgroundColor: setupAccentColor }]}
-                    onPress={saveMatchmakerProfile}
-                  >
-                    <Text style={styles.nextBtnText}>Continue</Text>
-                  </TouchableOpacity>
-                )
-              ) : (
-                <TouchableOpacity style={styles.nextBtn} onPress={saveStep1}>
-                  <Text style={styles.nextBtnText}>Next</Text>
-                </TouchableOpacity>
-              )}
-            </View>
             </View>
           )}
 
           {!isMatchmakerProfileSetup && step === 2 && (
             <View>
-              <Text style={styles.title}>Preview</Text>
-
-              <Profile
-                user={{
-                  ...formData,
-                  city: user?.city ?? '',
-                  state: user?.state ?? '',
-                  images: images,
-                  height: setUserHeight(),
-                  role: 'user'
-                }}
-                framed={true}
-                editing={false}
+              <ProfileCard
+                profile={previewProfile}
+                userInfo={previewUserInfo}
+                blendWithBackground
               />
-
-              <View style={styles.rowBetween}>
-                <TouchableOpacity style={styles.secondaryBtn} onPress={() => {
-                  setStep(1);
-                  saveStepToBackend(1);
-                }}>
-                  <Text style={styles.secondaryBtnText}>Back</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity style={styles.nextBtn} onPress={async () => {
-                  try {
-                    await updateProfile({
-                      preferredAgeMin: formData.preferredAgeMin ? parseInt(formData.preferredAgeMin, 10) : 18,
-                      preferredAgeMax: formData.preferredAgeMax ? parseInt(formData.preferredAgeMax, 10) : 50,
-                      preferredGenders: formData.preferredGenders ?? [],
-                      match_radius: formData.matchWithAll ? 9999 : (heightUnit === 'ft' ? (Number(formData.matchRadius) ?? 50) : (kmToMiles(Number(formData.matchRadius)) ?? 31)),
-                      show_location: formData.show_location ?? false,
-                      profile_completion_step: 3,
-                    });
-                  } catch (err) {
-                    if (!isNetworkFailure(err) && __DEV__) {
-                      console.warn('Error saving preferences:', err);
-                    }
-                  }
-                  setStep(3);
-                  saveStepToBackend(3);
-                }}>
-                  <Text style={styles.nextBtnText}>Next</Text>
-                </TouchableOpacity>
-              </View>
             </View>
           )}
 
@@ -1293,6 +1228,66 @@ const CompleteProfile = () => {
             </View>
           )}
         </ScrollView>
+      </KeyboardAvoidingView>
+
+      {step === 1 && (
+        <View
+          style={[
+            styles.stepFooter,
+            {
+              backgroundColor: screenBg,
+              paddingBottom: bottomInset + stepFooterVerticalPadding,
+            },
+          ]}
+        >
+            {isMatchmakerProfileSetup ? (
+              loading ? (
+                <ActivityIndicator size="large" color={setupAccentColor} />
+              ) : (
+                <TouchableOpacity
+                  style={[styles.stepFooterPrimaryBtn, { backgroundColor: setupAccentColor }]}
+                  onPress={saveMatchmakerProfile}
+                >
+                  <Text style={styles.nextBtnText}>Continue</Text>
+                </TouchableOpacity>
+              )
+            ) : (
+              <TouchableOpacity style={styles.stepFooterPrimaryBtn} onPress={saveStep1}>
+                <Text style={styles.nextBtnText}>Next</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
+      {isDaterPreviewStep && (
+        <View
+          style={[
+            styles.stepFooter,
+            {
+              backgroundColor: screenBg,
+              minHeight: stepFooterHeight,
+              paddingBottom: bottomInset + stepFooterVerticalPadding,
+            },
+          ]}
+        >
+          <View style={styles.stepFooterRow}>
+            <TouchableOpacity
+              style={styles.stepFooterSecondaryBtn}
+              onPress={goBackToStep1}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.secondaryBtnText}>Back</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.stepFooterActionBtn}
+              onPress={proceedToStep3}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.nextBtnText}>Next</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
 
       <ImageCropModal
         key={cropKey}
@@ -1306,7 +1301,7 @@ const CompleteProfile = () => {
           setPendingCropQueue([]);
         }}
       />
-    </KeyboardAvoidingView>
+    </View>
   );
 };
 
@@ -1341,6 +1336,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#ffeef4',
   },
+  screenBody: {
+    flex: 1,
+  },
   fixedHeader: {
     backgroundColor: '#ffe6ee',
     zIndex: 10,
@@ -1349,6 +1347,10 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingBottom: 80,
     paddingTop: 12,
+  },
+  containerPreview: {
+    paddingTop: 0,
+    paddingHorizontal: 20,
   },
   title: {
     fontSize: 22,
@@ -1442,11 +1444,40 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginTop: 20,
   },
-  step1Actions: {
-    marginTop: 32,
+  stepFooter: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    justifyContent: 'center',
   },
-  step1ImagesSection: {
-    paddingBottom: 12,
+  stepFooterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  stepFooterPrimaryBtn: {
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: '#ef4d73',
+    justifyContent: 'center',
+    alignItems: 'center',
+    alignSelf: 'stretch',
+  },
+  stepFooterSecondaryBtn: {
+    flex: 1,
+    height: 48,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#ef4d73',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  stepFooterActionBtn: {
+    flex: 1,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: '#ef4d73',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   nextBtn: {
     backgroundColor: '#ef4d73',
