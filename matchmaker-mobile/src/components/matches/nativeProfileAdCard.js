@@ -8,13 +8,8 @@ import {
   Dimensions,
   ActivityIndicator,
 } from 'react-native';
-import {
-  NativeAdView,
-  NativeAsset,
-  NativeAssetType,
-  NativeMediaView,
-} from 'react-native-google-mobile-ads';
 import { Ionicons } from '@expo/vector-icons';
+import { getAdMobModule } from '../../ads/admobModule';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const CARD_MARGIN = 20;
@@ -34,24 +29,53 @@ const NativeProfileAdCard = ({
   const tagBorderColor = isDaterView ? '#ffd6e3' : '#ddd6fe';
   const cardSurfaceColor = '#ffffff';
 
+  const renderDismissButton = () =>
+    !isStackPreview && onDismiss ? (
+      <TouchableOpacity
+        style={styles.closeButton}
+        onPress={onDismiss}
+        accessibilityLabel="Dismiss ad"
+        hitSlop={8}
+      >
+        <View style={styles.closeButtonInner}>
+          <Ionicons name="close" size={18} color="#ffffff" />
+        </View>
+      </TouchableOpacity>
+    ) : null;
+
   if (loading || !nativeAd) {
     if (isStackPreview) {
       return null;
     }
 
     return (
-      <View style={styles.cardOuter}>
-        <View style={[styles.card, { backgroundColor: cardSurfaceColor }]}>
-          <View style={[styles.imageSection, { backgroundColor: cardSurfaceColor }]}>
-            <ActivityIndicator size="large" color={accentColor} />
-          </View>
-          <View style={styles.infoSection}>
-            <Text style={styles.loadingText}>Loading sponsored content…</Text>
+      <View style={styles.adCardWrapper}>
+        <View style={styles.cardOuter}>
+          <View style={[styles.card, { backgroundColor: cardSurfaceColor }]}>
+            <View style={[styles.imageSection, { backgroundColor: cardSurfaceColor }]}>
+              <ActivityIndicator size="large" color={accentColor} />
+            </View>
+            <View style={styles.infoSection}>
+              <Text style={styles.loadingText}>Loading sponsored content…</Text>
+            </View>
           </View>
         </View>
+        {renderDismissButton()}
       </View>
     );
   }
+
+  const admob = getAdMobModule();
+  if (!admob) {
+    return null;
+  }
+
+  const {
+    NativeAdView,
+    NativeAsset,
+    NativeAssetType,
+    NativeMediaView,
+  } = admob;
 
   const cardContent = (
     <View
@@ -77,18 +101,6 @@ const NativeProfileAdCard = ({
             <View style={styles.sponsoredBadge}>
               <Text style={styles.sponsoredText}>Sponsored</Text>
             </View>
-
-            {!isStackPreview && onDismiss ? (
-              <TouchableOpacity
-                style={styles.closeButton}
-                onPress={onDismiss}
-                accessibilityLabel="Dismiss ad"
-              >
-                <View style={styles.closeButtonInner}>
-                  <Ionicons name="close" size={18} color="#ffffff" />
-                </View>
-              </TouchableOpacity>
-            ) : null}
           </View>
 
           {!isStackPreview ? (
@@ -162,13 +174,17 @@ const NativeProfileAdCard = ({
   );
 
   return (
-    <NativeAdView nativeAd={nativeAd}>
-      {cardContent}
-    </NativeAdView>
+    <View style={styles.adCardWrapper}>
+      <NativeAdView nativeAd={nativeAd}>{cardContent}</NativeAdView>
+      {renderDismissButton()}
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
+  adCardWrapper: {
+    position: 'relative',
+  },
   cardOuter: {
     marginBottom: 12,
     borderRadius: 24,
@@ -231,7 +247,8 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 14,
     right: 14,
-    zIndex: 2,
+    zIndex: 10,
+    elevation: 10,
   },
   closeButtonInner: {
     width: 34,

@@ -298,8 +298,8 @@ const SettingsSections = () => {
   const overlayTopPadding = 56;
   const daterSectionListPaddingTop = 12;
   const headerTopPadding = insets.top + (isMatchmaker ? 4 : 12);
-  // Match conversations.js: choosingSection (84) + contentMatchmaker paddingTop (8).
-  const matchmakerSectionListPaddingTop = 92;
+  // Match match.js: choosingSection (71) + cardStack paddingTop (32).
+  const matchmakerSectionListPaddingTop = 103;
   const accentColor = getRoleAccentColor(role || 'matchmaker');
   const datingPreferencesAccent = getRoleAccentColor('user');
   const settingsBackAccent =

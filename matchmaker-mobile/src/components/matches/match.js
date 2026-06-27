@@ -1,4 +1,4 @@
-import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -24,7 +24,12 @@ import NativeProfileAdCard from './nativeProfileAdCard';
 import { useProfiles } from './hooks/useProfiles';
 import { useUserInfo } from './hooks/useUserInfo';
 import { useNativeAd } from '../../ads/useNativeAd';
-import { randomAdInterval } from '../../ads/adConfig';
+import { getRandomProfilesUntilAd } from '../../ads/adConfig';
+import { isAdMobAvailable, isAdMobEnabledInConfig } from '../../ads/admobModule';
+import {
+  getViewerCoords,
+  sortProfilesByDistanceRandom,
+} from './utils/profileOrder';
 import { startLocationWatcher, stopLocationWatcher } from '../auth/utils/startLocationWatcher';
 import { getImageUrl, heightStringToCm, convertHeightForViewer, normalizeHeightUnit } from '../profile/utils/profileUtils';
 import { getRoleAccentColor } from '../layout/components/RoleHeaderBanner';
@@ -92,34 +97,49 @@ const Match = () => {
   const [matchFilters, setMatchFilters] = useState(() => getInitialMatchFilters('Imperial'));
   const [filterDraft, setFilterDraft] = useState(() => getInitialMatchFilters('Imperial'));
   const [profilesSeenSinceAd, setProfilesSeenSinceAd] = useState(0);
-  const [nextAdAfter, setNextAdAfter] = useState(randomAdInterval);
   const [isShowingAd, setIsShowingAd] = useState(false);
+  const profilesUntilNextAdRef = useRef(getRandomProfilesUntilAd());
   const navigation = useNavigation();
   const selectedDaterId = userInfo?.referrer_id || userInfo?.referred_by_id || null;
 
-  const adsEnabled = !loading && !refreshing;
-  const { nativeAd, loading: adLoading, error: adError, reload: reloadNativeAd } = useNativeAd({
+  const adsConfigured = isAdMobEnabledInConfig();
+  const adsEnabled = adsConfigured && isAdMobAvailable() && !loading && !refreshing;
+  const {
+    nativeAd,
+    loading: adLoading,
+    error: adError,
+    reload: reloadNativeAd,
+  } = useNativeAd({
     enabled: adsEnabled,
   });
 
   const onProfileConsumed = useCallback((remainingProfileCount) => {
     setProfilesSeenSinceAd((prev) => {
       const next = prev + 1;
-      if (next >= nextAdAfter) {
-        if (remainingProfileCount > 0) {
+      if (next >= profilesUntilNextAdRef.current) {
+        if (remainingProfileCount > 0 && adsConfigured && isAdMobAvailable()) {
           setIsShowingAd(true);
         }
-        setNextAdAfter(randomAdInterval());
+        profilesUntilNextAdRef.current = getRandomProfilesUntilAd();
         return 0;
       }
       return next;
     });
-  }, [nextAdAfter]);
+  }, [adsConfigured]);
 
   const handleDismissAd = useCallback(() => {
     setIsShowingAd(false);
     reloadNativeAd();
   }, [reloadNativeAd]);
+
+  useEffect(() => {
+    if (__DEV__ && adsConfigured && !isAdMobAvailable()) {
+      console.warn(
+        '[Match ads] EXPO_PUBLIC_ADMOB_ENABLED=true but native AdMob is missing. ' +
+          'Run npm run prebuild:android then npm run android:win to rebuild the dev client.'
+      );
+    }
+  }, [adsConfigured]);
 
   useEffect(() => {
     if (isShowingAd && !adLoading && !nativeAd && adError) {
@@ -368,7 +388,7 @@ const Match = () => {
     }
   };
 
-  const fetchProfiles = async () => {
+  const fetchProfiles = async (viewerCoords) => {
     try {
       const token = await AsyncStorage.getItem('token');
       if (!token) return;
@@ -378,7 +398,9 @@ const Match = () => {
       });
       if (!res.ok) throw new Error('Failed to fetch profiles');
       const data = await res.json();
-      setProfiles(data);
+      const coords =
+        viewerCoords ?? getViewerCoords(userInfo, referrer);
+      setProfiles(sortProfilesByDistanceRandom(data, coords.lat, coords.lon));
     } catch (err) {
       console.error('Error fetching profiles:', err);
     }
@@ -406,11 +428,41 @@ const Match = () => {
 
   // Refresh profiles when userInfo.referrer_id changes (selected dater changed)
   useEffect(() => {
-    if (userInfo && userInfo.role === 'matchmaker') {
-      fetchProfiles();
-      fetchProfile();
-      setCurrentIndex(0); // Reset to first profile
+    if (!userInfo || userInfo.role !== 'matchmaker') {
+      return;
     }
+
+    let cancelled = false;
+
+    const refreshForSelectedDater = async () => {
+      try {
+        const token = await AsyncStorage.getItem('token');
+        if (!token || cancelled) return;
+
+        const profileRes = await fetch(`${API_BASE_URL}/profile/`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!profileRes.ok || cancelled) return;
+
+        const profileData = await profileRes.json();
+        const nextReferrer = profileData.referrer || null;
+        setReferrer(nextReferrer);
+
+        const viewerCoords = getViewerCoords(profileData.user, nextReferrer);
+        await fetchProfiles(viewerCoords);
+        if (!cancelled) {
+          setCurrentIndex(0);
+        }
+      } catch (err) {
+        console.error('Error refreshing profiles for selected dater:', err);
+      }
+    };
+
+    refreshForSelectedDater();
+
+    return () => {
+      cancelled = true;
+    };
   }, [selectedDaterId]);
 
   // Refresh userInfo and profiles when page comes into focus to get latest selected dater
@@ -428,15 +480,27 @@ const Match = () => {
       setFilterDraft(initialFilters);
       setIsShowingAd(false);
       setProfilesSeenSinceAd(0);
-      setNextAdAfter(randomAdInterval());
+      profilesUntilNextAdRef.current = getRandomProfilesUntilAd();
 
       // Small delay to ensure backend has updated after dater selection
       const timer = setTimeout(async () => {
         try {
           await refreshUserInfo();
-          await fetchProfile();
-          // Refresh profiles after userInfo is updated
-          await fetchProfiles();
+          const token = await AsyncStorage.getItem('token');
+          if (!token) return;
+
+          const profileRes = await fetch(`${API_BASE_URL}/profile/`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (profileRes.ok) {
+            const profileData = await profileRes.json();
+            setReferrer(profileData.referrer || null);
+            const viewerCoords = getViewerCoords(profileData.user, profileData.referrer);
+            await fetchProfiles(viewerCoords);
+          } else {
+            await fetchProfile();
+            await fetchProfiles();
+          }
         } finally {
           setRefreshing(false);
         }

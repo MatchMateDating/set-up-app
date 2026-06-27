@@ -1,9 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  NativeAd,
-  NativeMediaAspectRatio,
-} from 'react-native-google-mobile-ads';
 import { getNativeAdUnitId } from './adConfig';
+import { getAdMobModule, initializeAdMob, isAdMobAvailable } from './admobModule';
 
 export const useNativeAd = ({ enabled = true } = {}) => {
   const [nativeAd, setNativeAd] = useState(null);
@@ -11,6 +8,7 @@ export const useNativeAd = ({ enabled = true } = {}) => {
   const [error, setError] = useState(null);
   const nativeAdRef = useRef(null);
   const requestIdRef = useRef(0);
+  const adsSupported = isAdMobAvailable();
 
   const destroyCurrentAd = useCallback(() => {
     if (nativeAdRef.current) {
@@ -21,10 +19,26 @@ export const useNativeAd = ({ enabled = true } = {}) => {
   }, []);
 
   const reload = useCallback(() => {
-    if (!enabled) {
+    if (!enabled || !adsSupported) {
       destroyCurrentAd();
       setLoading(false);
       setError(null);
+      return;
+    }
+
+    let admob;
+    try {
+      admob = getAdMobModule();
+    } catch (err) {
+      console.warn('AdMob unavailable:', err);
+      setLoading(false);
+      setError(err);
+      return;
+    }
+
+    if (!admob?.NativeAd) {
+      setLoading(false);
+      setError(new Error('AdMob native module unavailable'));
       return;
     }
 
@@ -35,8 +49,10 @@ export const useNativeAd = ({ enabled = true } = {}) => {
     setLoading(true);
     setError(null);
 
-    NativeAd.createForAdRequest(getNativeAdUnitId(), {
-      aspectRatio: NativeMediaAspectRatio.PORTRAIT,
+    initializeAdMob();
+
+    admob.NativeAd.createForAdRequest(getNativeAdUnitId(), {
+      aspectRatio: admob.NativeMediaAspectRatio?.PORTRAIT ?? 3,
     })
       .then((ad) => {
         if (requestIdRef.current !== requestId) {
@@ -55,10 +71,10 @@ export const useNativeAd = ({ enabled = true } = {}) => {
         setError(err);
         setLoading(false);
       });
-  }, [destroyCurrentAd, enabled]);
+  }, [adsSupported, destroyCurrentAd, enabled]);
 
   useEffect(() => {
-    if (enabled) {
+    if (enabled && adsSupported) {
       reload();
     } else {
       destroyCurrentAd();
@@ -70,7 +86,7 @@ export const useNativeAd = ({ enabled = true } = {}) => {
       requestIdRef.current += 1;
       destroyCurrentAd();
     };
-  }, [destroyCurrentAd, enabled, reload]);
+  }, [adsSupported, destroyCurrentAd, enabled, reload]);
 
-  return { nativeAd, loading, error, reload };
+  return { nativeAd, loading, error, reload, adsSupported };
 };

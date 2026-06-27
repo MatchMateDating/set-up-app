@@ -1,8 +1,13 @@
 import { Platform } from 'react-native';
-import { TestIds } from 'react-native-google-mobile-ads';
 
 const IOS_NATIVE_UNIT_ID = process.env.EXPO_PUBLIC_ADMOB_IOS_NATIVE_UNIT_ID;
 const ANDROID_NATIVE_UNIT_ID = process.env.EXPO_PUBLIC_ADMOB_ANDROID_NATIVE_UNIT_ID;
+
+const GOOGLE_TEST_NATIVE_UNIT_ID = Platform.select({
+  ios: 'ca-app-pub-3940256099942544/3986624511',
+  android: 'ca-app-pub-3940256099942544/2247696110',
+  default: 'ca-app-pub-3940256099942544/2247696110',
+});
 
 export const getNativeAdUnitId = () => {
   const productionId =
@@ -12,12 +17,14 @@ export const getNativeAdUnitId = () => {
     return productionId;
   }
 
-  if (__DEV__) {
-    return TestIds.NATIVE;
-  }
-
-  return TestIds.NATIVE;
+  return GOOGLE_TEST_NATIVE_UNIT_ID;
 };
 
-/** Random interval between 3 and 8 profile cards (inclusive). */
-export const randomAdInterval = () => 3 + Math.floor(Math.random() * 6);
+/** Show a native ad after a random number of profile cards in this range (inclusive). */
+export const MIN_PROFILES_BETWEEN_ADS = 3;
+export const MAX_PROFILES_BETWEEN_ADS = 8;
+
+export const getRandomProfilesUntilAd = () =>
+  Math.floor(
+    Math.random() * (MAX_PROFILES_BETWEEN_ADS - MIN_PROFILES_BETWEEN_ADS + 1)
+  ) + MIN_PROFILES_BETWEEN_ADS;

@@ -13,7 +13,6 @@ import AppNavigator from './src/navigation/AppNavigator';
 import ErrorBoundary from './src/components/ErrorBoundary';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
-import mobileAds from 'react-native-google-mobile-ads';
 import { API_BASE_URL } from './src/env';
 import { UserContext } from './src/context/UserContext';
 
@@ -232,14 +231,6 @@ function NotificationHandler({ navigationRef }) {
 
 export default function App() {
   const navigationRef = React.useRef();
-
-  useEffect(() => {
-    mobileAds()
-      .initialize()
-      .catch((err) => {
-        console.error('AdMob initialization failed:', err);
-      });
-  }, []);
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>

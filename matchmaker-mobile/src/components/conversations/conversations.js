@@ -1028,7 +1028,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 4,
     // Label + picker row for AppNavigator dater dropdown overlay (see daterDropdownTop).
-    minHeight: 84,
+    minHeight: 71,
   },
   scrollView: {
     flex: 1,
@@ -1174,7 +1174,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   contentMatchmaker: {
-    paddingTop: 8,
+    paddingTop: 32,
   },
   contentGrow: {
     flexGrow: 1,
