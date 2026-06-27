@@ -1520,7 +1520,13 @@ const MatchConvo = () => {
               <Text style={styles.headerApproveButtonText}>Approve</Text>
             </TouchableOpacity>
           )}
-          <TouchableOpacity style={styles.conversationMenuButton} onPress={() => setMenuVisible(true)}>
+          <TouchableOpacity
+            style={[
+              styles.conversationMenuButton,
+              userInfo?.role === 'user' && styles.conversationMenuButtonDater,
+            ]}
+            onPress={() => setMenuVisible(true)}
+          >
             <Ionicons name="ellipsis-vertical" size={18} color="#374151" />
           </TouchableOpacity>
         </View>
@@ -1811,7 +1817,7 @@ const MatchConvo = () => {
             <View style={styles.menuContainer}>
               {userInfo?.role === 'matchmaker' && showHeaderBlindToggle && (
                 <TouchableOpacity
-                  style={styles.menuItem}
+                  style={[styles.menuItem, !showHeaderUnmatchAction && styles.menuItemLast]}
                   onPress={effectiveIsBlind ? handleRevealFromMenu : handleHideFromMenu}
                 >
                   <Text style={styles.menuItemText}>{effectiveIsBlind ? 'Reveal Match' : 'Blind Match'}</Text>
@@ -1819,7 +1825,7 @@ const MatchConvo = () => {
               )}
               {userInfo?.role === 'matchmaker' && showHeaderUnmatchAction && (
                 <TouchableOpacity
-                  style={styles.menuItem}
+                  style={[styles.menuItem, styles.menuItemLast]}
                   onPress={handleUnmatchConfirmFromMenu}
                 >
                   <Text style={[styles.menuItemText, styles.menuItemTextDanger]}>Unmatch</Text>
@@ -1838,12 +1844,14 @@ const MatchConvo = () => {
                   <Text style={[styles.menuItemText, styles.menuItemTextDanger]}>Unmatch</Text>
                 </TouchableOpacity>
               )}
-              <TouchableOpacity
-                style={[styles.menuItem, styles.menuItemLast]}
-                onPress={handleBlockFromMenu}
-              >
-                <Text style={[styles.menuItemText, styles.menuItemTextDanger]}>Block</Text>
-              </TouchableOpacity>
+              {userInfo?.role === 'user' && (
+                <TouchableOpacity
+                  style={[styles.menuItem, styles.menuItemLast]}
+                  onPress={handleBlockFromMenu}
+                >
+                  <Text style={[styles.menuItemText, styles.menuItemTextDanger]}>Block</Text>
+                </TouchableOpacity>
+              )}
             </View>
           </Pressable>
         </Modal>
@@ -1948,6 +1956,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06,
     shadowRadius: 2,
     elevation: 1,
+  },
+  conversationMenuButtonDater: {
+    backgroundColor: 'transparent',
+    borderWidth: 0,
+    shadowOpacity: 0,
+    elevation: 0,
   },
   menuOverlay: {
     flex: 1,
