@@ -20,8 +20,11 @@ import { API_BASE_URL } from '../../env';
 import { fetchWithRetry } from '../../utils/fetchWithRetry';
 import SendNoteModal from './sendNoteModal';
 import ProfileCard from './profileCard';
+import NativeProfileAdCard from './nativeProfileAdCard';
 import { useProfiles } from './hooks/useProfiles';
 import { useUserInfo } from './hooks/useUserInfo';
+import { useNativeAd } from '../../ads/useNativeAd';
+import { randomAdInterval } from '../../ads/adConfig';
 import { startLocationWatcher, stopLocationWatcher } from '../auth/utils/startLocationWatcher';
 import { getImageUrl, heightStringToCm, convertHeightForViewer, normalizeHeightUnit } from '../profile/utils/profileUtils';
 import { getRoleAccentColor } from '../layout/components/RoleHeaderBanner';
@@ -88,8 +91,42 @@ const Match = () => {
   const [showFilterSidebar, setShowFilterSidebar] = useState(false);
   const [matchFilters, setMatchFilters] = useState(() => getInitialMatchFilters('Imperial'));
   const [filterDraft, setFilterDraft] = useState(() => getInitialMatchFilters('Imperial'));
+  const [profilesSeenSinceAd, setProfilesSeenSinceAd] = useState(0);
+  const [nextAdAfter, setNextAdAfter] = useState(randomAdInterval);
+  const [isShowingAd, setIsShowingAd] = useState(false);
   const navigation = useNavigation();
   const selectedDaterId = userInfo?.referrer_id || userInfo?.referred_by_id || null;
+
+  const adsEnabled = !loading && !refreshing;
+  const { nativeAd, loading: adLoading, error: adError, reload: reloadNativeAd } = useNativeAd({
+    enabled: adsEnabled,
+  });
+
+  const onProfileConsumed = useCallback((remainingProfileCount) => {
+    setProfilesSeenSinceAd((prev) => {
+      const next = prev + 1;
+      if (next >= nextAdAfter) {
+        if (remainingProfileCount > 0) {
+          setIsShowingAd(true);
+        }
+        setNextAdAfter(randomAdInterval());
+        return 0;
+      }
+      return next;
+    });
+  }, [nextAdAfter]);
+
+  const handleDismissAd = useCallback(() => {
+    setIsShowingAd(false);
+    reloadNativeAd();
+  }, [reloadNativeAd]);
+
+  useEffect(() => {
+    if (isShowingAd && !adLoading && !nativeAd && adError) {
+      setIsShowingAd(false);
+      reloadNativeAd();
+    }
+  }, [isShowingAd, adLoading, nativeAd, adError, reloadNativeAd]);
 
   const sliderWidth = Dimensions.get('window').width - 56;
 
@@ -389,6 +426,9 @@ const Match = () => {
       const initialFilters = getInitialMatchFilters(contextUser?.unit || 'Imperial');
       setMatchFilters(initialFilters);
       setFilterDraft(initialFilters);
+      setIsShowingAd(false);
+      setProfilesSeenSinceAd(0);
+      setNextAdAfter(randomAdInterval());
 
       // Small delay to ensure backend has updated after dater selection
       const timer = setTimeout(async () => {
@@ -409,6 +449,8 @@ const Match = () => {
     // Immediately remove the skipped user from local state (optimistic update)
     setProfiles((prevProfiles) => {
       const nextProfiles = prevProfiles.filter((profile) => profile.id !== skippedUserId);
+      const remainingCount = filterProfilesList(nextProfiles).length;
+      onProfileConsumed(remainingCount);
       setCurrentIndex((prevIndex) =>
         adjustCurrentIndexAfterRemoval(prevProfiles, skippedUserId, prevIndex, nextProfiles)
       );
@@ -490,9 +532,10 @@ const Match = () => {
         const data = await res.json();
         const likedProfile = profiles.find(p => p.id === likedUserId);
 
-        // Remove the liked user from local state immediately
         setProfiles((prevProfiles) => {
           const nextProfiles = prevProfiles.filter((profile) => profile.id !== likedUserId);
+          const remainingCount = filterProfilesList(nextProfiles).length;
+          onProfileConsumed(remainingCount);
           setCurrentIndex((prevIndex) =>
             adjustCurrentIndexAfterRemoval(prevProfiles, likedUserId, prevIndex, nextProfiles)
           );
@@ -546,9 +589,10 @@ const Match = () => {
         const data = await res.json();
         const likedProfile = profiles.find(p => p.id === likedUserId);
 
-        // Remove the matched user from local state immediately
         setProfiles((prevProfiles) => {
           const nextProfiles = prevProfiles.filter((profile) => profile.id !== likedUserId);
+          const remainingCount = filterProfilesList(nextProfiles).length;
+          onProfileConsumed(remainingCount);
           setCurrentIndex((prevIndex) =>
             adjustCurrentIndexAfterRemoval(prevProfiles, likedUserId, prevIndex, nextProfiles)
           );
@@ -622,15 +666,16 @@ const Match = () => {
                 }
 
                 if (res.ok) {
-                  // Remove the blocked user from local state immediately
                   setProfiles((prevProfiles) => {
                     const nextProfiles = prevProfiles.filter((profile) => profile.id !== blockedUserId);
+                    const remainingCount = filterProfilesList(nextProfiles).length;
+                    onProfileConsumed(remainingCount);
                     setCurrentIndex((prevIndex) =>
                       adjustCurrentIndexAfterRemoval(prevProfiles, blockedUserId, prevIndex, nextProfiles)
                     );
                     return nextProfiles;
                   });
-                  
+
                   Alert.alert('Success', 'User blocked successfully');
                 } else {
                   const data = await res.json();
@@ -699,9 +744,10 @@ const Match = () => {
 
       const data = await res.json();
       setShowNoteModal(false);
-      // Remove the user from profiles after sending note (note creates a pending match)
       setProfiles((prevProfiles) => {
         const nextProfiles = prevProfiles.filter((profile) => profile.id !== likedUser.id);
+        const remainingCount = filterProfilesList(nextProfiles).length;
+        onProfileConsumed(remainingCount);
         setCurrentIndex((prevIndex) =>
           adjustCurrentIndexAfterRemoval(prevProfiles, likedUser.id, prevIndex, nextProfiles)
         );
@@ -742,20 +788,23 @@ const Match = () => {
       ? filteredProfiles[currentIndex]
       : null;
   const upcomingProfile =
-    filteredProfiles.length > 0 && currentIndex + 1 < filteredProfiles.length
+    !isShowingAd &&
+    filteredProfiles.length > 0 &&
+    currentIndex + 1 < filteredProfiles.length
       ? filteredProfiles[currentIndex + 1]
       : null;
+  const stackPreviewProfile = isShowingAd ? currentProfile : upcomingProfile;
   const accentColor = getRoleAccentColor(userInfo?.role || 'matchmaker');
   const isMatchmaker = userInfo?.role === 'matchmaker';
   const isDater = userInfo?.role === 'user';
   const screenBackground = isMatchmaker ? MATCHMAKER_SCREEN_BG : MATCH_SCREEN_BG;
   const headerTopPadding = isMatchmaker ? insets.top + 4 : insets.top + 8;
   const actionBarBottom = 12;
-  const isProfilesEmptyState = !currentProfile;
+  const isProfilesEmptyState = !currentProfile && !isShowingAd;
   const hasProfilesButFilteredOut = profiles.length > 0 && filteredProfiles.length === 0;
   const heightLabelUnit = viewerHeightUnit;
-  const upcomingHasNote = Boolean(upcomingProfile?.note?.trim());
-  const currentHasNote = Boolean(currentProfile?.note?.trim());
+  const upcomingHasNote = Boolean(stackPreviewProfile?.note?.trim());
+  const currentHasNote = Boolean(currentProfile?.note?.trim() && !isShowingAd);
   const bothNotesPreview = currentHasNote && upcomingHasNote;
   const cardStackPreviewPadding = isMatchmaker
     ? MATCHMAKER_CARD_STACK_PADDING_TOP
@@ -831,11 +880,11 @@ const Match = () => {
           isMatchmaker && styles.contentMatchmaker,
           isProfilesEmptyState && styles.contentGrow,
         ]}
-        removeClippedSubviews={!(isMatchmaker && bothNotesPreview && upcomingProfile)}
+        removeClippedSubviews={!(isMatchmaker && bothNotesPreview && stackPreviewProfile)}
         showsVerticalScrollIndicator={false}
         nestedScrollEnabled
       >
-        {currentProfile ? (
+        {currentProfile || isShowingAd ? (
           <>
             <View
               style={[
@@ -844,7 +893,7 @@ const Match = () => {
                 bothNotesPreview && styles.cardStackBothNotesPreview,
               ]}
             >
-              {upcomingProfile ? (
+              {stackPreviewProfile ? (
                 <>
                   <View
                     style={[
@@ -861,7 +910,7 @@ const Match = () => {
                   >
                     <View style={styles.stackPreviewScaled}>
                       <ProfileCard
-                        profile={upcomingProfile}
+                        profile={stackPreviewProfile}
                         userInfo={userInfo}
                         preferredViewerUnit={
                           userInfo?.role === 'matchmaker' ? referrer?.unit : undefined
@@ -874,14 +923,23 @@ const Match = () => {
                 </>
               ) : null}
               <View style={styles.currentCard}>
-                <ProfileCard
-                  profile={currentProfile}
-                  userInfo={userInfo}
-                  preferredViewerUnit={
-                    userInfo?.role === 'matchmaker' ? referrer?.unit : undefined
-                  }
-                  onSkip={nextProfile}
-                />
+                {isShowingAd ? (
+                  <NativeProfileAdCard
+                    nativeAd={nativeAd}
+                    loading={adLoading}
+                    userInfo={userInfo}
+                    onDismiss={handleDismissAd}
+                  />
+                ) : (
+                  <ProfileCard
+                    profile={currentProfile}
+                    userInfo={userInfo}
+                    preferredViewerUnit={
+                      userInfo?.role === 'matchmaker' ? referrer?.unit : undefined
+                    }
+                    onSkip={nextProfile}
+                  />
+                )}
               </View>
             </View>
             {showNoteModal && (
@@ -902,7 +960,7 @@ const Match = () => {
           </View>
         )}
       </ScrollView>
-      {currentProfile && (
+      {currentProfile && !isShowingAd && (
         <View style={[styles.buttonContainer, { bottom: actionBarBottom }]}>
           <View style={styles.leftButtonContainer}>
             {isDater && (
