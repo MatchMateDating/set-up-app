@@ -14,7 +14,7 @@ import { getImageUrl } from '../profile/utils/profileUtils';
 
 const ACCENT_PURPLE = '#6c5ce7';
 
-const DaterDropdown = ({ userInfo, onDaterChange, showLabel = false }) => {
+const DaterDropdown = ({ userInfo, onDaterChange, showLabel = false, labelText = "YOU'RE CHOOSING FOR" }) => {
   const [open, setOpen] = useState(false);
   const [linkedDaters, setLinkedDaters] = useState([]);
   const [selectedDater, setSelectedDater] = useState(null);
@@ -155,7 +155,7 @@ const DaterDropdown = ({ userInfo, onDaterChange, showLabel = false }) => {
   if (linkedDaters.length === 0) {
     return (
       <View style={styles.wrapper}>
-        {showLabel ? <Text style={styles.label}>YOU&apos;RE CHOOSING FOR</Text> : null}
+        {showLabel ? <Text style={styles.label}>{labelText}</Text> : null}
         <View style={styles.headerSingle}>
           <Text style={styles.placeholder}>No daters available</Text>
         </View>
@@ -179,7 +179,7 @@ const DaterDropdown = ({ userInfo, onDaterChange, showLabel = false }) => {
 
   return (
     <View style={styles.wrapper}>
-      {showLabel ? <Text style={styles.label}>YOU&apos;RE CHOOSING FOR</Text> : null}
+      {showLabel ? <Text style={styles.label}>{labelText}</Text> : null}
 
       <View style={styles.dropdownAnchor}>
         {isMulti ? (

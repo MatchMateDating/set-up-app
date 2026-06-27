@@ -1,5 +1,6 @@
 import React, { useContext, useEffect, useState, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, Alert, ScrollView, Image, TouchableOpacity } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import { API_BASE_URL } from '../../env';
@@ -23,6 +24,8 @@ import { shouldSuppressAuthErrors } from '../../utils/authSession';
 const MATCHMAKER_SCREEN_BG = '#f3f4f6';
 /** Same reserve above the profile card as on the Matches tab. */
 const MATCHMAKER_CARD_STACK_PADDING_TOP = 32;
+/** Dater Matches tab card stack inset (see match.js). */
+const DATER_CARD_STACK_PADDING_TOP = 14;
 
 const ProfilePage = () => {
   const insets = useSafeAreaInsets();
@@ -297,8 +300,13 @@ const ProfilePage = () => {
   );
 
   if (loading) {
-    const loadingColor = getRoleAccentColor(user?.role || contextUser?.role || 'matchmaker');
-    const loadingBg = getRoleBackgroundTint(user?.role || contextUser?.role || 'matchmaker');
+    const loadingRole = matchProfile && contextUser?.role === 'matchmaker'
+      ? 'matchmaker'
+      : (user?.role || contextUser?.role || 'matchmaker');
+    const loadingColor = getRoleAccentColor(loadingRole);
+    const loadingBg = loadingRole === 'matchmaker' && (matchProfile || user?.role === 'matchmaker')
+      ? MATCHMAKER_SCREEN_BG
+      : getRoleBackgroundTint(loadingRole);
     return (
       <View style={[styles.loadingContainer, { backgroundColor: loadingBg }]}>
         <ActivityIndicator size="large" color={loadingColor} />
@@ -315,30 +323,46 @@ const ProfilePage = () => {
     );
   }
 
+  const viewerIsMatchmaker = contextUser?.role === 'matchmaker';
   const accentColor = getRoleAccentColor(user.role);
+  const matchmakerAccentColor = getRoleAccentColor('matchmaker');
   const backgroundTint = getRoleBackgroundTint(user.role);
   const isMatchmaker = user.role === 'matchmaker';
   const isDater = user.role === 'user';
+  const viewerIsDater = contextUser?.role === 'user';
+  const showMatchmakerViewingDater = matchProfile && viewerIsMatchmaker && isDater && !editing;
+  const showDaterViewingMatchProfile = matchProfile && viewerIsDater && isDater && !editing;
   const showMatchmakerChrome = isMatchmaker && !matchProfile && !editing;
   const showDaterChrome = isDater && !matchProfile && !editing;
   const showDaterEditChrome = isDater && !matchProfile && editing;
   const useSharedDaterDropdown = showMatchmakerChrome && route.name === 'Profile';
-  const screenBackground = showMatchmakerChrome
+  const screenBackground = showMatchmakerChrome || showMatchmakerViewingDater
     ? MATCHMAKER_SCREEN_BG
-    : showDaterChrome || (isDater && !matchProfile)
+    : showDaterChrome || showDaterViewingMatchProfile || (isDater && !matchProfile)
       ? DATER_SCREEN_BG
       : backgroundTint;
-  const headerTopPadding = showMatchmakerChrome || showDaterChrome ? insets.top + 4 : insets.top + 8;
+  const headerTopPadding = showMatchmakerChrome || showDaterChrome || showMatchmakerViewingDater
+    ? insets.top + 4
+    : insets.top + 8;
   const bottomInset = Math.max(insets.bottom, 8);
   const editFooterVerticalPadding = 16;
   const tabBarReplacementHeight = 56 + bottomInset + editFooterVerticalPadding * 2;
-  const contentTopPadding = showMatchmakerChrome || showDaterChrome
+  const editKeyboardBottomOffset = 16;
+  const contentTopPadding = showMatchmakerChrome || showDaterChrome || showMatchmakerViewingDater || showDaterViewingMatchProfile
     ? 0
     : editing
       ? 0
       : isMatchmaker
         ? 12
         : 56;
+
+  const ScrollComponent = showDaterEditChrome ? KeyboardAwareScrollView : ScrollView;
+  const keyboardAwareProps = showDaterEditChrome
+    ? {
+        bottomOffset: editKeyboardBottomOffset,
+        extraKeyboardSpace: tabBarReplacementHeight,
+      }
+    : {};
 
   return (
     <View
@@ -348,8 +372,11 @@ const ProfilePage = () => {
         { backgroundColor: screenBackground },
       ]}
     >
-      {matchProfile && !editing && (
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+      {matchProfile && !editing && !showMatchmakerViewingDater && (
+        <TouchableOpacity
+          style={[styles.backButton, { paddingTop: insets.top + 8 }]}
+          onPress={() => navigation.goBack()}
+        >
           <Ionicons name="arrow-back" size={24} color={accentColor} />
           <Text style={[styles.backButtonText, { color: accentColor }]}>Back</Text>
         </TouchableOpacity>
@@ -378,6 +405,29 @@ const ProfilePage = () => {
               sticky
             />
           ) : null}
+        </View>
+      ) : null}
+
+      {showMatchmakerViewingDater ? (
+        <View
+          style={[
+            styles.screenHeader,
+            styles.screenHeaderMatchmaker,
+            { paddingTop: headerTopPadding },
+          ]}
+        >
+          <View style={styles.headerSide}>
+            <TouchableOpacity
+              style={styles.headerBackButton}
+              onPress={() => navigation.goBack()}
+              accessibilityRole="button"
+              accessibilityLabel="Back"
+            >
+              <Ionicons name="arrow-back" size={24} color={matchmakerAccentColor} />
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.headerTitle}>Dater Profile</Text>
+          <View style={[styles.headerSide, styles.headerSideRight]} />
         </View>
       ) : null}
 
@@ -443,18 +493,31 @@ const ProfilePage = () => {
         </View>
       ) : null}
 
-      <ScrollView
+      <ScrollComponent
         ref={scrollViewRef}
         style={[
-          showMatchmakerChrome || showDaterEditChrome ? styles.scrollView : undefined,
-          isDater && !matchProfile ? { backgroundColor: DATER_SCREEN_BG } : undefined,
+          showMatchmakerChrome ||
+            showMatchmakerViewingDater ||
+            showDaterViewingMatchProfile ||
+            showDaterEditChrome
+            ? styles.scrollView
+            : undefined,
+          (isDater && !matchProfile) || showDaterViewingMatchProfile
+            ? { backgroundColor: DATER_SCREEN_BG }
+            : undefined,
         ]}
         contentContainerStyle={[
           styles.content,
-          showMatchmakerChrome && styles.contentMatchmaker,
+          (showMatchmakerChrome || showMatchmakerViewingDater) && styles.contentMatchmaker,
+          showDaterViewingMatchProfile && styles.contentDaterMatch,
           isDater && !matchProfile && !showDaterEditChrome && styles.contentDater,
           showDaterEditChrome && styles.contentDaterEdit,
-          !showMatchmakerChrome && !showDaterChrome && !showDaterEditChrome && !(isDater && !matchProfile) && {
+          !showMatchmakerChrome &&
+            !showMatchmakerViewingDater &&
+            !showDaterViewingMatchProfile &&
+            !showDaterChrome &&
+            !showDaterEditChrome &&
+            !(isDater && !matchProfile) && {
             paddingTop: contentTopPadding,
           },
         ]}
@@ -465,8 +528,40 @@ const ProfilePage = () => {
           parentScrollOffsetYRef.current = event.nativeEvent.contentOffset.y;
         }}
         nestedScrollEnabled
+        {...keyboardAwareProps}
       >
-        {user.role === 'user' && (
+        {showMatchmakerViewingDater ? (
+          <View
+            style={[
+              styles.cardStack,
+              { paddingTop: MATCHMAKER_CARD_STACK_PADDING_TOP },
+            ]}
+          >
+            <View style={styles.currentCard}>
+              <ProfileCard
+                profile={user}
+                userInfo={contextUser}
+                blendWithBackground
+                hideProfileThumbnail
+              />
+            </View>
+          </View>
+        ) : null}
+
+        {showDaterViewingMatchProfile ? (
+          <View
+            style={[
+              styles.cardStack,
+              { paddingTop: DATER_CARD_STACK_PADDING_TOP },
+            ]}
+          >
+            <View style={styles.currentCard}>
+              <ProfileCard profile={user} userInfo={contextUser} />
+            </View>
+          </View>
+        ) : null}
+
+        {user.role === 'user' && !showMatchmakerViewingDater && !showDaterViewingMatchProfile && (
           <Profile
             user={user}
             framed={matchProfile === true}
@@ -504,7 +599,7 @@ const ProfilePage = () => {
             </View>
           )
         )}
-      </ScrollView>
+      </ScrollComponent>
 
       {showDaterEditChrome && profileEditActions ? (
         <View
@@ -587,6 +682,11 @@ const styles = StyleSheet.create({
   },
   contentDater: {
     paddingTop: 12,
+    paddingHorizontal: 20,
+    paddingBottom: 110,
+  },
+  contentDaterMatch: {
+    paddingTop: 8,
     paddingHorizontal: 20,
     paddingBottom: 110,
   },
@@ -686,6 +786,12 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     resizeMode: 'contain',
+  },
+  headerBackButton: {
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'flex-start',
   },
   headerActionButton: {
     width: 44,

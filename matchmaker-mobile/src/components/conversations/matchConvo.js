@@ -17,10 +17,11 @@ import {
   Keyboard,
   InteractionManager,
   PanResponder,
+  Dimensions,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useKeyboardHandler } from 'react-native-keyboard-controller';
-import Animated, { useSharedValue, useAnimatedStyle } from 'react-native-reanimated';
+import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import {
   CommonActions,
   useFocusEffect,
@@ -40,6 +41,7 @@ import { DATER_SCREEN_BG, getRoleAccentColor } from '../layout/components/RoleHe
 import { runOnJS } from 'react-native-reanimated';
 import { setActiveMatchId, useNotifications } from '../../context/NotificationContext';
 import { UserContext } from '../../context/UserContext';
+import { syncMatchPreviewFromMessages } from './utils/matchMessagePreview';
 
 function formatMessageTimestamp(isoString) {
   if (!isoString) return '';
@@ -113,6 +115,9 @@ const TYPING_DEBOUNCE_MS = 350;
 const TYPING_IDLE_CLEAR_MS = 3000;
 /** If the user is within this many px of the bottom, content-size changes snap them to the new bottom. */
 const TYPING_SCROLL_BOTTOM_THRESHOLD_PX = 40;
+/** Off-screen column revealed when the user swipes left on the thread. */
+const MESSAGE_TIME_COLUMN_WIDTH = 58;
+const SCREEN_WIDTH = Dimensions.get('window').width;
 
 const MatchConvo = () => {
   const route = useRoute();
@@ -158,6 +163,34 @@ const MatchConvo = () => {
   const messageSnapshotRef = useRef({ count: 0, lastId: null });
   const newMessageTextRef = useRef('');
   const othersTypingRef = useRef([]);
+  const timeRevealX = useSharedValue(0);
+  const timeRevealDragStart = useRef(0);
+  const timeRevealPanResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gestureState) =>
+        Math.abs(gestureState.dx) > 10 &&
+        Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 1.25,
+      onPanResponderGrant: () => {
+        timeRevealDragStart.current = timeRevealX.value;
+      },
+      onPanResponderMove: (_, gestureState) => {
+        timeRevealX.value = Math.max(
+          -MESSAGE_TIME_COLUMN_WIDTH,
+          Math.min(0, timeRevealDragStart.current + gestureState.dx)
+        );
+      },
+      onPanResponderRelease: () => {
+        timeRevealX.value = withSpring(0, { damping: 22, stiffness: 320 });
+      },
+      onPanResponderTerminate: () => {
+        timeRevealX.value = withSpring(0, { damping: 22, stiffness: 320 });
+      },
+      onShouldBlockNativeResponder: () => false,
+    })
+  ).current;
+  const timeRevealAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: timeRevealX.value }],
+  }));
 
   useEffect(() => {
     newMessageTextRef.current = newMessageText;
@@ -312,6 +345,7 @@ const MatchConvo = () => {
           }
           messageSnapshotRef.current = snapshot;
           setMessages(normalizedMessages);
+          syncMatchPreviewFromMessages(matchId, normalizedMessages, userInfo);
           await markConversationAsRead();
         }
       } catch (err) {
@@ -325,7 +359,7 @@ const MatchConvo = () => {
         }
       }
     },
-    [matchId, navigation, markConversationAsRead, exitConversationDueToAccessLoss]
+    [matchId, navigation, markConversationAsRead, exitConversationDueToAccessLoss, userInfo]
   );
 
   /** Load match row + counterparty for the header; daters retry briefly so post-approval opens are not stale. */
@@ -694,7 +728,9 @@ const MatchConvo = () => {
         timestamp: new Date().toISOString(),
         _optimistic: true,
       };
-      return [...prev, optimistic];
+      const next = [...prev, optimistic];
+      syncMatchPreviewFromMessages(matchId, next, userInfo);
+      return next;
     });
     InteractionManager.runAfterInteractions(() => scrollToBottom(true));
 
@@ -717,7 +753,11 @@ const MatchConvo = () => {
 
       if (res.status === 403) {
         // Roll back the optimistic message
-        setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
+        setMessages((prev) => {
+          const next = prev.filter((m) => m.id !== optimisticId);
+          syncMatchPreviewFromMessages(matchId, next, userInfo);
+          return next;
+        });
         exitConversationDueToAccessLoss();
         return;
       }
@@ -728,6 +768,7 @@ const MatchConvo = () => {
         const normalized = normalizeMessages(data.messages || []);
         messageSnapshotRef.current = getMessageSnapshot(normalized);
         setMessages(normalized);
+        syncMatchPreviewFromMessages(matchId, normalized, userInfo);
         if (typingDebounceRef.current) {
           clearTimeout(typingDebounceRef.current);
           typingDebounceRef.current = null;
@@ -752,13 +793,21 @@ const MatchConvo = () => {
         }
       } else {
         // Roll back the optimistic message on server error
-        setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
+        setMessages((prev) => {
+          const next = prev.filter((m) => m.id !== optimisticId);
+          syncMatchPreviewFromMessages(matchId, next, userInfo);
+          return next;
+        });
         const errorData = await res.json().catch(() => ({}));
         Alert.alert('Error', errorData.error || 'Failed to send message');
       }
     } catch (err) {
       // Roll back the optimistic message on network error
-      setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
+      setMessages((prev) => {
+        const next = prev.filter((m) => m.id !== optimisticId);
+        syncMatchPreviewFromMessages(matchId, next, userInfo);
+        return next;
+      });
       console.error(err);
       Alert.alert('Error', 'Failed to send message');
     }
@@ -766,46 +815,31 @@ const MatchConvo = () => {
 
   const isMine = (msg) => msg.sender_id === userInfo?.id;
 
+  const isMatchmakerMessage = (msg) => {
+    const senderRole = senderRoles[msg.sender_id];
+    if (senderRole === 'matchmaker') return true;
+    if (senderRole === undefined && userInfo?.role === 'matchmaker' && !isMine(msg)) {
+      // During profile lookup, prefer a stable label for matchmaker-mediated chats.
+      return true;
+    }
+    return false;
+  };
+
   const getSenderLabel = (msg) => {
-    if (isMine(msg)) return '';
+    if (isMine(msg) || isMatchmakerMessage(msg)) return '';
     const senderRole = senderRoles[msg.sender_id];
     const trimmedSenderName =
       senderNames[msg.sender_id] != null ? String(senderNames[msg.sender_id]).trim() : '';
     const senderName = trimmedSenderName || 'Loading...';
-    if (senderRole === undefined && userInfo?.role === 'matchmaker') {
-      // During profile lookup, prefer a stable label for matchmaker-mediated chats.
-      return 'Matchmaker';
-    }
-    if (senderRole === 'matchmaker') {
-      const isDaterViewer = userInfo?.role === 'user';
-      if (isDaterViewer) {
-        return trimmedSenderName ? `${trimmedSenderName} • Matchmaker` : 'Matchmaker';
-      }
-
-      const senderLinkedDaterId = senderReferrerIds[msg.sender_id];
-      const myLinkedDaterId = userInfo?.referrer_id ?? userInfo?.referred_by_id ?? null;
-      const isCurrentUsersMatchmaker =
-        myLinkedDaterId != null &&
-        senderLinkedDaterId != null &&
-        Number(senderLinkedDaterId) === Number(myLinkedDaterId);
-
-      let myDaterFirstName =
-        (matchInfo?.linked_dater?.first_name != null && String(matchInfo.linked_dater.first_name).trim()) ||
-        (referrerInfo?.first_name != null && String(referrerInfo.first_name).trim()) ||
-        '';
-
-      const otherDaterFirstName =
-        matchUser?.first_name != null ? String(matchUser.first_name).trim() : '';
-
-      if (isCurrentUsersMatchmaker) {
-        return myDaterFirstName ? `${myDaterFirstName} • Matchmaker` : 'Matchmaker';
-      }
-      return otherDaterFirstName ? `${otherDaterFirstName} • Matchmaker` : 'Matchmaker';
-    }
     if (senderRole === 'user' || senderRole === 'dater') {
       return trimmedSenderName ? `${trimmedSenderName} • Dater` : senderName;
     }
     return senderName;
+  };
+
+  const getBubbleHeaderLabel = (msg) => {
+    if (isMatchmakerMessage(msg)) return 'Matchmaker';
+    return getSenderLabel(msg);
   };
 
   const handleApprove = async () => {
@@ -965,6 +999,22 @@ const MatchConvo = () => {
     return game?.path || null;
   }, []);
 
+  const renderMessageTimeRow = useCallback((key, timestamp, mine, bubbleContent, { dater = false } = {}) => (
+    <View key={key} style={styles.messageTimeRow}>
+      <View
+        style={[
+          styles.messageTimeBubbleSlot,
+          mine ? styles.messageTimeBubbleSlotMine : styles.messageTimeBubbleSlotTheirs,
+        ]}
+      >
+        {bubbleContent}
+      </View>
+      <Text style={[styles.messageTimeReveal, dater && styles.daterMessageTimeReveal]}>
+        {formatBubbleTime(timestamp)}
+      </Text>
+    </View>
+  ), []);
+
   const renderPuzzlePlayButton = useCallback(
     (msg, mine, { dater = false } = {}) => {
       const puzzleLink = resolvePuzzleLink(msg);
@@ -1034,6 +1084,8 @@ const MatchConvo = () => {
   const androidActionsBottomPadding =
     Platform.OS === 'android' ? (isKeyboardVisible ? 8 : 16 + insets.bottom) : 16;
   const androidSheetBottomPadding = 16 + insets.bottom;
+  /** Sit dropdown just below the header ⋮ button. */
+  const menuDropdownTop = insets.top + 8 + 40 + 8;
   const goBackToConversations = () => {
     if (Platform.OS === 'ios') {
       navigation.dispatch(
@@ -1405,84 +1457,14 @@ const MatchConvo = () => {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
       <Animated.View style={[{ flex: 1 }, animatedStyle]}>
-      {isDaterToDaterChat ? (
-        <View style={[styles.daterHeader, { paddingTop: insets.top + 8 }]}>
-          <TouchableOpacity style={styles.daterBackButton} onPress={goBackToConversations}>
-            <Ionicons name="chevron-back" size={26} color="#9ca3af" />
-          </TouchableOpacity>
+      <View style={[styles.conversationHeader, { paddingTop: insets.top + 8 }]}>
+        <TouchableOpacity style={styles.conversationBackButton} onPress={goBackToConversations}>
+          <Ionicons name="chevron-back" size={24} color="#374151" />
+        </TouchableOpacity>
 
-          {matchUser ? (
-            <TouchableOpacity
-              style={styles.daterHeaderProfile}
-              disabled={effectiveIsBlind}
-              activeOpacity={0.7}
-              onPress={() => navigation.navigate('ProfilePage', { userId: matchUser.id, matchProfile: true })}
-            >
-              {matchUser.first_image ? (
-                <Image
-                  source={{ uri: getImageUrl(matchUser.first_image, API_BASE_URL) }}
-                  style={styles.daterHeaderAvatar}
-                  blurRadius={effectiveIsBlind ? 40 : 0}
-                />
-              ) : (
-                <View style={[styles.daterHeaderAvatarPlaceholder, { backgroundColor: daterAccent }]}>
-                  <Text style={styles.placeholderText}>{matchUser.first_name?.[0] || '?'}</Text>
-                </View>
-              )}
-              <View style={styles.daterHeaderTextBlock}>
-                <Text style={styles.daterHeaderName}>{matchUser.first_name || `Match ${matchId}`}</Text>
-                <Text style={[styles.daterRoleLabel, { color: daterAccent }]}>DATER</Text>
-              </View>
-            </TouchableOpacity>
-          ) : (
-            <View style={styles.daterHeaderProfile} />
-          )}
-
-          <TouchableOpacity style={styles.daterMenuButton} onPress={() => setMenuVisible(true)}>
-            <Ionicons name="ellipsis-vertical" size={20} color="#6b7280" />
-          </TouchableOpacity>
-        </View>
-      ) : (
-      <View style={styles.header}>
-        <View style={styles.headerTopRow}>
-          <TouchableOpacity style={styles.backButton} onPress={goBackToConversations}>
-            <Ionicons name="arrow-back" size={24} color={accentColor} />
-            <Text style={[styles.backButtonText, { color: accentColor }]}>Back</Text>
-          </TouchableOpacity>
-
-          {userInfo?.role === 'matchmaker' && (
-            <View style={styles.headerActions}>
-              {isPendingApproval && !waitingForOtherApproval && (
-                <TouchableOpacity
-                  style={[styles.headerApproveButton, { backgroundColor: accentColor }]}
-                  onPress={handleApprove}
-                >
-                  <Text style={styles.headerApproveButtonText}>Approve</Text>
-                </TouchableOpacity>
-              )}
-              <TouchableOpacity
-                style={styles.menuButton}
-                onPress={() => setMenuVisible(true)}
-              >
-                <Ionicons name="ellipsis-vertical" size={24} color={accentColor} />
-              </TouchableOpacity>
-            </View>
-          )}
-          {userInfo?.role === 'user' && (
-            <View style={styles.headerActions}>
-              <TouchableOpacity
-                style={styles.menuButton}
-                onPress={() => setMenuVisible(true)}
-              >
-                <Ionicons name="ellipsis-vertical" size={24} color={accentColor} />
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
-
-        {matchUser && (
+        {matchUser ? (
           <TouchableOpacity
-            style={styles.matchAvatarSection}
+            style={styles.conversationHeaderProfile}
             disabled={effectiveIsBlind && userInfo?.role !== 'matchmaker'}
             activeOpacity={0.7}
             onPress={() => navigation.navigate('ProfilePage', { userId: matchUser.id, matchProfile: true })}
@@ -1490,27 +1472,59 @@ const MatchConvo = () => {
             {matchUser.first_image ? (
               <Image
                 source={{ uri: getImageUrl(matchUser.first_image, API_BASE_URL) }}
-                style={[styles.matchAvatarImg, { borderColor: accentColor }]}
+                style={styles.conversationHeaderAvatar}
                 blurRadius={effectiveIsBlind && userInfo?.role !== 'matchmaker' ? 40 : 0}
               />
             ) : (
-              <View style={[styles.matchPlaceholder, { backgroundColor: accentColor }]}>
+              <View
+                style={[
+                  styles.conversationHeaderAvatarPlaceholder,
+                  { backgroundColor: userInfo?.role === 'user' ? daterAccent : accentColor },
+                ]}
+              >
                 <Text style={styles.placeholderText}>{matchUser.first_name?.[0] || '?'}</Text>
               </View>
             )}
-            <View style={styles.titleContainer}>
-              <Text style={styles.convoTitle}>{matchUser.first_name || `Match ${matchId}`}</Text>
-              {showSpeakingWithMatchmaker && (
-                <Text style={[styles.speakingWithMatchmakerText, { color: accentColor }]}>(speaking with matchmaker)</Text>
-              )}
-              {showApprovedByOther && (
-                <Text style={[styles.speakingWithMatchmakerText, { color: accentColor }]}>(approved by other matchmaker)</Text>
-              )}
+            <View style={styles.conversationHeaderTextBlock}>
+              <Text style={styles.conversationHeaderName} numberOfLines={1}>
+                {matchUser.first_name || `Match ${matchId}`}
+              </Text>
+              {isDaterToDaterChat ? (
+                <Text style={[styles.conversationRoleLabel, { color: daterAccent }]}>DATER</Text>
+              ) : showSpeakingWithMatchmaker ? (
+                <Text
+                  style={[
+                    styles.conversationHeaderSubtitle,
+                    { color: userInfo?.role === 'user' ? daterAccent : accentColor },
+                  ]}
+                >
+                  (speaking with matchmaker)
+                </Text>
+              ) : showApprovedByOther ? (
+                <Text style={[styles.conversationHeaderSubtitle, { color: accentColor }]}>
+                  (approved by other matchmaker)
+                </Text>
+              ) : null}
             </View>
           </TouchableOpacity>
+        ) : (
+          <View style={styles.conversationHeaderProfile} />
         )}
+
+        <View style={styles.conversationHeaderActions}>
+          {userInfo?.role === 'matchmaker' && isPendingApproval && !waitingForOtherApproval && (
+            <TouchableOpacity
+              style={[styles.headerApproveButton, { backgroundColor: accentColor }]}
+              onPress={handleApprove}
+            >
+              <Text style={styles.headerApproveButtonText}>Approve</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity style={styles.conversationMenuButton} onPress={() => setMenuVisible(true)}>
+            <Ionicons name="ellipsis-vertical" size={18} color="#374151" />
+          </TouchableOpacity>
+        </View>
       </View>
-      )}
 
       {/* Message countdown banner for matchmakers */}
       {userInfo?.role === 'matchmaker' && isPendingApproval && (
@@ -1536,109 +1550,130 @@ const MatchConvo = () => {
         </View>
       )}
 
-      <ScrollView
-        ref={scrollViewRef}
-        style={[{ flex: 1 }, isDaterToDaterChat && styles.daterMessagesScroll]}
-        contentContainerStyle={{
-          ...(isDaterToDaterChat ? styles.daterMessagesContent : styles.messagesContent),
-          paddingBottom: selectedPuzzleLink ? 1 : 0,
-        }}
-        onScroll={handleScrollViewScroll}
-        scrollEventThrottle={100}
-        onLayout={(e) => {
-          scrollMetricsRef.current = {
-            ...scrollMetricsRef.current,
-            layoutH: e.nativeEvent.layout.height,
-          };
-        }}
-        onContentSizeChange={(contentWidth, contentHeight) => {
-          const m = scrollMetricsRef.current;
-          const layoutH = m.layoutH;
-          const prevContentH = m.contentH;
-          const prevScrollY = m.scrollY;
+      <View style={styles.messagesRevealClip} {...timeRevealPanResponder.panHandlers}>
+        <ScrollView
+          ref={scrollViewRef}
+          style={[{ flex: 1 }, isDaterToDaterChat && styles.daterMessagesScroll]}
+          contentContainerStyle={{
+            paddingBottom: selectedPuzzleLink ? 1 : 0,
+          }}
+          onScroll={handleScrollViewScroll}
+          scrollEventThrottle={100}
+          onLayout={(e) => {
+            scrollMetricsRef.current = {
+              ...scrollMetricsRef.current,
+              layoutH: e.nativeEvent.layout.height,
+            };
+          }}
+          onContentSizeChange={(contentWidth, contentHeight) => {
+            const m = scrollMetricsRef.current;
+            const layoutH = m.layoutH;
+            const prevContentH = m.contentH;
+            const prevScrollY = m.scrollY;
 
-          scrollMetricsRef.current = { ...m, contentH: contentHeight };
+            scrollMetricsRef.current = { ...m, contentH: contentHeight };
 
-          if (layoutH <= 0 || contentHeight <= 0) return;
+            if (layoutH <= 0 || contentHeight <= 0) return;
 
-          const maxScrollOld = Math.max(0, prevContentH - layoutH);
-          const maxScrollNew = Math.max(0, contentHeight - layoutH);
-          const distFromBottom =
-            maxScrollOld <= 0 ? 0 : maxScrollOld - prevScrollY;
-          const wasNearBottom =
-            maxScrollOld <= 0 || distFromBottom <= TYPING_SCROLL_BOTTOM_THRESHOLD_PX;
+            const maxScrollOld = Math.max(0, prevContentH - layoutH);
+            const maxScrollNew = Math.max(0, contentHeight - layoutH);
+            const distFromBottom =
+              maxScrollOld <= 0 ? 0 : maxScrollOld - prevScrollY;
+            const wasNearBottom =
+              maxScrollOld <= 0 || distFromBottom <= TYPING_SCROLL_BOTTOM_THRESHOLD_PX;
 
-          if (wasNearBottom && scrollViewRef.current) {
-            scrollViewRef.current.scrollTo({ y: maxScrollNew, animated: false });
-            scrollMetricsRef.current.scrollY = maxScrollNew;
-          }
-        }}
-      >
-        {messages.length === 0 ? (
-          <Text style={[styles.emptyText, isDaterToDaterChat && styles.daterEmptyText]}>No messages yet. Say hi!</Text>
-        ) : isDaterToDaterChat ? (
-          (() => {
-            const elements = [];
-            let lastDateKey = null;
+            if (wasNearBottom && scrollViewRef.current) {
+              scrollViewRef.current.scrollTo({ y: maxScrollNew, animated: false });
+              scrollMetricsRef.current.scrollY = maxScrollNew;
+            }
+          }}
+        >
+          <Animated.View
+            style={[
+              isDaterToDaterChat ? styles.daterMessagesRevealContent : styles.messagesRevealContent,
+              timeRevealAnimatedStyle,
+            ]}
+          >
+            {messages.length === 0 ? (
+              <Text style={[styles.emptyText, isDaterToDaterChat && styles.daterEmptyText]}>No messages yet. Say hi!</Text>
+            ) : isDaterToDaterChat ? (
+              (() => {
+                const elements = [];
+                let lastDateKey = null;
 
-            messages.forEach((msg, index) => {
-              const dateKey = getDateKey(msg.timestamp);
-              if (dateKey && dateKey !== lastDateKey) {
-                elements.push(
-                  <Text key={`date-${dateKey}-${index}`} style={styles.daterDateSeparator}>
-                    {formatDateSeparator(msg.timestamp)}
-                  </Text>
-                );
-                lastDateKey = dateKey;
-              }
+                messages.forEach((msg, index) => {
+                  const dateKey = getDateKey(msg.timestamp);
+                  if (dateKey && dateKey !== lastDateKey) {
+                    elements.push(
+                      <View key={`date-${dateKey}-${index}`} style={styles.daterDateSeparatorRow}>
+                        <Text style={styles.daterDateSeparator}>
+                          {formatDateSeparator(msg.timestamp)}
+                        </Text>
+                      </View>
+                    );
+                    lastDateKey = dateKey;
+                  }
 
-              const mine = isMine(msg);
-              const messageKey = msg.id ?? `${msg.sender_id || 'unknown'}-${msg.timestamp || index}-${index}`;
+                  const mine = isMine(msg);
+                  const showMatchmakerLabel = isMatchmakerMessage(msg);
+                  const messageKey = msg.id ?? `${msg.sender_id || 'unknown'}-${msg.timestamp || index}-${index}`;
 
-              elements.push(
-                <View
-                  key={messageKey}
-                  style={[styles.daterMessageRow, mine ? styles.daterMessageRowMine : styles.daterMessageRowTheirs]}
-                >
-                  <View style={[styles.daterBubble, mine ? styles.daterBubbleMine : styles.daterBubbleTheirs]}>
-                    {msg.text ? (
-                      <Text style={[styles.daterMessageText, mine && styles.daterMessageTextMine]}>{msg.text}</Text>
+                  elements.push(
+                    renderMessageTimeRow(
+                      messageKey,
+                      msg.timestamp,
+                      mine,
+                      <View style={[styles.daterBubble, mine ? styles.daterBubbleMine : styles.daterBubbleTheirs]}>
+                        {showMatchmakerLabel ? (
+                          <Text style={styles.daterMatchmakerLabel}>Matchmaker</Text>
+                        ) : null}
+                        {msg.text ? (
+                          <Text style={[styles.daterMessageText, mine && styles.daterMessageTextMine]}>{msg.text}</Text>
+                        ) : null}
+                        {msg.puzzle_type ? renderPuzzlePlayButton(msg, mine, { dater: true }) : null}
+                      </View>,
+                      { dater: true }
+                    )
+                  );
+                });
+
+                return elements;
+              })()
+            ) : (
+              messages.map((msg, index) => {
+                const mine = isMine(msg);
+                const bubbleHeaderLabel = getBubbleHeaderLabel(msg);
+                const messageKey = msg.id ?? `${msg.sender_id || 'unknown'}-${msg.timestamp || index}-${index}`;
+
+                return renderMessageTimeRow(
+                  messageKey,
+                  msg.timestamp,
+                  mine,
+                  <View style={[styles.messageBubble, mine ? [styles.mine, { backgroundColor: accentColor }] : styles.theirs]}>
+                    {bubbleHeaderLabel ? (
+                      <Text
+                        style={[
+                          styles.senderLabel,
+                          mine ? styles.senderLabelOnMine : { color: accentColor },
+                        ]}
+                      >
+                        {bubbleHeaderLabel}
+                      </Text>
                     ) : null}
-                    {msg.puzzle_type ? renderPuzzlePlayButton(msg, mine, { dater: true }) : null}
+                    {msg.text ? <Text style={[styles.messageText, mine && { color: '#fff' }]}>{msg.text}</Text> : null}
+                    {msg.puzzle_type ? renderPuzzlePlayButton(msg, mine) : null}
                   </View>
-                  <Text style={[styles.daterBubbleTime, mine && styles.daterBubbleTimeMine]}>
-                    {formatBubbleTime(msg.timestamp)}
-                  </Text>
-                </View>
-              );
-            });
-
-            return elements;
-          })()
-        ) : (
-          messages.map((msg, index) => {
-            const mine = isMine(msg);
-            const senderLabel = getSenderLabel(msg);
-            const messageKey = msg.id ?? `${msg.sender_id || 'unknown'}-${msg.timestamp || index}-${index}`;
-
-            return (
-              <View key={messageKey} style={[styles.messageBubble, mine ? [styles.mine, { backgroundColor: accentColor }] : styles.theirs]}>
-                {!mine && <Text style={[styles.senderLabel, { color: accentColor }]}>{senderLabel}</Text>}
-                {msg.text && <Text style={[styles.messageText, mine && { color: '#fff' }]}>{msg.text}</Text>}
-                {msg.puzzle_type ? renderPuzzlePlayButton(msg, mine) : null}
-                <Text style={[styles.timestamp, mine && userInfo?.role === 'user' && styles.timestampMineDater]}>
-                  {formatMessageTimestamp(msg.timestamp)}
-                </Text>
-              </View>
-            );
-          })
-        )}
-        {typingBannerText ? (
-          <Text style={[styles.typingIndicatorInScroll, isDaterToDaterChat && styles.daterTypingIndicator]}>
-            {typingBannerText}
-          </Text>
-        ) : null}
-      </ScrollView>
+                );
+              })
+            )}
+            {typingBannerText ? (
+              <Text style={[styles.typingIndicatorInScroll, isDaterToDaterChat && styles.daterTypingIndicator]}>
+                {typingBannerText}
+              </Text>
+            ) : null}
+          </Animated.View>
+        </ScrollView>
+      </View>
 
       {selectedPuzzleLink ? (
         <View style={[styles.selectedPuzzlePreview, isDaterToDaterChat && styles.daterSelectedPuzzlePreview]}>
@@ -1769,7 +1804,10 @@ const MatchConvo = () => {
       {/* Overflow menu modal */}
       {(userInfo?.role === 'user' || userInfo?.role === 'matchmaker') && (
         <Modal visible={menuVisible} transparent animationType="fade" onRequestClose={() => setMenuVisible(false)}>
-          <Pressable style={styles.menuOverlay} onPress={() => setMenuVisible(false)}>
+          <Pressable
+            style={[styles.menuOverlay, { paddingTop: menuDropdownTop }]}
+            onPress={() => setMenuVisible(false)}
+          >
             <View style={styles.menuContainer}>
               {userInfo?.role === 'matchmaker' && showHeaderBlindToggle && (
                 <TouchableOpacity
@@ -1823,11 +1861,6 @@ const MatchConvo = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fafafa' },
-  header: { backgroundColor: '#fff', paddingTop: 50, paddingBottom: 16, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: '#e0e6ef' },
-  headerTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  backButton: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  backButtonText: { color: '#6c5ce7', fontSize: 16, fontWeight: '600' },
-  headerActions: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   headerApproveButton: {
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -1839,15 +1872,88 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-  menuButton: {
-    padding: 8,
+  conversationHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    paddingHorizontal: 8,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e8e8e8',
+  },
+  conversationBackButton: {
+    paddingVertical: 6,
+    paddingLeft: 4,
+    paddingRight: 2,
+  },
+  conversationHeaderProfile: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    minWidth: 0,
+    marginLeft: 2,
+  },
+  conversationHeaderAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+  },
+  conversationHeaderAvatarPlaceholder: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  conversationHeaderTextBlock: {
+    flex: 1,
+    minWidth: 0,
+    justifyContent: 'center',
+  },
+  conversationHeaderName: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  conversationRoleLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.6,
+    marginTop: 1,
+  },
+  conversationHeaderSubtitle: {
+    fontSize: 11,
+    fontWeight: '500',
+    fontStyle: 'italic',
+    marginTop: 1,
+  },
+  conversationHeaderActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginLeft: 8,
+  },
+  conversationMenuButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 2,
+    elevation: 1,
   },
   menuOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    backgroundColor: 'transparent',
     justifyContent: 'flex-start',
     alignItems: 'flex-end',
-    paddingTop: 60,
     paddingRight: 16,
   },
   menuContainer: {
@@ -1880,13 +1986,7 @@ const styles = StyleSheet.create({
   menuItemTextDanger: {
     color: '#e53e3e',
   },
-  matchAvatarSection: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  matchAvatarImg: { width: 50, height: 50, borderRadius: 25, borderWidth: 2, borderColor: '#6c5ce7' },
-  matchPlaceholder: { width: 50, height: 50, borderRadius: 25, backgroundColor: '#6c5ce7', justifyContent: 'center', alignItems: 'center' },
   placeholderText: { color: '#fff', fontSize: 20, fontWeight: '700' },
-  titleContainer: { flexDirection: 'column', alignItems: 'flex-start', gap: 2 },
-  convoTitle: { fontSize: 20, fontWeight: '700', color: '#222' },
-  speakingWithMatchmakerText: { fontSize: 12, color: '#6c5ce7', fontStyle: 'italic' },
   messageCountBannerContainer: {
     paddingHorizontal: 16,
     paddingTop: 12,
@@ -1906,7 +2006,40 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     zIndex: 1,
   },
-  messagesContent: { padding: 16, gap: 12 },
+  messagesRevealClip: {
+    flex: 1,
+    overflow: 'hidden',
+  },
+  messagesRevealContent: {
+    width: SCREEN_WIDTH + MESSAGE_TIME_COLUMN_WIDTH,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 16,
+    gap: 2,
+  },
+  messageTimeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: SCREEN_WIDTH + MESSAGE_TIME_COLUMN_WIDTH - 32,
+  },
+  messageTimeBubbleSlot: {
+    flex: 1,
+    minWidth: 0,
+  },
+  messageTimeBubbleSlotMine: {
+    alignItems: 'flex-end',
+  },
+  messageTimeBubbleSlotTheirs: {
+    alignItems: 'flex-start',
+  },
+  messageTimeReveal: {
+    width: MESSAGE_TIME_COLUMN_WIDTH,
+    flexShrink: 0,
+    fontSize: 11,
+    color: '#9ca3af',
+    textAlign: 'left',
+    paddingLeft: 4,
+  },
   emptyText: { textAlign: 'center', color: '#6b7280', fontSize: 16, marginTop: 40 },
   typingIndicatorInScroll: {
     marginTop: 12,
@@ -1915,10 +2048,11 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     color: '#6b7280',
   },
-  messageBubble: { maxWidth: '75%', padding: 12, borderRadius: 16, marginBottom: 8 },
+  messageBubble: { maxWidth: '75%', padding: 12, borderRadius: 16 },
   mine: { alignSelf: 'flex-end', backgroundColor: '#6c5ce7' },
   theirs: { alignSelf: 'flex-start', backgroundColor: '#fff' },
   senderLabel: { fontSize: 12, fontWeight: '600', color: '#6c5ce7', marginBottom: 4 },
+  senderLabelOnMine: { color: 'rgba(255,255,255,0.9)' },
   messageText: { fontSize: 16, color: '#222' },
   puzzlePlayBtn: {
     flexDirection: 'row',
@@ -1941,8 +2075,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     flexShrink: 1,
   },
-  timestamp: { fontSize: 11, color: '#999', marginTop: 4 },
-  timestampMineDater: { color: '#d1d5db' },
   selectedPuzzlePreview: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2042,67 +2174,21 @@ const styles = StyleSheet.create({
   daterContainer: {
     backgroundColor: DATER_SCREEN_BG,
   },
-  daterHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    paddingHorizontal: 12,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e8e8e8',
-    gap: 8,
-  },
-  daterBackButton: {
-    padding: 4,
-    marginRight: 2,
-  },
-  daterHeaderProfile: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    minWidth: 0,
-  },
-  daterHeaderAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-  },
-  daterHeaderAvatarPlaceholder: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  daterHeaderTextBlock: {
-    flex: 1,
-    minWidth: 0,
-  },
-  daterHeaderName: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#111827',
-  },
-  daterRoleLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.6,
-    marginTop: 1,
-  },
-  daterMenuButton: {
-    padding: 8,
-  },
   daterMessagesScroll: {
     backgroundColor: DATER_SCREEN_BG,
   },
-  daterMessagesContent: {
+  daterMessagesRevealContent: {
+    width: SCREEN_WIDTH + MESSAGE_TIME_COLUMN_WIDTH,
     paddingHorizontal: 16,
     paddingTop: 16,
     paddingBottom: 8,
+    gap: 2,
   },
   daterEmptyText: {
     color: '#9ca3af',
+  },
+  daterDateSeparatorRow: {
+    width: SCREEN_WIDTH - 32,
   },
   daterDateSeparator: {
     textAlign: 'center',
@@ -2113,22 +2199,13 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     marginTop: 4,
   },
-  daterMessageRow: {
-    marginBottom: 16,
-    maxWidth: '78%',
-  },
-  daterMessageRowMine: {
-    alignSelf: 'flex-end',
-    alignItems: 'flex-end',
-  },
-  daterMessageRowTheirs: {
-    alignSelf: 'flex-start',
-    alignItems: 'flex-start',
+  daterMessageTimeReveal: {
+    color: '#9ca3af',
   },
   daterBubble: {
     paddingHorizontal: 14,
     paddingVertical: 10,
-    maxWidth: '100%',
+    maxWidth: '78%',
   },
   daterBubbleMine: {
     backgroundColor: '#ef4d73',
@@ -2143,6 +2220,12 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 18,
     borderBottomLeftRadius: 4,
     borderBottomRightRadius: 18,
+  },
+  daterMatchmakerLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6c5ce7',
+    marginBottom: 4,
   },
   daterMessageText: {
     fontSize: 16,
@@ -2171,16 +2254,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     flexShrink: 1,
-  },
-  daterBubbleTime: {
-    fontSize: 11,
-    color: '#9ca3af',
-    marginTop: 4,
-    marginLeft: 4,
-  },
-  daterBubbleTimeMine: {
-    marginLeft: 0,
-    marginRight: 4,
   },
   daterTypingIndicator: {
     textAlign: 'center',

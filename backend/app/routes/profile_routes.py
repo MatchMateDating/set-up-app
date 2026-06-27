@@ -23,7 +23,7 @@ from app.services.storage_service import (
     delete_image_from_cloud,
     extract_key_from_url
 )
-from app.routes.auth_routes import send_verification_email, is_email
+from app.routes.auth_routes import send_verification_email, send_verification_sms, is_email, normalize_phone_number
 
 
 profile_bp = Blueprint('profile', __name__)
@@ -254,6 +254,123 @@ def verify_email_change(current_user):
         db.session.commit()
         return jsonify({
             'message': 'Email updated successfully',
+            'user': current_user.to_dict()
+        }), 200
+
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        return jsonify({
+            'error': 'Database error',
+            'details': str(e)
+        }), 500
+    except Exception as e:
+        return jsonify({
+            'error': 'Unexpected server error',
+            'details': str(e)
+        }), 500
+
+
+@profile_bp.route('/request_phone_change', methods=['POST'])
+@token_required
+def request_phone_change(current_user):
+    try:
+        data = request.get_json() or {}
+        raw_phone = (data.get('new_phone') or '').strip()
+
+        if not raw_phone:
+            return jsonify({'error': 'new_phone is required'}), 400
+
+        new_phone = normalize_phone_number(raw_phone)
+        digits = ''.join(c for c in new_phone if c.isdigit())
+        if len(digits) < 11:
+            return jsonify({'error': 'Please enter a valid phone number'}), 400
+
+        current_phone = (current_user.phone_number or '').strip()
+        if new_phone == current_phone:
+            return jsonify({'error': 'New phone number must be different from current phone number'}), 400
+
+        linked_account = User.query.get(current_user.linked_account_id) if current_user.linked_account_id else None
+        allowed_ids = {current_user.id}
+        if linked_account:
+            allowed_ids.add(linked_account.id)
+
+        existing_users = User.query.filter_by(phone_number=new_phone).all()
+        conflicting_user = next((u for u in existing_users if u.id not in allowed_ids), None)
+        if conflicting_user:
+            return jsonify({'error': 'Phone number is already in use'}), 400
+
+        verification_token = current_user.generate_verification_token()
+        current_user.phone_verification_token = verification_token
+        db.session.commit()
+
+        verification_sent = send_verification_sms(
+            new_phone,
+            verification_token,
+            current_user.first_name
+        )
+
+        if not verification_sent:
+            return jsonify({'error': 'Failed to send verification text message'}), 500
+
+        return jsonify({
+            'message': 'Verification code sent to your new phone number',
+            'verification_sent': True
+        }), 200
+
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        return jsonify({
+            'error': 'Database error',
+            'details': str(e)
+        }), 500
+    except Exception as e:
+        return jsonify({
+            'error': 'Unexpected server error',
+            'details': str(e)
+        }), 500
+
+
+@profile_bp.route('/verify_phone_change', methods=['POST'])
+@token_required
+def verify_phone_change(current_user):
+    try:
+        data = request.get_json() or {}
+        raw_phone = (data.get('new_phone') or '').strip()
+        code = (data.get('code') or '').strip()
+
+        if not raw_phone or not code:
+            return jsonify({'error': 'new_phone and code are required'}), 400
+
+        new_phone = normalize_phone_number(raw_phone)
+
+        if not current_user.phone_verification_token:
+            return jsonify({'error': 'No pending phone verification request'}), 400
+
+        if code != current_user.phone_verification_token:
+            return jsonify({'error': 'Invalid verification code'}), 400
+
+        linked_account = User.query.get(current_user.linked_account_id) if current_user.linked_account_id else None
+        allowed_ids = {current_user.id}
+        if linked_account:
+            allowed_ids.add(linked_account.id)
+
+        existing_users = User.query.filter_by(phone_number=new_phone).all()
+        conflicting_user = next((u for u in existing_users if u.id not in allowed_ids), None)
+        if conflicting_user:
+            return jsonify({'error': 'Phone number is already in use'}), 400
+
+        current_user.phone_number = new_phone
+        current_user.phone_verified = True
+        current_user.phone_verification_token = None
+
+        if linked_account:
+            linked_account.phone_number = new_phone
+            linked_account.phone_verified = True
+            linked_account.phone_verification_token = None
+
+        db.session.commit()
+        return jsonify({
+            'message': 'Phone number updated successfully',
             'user': current_user.to_dict()
         }), 200
 

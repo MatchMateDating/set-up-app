@@ -24,6 +24,7 @@ import {
 } from '../profile/utils/profileUtils';
 import CompatibilityScore from './compatibilityScore';
 import ImageLightboxModal from '../profile/components/ImageLightboxModal';
+import ViewNoteModal from './viewNoteModal';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const CARD_MARGIN = 20;
@@ -51,6 +52,7 @@ const ProfileCard = ({
 }) => {
   const [photoIndex, setPhotoIndex] = useState(0);
   const [lightboxIndex, setLightboxIndex] = useState(null);
+  const [showNoteModal, setShowNoteModal] = useState(false);
   const scrollRef = useRef(null);
 
   const viewerUnit = preferredViewerUnit || userInfo?.unit;
@@ -116,6 +118,9 @@ const ProfileCard = ({
   const accentColor = isDaterView ? '#ef4d73' : '#6c5ce7';
   const tagBackgroundColor = isDaterView ? '#ffe8ee' : '#efe7ff';
   const tagBorderColor = isDaterView ? '#ffd6e3' : '#ddd6fe';
+  const seeNoteTagBackgroundColor = isDaterView
+    ? 'rgba(255, 232, 238, 0.82)'
+    : 'rgba(239, 231, 255, 0.82)';
   const blendBorderColor = isDaterView ? 'rgba(239, 77, 115, 0.08)' : 'rgba(108, 92, 231, 0.08)';
   const cardSurfaceColor = themeBackgroundColor;
   const heroStackSelectedBorderColor = accentColor;
@@ -141,72 +146,57 @@ const ProfileCard = ({
 
   useEffect(() => {
     setLightboxIndex(null);
+    setShowNoteModal(false);
     setPhotoIndex(0);
     if (!isHeroStackLayout) {
       scrollRef.current?.scrollTo({ x: 0, animated: false });
     }
   }, [profile?.id, isHeroStackLayout]);
 
-  const renderNoteSlot = () => {
-    const hasNote = Boolean(profile.note?.trim());
+  const hasNote = Boolean(profile.note?.trim());
+
+  const renderSeeNoteTag = (interactive = true) => {
     if (!hasNote) return null;
 
-    const noteBubbleStyles = [
-      styles.noteBubble,
-      styles.noteBubbleInCard,
-      { backgroundColor: cardSurfaceColor },
-      isStackPreview && styles.noteBubbleStackPreview,
-    ];
-    const labelStyles = [
-      styles.noteLabel,
-      { color: accentColor },
-      isStackPreview && styles.noteLabelStackPreview,
-    ];
-    const textStyles = [
-      styles.noteText,
-      isStackPreview && styles.noteTextStackPreview,
-    ];
+    const tag = (
+      <View
+        style={[
+          styles.seeNoteTag,
+          { backgroundColor: seeNoteTagBackgroundColor, borderColor: tagBorderColor },
+          isStackPreview && styles.seeNoteTagStackPreview,
+        ]}
+      >
+        <Ionicons name="chatbubble-outline" size={12} color={accentColor} />
+        <Text style={[styles.seeNoteTagText, { color: accentColor }]}>See note</Text>
+      </View>
+    );
 
-    if (isStackPreview && !stackPreviewAligned) {
-      return (
-        <View style={[styles.noteWrapperInCard, { backgroundColor: cardSurfaceColor }]}>
-          <View style={noteBubbleStyles}>
-            <Text style={labelStyles}>
-              {noteAuthorLabel}
-            </Text>
-          </View>
-        </View>
-      );
+    if (!interactive || isStackPreview) {
+      return <View style={styles.seeNoteTagWrap} pointerEvents="none">{tag}</View>;
     }
 
     return (
-      <View style={[styles.noteWrapperInCard, { backgroundColor: cardSurfaceColor }]}>
-        <View style={noteBubbleStyles}>
-          <Text style={[labelStyles, styles.noteLabelSpacing]}>
-            {noteAuthorLabel}
-          </Text>
-          <Text
-            style={textStyles}
-            numberOfLines={isStackPreview && stackPreviewAligned ? 3 : undefined}
-          >
-            {profile.note}
-          </Text>
-        </View>
-      </View>
+      <TouchableOpacity
+        style={styles.seeNoteTagWrap}
+        onPress={() => setShowNoteModal(true)}
+        activeOpacity={0.85}
+        accessibilityRole="button"
+        accessibilityLabel="See note"
+      >
+        {tag}
+      </TouchableOpacity>
     );
   };
 
-  const renderImageOverlays = () => {
-    if (isStackPreview) return null;
-    return (
+  const renderImageOverlays = () => (
     <>
-      {showCompatibility ? (
+      {!isStackPreview && showCompatibility ? (
         <View style={styles.compatibilityBadge}>
           <CompatibilityScore score={profile.ai_score} variant="overlay" />
         </View>
       ) : null}
 
-      {canSkipProfile && onSkip ? (
+      {!isStackPreview && canSkipProfile && onSkip ? (
         <TouchableOpacity
           style={styles.closeButton}
           onPress={onSkip}
@@ -217,9 +207,10 @@ const ProfileCard = ({
           </View>
         </TouchableOpacity>
       ) : null}
+
+      {!isVerticalLayout ? renderSeeNoteTag(!isStackPreview) : null}
     </>
-    );
-  };
+  );
 
   const renderCarouselImages = () => (
     <>
@@ -263,16 +254,21 @@ const ProfileCard = ({
   const renderVerticalImages = () => (
     <View style={[styles.verticalContainer, { gap: VERTICAL_GAP }]}>
       {imageUris.map((uri, index) => (
-        <TouchableOpacity
+        <View
           key={`${uri}-${index}`}
-          activeOpacity={0.92}
-          onPress={() => openLightbox(index)}
-          accessibilityRole="button"
-          accessibilityLabel={`Enlarge photo ${index + 1}`}
           style={[styles.verticalImageWrap, { backgroundColor: cardSurfaceColor }]}
         >
-          <Image source={{ uri }} style={styles.verticalImage} resizeMode="cover" />
-        </TouchableOpacity>
+          <TouchableOpacity
+            activeOpacity={0.92}
+            onPress={() => openLightbox(index)}
+            accessibilityRole="button"
+            accessibilityLabel={`Enlarge photo ${index + 1}`}
+            style={styles.verticalImageTouchable}
+          >
+            <Image source={{ uri }} style={styles.verticalImage} resizeMode="cover" />
+          </TouchableOpacity>
+          {index === 0 ? renderSeeNoteTag(!isStackPreview) : null}
+        </View>
       ))}
     </View>
   );
@@ -340,10 +336,6 @@ const ProfileCard = ({
       ) : null}
     </View>
   );
-
-  const hasNote = Boolean(profile.note?.trim());
-  const isNoteOnlyPreview = isStackPreview && hasNote && !stackPreviewAligned;
-  const showNoteInCard = hasNote && (!isStackPreview || stackPreviewAligned || isNoteOnlyPreview);
 
   const renderInfoSection = () => (
     <View style={styles.infoSection}>
@@ -441,53 +433,54 @@ const ProfileCard = ({
         </View>
 
         <View style={styles.contentLayer}>
-          {showNoteInCard ? renderNoteSlot() : null}
-
-          {!isNoteOnlyPreview ? (
-            <>
+          <View
+            style={[
+              styles.imageSection,
+              { backgroundColor: cardSurfaceColor },
+              isStackPreview && stackPreviewAligned && styles.imageSectionStackPreviewAligned,
+              isStackPreview && styles.imageSectionStackPreviewMuted,
+              isHeroStackLayout &&
+                !stackPreviewAligned && { height: heroStackSectionHeight },
+              isVerticalLayout &&
+                !stackPreviewAligned && { height: verticalSectionHeight },
+            ]}
+          >
+            {imageUris.length > 0 ? (
+              isHeroStackLayout
+                ? renderHeroStackImages()
+                : isVerticalLayout
+                  ? renderVerticalImages()
+                  : renderCarouselImages()
+            ) : (
               <View
                 style={[
-                  styles.imageSection,
+                  styles.heroPlaceholder,
                   { backgroundColor: cardSurfaceColor },
-                  showNoteInCard && styles.imageSectionBelowNote,
-                  isStackPreview && stackPreviewAligned && styles.imageSectionStackPreviewAligned,
-                  isStackPreview && !isNoteOnlyPreview && styles.imageSectionStackPreviewMuted,
-                  isHeroStackLayout &&
-                    !stackPreviewAligned && { height: heroStackSectionHeight },
-                  isVerticalLayout &&
-                    !stackPreviewAligned && { height: verticalSectionHeight },
                 ]}
               >
-                {imageUris.length > 0 ? (
-                  isHeroStackLayout
-                    ? renderHeroStackImages()
-                    : isVerticalLayout
-                      ? renderVerticalImages()
-                      : renderCarouselImages()
-                ) : (
-                  <View
-                    style={[
-                      styles.heroPlaceholder,
-                      { backgroundColor: cardSurfaceColor },
-                    ]}
-                  >
-                    <Ionicons name="person" size={64} color="#d1d5db" />
-                  </View>
-                )}
-
-                {renderImageOverlays()}
+                <Ionicons name="person" size={64} color="#d1d5db" />
               </View>
+            )}
 
-              {!isStackPreview ? (
-                <>
-                  {renderInfoSection()}
-                  <ImageLightboxModal
-                    uris={imageUris}
-                    index={lightboxIndex}
-                    onIndexChange={setLightboxIndex}
-                    onClose={() => setLightboxIndex(null)}
-                  />
-                </>
+            {renderImageOverlays()}
+          </View>
+
+          {!isStackPreview ? (
+            <>
+              {renderInfoSection()}
+              <ImageLightboxModal
+                uris={imageUris}
+                index={lightboxIndex}
+                onIndexChange={setLightboxIndex}
+                onClose={() => setLightboxIndex(null)}
+              />
+              {showNoteModal && hasNote ? (
+                <ViewNoteModal
+                  note={profile.note}
+                  authorLabel={noteAuthorLabel}
+                  accentColor={accentColor}
+                  onClose={() => setShowNoteModal(false)}
+                />
               ) : null}
             </>
           ) : null}
@@ -537,15 +530,6 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(239, 77, 115, 0.08)',
   },
-  noteBubbleStackPreview: {
-    shadowOpacity: 0.04,
-  },
-  noteLabelStackPreview: {
-    color: '#9ca3af',
-  },
-  noteTextStackPreview: {
-    color: '#9ca3af',
-  },
   imageSectionStackPreviewMuted: {
     opacity: 0.55,
   },
@@ -554,35 +538,33 @@ const styles = StyleSheet.create({
     maxHeight: STACK_ALIGNED_CARD_TOP_HEIGHT,
     overflow: 'hidden',
   },
-  noteWrapperInCard: {},
-  noteBubble: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 14,
+  seeNoteTagWrap: {
+    position: 'absolute',
+    bottom: 14,
+    right: 14,
+    zIndex: 2,
   },
-  noteBubbleInCard: {
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#f3f4f6',
+  seeNoteTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  imageSectionBelowNote: {
-    borderTopLeftRadius: 0,
-    borderTopRightRadius: 0,
+  seeNoteTagStackPreview: {
+    shadowOpacity: 0,
+    elevation: 0,
   },
-  noteLabel: {
-    fontSize: 11,
+  seeNoteTagText: {
+    fontSize: 12,
     fontWeight: '700',
-    letterSpacing: 1.1,
-    textTransform: 'uppercase',
-  },
-  noteLabelSpacing: {
-    marginBottom: 6,
-  },
-  noteText: {
-    color: '#374151',
-    fontSize: 14,
-    lineHeight: 21,
   },
   imageSection: {
     width: '100%',
@@ -607,6 +589,11 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     borderRadius: 12,
     overflow: 'hidden',
+    position: 'relative',
+  },
+  verticalImageTouchable: {
+    width: '100%',
+    height: '100%',
   },
   verticalImage: {
     width: '100%',
@@ -689,7 +676,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: 'rgba(255, 255, 255, 0.92)',
+    backgroundColor: 'rgba(255, 255, 255, 0.62)',
   },
   dot: {
     width: 5,

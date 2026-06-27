@@ -28,6 +28,7 @@ const ImageGallery = ({
   const isVertical = !isTopRow && !isHeroStack;
   const topRowScrollRef = useRef(null);
   const [topRowViewportWidth, setTopRowViewportWidth] = useState(0);
+  const [topRowPhotoIndex, setTopRowPhotoIndex] = useState(0);
   const [heroStackViewportWidth, setHeroStackViewportWidth] = useState(0);
   const topRowSize = topRowViewportWidth > 0 ? topRowViewportWidth : 280;
   const verticalItemSizeStyle = isVertical ? styles.verticalItemFullWidth : null;
@@ -159,12 +160,31 @@ const ImageGallery = ({
             ref={topRowScrollRef}
             itemWidth={topRowViewportWidth > 0 ? topRowViewportWidth : topRowSize}
             resetKey={topRowResetKey}
+            onIndexChange={setTopRowPhotoIndex}
             style={styles.topRowScrollView}
             contentContainerStyle={containerStyle}
           >
             {images.map(renderImage)}
             {renderPlaceholder()}
           </HorizontalPhotoScrollView>
+
+          {!editing && images.length > 1 ? (
+            <View style={styles.paginationWrap} pointerEvents="none">
+              <View style={styles.paginationPill}>
+                {images.map((_, index) => (
+                  <View
+                    key={`dot-${index}`}
+                    style={[
+                      styles.dot,
+                      index === topRowPhotoIndex
+                        ? [styles.dotActive, { backgroundColor: accentColor }]
+                        : styles.dotInactive,
+                    ]}
+                  />
+                ))}
+              </View>
+            </View>
+          ) : null}
         </View>
         {editing && (
           <View pointerEvents="none" style={styles.scrollHint}>
@@ -257,6 +277,37 @@ const styles = StyleSheet.create({
   },
   topRowViewport: {
     width: '100%',
+    position: 'relative',
+  },
+  paginationWrap: {
+    position: 'absolute',
+    bottom: 14,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+  },
+  paginationPill: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255, 255, 255, 0.62)',
+  },
+  dot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+  },
+  dotInactive: {
+    backgroundColor: '#9ca3af',
+  },
+  dotActive: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
   },
   topRowScrollView: {
     width: '100%',

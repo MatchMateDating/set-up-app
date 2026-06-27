@@ -82,6 +82,7 @@ function MainTabs() {
                 userInfo={user}
                 onDaterChange={handleOverlayDaterChange}
                 showLabel
+                labelText={activeTabName === 'Conversations' ? 'MATCHING FOR' : "YOU'RE CHOOSING FOR"}
               />
             </View>
           )}
