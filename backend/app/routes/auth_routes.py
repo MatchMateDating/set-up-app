@@ -128,8 +128,57 @@ def is_strong_password(password):
     return True
 
 
+_SELF_MATCHMAKE_MSG = "You can't matchmake for yourself."
+
+
+def accounts_share_identity(user_a, user_b):
+    """True when two accounts represent the same person (linked pair or same email/phone)."""
+    if not user_a or not user_b:
+        return False
+    if user_a.id == user_b.id:
+        return True
+    if user_a.linked_account_id and user_a.linked_account_id == user_b.id:
+        return True
+    if user_b.linked_account_id and user_b.linked_account_id == user_a.id:
+        return True
+
+    email_a = (user_a.email or '').strip().lower()
+    email_b = (user_b.email or '').strip().lower()
+    if email_a and email_b and email_a == email_b:
+        return True
+
+    phone_a = (user_a.phone_number or '').strip()
+    phone_b = (user_b.phone_number or '').strip()
+    if phone_a and phone_b:
+        try:
+            if normalize_phone_number(phone_a) == normalize_phone_number(phone_b):
+                return True
+        except Exception:
+            if phone_a == phone_b:
+                return True
+    return False
+
+
+def matchmaker_cannot_link_dater_error(matchmaker, dater):
+    """Return an error message when a matchmaker cannot link this dater to their roster."""
+    if not matchmaker or not dater:
+        return None
+    if not accounts_share_identity(matchmaker, dater):
+        return None
+    if (
+        matchmaker.linked_account_id == dater.id
+        or dater.linked_account_id == matchmaker.id
+    ):
+        return "You can't add your own linked account to your matchmaker roster. Switch accounts instead."
+    return _SELF_MATCHMAKE_MSG
+
+
 def link_dater_to_matchmaker(matchmaker, dater):
     """Link a dater to a matchmaker's referral row if possible."""
+    link_err = matchmaker_cannot_link_dater_error(matchmaker, dater)
+    if link_err:
+        return {"linked": False, "already_linked": False, "slot": None, "error": link_err}
+
     referral_row = ReferredUsers.query.filter_by(matchmaker_id=matchmaker.id).first()
     if not referral_row:
         referral_row = ReferredUsers(matchmaker_id=matchmaker.id)
@@ -174,18 +223,29 @@ def resolve_matchmaker_referral(referral_code):
     return None, referrer.id
 
 
-def self_matchmaker_referral_error(referral_code, signup_email):
-    """If referral belongs to a dater, block when signup email is that dater's email."""
+def self_matchmaker_referral_error(referral_code, signup_email, signup_phone=None):
+    """If referral belongs to a dater, block when signup identity matches that dater."""
     normalized = (referral_code or '').strip()
-    signup_email = (signup_email or '').strip().lower()
-    if not normalized or not signup_email:
+    if not normalized:
         return None
     referrer = User.query.filter_by(referral_code=normalized).first()
     if not referrer or referrer.role != 'user':
         return None
+
+    signup_email = (signup_email or '').strip().lower()
     ref_email = (referrer.email or '').strip().lower()
-    if ref_email and ref_email == signup_email:
-        return "You can't be a matchmaker for yourself."
+    if signup_email and ref_email and signup_email == ref_email:
+        return _SELF_MATCHMAKE_MSG
+
+    if signup_phone:
+        try:
+            signup_norm = normalize_phone_number(signup_phone)
+            ref_phone = (referrer.phone_number or '').strip()
+            if ref_phone and normalize_phone_number(ref_phone) == signup_norm:
+                return _SELF_MATCHMAKE_MSG
+        except Exception:
+            pass
+
     return None
 
 
@@ -276,7 +336,7 @@ def register():
             err, referred_by = resolve_matchmaker_referral(data.get('referral_code'))
             if err:
                 return jsonify({'msg': err}), 400
-            self_err = self_matchmaker_referral_error(data.get('referral_code'), email)
+            self_err = self_matchmaker_referral_error(data.get('referral_code'), email, phone_number)
             if self_err:
                 return jsonify({'msg': self_err}), 400
 
@@ -319,7 +379,7 @@ def register():
         if err:
             return jsonify({'msg': err}), 400
         if email:
-            self_err = self_matchmaker_referral_error(data.get('referral_code'), email)
+            self_err = self_matchmaker_referral_error(data.get('referral_code'), email, phone_number)
             if self_err:
                 return jsonify({'msg': self_err}), 400
 
@@ -384,6 +444,8 @@ def register_matchmaker_web():
             if dup_err:
                 return jsonify({'msg': dup_err}), 400
             result = link_dater_to_matchmaker(existing_matchmaker, referrer)
+            if result.get('error'):
+                return jsonify({'msg': result['error']}), 400
             if not result['linked']:
                 return jsonify({'msg': 'Maximum of 10 linked daters reached'}), 400
             db.session.commit()
@@ -523,9 +585,6 @@ def _resolve_dater_invite_matchmaker(invite_token):
     return None, matchmaker
 
 
-_SELF_MATCHMAKE_MSG = "You can't matchmake for yourself."
-
-
 def _dater_invite_email_is_inviter_own(email, matchmaker):
     mm_email = (matchmaker.email or '').strip().lower()
     return bool(mm_email and email == mm_email)
@@ -599,6 +658,8 @@ def register_dater_web():
 
         if existing_dater:
             result = link_dater_to_matchmaker(matchmaker, existing_dater)
+            if result.get('error'):
+                return jsonify({'msg': result['error']}), 400
             if not result['linked']:
                 return jsonify({'msg': 'Maximum of 10 linked daters reached'}), 400
             db.session.commit()
@@ -649,6 +710,9 @@ def register_dater_web():
     db.session.flush()
 
     result = link_dater_to_matchmaker(matchmaker, user)
+    if result.get('error'):
+        db.session.rollback()
+        return jsonify({'msg': result['error']}), 400
     if not result['linked']:
         db.session.rollback()
         return jsonify({'msg': 'Maximum of 10 linked daters reached'}), 400

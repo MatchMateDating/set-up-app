@@ -4,6 +4,7 @@ from sqlalchemy import or_
 from app import db
 from app.models.userDB import User, ReferredUsers
 from app.dater_invite_tokens import encode_matchmaker_dater_invite
+from app.routes.auth_routes import matchmaker_cannot_link_dater_error
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
 referral_bp = Blueprint('referral', __name__)
@@ -45,6 +46,10 @@ def link_referral():
     matchmaker = User.query.get(current_user_id)
     if matchmaker.role != "matchmaker":
         return jsonify({"error": "Only matchmakers can link referrals"}), 403
+
+    link_err = matchmaker_cannot_link_dater_error(matchmaker, dater)
+    if link_err:
+        return jsonify({"error": link_err}), 400
 
     referral_row = ReferredUsers.query.filter_by(matchmaker_id=matchmaker.id).first()
     if not referral_row:

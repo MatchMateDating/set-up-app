@@ -23,7 +23,7 @@ from app.services.storage_service import (
     delete_image_from_cloud,
     extract_key_from_url
 )
-from app.routes.auth_routes import send_verification_email, send_verification_sms, is_email, normalize_phone_number
+from app.routes.auth_routes import send_verification_email, send_verification_sms, is_email, normalize_phone_number, accounts_share_identity
 
 
 profile_bp = Blueprint('profile', __name__)
@@ -603,6 +603,9 @@ def create_linked_matchmaker(current_user):
         # Prevent self-referrals when creating a linked matchmaker account.
         if referrer.id == current_user.id:
             return jsonify({'error': 'You cannot use your own referral code'}), 400
+
+        if accounts_share_identity(current_user, referrer):
+            return jsonify({'error': "You can't matchmake for yourself."}), 400
         
         # Check if already has a linked matchmaker account
         if current_user.linked_account_id:
