@@ -18,15 +18,17 @@ const plugins = [
 ];
 
 if (admobEnabled) {
+  const androidAppId =
+    process.env.EXPO_PUBLIC_ADMOB_ANDROID_APP_ID ?? GOOGLE_SAMPLE_ANDROID_APP_ID;
   plugins.push([
     'react-native-google-mobile-ads',
     {
-      androidAppId:
-        process.env.EXPO_PUBLIC_ADMOB_ANDROID_APP_ID ?? GOOGLE_SAMPLE_ANDROID_APP_ID,
+      androidAppId,
       iosAppId:
         process.env.EXPO_PUBLIC_ADMOB_IOS_APP_ID ?? GOOGLE_SAMPLE_IOS_APP_ID,
     },
   ]);
+  plugins.push(['./plugins/withAdMobApplicationId', { androidAppId }]);
 }
 
 module.exports = () => ({

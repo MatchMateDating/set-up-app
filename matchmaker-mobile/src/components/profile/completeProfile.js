@@ -788,7 +788,6 @@ const CompleteProfile = () => {
       if (!res.ok) throw new Error('Failed to delete image');
 
       setImages((prevImages) => prevImages.filter((img) => img.id !== imageId));
-      Alert.alert('Success', 'Image deleted successfully');
     } catch (err) {
       console.error(err);
       Alert.alert('Error', 'Failed to delete image');

@@ -2255,7 +2255,7 @@ const SettingsSections = () => {
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <ScrollView
             ref={settingsScrollRef}
-            style={isMatchmaker || !activeSection ? styles.scrollViewMatchmaker : undefined}
+            style={[styles.scrollView, { backgroundColor: backgroundTint }]}
             contentContainerStyle={styles.contentContainer}
             keyboardShouldPersistTaps="handled"
           >
@@ -2562,17 +2562,15 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
   },
-  scrollViewMatchmaker: {
+  scrollView: {
     flex: 1,
-    backgroundColor: 'transparent',
   },
   scrollArea: {
     flex: 1,
     position: 'relative',
   },
   contentContainer: {
-    flexGrow: 1,
-    paddingBottom: 40,
+    paddingBottom: 24,
   },
   content: {
     padding: 20,
