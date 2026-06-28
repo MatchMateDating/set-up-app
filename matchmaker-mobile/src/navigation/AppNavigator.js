@@ -25,6 +25,7 @@ import { getRoleAccentColor } from '../components/layout/components/RoleHeaderBa
 import DaterDropdown from '../components/layout/daterDropdown';
 import { UserContext } from '../context/UserContext';
 import { API_BASE_URL } from '../env';
+import { fetchWithRetry } from '../utils/fetchWithRetry';
 import { MainTabsShell } from './mainTabsBackBehavior';
 
 const Stack = createNativeStackNavigator();
@@ -54,9 +55,11 @@ function MainTabs() {
       const token = await AsyncStorage.getItem('token');
       if (!token) return;
 
-      const res = await fetch(`${API_BASE_URL}/profile/`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await fetchWithRetry(
+        `${API_BASE_URL}/profile/`,
+        { headers: { Authorization: `Bearer ${token}` } },
+        { retries: 3, baseDelayMs: 400 }
+      );
       if (!res.ok) return;
 
       const data = await res.json();

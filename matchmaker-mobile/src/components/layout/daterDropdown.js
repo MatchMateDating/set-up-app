@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -11,32 +11,42 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_BASE_URL } from '../../env';
 import { getImageUrl } from '../profile/utils/profileUtils';
+import { fetchWithRetry, isNetworkFailure } from '../../utils/fetchWithRetry';
 
 const ACCENT_PURPLE = '#6c5ce7';
+
+const getSelectedDaterId = (userInfo) => {
+  const raw = userInfo?.referrer_id ?? userInfo?.referred_by_id;
+  if (raw == null || raw === '') return null;
+  const parsed = parseInt(String(raw), 10);
+  return Number.isFinite(parsed) ? parsed : null;
+};
 
 const DaterDropdown = ({ userInfo, onDaterChange, showLabel = false, labelText = "YOU'RE CHOOSING FOR" }) => {
   const [open, setOpen] = useState(false);
   const [linkedDaters, setLinkedDaters] = useState([]);
   const [selectedDater, setSelectedDater] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [selectingDaterId, setSelectingDaterId] = useState(null);
+  const autoSelectInFlightRef = useRef(false);
 
   useEffect(() => {
     if (userInfo && userInfo.role === 'matchmaker') {
       setLoading(true);
       fetchLinkedDaters();
     }
-  }, [userInfo?.id, userInfo?.referred_by_id, JSON.stringify(userInfo?.linked_daters || []), API_BASE_URL]);
+  }, [userInfo?.id, userInfo?.referrer_id, userInfo?.referred_by_id, JSON.stringify(userInfo?.linked_daters || []), API_BASE_URL]);
 
   useEffect(() => {
     if (!userInfo || userInfo.role !== 'matchmaker' || linkedDaters.length === 0) {
       return;
     }
 
-    const currentSelectedId = userInfo.referrer_id;
+    const currentSelectedId = getSelectedDaterId(userInfo);
     let targetDater = null;
 
     if (currentSelectedId) {
-      targetDater = linkedDaters.find((d) => d.id === parseInt(currentSelectedId));
+      targetDater = linkedDaters.find((d) => d.id === currentSelectedId);
       if (!targetDater && linkedDaters.length > 0) {
         targetDater = linkedDaters[0];
       }
@@ -52,16 +62,18 @@ const DaterDropdown = ({ userInfo, onDaterChange, showLabel = false, labelText =
         return prev;
       });
     }
-  }, [userInfo?.referrer_id, linkedDaters]);
+  }, [userInfo?.referrer_id, userInfo?.referred_by_id, linkedDaters]);
 
   const fetchLinkedDaters = async () => {
     try {
       const token = await AsyncStorage.getItem('token');
       if (!token) return;
 
-      const res = await fetch(`${API_BASE_URL}/referral/referrals/${userInfo.id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await fetchWithRetry(
+        `${API_BASE_URL}/referral/referrals/${userInfo.id}`,
+        { headers: { Authorization: `Bearer ${token}` } },
+        { retries: 3, baseDelayMs: 400 }
+      );
 
       if (res.status === 401) {
         const data = await res.json();
@@ -82,9 +94,9 @@ const DaterDropdown = ({ userInfo, onDaterChange, showLabel = false, labelText =
         setSelectedDater(null);
       }
 
-      const currentSelectedId = userInfo.referrer_id;
+      const currentSelectedId = getSelectedDaterId(userInfo);
       if (currentSelectedId) {
-        const selected = daters.find((d) => d.id === parseInt(currentSelectedId));
+        const selected = daters.find((d) => d.id === currentSelectedId);
         if (selected) {
           setSelectedDater(selected);
         } else if (daters.length > 0) {
@@ -101,48 +113,130 @@ const DaterDropdown = ({ userInfo, onDaterChange, showLabel = false, labelText =
     }
   };
 
-  const handleDaterSelect = async (dater) => {
+  const applyDaterSelection = (dater) => {
+    setSelectedDater(dater);
+    setOpen(false);
+    if (onDaterChange) {
+      onDaterChange(dater.id);
+    }
+  };
+
+  const verifySelectedDaterOnServer = async (daterId) => {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) return false;
+
+      const res = await fetchWithRetry(
+        `${API_BASE_URL}/profile/`,
+        { headers: { Authorization: `Bearer ${token}` } },
+        { retries: 3, baseDelayMs: 400 }
+      );
+      if (!res.ok) return false;
+
+      const data = await res.json().catch(() => ({}));
+      return getSelectedDaterId(data.user) === Number(daterId);
+    } catch (err) {
+      console.error('Error verifying selected dater:', err);
+      return false;
+    }
+  };
+
+  const persistSelectedDater = async (dater, { showErrors = true } = {}) => {
+    if (!dater?.id) return false;
+
+    setSelectingDaterId(dater.id);
     try {
       const token = await AsyncStorage.getItem('token');
       if (!token) {
-        Alert.alert('Error', 'Please log in');
-        return;
+        if (showErrors) Alert.alert('Error', 'Please log in');
+        return false;
       }
 
-      const res = await fetch(`${API_BASE_URL}/referral/set_selected_dater`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
+      const res = await fetchWithRetry(
+        `${API_BASE_URL}/referral/set_selected_dater`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ selected_dater_id: dater.id }),
         },
-        body: JSON.stringify({ selected_dater_id: dater.id }),
-      });
+        { retries: 3, baseDelayMs: 400 }
+      );
 
       if (res.status === 401) {
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
         if (data.error_code === 'TOKEN_EXPIRED') {
           await AsyncStorage.removeItem('token');
-          return;
+          return false;
         }
       }
 
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const data = await res.json();
-        Alert.alert('Error', data.error || 'Failed to set selected dater');
-        return;
+        if (await verifySelectedDaterOnServer(dater.id)) {
+          applyDaterSelection(dater);
+          return true;
+        }
+        if (showErrors) {
+          Alert.alert('Error', data.error || 'Failed to set selected dater');
+        }
+        return false;
       }
 
-      setSelectedDater(dater);
-      setOpen(false);
-
-      if (onDaterChange) {
-        onDaterChange(dater.id);
-      }
+      applyDaterSelection(dater);
+      return true;
     } catch (err) {
       console.error('Error setting selected dater:', err);
-      Alert.alert('Error', 'Failed to set selected dater');
+      if (await verifySelectedDaterOnServer(dater.id)) {
+        applyDaterSelection(dater);
+        return true;
+      }
+      if (showErrors) {
+        Alert.alert(
+          'Error',
+          isNetworkFailure(err)
+            ? 'Could not reach the server. Check your connection and try again.'
+            : 'Failed to set selected dater'
+        );
+      }
+      return false;
+    } finally {
+      setSelectingDaterId(null);
     }
   };
+
+  const handleDaterSelect = async (dater) => {
+    if (selectingDaterId != null) return;
+    await persistSelectedDater(dater, { showErrors: true });
+  };
+
+  useEffect(() => {
+    if (!userInfo || userInfo.role !== 'matchmaker' || loading || linkedDaters.length === 0) {
+      return;
+    }
+    if (getSelectedDaterId(userInfo) != null || selectingDaterId != null) {
+      return;
+    }
+
+    const firstDater = linkedDaters[0];
+    if (!firstDater?.id || autoSelectInFlightRef.current) {
+      return;
+    }
+
+    autoSelectInFlightRef.current = true;
+    persistSelectedDater(firstDater, { showErrors: false }).finally(() => {
+      autoSelectInFlightRef.current = false;
+    });
+  }, [
+    userInfo?.referrer_id,
+    userInfo?.referred_by_id,
+    userInfo?.role,
+    linkedDaters,
+    loading,
+    selectingDaterId,
+  ]);
 
   const handleToggleOpen = () => {
     setOpen((prev) => !prev);
@@ -217,6 +311,7 @@ const DaterDropdown = ({ userInfo, onDaterChange, showLabel = false, labelText =
                   <TouchableOpacity
                     style={styles.option}
                     onPress={() => handleDaterSelect(dater)}
+                    disabled={selectingDaterId != null}
                     activeOpacity={0.7}
                   >
                     {renderAvatar(dater, 'sm')}

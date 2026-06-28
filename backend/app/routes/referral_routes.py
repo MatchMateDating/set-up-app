@@ -62,10 +62,13 @@ def link_referral():
         col = f"linked_dater_{i}_id"
         if getattr(referral_row, col) is None:
             setattr(referral_row, col, dater.id)
+            if matchmaker.referred_by_id is None:
+                matchmaker.referred_by_id = dater.id
             db.session.commit()
             return jsonify({
                 "message": f"Dater {dater.first_name or dater.email} linked to {matchmaker.first_name or matchmaker.email}",
-                "linked_dater_id": dater.id
+                "linked_dater_id": dater.id,
+                "selected_dater_id": matchmaker.referred_by_id,
             }), 200
 
     return jsonify({"error": "Maximum of 10 linked daters reached"}), 400

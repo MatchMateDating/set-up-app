@@ -33,6 +33,7 @@ import { getRoleAccentColor, getRoleBackgroundTint } from '../layout/components/
 import { UserContext } from '../../context/UserContext';
 import { mainTabBackDelegateRef } from '../../navigation/mainTabsBackDelegates';
 import { beginAuthSessionClear, clearAuthSession, resumeAuthSession, shouldSuppressAuthErrors } from '../../utils/authSession';
+import { fetchWithRetry, isNetworkFailure } from '../../utils/fetchWithRetry';
 
 const SECTION_KEYS = {
   PERSONAL: 'personal',
@@ -239,6 +240,9 @@ const SettingsSections = () => {
   /** Matchmakers who linked this dater via referral (inverse of savedReferrals). */
   const [linkedMatchmakers, setLinkedMatchmakers] = useState([]);
   const [referralCode, setReferralCode] = useState('');
+  const [linkDaterReferralInput, setLinkDaterReferralInput] = useState('');
+  const [linkReferralLoading, setLinkReferralLoading] = useState(false);
+  const [unlinkingDaterId, setUnlinkingDaterId] = useState(null);
   const [showReferralModal, setShowReferralModal] = useState(false);
   const [referralInput, setReferralInput] = useState('');
   const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
@@ -448,9 +452,11 @@ const SettingsSections = () => {
 
       if (data.user.role === 'matchmaker') {
         setLinkedMatchmakers([]);
-        const linkedRes = await fetch(`${API_BASE_URL}/referral/referrals/${data.user.id}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const linkedRes = await fetchWithRetry(
+          `${API_BASE_URL}/referral/referrals/${data.user.id}`,
+          { headers: { Authorization: `Bearer ${token}` } },
+          { retries: 3, baseDelayMs: 400 }
+        );
         if (linkedRes.ok) {
           const linkedData = await linkedRes.json();
           setSavedReferrals(linkedData.linked_daters || []);
@@ -478,6 +484,71 @@ const SettingsSections = () => {
       Alert.alert('Error', 'Failed to load settings');
     }
   }, [navigation, setContextUser]);
+
+  const refreshLinkedDaters = useCallback(async (matchmakerId) => {
+    const mmId = matchmakerId ?? user?.id;
+    if (!mmId) return null;
+
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) return null;
+
+      const linkedRes = await fetchWithRetry(
+        `${API_BASE_URL}/referral/referrals/${mmId}`,
+        { headers: { Authorization: `Bearer ${token}` } },
+        { retries: 3, baseDelayMs: 400 }
+      );
+      if (!linkedRes.ok) return null;
+
+      const linkedData = await linkedRes.json();
+      const daters = linkedData.linked_daters || [];
+      setSavedReferrals(daters);
+      return daters;
+    } catch (err) {
+      console.error('Error refreshing linked daters:', err);
+      return null;
+    }
+  }, [user?.id]);
+
+  const ensureDefaultSelectedDater = useCallback(async (daterId) => {
+    const selectedId = user?.referrer_id ?? user?.referred_by_id;
+    if (selectedId != null && selectedId !== '') return;
+
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token || !daterId) return;
+
+      const res = await fetchWithRetry(
+        `${API_BASE_URL}/referral/set_selected_dater`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ selected_dater_id: daterId }),
+        },
+        { retries: 3, baseDelayMs: 400 }
+      );
+      if (!res.ok) return;
+
+      const profRes = await fetchWithRetry(
+        `${API_BASE_URL}/profile/`,
+        { headers: { Authorization: `Bearer ${token}` } },
+        { retries: 3, baseDelayMs: 400 }
+      );
+      if (!profRes.ok) return;
+
+      const profData = await profRes.json();
+      if (profData.user) {
+        setUser(profData.user);
+        setContextUser(profData.user);
+        await AsyncStorage.setItem('user', JSON.stringify(profData.user));
+      }
+    } catch (err) {
+      console.error('Error setting default selected dater:', err);
+    }
+  }, [user?.referrer_id, user?.referred_by_id, setContextUser]);
 
   useEffect(() => {
     fetchUserProfile();
@@ -1294,12 +1365,14 @@ const SettingsSections = () => {
 
   const handleLinkReferral = async () => {
     Keyboard.dismiss();
-    const code = referralCode.trim();
+    const code = linkDaterReferralInput.trim();
     if (!code) {
       Alert.alert('Error', 'Please enter a referral code');
       return;
     }
+    if (linkReferralLoading) return;
 
+    setLinkReferralLoading(true);
     try {
       const token = await AsyncStorage.getItem('token');
       if (!token) {
@@ -1308,17 +1381,33 @@ const SettingsSections = () => {
         return;
       }
 
-      const res = await fetch(`${API_BASE_URL}/referral/link_referral`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
+      const res = await fetchWithRetry(
+        `${API_BASE_URL}/referral/link_referral`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ referral_code: code }),
         },
-        body: JSON.stringify({ referral_code: code }),
-      });
+        { retries: 3, baseDelayMs: 400 }
+      );
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
+        if (data.error === 'Dater already linked') {
+          const daters = await refreshLinkedDaters();
+          if (daters?.some((d) => String(d.referral_code || '').toLowerCase() === code.toLowerCase())) {
+            setLinkDaterReferralInput('');
+            const linked = daters.find((d) => String(d.referral_code || '').toLowerCase() === code.toLowerCase());
+            if (linked?.id) {
+              await ensureDefaultSelectedDater(linked.id);
+            }
+            fetchUserProfile();
+            return;
+          }
+        }
         Alert.alert('Error', data.error || 'Failed to link referral');
         return;
       }
@@ -1327,11 +1416,29 @@ const SettingsSections = () => {
       name = name.replace(/^Dater\s*/i, '').trim();
       const newDater = { id: data.linked_dater_id, name, referral_code: code };
       setSavedReferrals((prev) => [...prev, newDater]);
-      setReferralCode('');
+      setLinkDaterReferralInput('');
+      await ensureDefaultSelectedDater(data.linked_dater_id);
       await fetchUserProfile();
     } catch (err) {
       console.error(err);
-      Alert.alert('Error', 'Failed to link referral');
+      const daters = await refreshLinkedDaters();
+      if (daters?.some((d) => String(d.referral_code || '').toLowerCase() === code.toLowerCase())) {
+        setLinkDaterReferralInput('');
+        const linked = daters.find((d) => String(d.referral_code || '').toLowerCase() === code.toLowerCase());
+        if (linked?.id) {
+          await ensureDefaultSelectedDater(linked.id);
+        }
+        fetchUserProfile();
+        return;
+      }
+      Alert.alert(
+        'Error',
+        isNetworkFailure(err)
+          ? 'Could not reach the server. Check your connection and try again.'
+          : 'Failed to link referral'
+      );
+    } finally {
+      setLinkReferralLoading(false);
     }
   };
 
@@ -1391,6 +1498,9 @@ const SettingsSections = () => {
           text: 'Remove',
           style: 'destructive',
           onPress: async () => {
+            if (unlinkingDaterId != null) return;
+
+            setUnlinkingDaterId(linkedDater.id);
             try {
               const token = await AsyncStorage.getItem('token');
               if (!token) {
@@ -1399,17 +1509,25 @@ const SettingsSections = () => {
                 return;
               }
 
-              const res = await fetch(`${API_BASE_URL}/referral/unlink_dater`, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  Authorization: `Bearer ${token}`,
+              const res = await fetchWithRetry(
+                `${API_BASE_URL}/referral/unlink_dater`,
+                {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`,
+                  },
+                  body: JSON.stringify({ linked_dater_id: linkedDater.id }),
                 },
-                body: JSON.stringify({ linked_dater_id: linkedDater.id }),
-              });
+                { retries: 3, baseDelayMs: 400 }
+              );
 
               const data = await res.json().catch(() => ({}));
               if (!res.ok) {
+                const daters = await refreshLinkedDaters();
+                if (!daters?.some((d) => d.id === linkedDater.id)) {
+                  return;
+                }
                 Alert.alert('Error', data.error || 'Failed to remove linked dater');
                 return;
               }
@@ -1418,7 +1536,18 @@ const SettingsSections = () => {
               fetchUserProfile();
             } catch (err) {
               console.error(err);
-              Alert.alert('Error', 'Failed to remove linked dater');
+              const daters = await refreshLinkedDaters();
+              if (!daters?.some((d) => d.id === linkedDater.id)) {
+                return;
+              }
+              Alert.alert(
+                'Error',
+                isNetworkFailure(err)
+                  ? 'Could not reach the server. Check your connection and try again.'
+                  : 'Failed to remove linked dater'
+              );
+            } finally {
+              setUnlinkingDaterId(null);
             }
           },
         },
@@ -1971,15 +2100,21 @@ const SettingsSections = () => {
           <View style={styles.mmReferralInputRow}>
             <TextInput
               style={styles.mmReferralInput}
-              value={referralCode}
-              onChangeText={setReferralCode}
+              value={linkDaterReferralInput}
+              onChangeText={setLinkDaterReferralInput}
               placeholder="Enter referral code"
               placeholderTextColor="#9CA3AF"
               autoCapitalize="none"
               autoCorrect={false}
+              editable={!linkReferralLoading}
             />
-            <TouchableOpacity style={styles.mmAddReferralBtn} onPress={handleLinkReferral} activeOpacity={0.9}>
-              <Text style={styles.mmAddReferralBtnText}>Add</Text>
+            <TouchableOpacity
+              style={[styles.mmAddReferralBtn, linkReferralLoading && styles.iconActionBtnDisabled]}
+              onPress={handleLinkReferral}
+              disabled={linkReferralLoading}
+              activeOpacity={0.9}
+            >
+              <Text style={styles.mmAddReferralBtnText}>{linkReferralLoading ? 'Adding…' : 'Add'}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -2002,6 +2137,7 @@ const SettingsSections = () => {
                   <TouchableOpacity
                     style={styles.mmLinkedRemove}
                     onPress={() => handleDeleteLinkedDater(ref)}
+                    disabled={unlinkingDaterId === ref.id}
                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                     activeOpacity={0.85}
                   >

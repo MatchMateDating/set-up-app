@@ -20,6 +20,7 @@ import DaterDropdown from '../layout/daterDropdown';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { UserContext } from '../../context/UserContext';
 import { shouldSuppressAuthErrors } from '../../utils/authSession';
+import { fetchWithRetry } from '../../utils/fetchWithRetry';
 
 const MATCHMAKER_SCREEN_BG = '#f3f4f6';
 /** Same reserve above the profile card as on the Matches tab. */
@@ -31,7 +32,7 @@ const ProfilePage = () => {
   const insets = useSafeAreaInsets();
   const route = useRoute();
   const { userId, matchProfile } = route.params || {};
-  const { user: contextUser, setIsProfileEditing } = useContext(UserContext);
+  const { user: contextUser, setUser: setContextUser, setIsProfileEditing } = useContext(UserContext);
   const [user, setUser] = useState(null);
   const [referrer, setReferrer] = useState(null);
   const [editing, setEditing] = useState(false);
@@ -181,12 +182,14 @@ const ProfilePage = () => {
       const token = await AsyncStorage.getItem('token');
       if (!token) return;
 
-      const res = await fetch(`${API_BASE_URL}/referral/referrals/${user.id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await fetchWithRetry(
+        `${API_BASE_URL}/referral/referrals/${user.id}`,
+        { headers: { Authorization: `Bearer ${token}` } },
+        { retries: 3, baseDelayMs: 400 }
+      );
 
       if (res.status === 401) {
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
         if (data.error_code === 'TOKEN_EXPIRED') {
           await AsyncStorage.removeItem('token');
           navigation.navigate('Login');
@@ -200,22 +203,39 @@ const ProfilePage = () => {
       const linkedDaters = data.linked_daters || [];
       
       if (linkedDaters.length > 0) {
-        // Set the first linked dater as selected
         const firstDaterId = linkedDaters[0].id;
         
-        const setRes = await fetch(`${API_BASE_URL}/referral/set_selected_dater`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
+        const setRes = await fetchWithRetry(
+          `${API_BASE_URL}/referral/set_selected_dater`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ selected_dater_id: firstDaterId }),
           },
-          body: JSON.stringify({ selected_dater_id: firstDaterId }),
-        });
+          { retries: 3, baseDelayMs: 400 }
+        );
 
         if (setRes.ok) {
           setHasInitializedDater(true);
-          // Refresh profile to get updated user with referred_by_id
-          await fetchProfile();
+          const profRes = await fetchWithRetry(
+            `${API_BASE_URL}/profile/`,
+            { headers: { Authorization: `Bearer ${token}` } },
+            { retries: 3, baseDelayMs: 400 }
+          );
+          if (profRes.ok) {
+            const profData = await profRes.json();
+            setUser(profData.user);
+            setReferrer(profData.referrer || null);
+            if (profData.user) {
+              setContextUser(profData.user);
+              await AsyncStorage.setItem('user', JSON.stringify(profData.user));
+            }
+          } else {
+            await fetchProfile();
+          }
         }
       }
     } catch (err) {
