@@ -20,7 +20,8 @@
       "environment": "demo",
       "extends": "preview",
       "env": {
-        "EXPO_PUBLIC_API_BASE_URL": "https://set-up-app-demo.up.railway.app"
+        "EXPO_PUBLIC_API_BASE_URL": "https://set-up-app-demo.up.railway.app",
+        "EXPO_PUBLIC_ADMOB_ENABLED": "false"
       }
     },
     "preview": {
@@ -34,7 +35,8 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_BASE_URL": "https://set-up-app-dev.up.railway.app"
+        "EXPO_PUBLIC_API_BASE_URL": "https://set-up-app-dev.up.railway.app",
+        "EXPO_PUBLIC_ADMOB_ENABLED": "false"
       }
     },
     "production": {
@@ -44,7 +46,8 @@
         "simulator": false
       },
       "env": {
-        "EXPO_PUBLIC_API_BASE_URL": "https://set-up-app-production.up.railway.app"
+        "EXPO_PUBLIC_API_BASE_URL": "https://set-up-app-production.up.railway.app",
+        "EXPO_PUBLIC_ADMOB_ENABLED": "false"
       }
     }
   },

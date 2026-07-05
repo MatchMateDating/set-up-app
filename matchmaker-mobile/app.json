@@ -28,7 +28,8 @@
         ],
         "ITSAppUsesNonExemptEncryption": false,
         "NSLocationWhenInUseUsageDescription": "This app uses your location to find matches nearby.",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "This app uses your location to find matches nearby."
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "This app uses your location to find matches nearby.",
+        "GADApplicationIdentifier": "ca-app-pub-3940256099942544~1458002511"
       }
     },
     "plugins": [
