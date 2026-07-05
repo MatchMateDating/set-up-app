@@ -1,21 +1,27 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 
-const ToggleConversationsDater = ({ showDaterMatches, setShowDaterMatches, accentColor = '#6c5ce7' }) => (
-  <View style={styles.container}>
+const ToggleConversationsDater = ({
+  showDaterMatches,
+  setShowDaterMatches,
+  accentColor = '#ef4d73',
+}) => (
+  <View style={styles.track}>
     <TouchableOpacity
-      style={[styles.button, showDaterMatches && { backgroundColor: accentColor }]}
+      style={[styles.segment, showDaterMatches && { backgroundColor: accentColor }]}
       onPress={() => setShowDaterMatches(true)}
+      activeOpacity={0.85}
     >
-      <Text style={[styles.buttonText, showDaterMatches && styles.buttonTextActive]}>
+      <Text style={[styles.segmentText, showDaterMatches && styles.segmentTextActive]}>
         Dater Matches
       </Text>
     </TouchableOpacity>
     <TouchableOpacity
-      style={[styles.button, !showDaterMatches && { backgroundColor: accentColor }]}
+      style={[styles.segment, !showDaterMatches && { backgroundColor: accentColor }]}
       onPress={() => setShowDaterMatches(false)}
+      activeOpacity={0.85}
     >
-      <Text style={[styles.buttonText, !showDaterMatches && styles.buttonTextActive]}>
+      <Text style={[styles.segmentText, !showDaterMatches && styles.segmentTextActive]}>
         Matchmaker Matches
       </Text>
     </TouchableOpacity>
@@ -23,26 +29,26 @@ const ToggleConversationsDater = ({ showDaterMatches, setShowDaterMatches, accen
 );
 
 const styles = StyleSheet.create({
-  container: {
+  track: {
     flexDirection: 'row',
-    justifyContent: 'center',
-    marginBottom: 16,
-    marginTop: 40,
-    gap: 10,
+    backgroundColor: '#ececee',
+    borderRadius: 999,
+    padding: 4,
   },
-  button: {
-    backgroundColor: '#ccc',
+  segment: {
+    flex: 1,
     paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 5,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  buttonText: {
-    color: '#fff',
+  segmentText: {
     fontSize: 14,
     fontWeight: '600',
+    color: '#9ca3af',
   },
-  buttonTextActive: {
-    color: '#fff',
+  segmentTextActive: {
+    color: '#ffffff',
   },
 });
 

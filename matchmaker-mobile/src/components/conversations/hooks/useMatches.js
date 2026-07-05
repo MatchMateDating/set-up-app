@@ -1,6 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Alert } from 'react-native';
+import {
+  seedMatchPreviewsFromMatches,
+  applyCachedPreviewsToMatches,
+} from '../utils/matchMessagePreview';
 
 export const useMatches = (API_BASE_URL) => {
   const [matches, setMatches] = useState([]);
@@ -14,7 +18,7 @@ export const useMatches = (API_BASE_URL) => {
         return;
       }
 
-      const res = await fetch(`${API_BASE_URL}/match/matches`, {
+      const res = await fetch(`${API_BASE_URL}/match/matches?_=${Date.now()}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
@@ -35,10 +39,17 @@ export const useMatches = (API_BASE_URL) => {
       // Handle new structure: {matched: [], pending_approval: []} or old structure: []
       if (Array.isArray(data)) {
         // Old structure - backward compatibility
-        setMatches({ matched: data, pending_approval: [] });
+        const nextMatches = { matched: data, pending_approval: [] };
+        seedMatchPreviewsFromMatches(nextMatches);
+        setMatches(applyCachedPreviewsToMatches(nextMatches));
       } else {
         // New structure
-        setMatches({ matched: data.matched || [], pending_approval: data.pending_approval || [] });
+        const nextMatches = {
+          matched: data.matched || [],
+          pending_approval: data.pending_approval || [],
+        };
+        seedMatchPreviewsFromMatches(nextMatches);
+        setMatches(applyCachedPreviewsToMatches(nextMatches));
       }
     } catch (err) {
       console.error('Error fetching matches:', err);

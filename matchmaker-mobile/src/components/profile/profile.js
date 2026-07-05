@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useContext, useCallback, useRef, useMemo } from 'react';
+import React, { useEffect, useLayoutEffect, useState, useContext, useCallback, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -17,17 +17,26 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import { API_BASE_URL } from '../../env';
-import { calculateAge, convertFtInToMetersCm, convertMetersCmToFtIn, formatHeight, getImageUrl, convertHeightForViewer } from './utils/profileUtils';
+import { fetchWithRetry, isNetworkFailure } from '../../utils/fetchWithRetry';
+import { calculateAge, convertFtInToMetersCm, convertMetersCmToFtIn, formatHeight, getImageUrl, convertHeightForViewer, normalizeImageLayout } from './utils/profileUtils';
 import ProfileInfoCard from './profileInfoCard';
+import ProfileCard from '../matches/profileCard';
 import PixelClouds from './components/PixelClouds';
 import PixelFlowers from './components/PixelFlowers';
 import PixelCactus from './components/PixelCactus';
 import { Ionicons } from '@expo/vector-icons';
 import { UserContext } from '../../context/UserContext';
-import { getRoleAccentColor } from '../layout/components/RoleHeaderBanner';
+import { DATER_SCREEN_BG, getRoleAccentColor } from '../layout/components/RoleHeaderBanner';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width: LIGHTBOX_WIN_W, height: LIGHTBOX_WIN_H } = Dimensions.get('window');
+const PROFILE_REQUEST_RETRY = { retries: 3, baseDelayMs: 400 };
+
+const parseOptionalInt = (value) => {
+  if (value === '' || value == null) return undefined;
+  const parsed = parseInt(value, 10);
+  return Number.isFinite(parsed) ? parsed : undefined;
+};
 
 const Profile = ({
   user,
@@ -41,6 +50,7 @@ const Profile = ({
   parentScrollOffsetYRef,
   onRequestCrop,
   enableImageLightbox = false,
+  usePageLayout = false,
 }) => {
   const { setUser } = useContext(UserContext);
   const insets = useSafeAreaInsets();
@@ -61,7 +71,7 @@ const Profile = ({
     bio: '',
     fontFamily: 'Arial',
     profileStyle: 'classic',
-    imageLayout: 'grid',
+    imageLayout: 'topRow',
     show_location: false
   });
 
@@ -77,6 +87,28 @@ const Profile = ({
   const navigation = useNavigation();
   const scrollViewRef = useRef(null);
   const scrollOffsetYRef = useRef(0);
+  const onEditingFormDataRef = useRef(onEditingFormData);
+  const editImagesSnapshotRef = useRef(null);
+  const pendingDeleteIdsRef = useRef([]);
+  const imagesAddedDuringEditRef = useRef([]);
+  const wasEditingRef = useRef(false);
+  const imagesRef = useRef(images);
+  imagesRef.current = images;
+
+  useEffect(() => {
+    onEditingFormDataRef.current = onEditingFormData;
+  }, [onEditingFormData]);
+
+  useLayoutEffect(() => {
+    if (editing && !wasEditingRef.current) {
+      const sourceImages =
+        user?.images?.length > 0 ? user.images : imagesRef.current;
+      editImagesSnapshotRef.current = sourceImages.map((img) => ({ ...img }));
+      pendingDeleteIdsRef.current = [];
+      imagesAddedDuringEditRef.current = [];
+    }
+    wasEditingRef.current = editing;
+  }, [editing, user?.images]);
 
   useEffect(() => {
     if (user) {
@@ -96,7 +128,7 @@ const Profile = ({
         preferredGenders: user.preferredGenders || [],
         fontFamily: user.fontFamily || 'Arial',
         profileStyle: user.profileStyle || 'classic',
-        imageLayout: user.imageLayout || 'grid',
+        imageLayout: normalizeImageLayout(user.imageLayout),
         show_location: user.show_location ?? false
       };
 
@@ -132,15 +164,6 @@ const Profile = ({
       }
     }
   }, [user]);
-
-  useEffect(() => {
-    if (editing && onEditingFormData) {
-      onEditingFormData({ formData, handleInputChange });
-    } else if (!editing && onEditingFormData) {
-      // Clear form data when editing is turned off
-      onEditingFormData(null);
-    }
-  }, [editing, formData, handleInputChange, onEditingFormData]);
 
   const handlePlaceholderClick = async () => {
     if (!editing) return;
@@ -203,6 +226,9 @@ const Profile = ({
       if (!response.ok) throw new Error('Failed to upload image');
 
       const newImage = await response.json();
+      if (editing) {
+        imagesAddedDuringEditRef.current.push(newImage.id);
+      }
       setImages((prevImages) => [...prevImages, newImage]);
       setImageError('');
     } catch (err) {
@@ -260,6 +286,36 @@ const Profile = ({
     setFieldErrors((prev) => ({ ...prev, height: '' }));
   };
 
+  const deleteImageFromServer = async (imageId, tokenOverride) => {
+    const token = tokenOverride ?? (await AsyncStorage.getItem('token'));
+    if (!token) {
+      Alert.alert('Error', 'Please log in');
+      navigation.navigate('Login');
+      return false;
+    }
+
+    const res = await fetchWithRetry(
+      `${API_BASE_URL}/profile/delete_image/${imageId}`,
+      {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      },
+      PROFILE_REQUEST_RETRY
+    );
+
+    if (res.status === 401) {
+      const data = await res.json();
+      if (data.error_code === 'TOKEN_EXPIRED') {
+        await AsyncStorage.removeItem('token');
+        navigation.navigate('Login');
+        return false;
+      }
+    }
+
+    if (!res.ok) throw new Error('Failed to delete image');
+    return true;
+  };
+
   const handleFormSubmit = async () => {
     try {
       const nextErrors = {
@@ -301,6 +357,8 @@ const Profile = ({
       }
 
       const heightFormatted = formatHeight(formData, heightUnit);
+      const preferredAgeMin = parseOptionalInt(formData.preferredAgeMin);
+      const preferredAgeMax = parseOptionalInt(formData.preferredAgeMax);
 
       const payload = {
         first_name: formData.first_name,
@@ -309,24 +367,28 @@ const Profile = ({
         gender: formData.gender,
         bio: (formData.bio || '').trim().slice(0, 100),
         height: heightFormatted,
-        preferredAgeMin: formData.preferredAgeMin,
-        preferredAgeMax: formData.preferredAgeMax,
-        preferredGenders: formData.preferredGenders,
+        ...(preferredAgeMin != null ? { preferredAgeMin } : {}),
+        ...(preferredAgeMax != null ? { preferredAgeMax } : {}),
+        preferredGenders: formData.preferredGenders || [],
         fontFamily: formData.fontFamily,
         profileStyle: formData.profileStyle,
-        imageLayout: formData.imageLayout,
+        imageLayout: normalizeImageLayout(formData.imageLayout),
         show_location: formData.show_location,
         unit: heightUnit === 'ft' ? 'imperial' : 'metric',
       };
 
-      const res = await fetch(`${API_BASE_URL}/profile/update`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
+      const res = await fetchWithRetry(
+        `${API_BASE_URL}/profile/update`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(payload),
         },
-        body: JSON.stringify(payload),
-      });
+        PROFILE_REQUEST_RETRY
+      );
 
       if (res.status === 401) {
         const data = await res.json();
@@ -337,57 +399,76 @@ const Profile = ({
         }
       }
 
-      if (!res.ok) throw new Error('Failed to update profile');
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Failed to update profile');
+      }
 
       const updatedUser = await res.json();
 
-      setUser(prev => ({
-        ...prev,
-        ...updatedUser,              // keep user data in sync
-        unit: payload.unit,          // ← THIS is the critical line
-        height: payload.height,      // keep height consistent too
-      }));
-      onSave();
-    } catch (err) {
-      console.error(err);
-      Alert.alert('Error', 'Failed to update profile');
-    }
-  };
+      const idsToDelete = pendingDeleteIdsRef.current.filter(
+        (id) => Number.isFinite(Number(id)) && Number(id) > 0
+      );
 
-  const handleDeleteImage = async (imageId) => {
-    try {
-      const token = await AsyncStorage.getItem('token');
-      if (!token) {
-        Alert.alert('Error', 'Please log in');
-        navigation.navigate('Login');
+      try {
+        for (const imageId of idsToDelete) {
+          await deleteImageFromServer(imageId, token);
+        }
+        pendingDeleteIdsRef.current = [];
+        imagesAddedDuringEditRef.current = [];
+      } catch (deleteErr) {
+        console.error(deleteErr);
+        setUser((prev) => ({
+          ...prev,
+          ...updatedUser,
+          unit: payload.unit,
+          height: payload.height,
+          images,
+        }));
+        editImagesSnapshotRef.current = null;
+        onSave();
+        Alert.alert(
+          'Warning',
+          isNetworkFailure(deleteErr)
+            ? 'Profile saved, but some photos could not be removed due to a connection issue. Please try again.'
+            : 'Profile saved, but some photos could not be removed. Please try again.'
+        );
         return;
       }
 
-      const res = await fetch(`${API_BASE_URL}/profile/delete_image/${imageId}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (res.status === 401) {
-        const data = await res.json();
-        if (data.error_code === 'TOKEN_EXPIRED') {
-          await AsyncStorage.removeItem('token');
-          navigation.navigate('Login');
-          return;
-        }
-      }
-
-      if (!res.ok) throw new Error('Failed to delete image');
-
-      setImages((prevImages) => prevImages.filter((img) => img.id !== imageId));
-      Alert.alert('Success', 'Image deleted successfully');
+      setUser(prev => ({
+        ...prev,
+        ...updatedUser,
+        unit: payload.unit,
+        height: payload.height,
+        images,
+      }));
+      editImagesSnapshotRef.current = null;
+      onSave();
     } catch (err) {
       console.error(err);
-      Alert.alert('Error', 'Failed to delete image');
+      const message = isNetworkFailure(err)
+        ? 'Could not reach the server. Check your connection and try again.'
+        : err.message || 'Failed to update profile';
+      Alert.alert('Error', message);
     }
   };
 
-  const handleCancel = () => {
+  const handleDeleteImage = (imageId) => {
+    if (!editing || imageId == null) return;
+
+    setImages((prevImages) => prevImages.filter((img) => img.id !== imageId));
+    setImageError('');
+
+    imagesAddedDuringEditRef.current = imagesAddedDuringEditRef.current.filter(
+      (id) => id !== imageId
+    );
+    if (!pendingDeleteIdsRef.current.includes(imageId)) {
+      pendingDeleteIdsRef.current.push(imageId);
+    }
+  };
+
+  const handleCancel = async () => {
     setImageError('');
     setFieldErrors({
       first_name: '',
@@ -395,8 +476,49 @@ const Profile = ({
       birthdate: '',
       height: '',
     });
+
+    const snapshotIds = new Set(
+      (editImagesSnapshotRef.current || []).map((img) => img.id)
+    );
+    const serverCleanupIds = new Set([
+      ...imagesAddedDuringEditRef.current,
+      ...pendingDeleteIdsRef.current.filter((id) => !snapshotIds.has(id)),
+    ]);
+
+    pendingDeleteIdsRef.current = [];
+    imagesAddedDuringEditRef.current = [];
+
+    if (editImagesSnapshotRef.current) {
+      setImages(editImagesSnapshotRef.current);
+    }
+    editImagesSnapshotRef.current = null;
+
+    for (const imageId of serverCleanupIds) {
+      try {
+        await deleteImageFromServer(imageId);
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
     setEditing(false);
   };
+
+  useEffect(() => {
+    const notify = onEditingFormDataRef.current;
+    if (!notify) return;
+
+    if (editing) {
+      notify({
+        formData,
+        handleInputChange,
+        handleFormSubmit,
+        handleCancel,
+      });
+    } else {
+      notify(null);
+    }
+  }, [editing, formData, handleInputChange]);
 
   const lightboxUris = useMemo(
     () =>
@@ -475,6 +597,8 @@ const Profile = ({
     ''
   ).trim();
   const accentColor = getRoleAccentColor(user?.role || 'matchmaker');
+  const showInternalHeader = user.role === 'user' && !usePageLayout;
+  const showProfileCard = user.role === 'user' && usePageLayout && !editing;
   const openImageLightbox =
     enableImageLightbox && !editing
       ? (uri) => {
@@ -484,19 +608,23 @@ const Profile = ({
         }
       : undefined;
 
-  return (
+  const profileBodyStyle = [
+    styles.container,
+    framed && styles.framed,
+    !usePageLayout && formData.profileStyle === 'pixelCloud' && styles.pixelCloud,
+    !usePageLayout && formData.profileStyle === 'pixelFlower' && styles.pixelFlower,
+    !usePageLayout && formData.profileStyle === 'minimal' && styles.minimal,
+    !usePageLayout && formData.profileStyle === 'bold' && styles.bold,
+    !usePageLayout && formData.profileStyle === 'classic' && styles.classic,
+    usePageLayout && styles.pageLayoutContainer,
+  ];
+
+  const profileBody = (
     <>
-      <ScrollView
-        ref={scrollViewRef}
-        scrollEventThrottle={16}
-        onScroll={(event) => {
-          scrollOffsetYRef.current = event.nativeEvent.contentOffset.y;
-        }}
-        style={[styles.container, framed && styles.framed, formData.profileStyle === 'pixelCloud' && styles.pixelCloud, formData.profileStyle === 'pixelFlower' && styles.pixelFlower, formData.profileStyle === 'minimal' && styles.minimal, formData.profileStyle === 'bold' && styles.bold, formData.profileStyle === 'classic' && styles.classic]}>
-          {formData.profileStyle === 'pixelCloud' && <PixelClouds />}
-          {formData.profileStyle === 'pixelFlower' && <PixelFlowers />}
-          {formData.profileStyle === 'pixelCactus' && <PixelCactus />}
-          {user.role === 'user' && (
+          {!usePageLayout && formData.profileStyle === 'pixelCloud' && <PixelClouds />}
+          {!usePageLayout && formData.profileStyle === 'pixelFlower' && <PixelFlowers />}
+          {!usePageLayout && formData.profileStyle === 'pixelCactus' && <PixelCactus />}
+          {showInternalHeader && (
         <View style={styles.profileHeader}>
           <View style={styles.headerLeft}>
             <View style={styles.avatarCircle}>
@@ -557,7 +685,20 @@ const Profile = ({
         </View>
       )}
 
-      {user.role === 'user' && (
+      {showProfileCard ? (
+        <ProfileCard
+          profile={{
+            ...user,
+            images,
+            imageLayout: normalizeImageLayout(formData.imageLayout),
+            profileStyle: formData.profileStyle,
+          }}
+          userInfo={user}
+          blendWithBackground
+        />
+      ) : null}
+
+      {user.role === 'user' && !showProfileCard && (
           <ProfileInfoCard
             user={user}
             formData={formData}
@@ -576,6 +717,7 @@ const Profile = ({
             imageError={imageError}
             fieldErrors={fieldErrors}
             profileStyle={formData.profileStyle}
+            pageBackgroundColor={usePageLayout ? DATER_SCREEN_BG : undefined}
             scrollToBottom={(target, calendarBottomYInWindow) => {
                 const ref = parentScrollRef || scrollViewRef;
                 const activeScrollOffset =
@@ -600,8 +742,26 @@ const Profile = ({
           />
       )}
 
-      </ScrollView>
-      {editing && user.role === 'user' && (
+    </>
+  );
+
+  return (
+    <>
+      {usePageLayout ? (
+        <View style={profileBodyStyle}>{profileBody}</View>
+      ) : (
+        <ScrollView
+          ref={scrollViewRef}
+          scrollEventThrottle={16}
+          onScroll={(event) => {
+            scrollOffsetYRef.current = event.nativeEvent.contentOffset.y;
+          }}
+          style={profileBodyStyle}
+        >
+          {profileBody}
+        </ScrollView>
+      )}
+      {editing && user.role === 'user' && !usePageLayout && (
         <View style={styles.actionsOutsideCard}>
           <View style={styles.actions}>
             <TouchableOpacity style={[styles.saveBtn, { backgroundColor: accentColor }]} onPress={handleFormSubmit}>
@@ -841,6 +1001,15 @@ const styles = StyleSheet.create({
   },
   classic: {
     backgroundColor: '#FFFFFF',
+  },
+  pageLayoutContainer: {
+    flex: 0,
+    flexGrow: 0,
+    backgroundColor: DATER_SCREEN_BG,
+    padding: 0,
+    borderRadius: 0,
+    borderWidth: 0,
+    overflow: 'visible',
   },
   imageLightboxRoot: {
     flex: 1,

@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { API_BASE_URL } from '../../env';
+import QuizQuestionFlow from './quizQuestionFlow';
+import { useQuizForName } from './useQuizForName';
 
 const questions = [
   {
@@ -126,12 +127,12 @@ const getFinalResult = (scores) => {
 const SpiritAnimalQuiz = () => {
   const navigation = useNavigation();
   const route = useRoute();
-  const insets = useSafeAreaInsets();
-  const androidBottomSafePadding = Platform.OS === 'android' ? 32 + insets.bottom : 20;
+  const forName = useQuizForName();
 
   const [answers, setAnswers] = useState({});
   const [result, setResult] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [flowKey, setFlowKey] = useState(0);
 
   const handleAnswer = (questionIndex, answer) => {
     setAnswers((prev) => ({
@@ -215,109 +216,74 @@ const SpiritAnimalQuiz = () => {
     }
   };
 
+  const handleClose = () => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    } else {
+      navigation.navigate('PuzzlesHub');
+    }
+  };
+
+  if (!result) {
+    return (
+      <QuizQuestionFlow
+        key={flowKey}
+        title="Spirit Animal Quiz"
+        icon="🦊"
+        questions={questions}
+        forName={forName}
+        answers={answers}
+        onAnswer={handleAnswer}
+        onFinish={calculateResult}
+        onClose={handleClose}
+        saving={saving}
+      />
+    );
+  }
+
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={[
-        styles.content,
-        { paddingBottom: androidBottomSafePadding },
-      ]}
-    >
+    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.title}>Spirit Animal Quiz</Text>
+      <View style={styles.resultContainer}>
+        <Text style={styles.resultTitle}>Your Result</Text>
+        <Text style={styles.resultText}>{result}</Text>
 
-      {!result ? (
-        <View style={styles.questionsContainer}>
-          {questions.map((q, qIdx) => (
-            <View key={qIdx} style={styles.quizCard}>
-              <Text style={styles.question}>{q.q}</Text>
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={() => {
+            setAnswers({});
+            setResult(null);
+            setFlowKey((k) => k + 1);
+          }}
+        >
+          <Text style={styles.actionButtonText}>Restart Quiz</Text>
+        </TouchableOpacity>
 
-              <View style={styles.options}>
-                {q.a.map((answer, aIdx) => {
-                  const selected = answers[qIdx]?.text === answer.text;
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={() => navigation.navigate('PuzzlesHub')}
+        >
+          <Text style={styles.actionButtonText}>Return to Puzzles</Text>
+        </TouchableOpacity>
 
-                  return (
-                    <TouchableOpacity
-                      key={aIdx}
-                      style={[
-                        styles.option,
-                        selected && styles.optionSelected,
-                      ]}
-                      onPress={() => handleAnswer(qIdx, answer)}
-                    >
-                      <Text
-                        style={[
-                          styles.optionText,
-                          selected && styles.optionTextSelected,
-                        ]}
-                      >
-                        {answer.text}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
-          ))}
-
-          <TouchableOpacity
-            style={[
-              styles.submitButton,
-              (Object.keys(answers).length < questions.length || saving) &&
-                styles.submitButtonDisabled,
-            ]}
-            onPress={calculateResult}
-            disabled={
-              Object.keys(answers).length < questions.length || saving
-            }
-          >
-            {saving ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.submitButtonText}>See My Result</Text>
-            )}
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <View style={styles.resultContainer}>
-          <Text style={styles.resultTitle}>Your Result</Text>
-          <Text style={styles.resultText}>{result}</Text>
-
-          <TouchableOpacity
-            style={styles.actionButton}
-            onPress={() => {
-              setAnswers({});
-              setResult(null);
-            }}
-          >
-            <Text style={styles.actionButtonText}>Restart Quiz</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.actionButton}
-            onPress={() => navigation.navigate('PuzzlesHub')}
-          >
-            <Text style={styles.actionButtonText}>Return to Puzzles</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.actionButton, styles.sendButton]}
-            onPress={sendResultToMatch}
-            disabled={saving}
-          >
-            {saving ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.actionButtonText}>Send to Match</Text>
-            )}
-          </TouchableOpacity>
-        </View>
-      )}
+        <TouchableOpacity
+          style={[styles.actionButton, styles.sendButton]}
+          onPress={sendResultToMatch}
+          disabled={saving}
+        >
+          {saving ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.actionButtonText}>Send to Match</Text>
+          )}
+        </TouchableOpacity>
+      </View>
     </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fafafa', paddingTop: 30 },
+  container: { flex: 1, backgroundColor: '#FFF8FA', paddingTop: 30 },
   content: { padding: 20 },
   title: {
     fontSize: 28,
@@ -325,36 +291,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 24,
   },
-  questionsContainer: { gap: 20 },
-  quizCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 20,
-    marginBottom: 16,
-    elevation: 3,
-  },
-  question: { fontSize: 18, fontWeight: '600', marginBottom: 16 },
-  options: { gap: 12 },
-  option: {
-    padding: 16,
-    borderRadius: 8,
-    borderWidth: 2,
-    borderColor: '#e0e6ef',
-  },
-  optionSelected: {
-    borderColor: '#6c5ce7',
-    backgroundColor: '#fafafa',
-  },
-  optionText: { fontSize: 16, textAlign: 'center', color: '#666' },
-  optionTextSelected: { color: '#6c5ce7', fontWeight: '600' },
-  submitButton: {
-    backgroundColor: '#6c5ce7',
-    padding: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  submitButtonDisabled: { backgroundColor: '#ccc', opacity: 0.6 },
-  submitButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
   resultContainer: {
     backgroundColor: '#fff',
     borderRadius: 12,
@@ -364,7 +300,7 @@ const styles = StyleSheet.create({
   resultTitle: { fontSize: 24, fontWeight: '700', marginBottom: 16 },
   resultText: { fontSize: 18, textAlign: 'center', marginBottom: 24 },
   actionButton: {
-    backgroundColor: '#6c5ce7',
+    backgroundColor: '#ef4d73',
     padding: 14,
     borderRadius: 8,
     width: '100%',

@@ -1,21 +1,27 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 
-const ToggleConversationsMatcher = ({ showDaterMatches, setShowDaterMatches, accentColor = '#6c5ce7' }) => (
-  <View style={styles.container}>
+const ToggleConversationsMatcher = ({
+  showDaterMatches,
+  setShowDaterMatches,
+  accentColor = '#6c5ce7',
+}) => (
+  <View style={styles.track}>
     <TouchableOpacity
-      style={[styles.button, showDaterMatches && { backgroundColor: accentColor }]}
+      style={[styles.segment, showDaterMatches && { backgroundColor: accentColor }]}
       onPress={() => setShowDaterMatches(true)}
+      activeOpacity={0.85}
     >
-      <Text style={[styles.buttonText, showDaterMatches && styles.buttonTextActive]}>
+      <Text style={[styles.segmentText, showDaterMatches && styles.segmentTextActive]}>
         Pending
       </Text>
     </TouchableOpacity>
     <TouchableOpacity
-      style={[styles.button, !showDaterMatches && { backgroundColor: accentColor }]}
+      style={[styles.segment, !showDaterMatches && { backgroundColor: accentColor }]}
       onPress={() => setShowDaterMatches(false)}
+      activeOpacity={0.85}
     >
-      <Text style={[styles.buttonText, !showDaterMatches && styles.buttonTextActive]}>
+      <Text style={[styles.segmentText, !showDaterMatches && styles.segmentTextActive]}>
         Approved
       </Text>
     </TouchableOpacity>
@@ -23,25 +29,26 @@ const ToggleConversationsMatcher = ({ showDaterMatches, setShowDaterMatches, acc
 );
 
 const styles = StyleSheet.create({
-  container: {
+  track: {
     flexDirection: 'row',
-    justifyContent: 'center',
-    marginBottom: 16,
-    gap: 10,
+    backgroundColor: '#ececee',
+    borderRadius: 999,
+    padding: 4,
   },
-  button: {
-    backgroundColor: '#ccc',
+  segment: {
+    flex: 1,
     paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 5,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  buttonText: {
-    color: '#fff',
+  segmentText: {
     fontSize: 14,
     fontWeight: '600',
+    color: '#9ca3af',
   },
-  buttonTextActive: {
-    color: '#fff',
+  segmentTextActive: {
+    color: '#ffffff',
   },
 });
 

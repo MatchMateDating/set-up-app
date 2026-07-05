@@ -10,6 +10,9 @@ import {
   TouchableOpacity,
   Modal,
   Pressable,
+  Dimensions,
+  DeviceEventEmitter,
+  Image,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -18,15 +21,22 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { API_BASE_URL } from '../../env';
 import MatchCard from './matchCard';
 import ToggleConversationsDater from './toggleConversationsDater';
-import ToggleConversationsMatcher from './toggleConversationsMatcher';
 import { useMatches } from './hooks/useMatches';
 import { useUserInfo } from './hooks/useUserInfo';
 import { getRoleAccentColor, getRoleBackgroundTint } from '../layout/components/RoleHeaderBanner';
 import { UserContext } from '../../context/UserContext';
 import { useNotifications } from '../../context/NotificationContext';
 import { shouldSuppressAuthErrors } from '../../utils/authSession';
+import {
+  MATCH_PREVIEW_UPDATED_EVENT,
+  cacheMatchPreview,
+  applyCachedPreviewsToMatches,
+  hydrateMissingMatchPreviews,
+} from './utils/matchMessagePreview';
 
 const CONTENT_HORIZONTAL_PADDING = 16;
+const FILTER_SHEET_BG = '#f3f4f6';
+const MATCHMAKER_SCREEN_BG = '#f3f4f6';
 
 /** True if the viewing dater removed their own side's matchmaker (`dater_on_user_id_1_side` from GET /match/matches). */
 function currentDaterRemovedOwnMatchmaker(match, currentUserId) {
@@ -79,13 +89,37 @@ function isOtherPersonMatchmakerInvolved(match) {
   return oneMm && !match?.linked_dater;
 }
 
+/** Pending-approval row for matchmaker lists (API puts these in pending_approval). */
+function isMatchmakerPendingItem(match) {
+  return match?.status === 'pending_approval' || match?.message_count !== undefined;
+}
+
+/**
+ * Matchmaker unified list order: needs approval first, then approved-by-you-but-waiting,
+ * then fully matched — each group sorted by recent activity.
+ */
+function getMatchmakerItemSortRank(match) {
+  if (isMatchmakerPendingItem(match)) {
+    return match?.waiting_for_other_approval ? 1 : 0;
+  }
+  return 2;
+}
+
+const DEFAULT_CONVERSATION_FILTERS = {
+  requireOtherMatchmaker: false,
+  blindOnly: false,
+  notificationsOnOnly: false,
+  statusPending: true,
+  statusApproved: true,
+};
+
 const Conversations = () => {
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
   const listInnerWidth = windowWidth - CONTENT_HORIZONTAL_PADDING * 2;
   const matchCardWidth = listInnerWidth;
 
-  const { user: contextUser } = useContext(UserContext);
+  const { user: contextUser, setUser: setContextUser } = useContext(UserContext);
   const [showDaterMatches, setShowDaterMatches] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [roleHint, setRoleHint] = useState(null);
@@ -104,14 +138,10 @@ const Conversations = () => {
   const [referrer, setReferrer] = useState(null);
   const [showConversationFilter, setShowConversationFilter] = useState(false);
   const [conversationFilters, setConversationFilters] = useState({
-    requireOtherMatchmaker: false,
-    blindOnly: false,
-    notificationsOnOnly: false,
+    ...DEFAULT_CONVERSATION_FILTERS,
   });
   const [conversationFilterDraft, setConversationFilterDraft] = useState({
-    requireOtherMatchmaker: false,
-    blindOnly: false,
-    notificationsOnOnly: false,
+    ...DEFAULT_CONVERSATION_FILTERS,
   });
   const selectedDaterId = userInfo?.referrer_id || userInfo?.referred_by_id || null;
 
@@ -219,6 +249,51 @@ const Conversations = () => {
     fetchMatches();
   }, []);
 
+  // Fetch last-message text for rows the matches API did not fully populate yet.
+  useEffect(() => {
+    if (loading || !userInfo?.id) return undefined;
+
+    let cancelled = false;
+    hydrateMissingMatchPreviews(matches, userInfo, API_BASE_URL).then((didUpdate) => {
+      if (cancelled || !didUpdate) return;
+      setMatches((prev) => applyCachedPreviewsToMatches(prev));
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [matches, userInfo?.id, loading, setMatches]);
+
+  useEffect(() => {
+    const patchMatchPreview = ({ matchId, ...fields }) => {
+      const id = Number(matchId);
+      if (!Number.isFinite(id)) return;
+
+      cacheMatchPreview(id, fields);
+      const cached = fields;
+      const patchList = (list) =>
+        (list || []).map((match) =>
+          match.match_id === id ? { ...match, ...cached } : match
+        );
+
+      setMatches((prev) => {
+        const patched = Array.isArray(prev)
+          ? patchList(prev)
+          : {
+              matched: patchList(prev?.matched),
+              pending_approval: patchList(prev?.pending_approval),
+            };
+        return applyCachedPreviewsToMatches(patched);
+      });
+    };
+
+    const subscription = DeviceEventEmitter.addListener(
+      MATCH_PREVIEW_UPDATED_EVENT,
+      patchMatchPreview
+    );
+    return () => subscription.remove();
+  }, [setMatches]);
+
   useEffect(() => {
     if (!userInfo || userInfo.role !== 'matchmaker') {
       return;
@@ -245,11 +320,12 @@ const Conversations = () => {
       const timer = setTimeout(() => {
         Promise.all([fetchProfile(), fetchMatches()])
           .finally(() => {
+            setMatches((prev) => applyCachedPreviewsToMatches(prev));
             setRefreshing(false);
           });
       }, 100);
       return () => clearTimeout(timer);
-    }, [])
+    }, [fetchMatches])
   );
 
   // Option B: refresh conversations when a push arrives (no polling for list updates).
@@ -298,13 +374,19 @@ const Conversations = () => {
     }, [notificationsEnabled, expoPushToken, fetchMatches])
   );
 
-  // Unread badges use `unread_count` from GET /match/matches (no per-conversation polling).
+  const getLastMessageTimestamp = (match) => {
+    const t = match?.last_message_time;
+    if (!t) return 0;
+    const ms = Date.parse(t);
+    return Number.isFinite(ms) ? ms : 0;
+  };
+
   const sortMatchesByRecentActivity = (list) => {
     if (!Array.isArray(list) || list.length === 0) return list;
     return [...list].sort((a, b) => {
-      const ub = Number(b.unread_count) || 0;
-      const ua = Number(a.unread_count) || 0;
-      if (ub !== ua) return ub - ua;
+      const tb = getLastMessageTimestamp(b);
+      const ta = getLastMessageTimestamp(a);
+      if (tb !== ta) return tb - ta;
       const idb = Number(b.match_id) || 0;
       const ida = Number(a.match_id) || 0;
       return idb - ida;
@@ -330,7 +412,35 @@ const Conversations = () => {
     });
   };
 
+  const sortMatchmakerConversations = (list) => {
+    if (!Array.isArray(list) || list.length === 0) return list;
+    return [...list].sort((a, b) => {
+      const rankDiff = getMatchmakerItemSortRank(a) - getMatchmakerItemSortRank(b);
+      if (rankDiff !== 0) return rankDiff;
+      const tb = getLastMessageTimestamp(b);
+      const ta = getLastMessageTimestamp(a);
+      if (tb !== ta) return tb - ta;
+      const idb = Number(b.match_id) || 0;
+      const ida = Number(a.match_id) || 0;
+      return idb - ida;
+    });
+  };
+
   const getFilteredMatches = () => {
+    if (userInfo?.role === 'matchmaker') {
+      let combined = [];
+      if (conversationFilters.statusPending) {
+        combined = [...combined, ...pendingApprovalList];
+      }
+      if (conversationFilters.statusApproved) {
+        combined = [...combined, ...matchedList];
+      }
+      return {
+        matched: sortMatchmakerConversations(applyConversationAttributeFilters(combined)),
+        pending_approval: [],
+      };
+    }
+
     if (!userInfo || userInfo.role !== 'user') {
       return {
         matched: sortMatchesByRecentActivity(
@@ -400,7 +510,6 @@ const Conversations = () => {
             pending_approval: (matches?.pending_approval || []).filter(match => match.match_id !== matchId)
           });
         }
-        Alert.alert('Success', 'Unmatched successfully');
       } else {
         const data = await res.json();
         Alert.alert('Error', data.message || 'Failed to unmatch');
@@ -456,7 +565,6 @@ const Conversations = () => {
           };
         }
       });
-      Alert.alert('Success', 'Match revealed');
     } catch (err) {
       console.error('Error revealing match:', err);
       Alert.alert('Error', 'Something went wrong revealing the match');
@@ -508,7 +616,6 @@ const Conversations = () => {
           };
         }
       });
-      Alert.alert('Success', 'Match hidden');
     } catch (err) {
       console.error('Error hiding match:', err);
       Alert.alert('Error', 'Something went wrong hiding the match');
@@ -518,7 +625,8 @@ const Conversations = () => {
   if (loading) {
     const loadingRole = userInfo?.role || roleHint || 'user';
     const loadingColor = getRoleAccentColor(loadingRole);
-    const loadingBackgroundTint = getRoleBackgroundTint(loadingRole);
+    const loadingBackgroundTint =
+      loadingRole === 'matchmaker' ? MATCHMAKER_SCREEN_BG : getRoleBackgroundTint(loadingRole);
     return (
       <View style={[styles.loadingContainer, { backgroundColor: loadingBackgroundTint }]}>
         <ActivityIndicator size="large" color={loadingColor} />
@@ -528,22 +636,26 @@ const Conversations = () => {
   }
 
   const filteredMatches = getFilteredMatches();
+  const isMatchmaker = userInfo?.role === 'matchmaker';
+  const isDater = userInfo?.role === 'user';
   const activeConversationFilterCount =
     (conversationFilters.requireOtherMatchmaker ? 1 : 0) +
     (conversationFilters.blindOnly ? 1 : 0) +
     (conversationFilters.notificationsOnOnly &&
     showNotificationsOnFilterOption
       ? 1
+      : 0) +
+    (isMatchmaker &&
+    (!conversationFilters.statusPending || !conversationFilters.statusApproved)
+      ? 1
       : 0);
   const accentColor = getRoleAccentColor(userInfo?.role || 'matchmaker');
-  const backgroundTint = getRoleBackgroundTint(userInfo?.role || 'matchmaker');
-  const overlayTopPadding = userInfo?.role === 'matchmaker' ? 140 : 56;
-  const filterButtonTop =
-    userInfo?.role === 'matchmaker' ? insets.top + 6 : overlayTopPadding + 8;
-  const isPendingEmptyState =
-    userInfo?.role === 'matchmaker' &&
-    showDaterMatches &&
-    filteredMatches.pending_approval.length === 0;
+  const backgroundTint = isMatchmaker
+    ? MATCHMAKER_SCREEN_BG
+    : getRoleBackgroundTint(userInfo?.role || 'matchmaker');
+  const headerTopPadding = insets.top + (isMatchmaker ? 4 : 12);
+  const isMatchmakerEmptyState =
+    isMatchmaker && filteredMatches.matched.length === 0;
   const isDaterEmptyState =
     userInfo?.role === 'user' && filteredMatches.matched.length === 0;
   
@@ -553,94 +665,100 @@ const Conversations = () => {
     fetchMatches();
   };
 
+  const openConversationFilter = () => {
+    setConversationFilterDraft({ ...conversationFilters });
+    setShowConversationFilter(true);
+  };
+
   return (
-    <View style={[styles.container, { backgroundColor: backgroundTint, paddingTop: overlayTopPadding }]}>
-      <TouchableOpacity
-        style={[styles.filterButton, { top: filterButtonTop }]}
-        onPress={() => {
-          setConversationFilterDraft({ ...conversationFilters });
-          setShowConversationFilter(true);
-        }}
-        accessibilityLabel="Open conversation filters"
-      >
-        <Ionicons name="options-outline" size={24} color="#1f2937" />
-        {activeConversationFilterCount > 0 ? (
-          <View style={[styles.filterBadge, { backgroundColor: accentColor }]}>
-            <Text style={styles.filterBadgeText}>{activeConversationFilterCount}</Text>
+    <View style={[styles.container, { backgroundColor: backgroundTint }]}>
+      <View style={styles.topArea}>
+        <View
+          style={[
+            styles.screenHeader,
+            isMatchmaker && styles.screenHeaderMatchmaker,
+            { paddingTop: headerTopPadding },
+          ]}
+        >
+          <Image
+            source={require('../../../assets/matchmate_logo.png')}
+            style={styles.headerLogo}
+            accessibilityLabel="Matchmate logo"
+          />
+          {!isMatchmaker ? <Text style={styles.screenTitle}>Conversations</Text> : null}
+          <TouchableOpacity
+            style={[
+              styles.filterButton,
+              styles.filterButtonTop,
+              isMatchmaker && styles.filterButtonMatchmaker,
+            ]}
+            onPress={openConversationFilter}
+            accessibilityLabel="Open conversation filters"
+          >
+            <Ionicons name="options-outline" size={22} color="#374151" />
+            {activeConversationFilterCount > 0 ? (
+              <View style={[styles.filterBadge, { backgroundColor: accentColor }]}>
+                <Text style={styles.filterBadgeText}>{activeConversationFilterCount}</Text>
+              </View>
+            ) : null}
+          </TouchableOpacity>
+        </View>
+
+        {isMatchmaker ? <View style={styles.choosingSection} /> : null}
+
+        {userInfo && isDater ? (
+          <View style={styles.toggleSection}>
+            <ToggleConversationsDater
+              showDaterMatches={showDaterMatches}
+              setShowDaterMatches={setShowDaterMatches}
+              accentColor={accentColor}
+            />
           </View>
         ) : null}
-      </TouchableOpacity>
+      </View>
+
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={[
           styles.content,
-          (isPendingEmptyState || isDaterEmptyState) && styles.contentGrow,
+          isMatchmaker && styles.contentMatchmaker,
+          (isMatchmakerEmptyState || isDaterEmptyState) && styles.contentGrow,
         ]}
       >
-        {userInfo && userInfo.role === 'user' && (matchedList.length > 0 || pendingApprovalList.length > 0) && (
-          <ToggleConversationsDater
-            showDaterMatches={showDaterMatches}
-            setShowDaterMatches={setShowDaterMatches}
-            accentColor={accentColor}
-          />
-        )}
-
-        {userInfo && userInfo.role === 'matchmaker' && (filteredMatches.pending_approval.length > 0 || filteredMatches.matched.length > 0) && (
-          <ToggleConversationsMatcher
-            showDaterMatches={showDaterMatches}
-            setShowDaterMatches={setShowDaterMatches}
-            accentColor={accentColor}
-          />
-        )}
-        
-        {/* Pending Approval Section - for matchmakers */}
-        {userInfo?.role === 'matchmaker' && showDaterMatches && (
-          <View style={[styles.sectionContainer, isPendingEmptyState && styles.sectionContainerFill]}>
-            <View style={[styles.matchList, isPendingEmptyState && styles.matchListFill]}>
-              {filteredMatches.pending_approval.length > 0 ? (
-                filteredMatches.pending_approval.map((matchObj) => (
+        {isMatchmaker ? (
+          <View
+            style={[
+              styles.sectionContainer,
+              isMatchmakerEmptyState && styles.sectionContainerFill,
+            ]}
+          >
+            <View
+              style={[
+                styles.matchList,
+                styles.matchListModern,
+                isMatchmakerEmptyState && styles.matchListFill,
+              ]}
+            >
+              {filteredMatches.matched.length > 0 ? (
+                filteredMatches.matched.map((matchObj) => (
                   <MatchCard
-                    key={`pending-${matchObj.match_id}`}
+                    key={`chat-${matchObj.match_id}`}
                     matchObj={matchObj}
                     userInfo={userInfo}
                     unreadCount={matchObj.unread_count || 0}
                     cardWidth={matchCardWidth}
-                    daterConversationsTheme={userInfo?.role === 'user'}
+                    matchmakerConversationsTheme
                   />
                 ))
               ) : (
                 <View style={[styles.loadingContainerInline, styles.matchListFullWidth]}>
-                  <Text style={styles.loadingText}>No pending matches yet!</Text>
+                  <Text style={styles.loadingText}>No conversations yet!</Text>
                 </View>
               )}
             </View>
           </View>
-        )}
-        
-        {/* Approved/Matched Section - for matchmakers */}
-        {userInfo?.role === 'matchmaker' && !showDaterMatches && (
-          <View style={styles.sectionContainer}>
-            <View style={styles.matchList}>
-              {filteredMatches.matched.length > 0 ? (
-                filteredMatches.matched.map((matchObj) => (
-                  <MatchCard
-                    key={`matched-${matchObj.match_id}`}
-                    matchObj={matchObj}
-                    userInfo={userInfo}
-                    unreadCount={matchObj.unread_count || 0}
-                    cardWidth={matchCardWidth}
-                    daterConversationsTheme={userInfo?.role === 'user'}
-                  />
-                ))
-              ) : (
-                <View style={[styles.emptyContainer, styles.matchListFullWidth]}>
-                  <Text style={styles.emptyText}>No matches yet!</Text>
-                </View>
-              )}
-            </View>
-          </View>
-        )}
-        
+        ) : null}
+
         {/* Matched Section - for daters */}
         {userInfo?.role === 'user' && (
           <View style={[styles.sectionContainer, isDaterEmptyState && styles.sectionContainerFill]}>
@@ -669,7 +787,7 @@ const Conversations = () => {
       <Modal
         visible={showConversationFilter}
         transparent
-        animationType="none"
+        animationType="slide"
         onRequestClose={dismissConversationFilter}
       >
         <View style={styles.filterModalRoot}>
@@ -678,19 +796,88 @@ const Conversations = () => {
             onPress={dismissConversationFilter}
             accessibilityLabel="Close conversation filters"
           />
-          <View style={styles.filterDrawer}>
-            <View style={styles.filterDrawerHeader}>
-              <Text style={styles.filterDrawerTitle}>Filters</Text>
-              <TouchableOpacity onPress={dismissConversationFilter} hitSlop={12}>
-                <Ionicons name="close" size={26} color="#374151" />
+          <View
+            style={[
+              styles.filterBottomSheet,
+              { maxHeight: Dimensions.get('window').height * 0.72 },
+            ]}
+          >
+            <View style={styles.filterSheetHeader}>
+              <Text style={styles.filterSheetTitle}>Filter</Text>
+              <TouchableOpacity
+                style={styles.filterSheetClose}
+                onPress={dismissConversationFilter}
+                hitSlop={12}
+                accessibilityLabel="Close filter"
+              >
+                <Ionicons name="close" size={22} color="#9ca3af" />
               </TouchableOpacity>
             </View>
             <ScrollView
               style={styles.filterScroll}
               contentContainerStyle={styles.filterScrollContent}
               keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
             >
-              <Text style={styles.filterSectionLabel}>Conversation type</Text>
+              {isMatchmaker ? (
+                <>
+                  <Text style={styles.filterSectionLabel}>STATUS</Text>
+
+                  <TouchableOpacity
+                    style={styles.filterCheckboxRow}
+                    onPress={() =>
+                      setConversationFilterDraft((d) => ({
+                        ...d,
+                        statusPending: !d.statusPending,
+                      }))
+                    }
+                    activeOpacity={0.7}
+                  >
+                    <View
+                      style={[
+                        styles.filterCheckbox,
+                        { borderColor: accentColor },
+                        conversationFilterDraft.statusPending && styles.filterCheckboxChecked,
+                      ]}
+                    >
+                      {conversationFilterDraft.statusPending ? (
+                        <Ionicons name="checkmark" size={16} color={accentColor} />
+                      ) : null}
+                    </View>
+                    <Text style={styles.filterCheckboxLabel}>Pending</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.filterCheckboxRow}
+                    onPress={() =>
+                      setConversationFilterDraft((d) => ({
+                        ...d,
+                        statusApproved: !d.statusApproved,
+                      }))
+                    }
+                    activeOpacity={0.7}
+                  >
+                    <View
+                      style={[
+                        styles.filterCheckbox,
+                        { borderColor: accentColor },
+                        conversationFilterDraft.statusApproved && styles.filterCheckboxChecked,
+                      ]}
+                    >
+                      {conversationFilterDraft.statusApproved ? (
+                        <Ionicons name="checkmark" size={16} color={accentColor} />
+                      ) : null}
+                    </View>
+                    <Text style={styles.filterCheckboxLabel}>Approved</Text>
+                  </TouchableOpacity>
+
+                  <Text style={[styles.filterSectionLabel, styles.filterSectionLabelSpaced]}>
+                    CONVERSATION TYPE
+                  </Text>
+                </>
+              ) : (
+                <Text style={styles.filterSectionLabel}>CONVERSATION TYPE</Text>
+              )}
 
               <TouchableOpacity
                 style={styles.filterCheckboxRow}
@@ -705,14 +892,13 @@ const Conversations = () => {
                 <View
                   style={[
                     styles.filterCheckbox,
-                    conversationFilterDraft.requireOtherMatchmaker && {
-                      backgroundColor: accentColor,
-                      borderColor: accentColor,
-                    },
+                    { borderColor: accentColor },
+                    conversationFilterDraft.requireOtherMatchmaker &&
+                      styles.filterCheckboxChecked,
                   ]}
                 >
                   {conversationFilterDraft.requireOtherMatchmaker ? (
-                    <Ionicons name="checkmark" size={16} color="#ffffff" />
+                    <Ionicons name="checkmark" size={16} color={accentColor} />
                   ) : null}
                 </View>
                 <Text style={styles.filterCheckboxLabel}>
@@ -721,7 +907,7 @@ const Conversations = () => {
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.filterCheckboxRow, { marginTop: 16 }]}
+                style={styles.filterCheckboxRow}
                 onPress={() =>
                   setConversationFilterDraft((d) => ({
                     ...d,
@@ -733,14 +919,12 @@ const Conversations = () => {
                 <View
                   style={[
                     styles.filterCheckbox,
-                    conversationFilterDraft.blindOnly && {
-                      backgroundColor: accentColor,
-                      borderColor: accentColor,
-                    },
+                    { borderColor: accentColor },
+                    conversationFilterDraft.blindOnly && styles.filterCheckboxChecked,
                   ]}
                 >
                   {conversationFilterDraft.blindOnly ? (
-                    <Ionicons name="checkmark" size={16} color="#ffffff" />
+                    <Ionicons name="checkmark" size={16} color={accentColor} />
                   ) : null}
                 </View>
                 <Text style={styles.filterCheckboxLabel}>Blind match only</Text>
@@ -748,7 +932,7 @@ const Conversations = () => {
 
               {showNotificationsOnFilterOption ? (
                 <TouchableOpacity
-                  style={[styles.filterCheckboxRow, { marginTop: 16 }]}
+                  style={styles.filterCheckboxRow}
                   onPress={() =>
                     setConversationFilterDraft((d) => ({
                       ...d,
@@ -760,14 +944,13 @@ const Conversations = () => {
                   <View
                     style={[
                       styles.filterCheckbox,
-                      conversationFilterDraft.notificationsOnOnly && {
-                        backgroundColor: accentColor,
-                        borderColor: accentColor,
-                      },
+                      { borderColor: accentColor },
+                      conversationFilterDraft.notificationsOnOnly &&
+                        styles.filterCheckboxChecked,
                     ]}
                   >
                     {conversationFilterDraft.notificationsOnOnly ? (
-                      <Ionicons name="checkmark" size={16} color="#ffffff" />
+                      <Ionicons name="checkmark" size={16} color={accentColor} />
                     ) : null}
                   </View>
                   <Text style={styles.filterCheckboxLabel}>
@@ -778,13 +961,14 @@ const Conversations = () => {
             </ScrollView>
             <View
               style={[
-                styles.filterDrawerFooter,
-                { paddingBottom: 28 + insets.bottom },
+                styles.filterSheetFooter,
+                { paddingBottom: 20 + insets.bottom },
               ]}
             >
               <TouchableOpacity
                 style={[styles.filterSaveButton, { backgroundColor: accentColor }]}
                 onPress={saveConversationFilters}
+                accessibilityLabel="Save filters"
               >
                 <Text style={styles.filterSaveButtonText}>Save</Text>
               </TouchableOpacity>
@@ -800,28 +984,77 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fafafa',
-    paddingTop: 24,
+  },
+  topArea: {
+    backgroundColor: 'transparent',
+  },
+  screenHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingBottom: 4,
+  },
+  screenHeaderMatchmaker: {
+    backgroundColor: 'transparent',
+    paddingBottom: 0,
+  },
+  headerLogo: {
+    width: 44,
+    height: 44,
+    resizeMode: 'contain',
+  },
+  headerSpacer: {
+    width: 44,
+    height: 44,
+  },
+  screenTitle: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#1f2937',
+    letterSpacing: -0.2,
+  },
+  toggleSection: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 12,
+  },
+  toggleSectionMatchmaker: {
+    paddingTop: 8,
+  },
+  choosingSection: {
+    paddingHorizontal: 20,
+    paddingBottom: 4,
+    // Label + picker row for AppNavigator dater dropdown overlay (see daterDropdownTop).
+    minHeight: 71,
   },
   scrollView: {
     flex: 1,
     backgroundColor: 'transparent',
-    paddingTop: 50,
   },
   filterButton: {
-    position: 'absolute',
-    left: 16,
-    zIndex: 50,
-    width: 46,
-    height: 46,
-    borderRadius: 23,
+    width: 44,
+    height: 44,
+    borderRadius: 12,
     backgroundColor: '#ffffff',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    elevation: 4,
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  filterButtonTop: {
+    borderRadius: 12,
+  },
+  filterButtonMatchmaker: {
+    borderRadius: 12,
+    borderWidth: 0,
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
   },
   filterBadge: {
     position: 'absolute',
@@ -841,74 +1074,76 @@ const styles = StyleSheet.create({
   },
   filterModalRoot: {
     flex: 1,
+    justifyContent: 'flex-end',
   },
   filterBackdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
   },
-  filterDrawer: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    bottom: 0,
-    width: '86%',
-    maxWidth: 360,
-    backgroundColor: '#ffffff',
+  filterBottomSheet: {
+    backgroundColor: FILTER_SHEET_BG,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
     shadowColor: '#000',
-    shadowOffset: { width: -4, height: 0 },
-    shadowOpacity: 0.18,
-    shadowRadius: 12,
-    elevation: 16,
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 20,
   },
-  filterDrawerHeader: {
-    flexDirection: 'row',
+  filterSheetHeader: {
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 56,
+    justifyContent: 'center',
+    paddingTop: 20,
     paddingBottom: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#e5e7eb',
   },
-  filterDrawerTitle: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#111827',
+  filterSheetTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#374151',
+    letterSpacing: 0.2,
+  },
+  filterSheetClose: {
+    position: 'absolute',
+    right: 20,
+    top: 18,
+    padding: 4,
   },
   filterScroll: {
-    flex: 1,
+    flexGrow: 0,
   },
   filterScrollContent: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
     paddingTop: 20,
-    paddingBottom: 24,
+    paddingBottom: 8,
   },
   filterSectionLabel: {
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: '700',
-    color: '#1f2937',
+    color: '#6b7280',
+    letterSpacing: 0.8,
     marginBottom: 6,
   },
-  filterSectionSub: {
-    fontSize: 13,
-    color: '#6b7280',
-    marginBottom: 12,
-    lineHeight: 18,
+  filterSectionLabelSpaced: {
+    marginTop: 20,
   },
   filterCheckboxRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 8,
+    marginTop: 4,
   },
   filterCheckbox: {
     width: 22,
     height: 22,
-    borderRadius: 6,
+    borderRadius: 5,
     borderWidth: 2,
-    borderColor: '#d1d5db',
     marginRight: 12,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: '#ffffff',
+  },
+  filterCheckboxChecked: {
     backgroundColor: '#ffffff',
   },
   filterCheckboxLabel: {
@@ -917,8 +1152,8 @@ const styles = StyleSheet.create({
     color: '#374151',
     fontWeight: '500',
   },
-  filterDrawerFooter: {
-    paddingHorizontal: 20,
+  filterSheetFooter: {
+    paddingHorizontal: 24,
     paddingTop: 16,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: '#e5e7eb',
@@ -934,9 +1169,12 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   content: {
-    paddingTop: 20,
+    paddingTop: 4,
     paddingBottom: 20,
     paddingHorizontal: 16,
+  },
+  contentMatchmaker: {
+    paddingTop: 32,
   },
   contentGrow: {
     flexGrow: 1,
@@ -956,6 +1194,9 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
     rowGap: 16,
     width: '100%',
+  },
+  matchListModern: {
+    rowGap: 12,
   },
   matchListFullWidth: {
     width: '100%',

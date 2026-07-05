@@ -4,6 +4,7 @@ from sqlalchemy import or_
 from app import db
 from app.models.userDB import User, ReferredUsers
 from app.dater_invite_tokens import encode_matchmaker_dater_invite
+from app.routes.auth_routes import matchmaker_cannot_link_dater_error
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
 referral_bp = Blueprint('referral', __name__)
@@ -46,6 +47,10 @@ def link_referral():
     if matchmaker.role != "matchmaker":
         return jsonify({"error": "Only matchmakers can link referrals"}), 403
 
+    link_err = matchmaker_cannot_link_dater_error(matchmaker, dater)
+    if link_err:
+        return jsonify({"error": link_err}), 400
+
     referral_row = ReferredUsers.query.filter_by(matchmaker_id=matchmaker.id).first()
     if not referral_row:
         referral_row = ReferredUsers(matchmaker_id=matchmaker.id)
@@ -62,10 +67,13 @@ def link_referral():
         col = f"linked_dater_{i}_id"
         if getattr(referral_row, col) is None:
             setattr(referral_row, col, dater.id)
+            if matchmaker.referred_by_id is None:
+                matchmaker.referred_by_id = dater.id
             db.session.commit()
             return jsonify({
                 "message": f"Dater {dater.first_name or dater.email} linked to {matchmaker.first_name or matchmaker.email}",
-                "linked_dater_id": dater.id
+                "linked_dater_id": dater.id,
+                "selected_dater_id": matchmaker.referred_by_id,
             }), 200
 
     return jsonify({"error": "Maximum of 10 linked daters reached"}), 400

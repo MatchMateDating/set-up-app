@@ -1,8 +1,9 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { View, Image, StyleSheet, TouchableOpacity, ScrollView, Text, Pressable } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { View, Image, StyleSheet, TouchableOpacity, Text, Pressable } from 'react-native';
 import { API_BASE_URL } from '../../env';
 import { Ionicons } from '@expo/vector-icons';
-import { getImageUrl } from './utils/profileUtils';
+import { getImageUrl, normalizeImageLayout } from './utils/profileUtils';
+import HorizontalPhotoScrollView from './components/HorizontalPhotoScrollView';
 
 const ImageGallery = ({
   images = [],
@@ -10,27 +11,27 @@ const ImageGallery = ({
   onDeleteImage,
   onPlaceholderClick,
   onImagePress,
-  layout = 'grid',
+  layout = 'topRow',
   accentColor = '#6c5ce7',
+  surfaceColor = '#fafafa',
+  surfaceBorderColor = '#bbb',
 }) => {
+  const resolvedLayout = normalizeImageLayout(layout);
+  const placeholderSurfaceStyle = { backgroundColor: surfaceColor };
+  const listSurfaceStyle = { backgroundColor: surfaceColor };
+  const placeholderBorderStyle = { borderColor: surfaceBorderColor };
   const maxImages = 9;
-  const gridColumns = 3;
-  const gridGap = 10;
   const heroStackColumns = 3;
   const heroStackGap = 10;
-  const isGrid = layout === 'grid';
-  const isTopRow = layout === 'topRow';
-  const isHeroStack = layout === 'heroStack';
+  const isTopRow = resolvedLayout === 'topRow';
+  const isHeroStack = resolvedLayout === 'heroStack';
+  const isVertical = !isTopRow && !isHeroStack;
   const topRowScrollRef = useRef(null);
   const [topRowViewportWidth, setTopRowViewportWidth] = useState(0);
-  const [gridViewportWidth, setGridViewportWidth] = useState(0);
+  const [topRowPhotoIndex, setTopRowPhotoIndex] = useState(0);
   const [heroStackViewportWidth, setHeroStackViewportWidth] = useState(0);
   const topRowSize = topRowViewportWidth > 0 ? topRowViewportWidth : 280;
-  const gridThumbSize =
-    gridViewportWidth > 0
-      ? Math.floor((gridViewportWidth - gridGap * (gridColumns - 1)) / gridColumns)
-      : null;
-  const gridThumbSizeStyle = isGrid && gridThumbSize ? { width: gridThumbSize, height: gridThumbSize } : null;
+  const verticalItemSizeStyle = isVertical ? styles.verticalItemFullWidth : null;
   const heroThumbSize =
     heroStackViewportWidth > 0
       ? Math.floor((heroStackViewportWidth - heroStackGap * (heroStackColumns - 1)) / heroStackColumns)
@@ -42,29 +43,22 @@ const ImageGallery = ({
       : null;
   const containerStyle = [
     styles.imageGallery,
-    isGrid
-      ? [styles.gridLayout, styles.gridGallery]
-      : isTopRow
-        ? styles.topRowLayout
-        : isHeroStack
-          ? styles.heroStackLayout
-          : styles.verticalLayout,
+    isTopRow
+      ? styles.topRowLayout
+      : isHeroStack
+        ? styles.heroStackLayout
+        : styles.verticalLayout,
   ];
   const topRowItemSizeStyle = isTopRow ? { width: topRowSize, height: topRowSize } : null;
 
   const renderImage = (img, index) => {
     const uri = getImageUrl(img.image_url, API_BASE_URL);
-    const imageStyle =
-      isGrid
-        ? styles.gridImage
-        : isTopRow
-          ? styles.topRowImage
-          : isHeroStack
-            ? [styles.heroImage, index === 0 && styles.heroMainImage]
-            : styles.fullImage;
-    // Vertical list uses a fixed non-square frame; cover would re-crop square uploads. Square layouts stay cover.
-    const resizeMode =
-      isGrid || isTopRow || isHeroStack ? 'cover' : 'contain';
+    const imageStyle = isTopRow
+      ? styles.topRowImage
+      : isHeroStack
+        ? [styles.heroImage, index === 0 && styles.heroMainImage]
+        : styles.fullImageFullWidth;
+    const resizeMode = isTopRow || isHeroStack || isVertical ? 'cover' : 'contain';
     const imageEl = (
       <Image source={{ uri }} style={imageStyle} resizeMode={resizeMode} />
     );
@@ -74,16 +68,14 @@ const ImageGallery = ({
       <View
         key={img.id || index}
         style={[
-          isGrid
-            ? [styles.gridImageWrapper, gridThumbSizeStyle]
-            : isTopRow
-              ? styles.topRowImageWrapper
-              : isHeroStack
-                ? [
-                    styles.heroImageWrapper,
-                    index === 0 ? [styles.heroMainWrapper, heroMainSizeStyle] : heroThumbSizeStyle,
-                  ]
-                : styles.listWrapper,
+          isTopRow
+            ? styles.topRowImageWrapper
+            : isHeroStack
+              ? [
+                  styles.heroImageWrapper,
+                  index === 0 ? [styles.heroMainWrapper, heroMainSizeStyle] : heroThumbSizeStyle,
+                ]
+              : [styles.listWrapperFullWidth, listSurfaceStyle, verticalItemSizeStyle],
           topRowItemSizeStyle,
         ]}
       >
@@ -113,16 +105,35 @@ const ImageGallery = ({
 
   const renderPlaceholder = () => {
     if (!editing || images.length >= maxImages) return null;
+
+    if (isVertical) {
+      return (
+        <View
+          style={[
+            styles.listPlaceholderFullWidth,
+            verticalItemSizeStyle,
+            placeholderSurfaceStyle,
+            placeholderBorderStyle,
+          ]}
+        >
+          <TouchableOpacity
+            style={styles.verticalPlaceholderTouchable}
+            onPress={onPlaceholderClick}
+            accessibilityRole="button"
+            accessibilityLabel="Add photo"
+          >
+            <Ionicons name="add" size={32} color="#bbb" />
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
     return (
       <TouchableOpacity
         style={
-          isGrid
-            ? [styles.gridPlaceholder, gridThumbSizeStyle]
-            : isTopRow
-              ? [styles.topRowPlaceholder, topRowItemSizeStyle]
-              : isHeroStack
-                ? [styles.heroThumbPlaceholder, heroThumbSizeStyle]
-              : styles.listPlaceholder
+          isTopRow
+            ? [styles.topRowPlaceholder, topRowItemSizeStyle, placeholderSurfaceStyle, placeholderBorderStyle]
+            : [styles.heroThumbPlaceholder, heroThumbSizeStyle, placeholderSurfaceStyle, placeholderBorderStyle]
         }
         onPress={onPlaceholderClick}
       >
@@ -131,11 +142,7 @@ const ImageGallery = ({
     );
   };
 
-  useEffect(() => {
-    if (isTopRow && !editing && topRowScrollRef.current) {
-      topRowScrollRef.current.scrollTo({ x: 0, y: 0, animated: false });
-    }
-  }, [isTopRow, editing, images.length]);
+  const topRowResetKey = `${images.length}-${editing}-${topRowViewportWidth}`;
 
   return (
     isTopRow ? (
@@ -149,19 +156,35 @@ const ImageGallery = ({
             }
           }}
         >
-          <ScrollView
+          <HorizontalPhotoScrollView
             ref={topRowScrollRef}
-            horizontal
-            pagingEnabled
-            snapToInterval={topRowSize}
-            snapToAlignment="start"
-            decelerationRate="fast"
-            showsHorizontalScrollIndicator={false}
+            itemWidth={topRowViewportWidth > 0 ? topRowViewportWidth : topRowSize}
+            resetKey={topRowResetKey}
+            onIndexChange={setTopRowPhotoIndex}
+            style={styles.topRowScrollView}
             contentContainerStyle={containerStyle}
           >
             {images.map(renderImage)}
             {renderPlaceholder()}
-          </ScrollView>
+          </HorizontalPhotoScrollView>
+
+          {!editing && images.length > 1 ? (
+            <View style={styles.paginationWrap} pointerEvents="none">
+              <View style={styles.paginationPill}>
+                {images.map((_, index) => (
+                  <View
+                    key={`dot-${index}`}
+                    style={[
+                      styles.dot,
+                      index === topRowPhotoIndex
+                        ? [styles.dotActive, { backgroundColor: accentColor }]
+                        : styles.dotInactive,
+                    ]}
+                  />
+                ))}
+              </View>
+            </View>
+          ) : null}
         </View>
         {editing && (
           <View pointerEvents="none" style={styles.scrollHint}>
@@ -174,13 +197,10 @@ const ImageGallery = ({
       <View
         style={containerStyle}
         onLayout={
-          isHeroStack || isGrid
+          isHeroStack
             ? (event) => {
                 const nextWidth = Math.floor(event.nativeEvent.layout.width);
-                if (isGrid && nextWidth > 0 && nextWidth !== gridViewportWidth) {
-                  setGridViewportWidth(nextWidth);
-                }
-                if (isHeroStack && nextWidth > 0 && nextWidth !== heroStackViewportWidth) {
+                if (nextWidth > 0 && nextWidth !== heroStackViewportWidth) {
                   setHeroStackViewportWidth(nextWidth);
                 }
               }
@@ -215,19 +235,36 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     alignSelf: 'center',
   },
-  gridLayout: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'flex-start',
-    rowGap: 10,
-  },
-  gridGallery: {
+  listPlaceholderFullWidth: {
     width: '100%',
-    alignSelf: 'stretch',
+    aspectRatio: 1,
+    alignSelf: 'center',
+    backgroundColor: '#fafafa',
+    borderWidth: 2,
+    borderColor: '#bbb',
+    borderStyle: 'dashed',
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  verticalItemFullWidth: {
+    width: '100%',
+    aspectRatio: 1,
+    alignSelf: 'center',
+  },
+  verticalPlaceholderTouchable: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   verticalLayout: {
     flexDirection: 'column',
+    alignItems: 'center',
     gap: 8,
+    width: '100%',
+    alignSelf: 'stretch',
   },
   heroStackLayout: {
     flexDirection: 'row',
@@ -239,6 +276,40 @@ const styles = StyleSheet.create({
     gap: 0,
   },
   topRowViewport: {
+    width: '100%',
+    position: 'relative',
+  },
+  paginationWrap: {
+    position: 'absolute',
+    bottom: 14,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+  },
+  paginationPill: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255, 255, 255, 0.62)',
+  },
+  dot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+  },
+  dotInactive: {
+    backgroundColor: '#9ca3af',
+  },
+  dotActive: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+  },
+  topRowScrollView: {
     width: '100%',
   },
   scrollHint: {
@@ -260,14 +331,6 @@ const styles = StyleSheet.create({
   },
   topRowWrapper: {
     width: '100%',
-  },
-  gridImageWrapper: {
-    position: 'relative',
-    width: '32%',
-    aspectRatio: 1,
-    flexShrink: 0,
-    flexGrow: 0,
-    paddingHorizontal: 4,
   },
   topRowImageWrapper: {
     position: 'relative',
@@ -291,10 +354,13 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     overflow: 'hidden',
   },
-  gridImage: {
+  listWrapperFullWidth: {
     width: '100%',
-    height: '100%',
+    aspectRatio: 1,
+    alignSelf: 'center',
+    backgroundColor: '#f2f2f2',
     borderRadius: 12,
+    overflow: 'hidden',
   },
   fullImage: {
     width: '100%',
@@ -302,6 +368,12 @@ const styles = StyleSheet.create({
     height: 200,
     borderRadius: 8,
     alignSelf: 'center',
+  },
+  fullImageFullWidth: {
+    width: '100%',
+    height: '100%',
+    alignSelf: 'stretch',
+    borderRadius: 12,
   },
   topRowImage: {
     width: '100%',
@@ -324,19 +396,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     width: 24,
     height: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  gridPlaceholder: {
-    width: '32%',
-    aspectRatio: 1,
-    flexShrink: 0,
-    flexGrow: 0,
-    backgroundColor: '#fafafa',
-    borderWidth: 2,
-    borderColor: '#bbb',
-    borderStyle: 'dashed',
-    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
   },
