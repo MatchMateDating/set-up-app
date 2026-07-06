@@ -48,29 +48,6 @@ function Invoke-Adb {
   }
 }
 
-function Test-EnvFlagTrue($name) {
-  $envFile = Join-Path $projectRoot ".env"
-  if (-not (Test-Path $envFile)) { return $false }
-  $text = Get-Content $envFile -Raw
-  return $text -match "${name}\s*=\s*true"
-}
-
-$admobEnabled = Test-EnvFlagTrue "EXPO_PUBLIC_ADMOB_ENABLED"
-$admobPkgJson = Join-Path $projectRoot "node_modules\react-native-google-mobile-ads\package.json"
-if ($admobEnabled) {
-  $needsAdmobInstall = -not (Test-Path $admobPkgJson)
-  if (-not $needsAdmobInstall) {
-    $admobVer = (Get-Content $admobPkgJson | ConvertFrom-Json).version
-    if ($admobVer -match '^1[6-9]\.') {
-      $needsAdmobInstall = $true
-    }
-  }
-  if ($needsAdmobInstall) {
-    Write-Host "Installing react-native-google-mobile-ads@15.8.0 (Expo SDK 54 compatible)..."
-    npm install react-native-google-mobile-ads@15.8.0
-  }
-}
-
 Write-Host "Restarting adb..."
 Invoke-Adb @("kill-server") | Out-Null
 Start-Sleep -Seconds 2
@@ -104,17 +81,15 @@ if (-not $needsPrebuild) {
 
 if (-not $needsPrebuild) {
   $needsRegen = $false
-  if ($admobEnabled) {
-    $manifestPath = Join-Path $projectRoot "android\app\src\main\AndroidManifest.xml"
-    if ((Test-Path $manifestPath) -and ((Get-Content $manifestPath -Raw) -notmatch "com.google.android.gms.ads.APPLICATION_ID")) {
-      $needsRegen = $true
-    }
+  $manifestPath = Join-Path $projectRoot "android\app\src\main\AndroidManifest.xml"
+  if ((Test-Path $manifestPath) -and ((Get-Content $manifestPath -Raw) -match "com.google.android.gms.ads")) {
+    $needsRegen = $true
   }
   if ((Test-Path $buildGradle) -and ((Get-Content $buildGradle -Raw) -match "force 'com.google.android.gms:play-services-ads")) {
     $needsRegen = $true
   }
   if ($needsRegen) {
-    Write-Host "Regenerating android/ for AdMob config..."
+    Write-Host "Regenerating android/ to remove stale native config..."
     npx expo prebuild --platform android --clean
   }
 }
