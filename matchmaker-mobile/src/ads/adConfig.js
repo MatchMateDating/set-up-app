@@ -21,8 +21,8 @@ export const getNativeAdUnitId = () => {
 };
 
 /** Show a native ad after a random number of profile cards in this range (inclusive). */
-export const MIN_PROFILES_BETWEEN_ADS = 3;
-export const MAX_PROFILES_BETWEEN_ADS = 8;
+export const MIN_PROFILES_BETWEEN_ADS = 2;
+export const MAX_PROFILES_BETWEEN_ADS = 2;
 
 export const getRandomProfilesUntilAd = () =>
   Math.floor(
