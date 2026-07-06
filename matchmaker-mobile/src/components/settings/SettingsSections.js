@@ -23,6 +23,7 @@ import * as Clipboard from 'expo-clipboard';
 import { Ionicons } from '@expo/vector-icons';
 import MultiSlider from '@ptomasroos/react-native-multi-slider';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { API_BASE_URL, FRONTEND_URL } from '../../env';
 import FormField from '../profile/components/formField';
 import MultiSelectGender from '../profile/components/multiSelectGender';
@@ -32,6 +33,7 @@ import { getRoleAccentColor, getRoleBackgroundTint } from '../layout/components/
 import { UserContext } from '../../context/UserContext';
 import { mainTabBackDelegateRef } from '../../navigation/mainTabsBackDelegates';
 import { beginAuthSessionClear, clearAuthSession, resumeAuthSession, shouldSuppressAuthErrors } from '../../utils/authSession';
+import { fetchWithRetry, isNetworkFailure } from '../../utils/fetchWithRetry';
 
 const SECTION_KEYS = {
   PERSONAL: 'personal',
@@ -49,12 +51,42 @@ const getPasswordChecks = (value) => ({
   hasSpecial: /[^A-Za-z0-9]/.test(value || ''),
 });
 
+const phoneDigitsOnly = (value) => (value || '').replace(/\D/g, '');
+const isValidPhone = (value) => phoneDigitsOnly(value).length >= 10;
+const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((value || '').trim());
+
+/** US E.164 (+1xxxxxxxxxx); matches backend normalize_phone_number for Twilio SMS. */
+const normalizeUsPhoneToE164 = (value) => {
+  let digits = phoneDigitsOnly(value);
+  if (!digits.startsWith('1') && digits.length === 10) {
+    digits = `1${digits}`;
+  }
+  return `+${digits}`;
+};
+
+/** Prefer email when valid; otherwise phone if valid. */
+const getIdentifierKind = (value) => {
+  const trimmed = (value || '').trim();
+  if (!trimmed) return null;
+  if (isValidEmail(trimmed)) return 'email';
+  if (isValidPhone(trimmed)) return 'phone';
+  return null;
+};
+
+const normalizeIdentifier = (value, kind) => {
+  if (kind === 'email') return value.trim().toLowerCase();
+  if (kind === 'phone') return normalizeUsPhoneToE164(value);
+  return value.trim();
+};
+
 const buildDaterInviteSignupUrl = (inviteToken) => {
   const frontendUrl = (FRONTEND_URL || 'https://matchmatedating.com').replace(/\/+$/, '');
   const baseUrl = `${frontendUrl}/dater-signup.html`;
   const sep = baseUrl.includes('?') ? '&' : '?';
   return `${baseUrl}${sep}invite_token=${encodeURIComponent(String(inviteToken))}`;
 };
+
+const MATCHMAKER_SCREEN_BG = '#f3f4f6';
 
 const MM_LINKED_PURPLE = '#5A4FCF';
 const MM_LINKED_LIGHT_PURPLE = '#EFEEFF';
@@ -132,6 +164,7 @@ const LinkedDaterRowAvatar = ({ name, firstImage, palette }) => {
 };
 
 const SettingsSections = () => {
+  const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const route = useRoute();
   const { setUser: setContextUser, user: contextUser } = useContext(UserContext);
@@ -207,13 +240,17 @@ const SettingsSections = () => {
   /** Matchmakers who linked this dater via referral (inverse of savedReferrals). */
   const [linkedMatchmakers, setLinkedMatchmakers] = useState([]);
   const [referralCode, setReferralCode] = useState('');
+  const [linkDaterReferralInput, setLinkDaterReferralInput] = useState('');
+  const [linkReferralLoading, setLinkReferralLoading] = useState(false);
+  const [unlinkingDaterId, setUnlinkingDaterId] = useState(null);
   const [showReferralModal, setShowReferralModal] = useState(false);
   const [referralInput, setReferralInput] = useState('');
   const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
   const [deleteModalForBothRoles, setDeleteModalForBothRoles] = useState(false);
-  const [showEmailVerificationModal, setShowEmailVerificationModal] = useState(false);
-  const [emailVerificationCode, setEmailVerificationCode] = useState('');
-  const [pendingEmail, setPendingEmail] = useState('');
+  const [showIdentifierVerificationModal, setShowIdentifierVerificationModal] = useState(false);
+  const [identifierVerificationCode, setIdentifierVerificationCode] = useState('');
+  const [pendingIdentifier, setPendingIdentifier] = useState('');
+  const [pendingIdentifierKind, setPendingIdentifierKind] = useState(null);
   const [showEmailInviteModal, setShowEmailInviteModal] = useState(false);
   const [emailInviteInput, setEmailInviteInput] = useState('');
   const [showLinkedDatersOnboarding, setShowLinkedDatersOnboarding] = useState(false);
@@ -226,8 +263,9 @@ const SettingsSections = () => {
   const [addDaterAccountFlowActive, setAddDaterAccountFlowActive] = useState(false);
 
   const [currentEmail, setCurrentEmail] = useState('');
-  const [newEmail, setNewEmail] = useState('');
-  const [confirmNewEmail, setConfirmNewEmail] = useState('');
+  const [currentPhone, setCurrentPhone] = useState('');
+  const [newIdentifier, setNewIdentifier] = useState('');
+  const [confirmNewIdentifier, setConfirmNewIdentifier] = useState('');
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
@@ -235,8 +273,8 @@ const SettingsSections = () => {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false);
   const [isNewPasswordFocused, setIsNewPasswordFocused] = useState(false);
-  const newEmailInputRef = useRef(null);
-  const confirmNewEmailInputRef = useRef(null);
+  const newIdentifierInputRef = useRef(null);
+  const confirmNewIdentifierInputRef = useRef(null);
   const oldPasswordInputRef = useRef(null);
   const newPasswordInputRef = useRef(null);
   const confirmNewPasswordInputRef = useRef(null);
@@ -259,12 +297,32 @@ const SettingsSections = () => {
   const displayRadius = formData.matchWithAll ? '500+' : formData.matchRadius;
   const passwordChecks = getPasswordChecks(newPassword);
   const isPasswordStrong = Object.values(passwordChecks).every(Boolean);
-  const overlayTopPadding = role === 'matchmaker' ? 120 : 56;
+  const isMatchmaker = role === 'matchmaker';
+  const showScreenLogo = !activeSection;
+  const overlayTopPadding = 56;
+  const daterSectionListPaddingTop = 12;
+  const headerTopPadding = insets.top + (isMatchmaker ? 4 : 12);
+  // Match match.js: choosingSection (71) + cardStack paddingTop (32).
+  const matchmakerSectionListPaddingTop = 103;
   const accentColor = getRoleAccentColor(role || 'matchmaker');
   const datingPreferencesAccent = getRoleAccentColor('user');
   const settingsBackAccent =
     activeSection === SECTION_KEYS.DATING_PREFERENCES ? datingPreferencesAccent : accentColor;
-  const backgroundTint = getRoleBackgroundTint(role || 'matchmaker');
+  const showSettingsBackButton =
+    activeSection &&
+    !(activeSection === SECTION_KEYS.DATING_PREFERENCES && editingPreferences);
+  const daterContainerTopPadding = 40;
+  const settingsBackButtonScreenTop = insets.top + 10;
+  const settingsBackButtonTop = isMatchmaker
+    ? settingsBackButtonScreenTop
+    : settingsBackButtonScreenTop - daterContainerTopPadding;
+  const settingsBackButtonBg = isMatchmaker
+    ? 'rgba(243, 244, 246, 0.3)'
+    : 'rgba(255, 245, 247, 0.3)';
+  const settingsBackButtonSpacer = 54;
+  const backgroundTint = isMatchmaker
+    ? MATCHMAKER_SCREEN_BG
+    : getRoleBackgroundTint(role || 'matchmaker');
 
   const visibleNotificationPreferenceItems = useMemo(
     () =>
@@ -276,12 +334,24 @@ const SettingsSections = () => {
     [role]
   );
 
+  const currentIdentifierKind = useMemo(() => {
+    if (currentEmail?.trim()) return 'email';
+    if (currentPhone?.trim()) return 'phone';
+    return null;
+  }, [currentEmail, currentPhone]);
+
+  const currentIdentifier = useMemo(() => {
+    if (currentIdentifierKind === 'email') return currentEmail.trim();
+    if (currentIdentifierKind === 'phone') return currentPhone.trim();
+    return '';
+  }, [currentIdentifierKind, currentEmail, currentPhone]);
+
   const sectionItems = useMemo(() => {
     const base = [
       {
         key: SECTION_KEYS.PERSONAL,
         label: 'Personal Information',
-        description: 'Update your email and password.',
+        description: 'Update your email, phone number, and password.',
         icon: 'person-outline',
       },
       {
@@ -360,8 +430,9 @@ const SettingsSections = () => {
       setContextUser(data.user);
       setRole(data.user.role);
       setCurrentEmail(data.user.email || '');
-      setNewEmail('');
-      setConfirmNewEmail('');
+      setCurrentPhone(data.user.phone_number || '');
+      setNewIdentifier('');
+      setConfirmNewIdentifier('');
       setReferralCode(data.user.role === 'user' ? data.user?.referral_code || '' : '');
 
       const radiusMiles = data.user.match_radius ?? 50;
@@ -381,9 +452,11 @@ const SettingsSections = () => {
 
       if (data.user.role === 'matchmaker') {
         setLinkedMatchmakers([]);
-        const linkedRes = await fetch(`${API_BASE_URL}/referral/referrals/${data.user.id}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const linkedRes = await fetchWithRetry(
+          `${API_BASE_URL}/referral/referrals/${data.user.id}`,
+          { headers: { Authorization: `Bearer ${token}` } },
+          { retries: 3, baseDelayMs: 400 }
+        );
         if (linkedRes.ok) {
           const linkedData = await linkedRes.json();
           setSavedReferrals(linkedData.linked_daters || []);
@@ -411,6 +484,71 @@ const SettingsSections = () => {
       Alert.alert('Error', 'Failed to load settings');
     }
   }, [navigation, setContextUser]);
+
+  const refreshLinkedDaters = useCallback(async (matchmakerId) => {
+    const mmId = matchmakerId ?? user?.id;
+    if (!mmId) return null;
+
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) return null;
+
+      const linkedRes = await fetchWithRetry(
+        `${API_BASE_URL}/referral/referrals/${mmId}`,
+        { headers: { Authorization: `Bearer ${token}` } },
+        { retries: 3, baseDelayMs: 400 }
+      );
+      if (!linkedRes.ok) return null;
+
+      const linkedData = await linkedRes.json();
+      const daters = linkedData.linked_daters || [];
+      setSavedReferrals(daters);
+      return daters;
+    } catch (err) {
+      console.error('Error refreshing linked daters:', err);
+      return null;
+    }
+  }, [user?.id]);
+
+  const ensureDefaultSelectedDater = useCallback(async (daterId) => {
+    const selectedId = user?.referrer_id ?? user?.referred_by_id;
+    if (selectedId != null && selectedId !== '') return;
+
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token || !daterId) return;
+
+      const res = await fetchWithRetry(
+        `${API_BASE_URL}/referral/set_selected_dater`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ selected_dater_id: daterId }),
+        },
+        { retries: 3, baseDelayMs: 400 }
+      );
+      if (!res.ok) return;
+
+      const profRes = await fetchWithRetry(
+        `${API_BASE_URL}/profile/`,
+        { headers: { Authorization: `Bearer ${token}` } },
+        { retries: 3, baseDelayMs: 400 }
+      );
+      if (!profRes.ok) return;
+
+      const profData = await profRes.json();
+      if (profData.user) {
+        setUser(profData.user);
+        setContextUser(profData.user);
+        await AsyncStorage.setItem('user', JSON.stringify(profData.user));
+      }
+    } catch (err) {
+      console.error('Error setting default selected dater:', err);
+    }
+  }, [user?.referrer_id, user?.referred_by_id, setContextUser]);
 
   useEffect(() => {
     fetchUserProfile();
@@ -551,23 +689,42 @@ const SettingsSections = () => {
     navigation.setParams({ showLinkedDatersOnboarding: false });
   };
 
-  const handleSaveEmail = async () => {
+  const handleSaveIdentifier = async () => {
     try {
-      const nextEmail = newEmail.trim().toLowerCase();
-      if (!nextEmail) {
-        Alert.alert('Error', 'Please enter a new email');
+      const trimmedNew = newIdentifier.trim();
+      const trimmedConfirm = confirmNewIdentifier.trim();
+      if (!trimmedNew) {
+        Alert.alert('Error', 'Please enter a new email or phone number');
         return;
       }
-      if (!confirmNewEmail.trim()) {
-        Alert.alert('Error', 'Please confirm your new email');
+      if (!trimmedConfirm) {
+        Alert.alert('Error', 'Please confirm your new email or phone number');
         return;
       }
-      if (nextEmail !== confirmNewEmail.trim().toLowerCase()) {
-        Alert.alert('Error', 'New email and confirmation email must match');
+
+      const newKind = getIdentifierKind(trimmedNew);
+      const confirmKind = getIdentifierKind(trimmedConfirm);
+      if (!newKind) {
+        Alert.alert('Error', 'Please enter a valid email address or phone number');
         return;
       }
-      if (nextEmail === (currentEmail || '').trim().toLowerCase()) {
-        Alert.alert('Error', 'Please enter an email different from your current email');
+      if (!confirmKind) {
+        Alert.alert('Error', 'Please enter a valid confirmation email or phone number');
+        return;
+      }
+      if (newKind !== confirmKind) {
+        Alert.alert('Error', 'New email/phone number and confirmation must be the same type');
+        return;
+      }
+
+      const nextIdentifier = normalizeIdentifier(trimmedNew, newKind);
+      const confirmIdentifier = normalizeIdentifier(trimmedConfirm, confirmKind);
+      if (nextIdentifier !== confirmIdentifier) {
+        Alert.alert('Error', 'New email/phone number and confirmation must match');
+        return;
+      }
+      if (nextIdentifier === currentIdentifier) {
+        Alert.alert('Error', 'Please enter an email or phone number different from your current one');
         return;
       }
 
@@ -578,13 +735,20 @@ const SettingsSections = () => {
         return;
       }
 
-      const res = await fetch(`${API_BASE_URL}/profile/request_email_change`, {
+      const endpoint =
+        newKind === 'email' ? '/profile/request_email_change' : '/profile/request_phone_change';
+      const body =
+        newKind === 'email'
+          ? { new_email: nextIdentifier }
+          : { new_phone: nextIdentifier };
+
+      const res = await fetch(`${API_BASE_URL}${endpoint}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ new_email: nextEmail }),
+        body: JSON.stringify(body),
       });
 
       if (res.status === 401) {
@@ -602,25 +766,25 @@ const SettingsSections = () => {
         return;
       }
 
-      setPendingEmail(nextEmail);
-      setEmailVerificationCode('');
-      setShowEmailVerificationModal(true);
-      Alert.alert('Verification Required', 'A verification code was sent to your new email.');
+      setPendingIdentifier(nextIdentifier);
+      setPendingIdentifierKind(newKind);
+      setIdentifierVerificationCode('');
+      setShowIdentifierVerificationModal(true);
     } catch (err) {
       console.error(err);
       Alert.alert('Error', 'Failed to send verification code');
     }
   };
 
-  const handleVerifyEmailChange = async () => {
+  const handleVerifyIdentifierChange = async () => {
     try {
-      const code = emailVerificationCode.trim();
+      const code = identifierVerificationCode.trim();
       if (!code) {
         Alert.alert('Error', 'Please enter the verification code');
         return;
       }
-      if (!pendingEmail) {
-        Alert.alert('Error', 'No pending email change found');
+      if (!pendingIdentifier || !pendingIdentifierKind) {
+        Alert.alert('Error', 'No pending email or phone number change found');
         return;
       }
 
@@ -631,16 +795,22 @@ const SettingsSections = () => {
         return;
       }
 
-      const res = await fetch(`${API_BASE_URL}/profile/verify_email_change`, {
+      const endpoint =
+        pendingIdentifierKind === 'email'
+          ? '/profile/verify_email_change'
+          : '/profile/verify_phone_change';
+      const body =
+        pendingIdentifierKind === 'email'
+          ? { new_email: pendingIdentifier, code }
+          : { new_phone: pendingIdentifier, code };
+
+      const res = await fetch(`${API_BASE_URL}${endpoint}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          new_email: pendingEmail,
-          code,
-        }),
+        body: JSON.stringify(body),
       });
 
       if (!res.ok) {
@@ -649,13 +819,23 @@ const SettingsSections = () => {
         return;
       }
 
-      setCurrentEmail(pendingEmail);
-      setNewEmail('');
-      setConfirmNewEmail('');
-      setPendingEmail('');
-      setEmailVerificationCode('');
-      setShowEmailVerificationModal(false);
-      Alert.alert('Success', 'Email updated successfully');
+      if (pendingIdentifierKind === 'email') {
+        setCurrentEmail(pendingIdentifier);
+      } else {
+        setCurrentPhone(pendingIdentifier);
+      }
+      setNewIdentifier('');
+      setConfirmNewIdentifier('');
+      setPendingIdentifier('');
+      setPendingIdentifierKind(null);
+      setIdentifierVerificationCode('');
+      setShowIdentifierVerificationModal(false);
+      Alert.alert(
+        'Success',
+        pendingIdentifierKind === 'email'
+          ? 'Email updated successfully'
+          : 'Phone number updated successfully'
+      );
       fetchUserProfile();
     } catch (err) {
       console.error(err);
@@ -1185,12 +1365,14 @@ const SettingsSections = () => {
 
   const handleLinkReferral = async () => {
     Keyboard.dismiss();
-    const code = referralCode.trim();
+    const code = linkDaterReferralInput.trim();
     if (!code) {
       Alert.alert('Error', 'Please enter a referral code');
       return;
     }
+    if (linkReferralLoading) return;
 
+    setLinkReferralLoading(true);
     try {
       const token = await AsyncStorage.getItem('token');
       if (!token) {
@@ -1199,17 +1381,33 @@ const SettingsSections = () => {
         return;
       }
 
-      const res = await fetch(`${API_BASE_URL}/referral/link_referral`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
+      const res = await fetchWithRetry(
+        `${API_BASE_URL}/referral/link_referral`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ referral_code: code }),
         },
-        body: JSON.stringify({ referral_code: code }),
-      });
+        { retries: 3, baseDelayMs: 400 }
+      );
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
+        if (data.error === 'Dater already linked') {
+          const daters = await refreshLinkedDaters();
+          if (daters?.some((d) => String(d.referral_code || '').toLowerCase() === code.toLowerCase())) {
+            setLinkDaterReferralInput('');
+            const linked = daters.find((d) => String(d.referral_code || '').toLowerCase() === code.toLowerCase());
+            if (linked?.id) {
+              await ensureDefaultSelectedDater(linked.id);
+            }
+            fetchUserProfile();
+            return;
+          }
+        }
         Alert.alert('Error', data.error || 'Failed to link referral');
         return;
       }
@@ -1218,12 +1416,29 @@ const SettingsSections = () => {
       name = name.replace(/^Dater\s*/i, '').trim();
       const newDater = { id: data.linked_dater_id, name, referral_code: code };
       setSavedReferrals((prev) => [...prev, newDater]);
-      setReferralCode('');
+      setLinkDaterReferralInput('');
+      await ensureDefaultSelectedDater(data.linked_dater_id);
       await fetchUserProfile();
-      Alert.alert('Success', 'Referral code linked successfully');
     } catch (err) {
       console.error(err);
-      Alert.alert('Error', 'Failed to link referral');
+      const daters = await refreshLinkedDaters();
+      if (daters?.some((d) => String(d.referral_code || '').toLowerCase() === code.toLowerCase())) {
+        setLinkDaterReferralInput('');
+        const linked = daters.find((d) => String(d.referral_code || '').toLowerCase() === code.toLowerCase());
+        if (linked?.id) {
+          await ensureDefaultSelectedDater(linked.id);
+        }
+        fetchUserProfile();
+        return;
+      }
+      Alert.alert(
+        'Error',
+        isNetworkFailure(err)
+          ? 'Could not reach the server. Check your connection and try again.'
+          : 'Failed to link referral'
+      );
+    } finally {
+      setLinkReferralLoading(false);
     }
   };
 
@@ -1283,6 +1498,9 @@ const SettingsSections = () => {
           text: 'Remove',
           style: 'destructive',
           onPress: async () => {
+            if (unlinkingDaterId != null) return;
+
+            setUnlinkingDaterId(linkedDater.id);
             try {
               const token = await AsyncStorage.getItem('token');
               if (!token) {
@@ -1291,27 +1509,45 @@ const SettingsSections = () => {
                 return;
               }
 
-              const res = await fetch(`${API_BASE_URL}/referral/unlink_dater`, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  Authorization: `Bearer ${token}`,
+              const res = await fetchWithRetry(
+                `${API_BASE_URL}/referral/unlink_dater`,
+                {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`,
+                  },
+                  body: JSON.stringify({ linked_dater_id: linkedDater.id }),
                 },
-                body: JSON.stringify({ linked_dater_id: linkedDater.id }),
-              });
+                { retries: 3, baseDelayMs: 400 }
+              );
 
               const data = await res.json().catch(() => ({}));
               if (!res.ok) {
+                const daters = await refreshLinkedDaters();
+                if (!daters?.some((d) => d.id === linkedDater.id)) {
+                  return;
+                }
                 Alert.alert('Error', data.error || 'Failed to remove linked dater');
                 return;
               }
 
               setSavedReferrals(data.linked_daters || []);
-              Alert.alert('Success', 'Linked dater removed successfully');
               fetchUserProfile();
             } catch (err) {
               console.error(err);
-              Alert.alert('Error', 'Failed to remove linked dater');
+              const daters = await refreshLinkedDaters();
+              if (!daters?.some((d) => d.id === linkedDater.id)) {
+                return;
+              }
+              Alert.alert(
+                'Error',
+                isNetworkFailure(err)
+                  ? 'Could not reach the server. Check your connection and try again.'
+                  : 'Failed to remove linked dater'
+              );
+            } finally {
+              setUnlinkingDaterId(null);
             }
           },
         },
@@ -1358,8 +1594,6 @@ const SettingsSections = () => {
       if (!res.ok) {
         throw new Error('Failed to update dating preferences');
       }
-
-      Alert.alert('Success', 'Dating preferences updated successfully');
       setEditingPreferences(false);
       fetchUserProfile();
     } catch (err) {
@@ -1492,7 +1726,6 @@ const SettingsSections = () => {
 
   const renderSectionList = () => (
     <View>
-      <View style={styles.titleSpacer} />
       {sectionItems.map((section) => {
         const isLinkedDatersSection = section.key === SECTION_KEYS.REFERRAL && role === 'matchmaker';
         const shouldHighlightLinkedDaters = isLinkedDatersSection && showLinkedDatersOnboarding;
@@ -1544,41 +1777,43 @@ const SettingsSections = () => {
       <View style={styles.card}>
         <Text style={styles.cardHeader}>Personal Information</Text>
         <Text style={styles.cardDescription}>
-          Update your email and password in separate sections below.
+          Update your login email or phone number and password below.
         </Text>
       </View>
 
       <View style={styles.subCard}>
-        <Text style={styles.subCardHeader}>Change Email</Text>
-        <Text style={styles.currentValueLabel}>Current Email</Text>
-        <Text style={styles.currentValue}>{currentEmail || 'Not available'}</Text>
+        <Text style={styles.subCardHeader}>Change Email/Phone Number</Text>
+        <Text style={styles.currentValueLabel}>
+          Current {currentIdentifierKind === 'phone' ? 'Phone Number' : 'Email'}
+        </Text>
+        <Text style={styles.currentValue}>{currentIdentifier || 'Not available'}</Text>
         <TextInput
-          ref={newEmailInputRef}
+          ref={newIdentifierInputRef}
           style={styles.input}
-          value={newEmail}
-          onChangeText={setNewEmail}
-          placeholder="New Email"
+          value={newIdentifier}
+          onChangeText={setNewIdentifier}
+          placeholder="New Email/Phone Number"
           placeholderTextColor="#111827"
-          keyboardType="email-address"
           autoCapitalize="none"
+          autoCorrect={false}
           returnKeyType="next"
           blurOnSubmit={false}
-          onSubmitEditing={() => confirmNewEmailInputRef.current?.focus()}
+          onSubmitEditing={() => confirmNewIdentifierInputRef.current?.focus()}
         />
         <TextInput
-          ref={confirmNewEmailInputRef}
+          ref={confirmNewIdentifierInputRef}
           style={styles.input}
-          value={confirmNewEmail}
-          onChangeText={setConfirmNewEmail}
-          placeholder="Confirm New Email"
+          value={confirmNewIdentifier}
+          onChangeText={setConfirmNewIdentifier}
+          placeholder="Confirm New Email/Phone Number"
           placeholderTextColor="#111827"
-          keyboardType="email-address"
           autoCapitalize="none"
+          autoCorrect={false}
           returnKeyType="done"
-          onSubmitEditing={handleSaveEmail}
+          onSubmitEditing={handleSaveIdentifier}
         />
-        <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: accentColor }]} onPress={handleSaveEmail}>
-          <Text style={styles.primaryBtnText}>Save New Email</Text>
+        <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: accentColor }]} onPress={handleSaveIdentifier}>
+          <Text style={styles.primaryBtnText}>Save</Text>
         </TouchableOpacity>
       </View>
 
@@ -1865,15 +2100,21 @@ const SettingsSections = () => {
           <View style={styles.mmReferralInputRow}>
             <TextInput
               style={styles.mmReferralInput}
-              value={referralCode}
-              onChangeText={setReferralCode}
+              value={linkDaterReferralInput}
+              onChangeText={setLinkDaterReferralInput}
               placeholder="Enter referral code"
               placeholderTextColor="#9CA3AF"
               autoCapitalize="none"
               autoCorrect={false}
+              editable={!linkReferralLoading}
             />
-            <TouchableOpacity style={styles.mmAddReferralBtn} onPress={handleLinkReferral} activeOpacity={0.9}>
-              <Text style={styles.mmAddReferralBtnText}>Add</Text>
+            <TouchableOpacity
+              style={[styles.mmAddReferralBtn, linkReferralLoading && styles.iconActionBtnDisabled]}
+              onPress={handleLinkReferral}
+              disabled={linkReferralLoading}
+              activeOpacity={0.9}
+            >
+              <Text style={styles.mmAddReferralBtnText}>{linkReferralLoading ? 'Adding…' : 'Add'}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1896,6 +2137,7 @@ const SettingsSections = () => {
                   <TouchableOpacity
                     style={styles.mmLinkedRemove}
                     onPress={() => handleDeleteLinkedDater(ref)}
+                    disabled={unlinkingDaterId === ref.id}
                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                     activeOpacity={0.85}
                   >
@@ -2118,26 +2360,72 @@ const SettingsSections = () => {
 
   return (
     <KeyboardAvoidingView
-      style={[styles.container, { backgroundColor: backgroundTint }]}
+      style={[
+        styles.container,
+        { backgroundColor: backgroundTint },
+        isMatchmaker && styles.containerMatchmaker,
+        !isMatchmaker && !activeSection && styles.containerDater,
+      ]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
     >
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <ScrollView
-          ref={settingsScrollRef}
-          contentContainerStyle={styles.contentContainer}
-          keyboardShouldPersistTaps="handled"
-        >
-          <View style={[styles.content, { paddingTop: overlayTopPadding }]}>
-            {activeSection ? (
-              <TouchableOpacity style={styles.backRow} onPress={exitSubsection}>
-                <Ionicons name="chevron-back-outline" size={22} color={settingsBackAccent} />
-              </TouchableOpacity>
-            ) : null}
-            {renderActiveSection()}
+      {showScreenLogo ? (
+        <View style={styles.topArea}>
+          <View
+            style={[
+              styles.screenHeader,
+              isMatchmaker && styles.screenHeaderMatchmaker,
+              { paddingTop: headerTopPadding },
+            ]}
+          >
+            <Image
+              source={require('../../../assets/matchmate_logo.png')}
+              style={styles.headerLogo}
+              accessibilityLabel="Matchmate logo"
+            />
+            <View style={styles.headerSpacer} />
           </View>
-        </ScrollView>
-      </TouchableWithoutFeedback>
+        </View>
+      ) : null}
+      <View style={styles.scrollArea}>
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <ScrollView
+            ref={settingsScrollRef}
+            style={[styles.scrollView, { backgroundColor: backgroundTint }]}
+            contentContainerStyle={styles.contentContainer}
+            keyboardShouldPersistTaps="handled"
+          >
+            <View
+              style={[
+                styles.content,
+                isMatchmaker
+                  ? activeSection
+                    ? { paddingTop: headerTopPadding }
+                    : { paddingTop: matchmakerSectionListPaddingTop }
+                  : activeSection
+                    ? { paddingTop: overlayTopPadding }
+                    : { paddingTop: daterSectionListPaddingTop },
+              ]}
+            >
+              {showSettingsBackButton ? (
+                <View style={{ height: settingsBackButtonSpacer }} />
+              ) : null}
+              {renderActiveSection()}
+            </View>
+          </ScrollView>
+        </TouchableWithoutFeedback>
+        {showSettingsBackButton ? (
+          <TouchableOpacity
+            style={[
+              styles.backRowFixed,
+              { top: settingsBackButtonTop, backgroundColor: settingsBackButtonBg },
+            ]}
+            onPress={exitSubsection}
+          >
+            <Ionicons name="chevron-back-outline" size={22} color={settingsBackAccent} />
+          </TouchableOpacity>
+        ) : null}
+      </View>
 
       {Platform.OS === 'ios' && activeSection ? (
         <PanGestureHandler
@@ -2235,36 +2523,44 @@ const SettingsSections = () => {
       </Modal>
 
       <Modal
-        visible={showEmailVerificationModal}
+        visible={showIdentifierVerificationModal}
         transparent
         animationType="fade"
-        onRequestClose={() => setShowEmailVerificationModal(false)}
+        onRequestClose={() => setShowIdentifierVerificationModal(false)}
       >
         <View style={styles.modalBackdrop}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Verify New Email</Text>
+            <Text style={styles.modalTitle}>
+              Verify New {pendingIdentifierKind === 'phone' ? 'Phone Number' : 'Email'}
+            </Text>
             <Text style={styles.modalDescription}>
-              Enter the verification code sent to {pendingEmail || 'your new email'}.
+              {pendingIdentifierKind === 'phone'
+                ? `Enter the verification code texted to ${pendingIdentifier || 'your new phone number'}.`
+                : `Enter the verification code emailed to ${pendingIdentifier || 'your new email'}.`}
             </Text>
             <TextInput
               style={styles.input}
-              value={emailVerificationCode}
-              onChangeText={setEmailVerificationCode}
+              value={identifierVerificationCode}
+              onChangeText={setIdentifierVerificationCode}
               placeholder="Enter verification code"
               placeholderTextColor="#111827"
               autoCapitalize="none"
+              keyboardType="number-pad"
             />
             <View style={styles.modalButtons}>
               <TouchableOpacity
                 style={styles.cancelBtn}
                 onPress={() => {
-                  setShowEmailVerificationModal(false);
-                  setEmailVerificationCode('');
+                  setShowIdentifierVerificationModal(false);
+                  setIdentifierVerificationCode('');
                 }}
               >
                 <Text style={styles.cancelBtnText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: accentColor }]} onPress={handleVerifyEmailChange}>
+              <TouchableOpacity
+                style={[styles.primaryBtn, { backgroundColor: accentColor }]}
+                onPress={handleVerifyIdentifierChange}
+              >
                 <Text style={styles.primaryBtnText}>Verify</Text>
               </TouchableOpacity>
             </View>
@@ -2373,9 +2669,44 @@ const styles = StyleSheet.create({
     backgroundColor: '#FAFAFA',
     paddingTop: 40,
   },
+  containerMatchmaker: {
+    paddingTop: 0,
+  },
+  containerDater: {
+    paddingTop: 0,
+  },
+  topArea: {
+    backgroundColor: 'transparent',
+  },
+  screenHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingBottom: 4,
+  },
+  screenHeaderMatchmaker: {
+    backgroundColor: 'transparent',
+    paddingBottom: 0,
+  },
+  headerLogo: {
+    width: 44,
+    height: 44,
+    resizeMode: 'contain',
+  },
+  headerSpacer: {
+    width: 44,
+    height: 44,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollArea: {
+    flex: 1,
+    position: 'relative',
+  },
   contentContainer: {
-    flexGrow: 1,
-    paddingBottom: 40,
+    paddingBottom: 24,
   },
   content: {
     padding: 20,
@@ -2391,18 +2722,16 @@ const styles = StyleSheet.create({
     height: 33,
     marginBottom: 20,
   },
-  backRow: {
-    alignSelf: 'flex-start',
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderRadius: 999,
-    position: 'relative',
+  backRowFixed: {
+    position: 'absolute',
+    left: 20,
     zIndex: 2000,
     elevation: 50,
-    backgroundColor: 'transparent',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderRadius: 999,
   },
   sectionButton: {
     backgroundColor: '#fff',

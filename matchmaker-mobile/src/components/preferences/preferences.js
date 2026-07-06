@@ -107,7 +107,6 @@ const Preferences = () => {
       if (!res.ok) throw new Error('Failed to update profile');
 
       await res.json();
-      Alert.alert('Success', 'Preferences updated successfully');
       fetchProfile();
       setEditing(false);
     } catch (err) {

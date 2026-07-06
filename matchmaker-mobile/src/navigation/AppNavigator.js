@@ -1,4 +1,4 @@
-import React, { useContext } from 'react';
+import React, { useContext, useState } from 'react';
 import { View, StyleSheet, Platform } from 'react-native';
 import { useIsFocused, useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -21,11 +21,11 @@ import PuzzlesHub from '../components/puzzles/puzzlesPage';
 import SpiritAnimalQuiz from '../components/puzzles/spiritAnimalQuiz';
 import ZodiacQuiz from '../components/puzzles/zodiacQuiz';
 import TriviaChallenge from '../components/puzzles/triviaChallenge';
-import RoleHeaderBanner from '../components/layout/components/RoleHeaderBanner';
 import { getRoleAccentColor } from '../components/layout/components/RoleHeaderBanner';
 import DaterDropdown from '../components/layout/daterDropdown';
 import { UserContext } from '../context/UserContext';
 import { API_BASE_URL } from '../env';
+import { fetchWithRetry } from '../utils/fetchWithRetry';
 import { MainTabsShell } from './mainTabsBackBehavior';
 
 const Stack = createNativeStackNavigator();
@@ -40,15 +40,26 @@ function MainTabs() {
   const { user, setUser, isProfileEditing } = useContext(UserContext);
   const role = user?.role || 'matchmaker';
   const accentColor = getRoleAccentColor(role);
+  const [activeTabName, setActiveTabName] = useState('Profile');
+  const showDaterDropdown =
+    role === 'matchmaker' &&
+    !isProfileEditing &&
+    (activeTabName === 'Profile' ||
+      activeTabName === 'Matches' ||
+      activeTabName === 'Conversations');
+  // Below matchmaker screen header: status padding (4) + logo row (44) + header bottom gap (8)
+  const daterDropdownTop = insets.top + 56;
 
   const handleOverlayDaterChange = async () => {
     try {
       const token = await AsyncStorage.getItem('token');
       if (!token) return;
 
-      const res = await fetch(`${API_BASE_URL}/profile/`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await fetchWithRetry(
+        `${API_BASE_URL}/profile/`,
+        { headers: { Authorization: `Bearer ${token}` } },
+        { retries: 3, baseDelayMs: 400 }
+      );
       if (!res.ok) return;
 
       const data = await res.json();
@@ -67,22 +78,30 @@ function MainTabs() {
       tabBarOuterHeight={tabBarOuterHeight}
     >
       <View style={styles.mainTabsContainer}>
-        <View pointerEvents="box-none" style={[styles.topOverlay, { top: insets.top + 4 }]}>
-          {!isProfileEditing && (
-            <View pointerEvents="none" style={styles.roleBadgeOverlay}>
-              <RoleHeaderBanner role={role} />
-            </View>
-          )}
-          {role === 'matchmaker' && (
+        <View pointerEvents="box-none" style={[styles.topOverlay, { top: daterDropdownTop }]}>
+          {showDaterDropdown && (
             <View style={styles.dropdownOverlay}>
-              <DaterDropdown userInfo={user} onDaterChange={handleOverlayDaterChange} />
+              <DaterDropdown
+                userInfo={user}
+                onDaterChange={handleOverlayDaterChange}
+                showLabel
+                labelText={activeTabName === 'Conversations' ? 'MATCHING FOR' : "YOU'RE CHOOSING FOR"}
+              />
             </View>
           )}
         </View>
         <Tab.Navigator
           tabBarPosition="bottom"
+          screenListeners={{
+            state: (e) => {
+              const state = e.data.state;
+              if (state?.routes?.length) {
+                setActiveTabName(state.routes[state.index]?.name ?? 'Profile');
+              }
+            },
+          }}
           screenOptions={({ route }) => ({
-            swipeEnabled: true,
+            swipeEnabled: !isProfileEditing,
             animationEnabled: true,
             tabBarIcon: ({ focused, color }) => {
               let iconName;
@@ -103,10 +122,25 @@ function MainTabs() {
             tabBarShowLabel: false,
             tabBarIndicatorStyle: { height: 0 },
             tabBarItemStyle: { justifyContent: 'center', alignItems: 'center' },
-            tabBarStyle: {
-              height: 56 + bottomInset,
-              paddingBottom: bottomInset,
-            },
+            tabBarStyle: isProfileEditing
+              ? { display: 'none' }
+              : {
+                  height: 56 + bottomInset,
+                  paddingBottom: bottomInset,
+                  backgroundColor: '#ffffff',
+                  borderTopWidth: 0,
+                  ...(role === 'user'
+                    ? {
+                        borderTopLeftRadius: 22,
+                        borderTopRightRadius: 22,
+                        shadowColor: '#000',
+                        shadowOffset: { width: 0, height: -2 },
+                        shadowOpacity: 0.06,
+                        shadowRadius: 8,
+                        elevation: 8,
+                      }
+                    : {}),
+                },
             tabBarPressColor: role === 'user' ? 'rgba(239, 77, 115, 0.12)' : 'rgba(108, 92, 231, 0.12)',
             tabBarActiveTintColor: accentColor,
             tabBarInactiveTintColor: 'gray',
@@ -160,11 +194,7 @@ const styles = StyleSheet.create({
     right: 0,
     zIndex: 1000,
   },
-  roleBadgeOverlay: {
-    alignItems: 'flex-end',
-  },
   dropdownOverlay: {
-    paddingHorizontal: 16,
-    marginTop: 12,
+    paddingHorizontal: 20,
   },
 });

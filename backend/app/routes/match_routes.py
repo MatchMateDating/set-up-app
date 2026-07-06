@@ -239,22 +239,72 @@ def _unread_count_for_match(match_id, receiver_id):
         Message.sender_id != receiver_id
     ).count()
 
-def _last_message_time_for_match(match_id):
+def _last_message_for_match(match_id):
     conversation = Conversation.query.filter_by(match_id=match_id).first()
     if not conversation:
         return None
-    last_msg = (
+    return (
         Message.query
         .filter_by(conversation_id=conversation.id)
         .order_by(Message.timestamp.desc())
         .first()
     )
-    if not last_msg or not last_msg.timestamp:
+
+
+def _format_message_timestamp(dt):
+    if not dt:
         return None
-    dt = last_msg.timestamp
     if dt.tzinfo is None:
         return dt.strftime('%Y-%m-%dT%H:%M:%SZ')
     return dt.strftime('%Y-%m-%dT%H:%M:%SZ')
+
+
+def _last_message_time_for_match(match_id):
+    last_msg = _last_message_for_match(match_id)
+    if not last_msg or not last_msg.timestamp:
+        return None
+    return _format_message_timestamp(last_msg.timestamp)
+
+
+def _last_message_preview_text(last_msg):
+    if not last_msg:
+        return None
+    text = (last_msg.text or '').strip()
+    if text:
+        return text
+    if last_msg.puzzle_type:
+        label = last_msg.puzzle_type.replace('_', ' ')
+        return f'Sent a {label}'
+    return 'Sent a message'
+
+
+def _last_message_from_viewer(last_msg, viewer_user):
+    if not last_msg or not viewer_user:
+        return False
+    if last_msg.sender_id == viewer_user.id:
+        return True
+    if (
+        viewer_user.role == 'matchmaker'
+        and viewer_user.referred_by_id
+        and last_msg.sender_id == viewer_user.referred_by_id
+    ):
+        return True
+    return False
+
+
+def _last_message_fields_for_match(match_id, viewer_user=None):
+    last_msg = _last_message_for_match(match_id)
+    if not last_msg:
+        return {
+            'last_message_time': None,
+            'last_message': None,
+            'last_message_from_self': False,
+        }
+    return {
+        'last_message_time': _format_message_timestamp(last_msg.timestamp),
+        'last_message': _last_message_preview_text(last_msg),
+        'last_message_from_self': _last_message_from_viewer(last_msg, viewer_user),
+    }
 
 
 def haversine_distance(lat1, lon1, lat2, lon2):
@@ -774,7 +824,7 @@ def get_mutual_matches(current_user):
                 'linked_dater': linked_dater_dict,
                 'blind_match': match.blind_match,
                 'unread_count': _unread_count_for_match(match.id, current_user.id),
-                'last_message_time': _last_message_time_for_match(match.id),
+                **_last_message_fields_for_match(match.id, current_user),
                 'user_1_matchmaker_involved': user1_matchmaker_involved,
                 'user_2_matchmaker_involved': user2_matchmaker_involved,
                 'both_matchmakers_involved': both_matchmakers_involved,
@@ -842,7 +892,7 @@ def get_mutual_matches(current_user):
                 'blind_match': match.blind_match,
                 'status': match.status,
                 'unread_count': _unread_count_for_match(match.id, current_user.id),
-                'last_message_time': _last_message_time_for_match(match.id),
+                **_last_message_fields_for_match(match.id, current_user),
                 'message_count': message_count,
                 'waiting_for_other_approval': waiting_for_other,
                 'approved_by_other_matchmaker': both_matchmakers_involved and approved_by_other and not approved_by_current,
@@ -897,7 +947,7 @@ def get_mutual_matches(current_user):
                 'blind_match': match.blind_match,
                 'status': match.status,
                 'unread_count': _unread_count_for_match(match.id, current_user.id),
-                'last_message_time': _last_message_time_for_match(match.id),
+                **_last_message_fields_for_match(match.id, current_user),
                 'user_1_matchmaker_involved': user1_matchmaker_involved,
                 'user_2_matchmaker_involved': user2_matchmaker_involved,
                 'both_matchmakers_involved': both_matchmakers_involved,
@@ -964,7 +1014,7 @@ def get_mutual_matches(current_user):
                 'blind_match': match.blind_match,
                 'status': 'pending_approval',
                 'unread_count': _unread_count_for_match(match.id, current_user.id),
-                'last_message_time': _last_message_time_for_match(match.id),
+                **_last_message_fields_for_match(match.id, current_user),
                 'user_1_matchmaker_involved': user1_matchmaker_involved,
                 'user_2_matchmaker_involved': user2_matchmaker_involved,
                 'both_matchmakers_involved': both_matchmakers_involved,

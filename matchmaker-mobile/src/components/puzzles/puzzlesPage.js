@@ -4,9 +4,27 @@ import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 
 export const games = [
-  { name: 'Spirit Animal Quiz', path: 'SpiritAnimalQuiz' },
-  { name: 'Zodiac Sign Quiz', path: 'ZodiacQuiz' },
-  { name: 'Trivia Challenge', path: 'TriviaChallenge' }
+  {
+    name: 'Spirit Animal Quiz',
+    path: 'SpiritAnimalQuiz',
+    description: "5 questions · find your match's animal",
+    icon: '🦊',
+    iconBg: '#FFE8EE',
+  },
+  {
+    name: 'Zodiac Sign Quiz',
+    path: 'ZodiacQuiz',
+    description: "Guess each other's signs",
+    icon: '♒',
+    iconBg: '#EDE8F8',
+  },
+  {
+    name: 'Trivia Challenge',
+    path: 'TriviaChallenge',
+    description: '10 rounds · head to head',
+    icon: '🏆',
+    iconBg: '#E2F5EC',
+  },
 ];
 
 const PuzzlesHub = () => {

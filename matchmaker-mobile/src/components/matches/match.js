@@ -22,22 +22,51 @@ import SendNoteModal from './sendNoteModal';
 import ProfileCard from './profileCard';
 import { useProfiles } from './hooks/useProfiles';
 import { useUserInfo } from './hooks/useUserInfo';
+import {
+  getViewerCoords,
+  sortProfilesByDistanceRandom,
+} from './utils/profileOrder';
 import { startLocationWatcher, stopLocationWatcher } from '../auth/utils/startLocationWatcher';
-import { getImageUrl, heightStringToCm, convertHeightForViewer } from '../profile/utils/profileUtils';
-import { getRoleAccentColor, getRoleBackgroundTint } from '../layout/components/RoleHeaderBanner';
+import { getImageUrl, heightStringToCm, convertHeightForViewer, normalizeHeightUnit } from '../profile/utils/profileUtils';
+import { getRoleAccentColor } from '../layout/components/RoleHeaderBanner';
 import { UserContext } from '../../context/UserContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-const DEFAULT_HEIGHT_MIN_CM = 137;
-const DEFAULT_HEIGHT_MAX_CM = 213;
+const MATCH_SCREEN_BG = '#fff5f7';
+const MATCHMAKER_SCREEN_BG = '#f3f4f6';
+const CARD_STACK_PADDING_TOP = 14;
+/** Fixed reserve above the current card — fits peek + both-notes preview for matchmakers. */
+const MATCHMAKER_CARD_STACK_PADDING_TOP = 32;
+const STACK_PREVIEW_PEEK = 12;
+const STACK_PREVIEW_PEEK_WITH_NOTE = 16;
+const STACK_PREVIEW_PEEK_OFFSET = 0;
+const STACK_PREVIEW_ALIGNED_LIFT = 8;
+const STACK_PREVIEW_SCALE = 0.96;
+const STACK_PREVIEW_INSET = 10;
+const HEIGHT_SLIDER_MIN_CM = 0;
+/** 7'11" in centimeters */
+const HEIGHT_SLIDER_MAX_CM_IMPERIAL = Math.round(7 * 30.48 + 11 * 2.54);
+/** 2m 99cm */
+const HEIGHT_SLIDER_MAX_CM_METRIC = 299;
 
-const INITIAL_MATCH_FILTERS = {
-  heightMinCm: DEFAULT_HEIGHT_MIN_CM,
-  heightMaxCm: DEFAULT_HEIGHT_MAX_CM,
-  requireBio: false,
-  internalMatchmakingOnly: false,
-  /** Off until the user moves the height slider — avoids treating clamped "full deck" range as an active filter. */
-  heightFilterEnabled: false,
+const getHeightSliderBoundsCm = (viewerUnit) => {
+  const unit = normalizeHeightUnit(viewerUnit);
+  if (unit === 'metric') {
+    return { minCm: HEIGHT_SLIDER_MIN_CM, maxCm: HEIGHT_SLIDER_MAX_CM_METRIC };
+  }
+  return { minCm: HEIGHT_SLIDER_MIN_CM, maxCm: HEIGHT_SLIDER_MAX_CM_IMPERIAL };
+};
+
+const getInitialMatchFilters = (viewerUnit) => {
+  const { minCm, maxCm } = getHeightSliderBoundsCm(viewerUnit);
+  return {
+    heightMinCm: minCm,
+    heightMaxCm: maxCm,
+    requireBio: false,
+    internalMatchmakingOnly: false,
+    /** Off until the user moves the height slider — avoids treating full range as an active filter. */
+    heightFilterEnabled: false,
+  };
 };
 
 const formatCmAsHeightLabel = (cm, viewerUnit) => {
@@ -46,11 +75,13 @@ const formatCmAsHeightLabel = (cm, viewerUnit) => {
   return convertHeightForViewer(`${m}m ${centimeters}cm`, 'metric', viewerUnit);
 };
 
+const FILTER_SHEET_BG = '#f3f4f6';
+
 const Match = () => {
   const insets = useSafeAreaInsets();
   const { profiles, setProfiles, loading } = useProfiles(API_BASE_URL);
   const { userInfo, setUserInfo } = useUserInfo(API_BASE_URL);
-  const { user: contextUser } = useContext(UserContext);
+  const { user: contextUser, setUser: setContextUser } = useContext(UserContext);
   const [refreshing, setRefreshing] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showNoteModal, setShowNoteModal] = useState(false);
@@ -59,12 +90,12 @@ const Match = () => {
   const [referrer, setReferrer] = useState(null);
   const [roleHint, setRoleHint] = useState(null);
   const [showFilterSidebar, setShowFilterSidebar] = useState(false);
-  const [matchFilters, setMatchFilters] = useState(() => ({ ...INITIAL_MATCH_FILTERS }));
-  const [filterDraft, setFilterDraft] = useState(() => ({ ...INITIAL_MATCH_FILTERS }));
+  const [matchFilters, setMatchFilters] = useState(() => getInitialMatchFilters('Imperial'));
+  const [filterDraft, setFilterDraft] = useState(() => getInitialMatchFilters('Imperial'));
   const navigation = useNavigation();
   const selectedDaterId = userInfo?.referrer_id || userInfo?.referred_by_id || null;
 
-  const sliderWidth = Math.min(Dimensions.get('window').width - 56, 300);
+  const sliderWidth = Dimensions.get('window').width - 56;
 
   const linkedDaterIdSet = useMemo(() => {
     const ids = userInfo?.linked_daters;
@@ -75,22 +106,11 @@ const Match = () => {
   const showInternalMatchmakingFilter =
     userInfo?.role === 'matchmaker' && linkedDaterIdSet.size >= 2;
 
-  const heightBoundsCm = useMemo(() => {
-    const cms = profiles
-      .map((p) => heightStringToCm(p.height, p.unit))
-      .filter((c) => c != null && !Number.isNaN(c));
-    if (cms.length === 0) {
-      return { minCm: DEFAULT_HEIGHT_MIN_CM, maxCm: DEFAULT_HEIGHT_MAX_CM };
-    }
-    const rawMin = Math.min(...cms);
-    const rawMax = Math.max(...cms);
-    let minCm = Math.floor(rawMin);
-    let maxCm = Math.ceil(rawMax);
-    if (maxCm <= minCm) {
-      maxCm = minCm + 1;
-    }
-    return { minCm, maxCm };
-  }, [profiles]);
+  const viewerHeightUnit = userInfo?.unit || contextUser?.unit || 'Imperial';
+  const heightBoundsCm = useMemo(
+    () => getHeightSliderBoundsCm(viewerHeightUnit),
+    [viewerHeightUnit]
+  );
 
   useEffect(() => {
     const { minCm, maxCm } = heightBoundsCm;
@@ -315,7 +335,7 @@ const Match = () => {
     }
   };
 
-  const fetchProfiles = async () => {
+  const fetchProfiles = async (viewerCoords) => {
     try {
       const token = await AsyncStorage.getItem('token');
       if (!token) return;
@@ -325,7 +345,9 @@ const Match = () => {
       });
       if (!res.ok) throw new Error('Failed to fetch profiles');
       const data = await res.json();
-      setProfiles(data);
+      const coords =
+        viewerCoords ?? getViewerCoords(userInfo, referrer);
+      setProfiles(sortProfilesByDistanceRandom(data, coords.lat, coords.lon));
     } catch (err) {
       console.error('Error fetching profiles:', err);
     }
@@ -353,10 +375,41 @@ const Match = () => {
 
   // Refresh profiles when userInfo.referrer_id changes (selected dater changed)
   useEffect(() => {
-    if (userInfo && userInfo.role === 'matchmaker') {
-      fetchProfiles();
-      setCurrentIndex(0); // Reset to first profile
+    if (!userInfo || userInfo.role !== 'matchmaker') {
+      return;
     }
+
+    let cancelled = false;
+
+    const refreshForSelectedDater = async () => {
+      try {
+        const token = await AsyncStorage.getItem('token');
+        if (!token || cancelled) return;
+
+        const profileRes = await fetch(`${API_BASE_URL}/profile/`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!profileRes.ok || cancelled) return;
+
+        const profileData = await profileRes.json();
+        const nextReferrer = profileData.referrer || null;
+        setReferrer(nextReferrer);
+
+        const viewerCoords = getViewerCoords(profileData.user, nextReferrer);
+        await fetchProfiles(viewerCoords);
+        if (!cancelled) {
+          setCurrentIndex(0);
+        }
+      } catch (err) {
+        console.error('Error refreshing profiles for selected dater:', err);
+      }
+    };
+
+    refreshForSelectedDater();
+
+    return () => {
+      cancelled = true;
+    };
   }, [selectedDaterId]);
 
   // Refresh userInfo and profiles when page comes into focus to get latest selected dater
@@ -368,17 +421,30 @@ const Match = () => {
       setProfiles([]);
       setReferrer(null);
       setUserInfo(null);
-      // Reset filters so height range matches fresh profile bounds (avoids stale "active" height filter).
-      setMatchFilters({ ...INITIAL_MATCH_FILTERS });
-      setFilterDraft({ ...INITIAL_MATCH_FILTERS });
+      // Reset filters to the fixed full height range for the user's unit.
+      const initialFilters = getInitialMatchFilters(contextUser?.unit || 'Imperial');
+      setMatchFilters(initialFilters);
+      setFilterDraft(initialFilters);
 
       // Small delay to ensure backend has updated after dater selection
       const timer = setTimeout(async () => {
         try {
           await refreshUserInfo();
-          await fetchProfile();
-          // Refresh profiles after userInfo is updated
-          await fetchProfiles();
+          const token = await AsyncStorage.getItem('token');
+          if (!token) return;
+
+          const profileRes = await fetch(`${API_BASE_URL}/profile/`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (profileRes.ok) {
+            const profileData = await profileRes.json();
+            setReferrer(profileData.referrer || null);
+            const viewerCoords = getViewerCoords(profileData.user, profileData.referrer);
+            await fetchProfiles(viewerCoords);
+          } else {
+            await fetchProfile();
+            await fetchProfiles();
+          }
         } finally {
           setRefreshing(false);
         }
@@ -472,7 +538,6 @@ const Match = () => {
         const data = await res.json();
         const likedProfile = profiles.find(p => p.id === likedUserId);
 
-        // Remove the liked user from local state immediately
         setProfiles((prevProfiles) => {
           const nextProfiles = prevProfiles.filter((profile) => profile.id !== likedUserId);
           setCurrentIndex((prevIndex) =>
@@ -528,7 +593,6 @@ const Match = () => {
         const data = await res.json();
         const likedProfile = profiles.find(p => p.id === likedUserId);
 
-        // Remove the matched user from local state immediately
         setProfiles((prevProfiles) => {
           const nextProfiles = prevProfiles.filter((profile) => profile.id !== likedUserId);
           setCurrentIndex((prevIndex) =>
@@ -604,7 +668,6 @@ const Match = () => {
                 }
 
                 if (res.ok) {
-                  // Remove the blocked user from local state immediately
                   setProfiles((prevProfiles) => {
                     const nextProfiles = prevProfiles.filter((profile) => profile.id !== blockedUserId);
                     setCurrentIndex((prevIndex) =>
@@ -612,7 +675,7 @@ const Match = () => {
                     );
                     return nextProfiles;
                   });
-                  
+
                   Alert.alert('Success', 'User blocked successfully');
                 } else {
                   const data = await res.json();
@@ -681,7 +744,6 @@ const Match = () => {
 
       const data = await res.json();
       setShowNoteModal(false);
-      // Remove the user from profiles after sending note (note creates a pending match)
       setProfiles((prevProfiles) => {
         const nextProfiles = prevProfiles.filter((profile) => profile.id !== likedUser.id);
         setCurrentIndex((prevIndex) =>
@@ -709,9 +771,10 @@ const Match = () => {
   if (loading || refreshing) {
     const loadingRole = userInfo?.role || roleHint || 'user';
     const loadingColor = getRoleAccentColor(loadingRole);
-    const loadingBackgroundTint = getRoleBackgroundTint(loadingRole);
+    const loadingBg =
+      loadingRole === 'matchmaker' ? MATCHMAKER_SCREEN_BG : MATCH_SCREEN_BG;
     return (
-      <View style={[styles.loadingContainer, { backgroundColor: loadingBackgroundTint }]}>
+      <View style={[styles.loadingContainer, { backgroundColor: loadingBg }]}>
         <ActivityIndicator size="large" color={loadingColor} />
         <Text style={styles.loadingText}>Loading profiles...</Text>
       </View>
@@ -722,19 +785,38 @@ const Match = () => {
     filteredProfiles.length > 0 && currentIndex < filteredProfiles.length
       ? filteredProfiles[currentIndex]
       : null;
+  const upcomingProfile =
+    filteredProfiles.length > 0 &&
+    currentIndex + 1 < filteredProfiles.length
+      ? filteredProfiles[currentIndex + 1]
+      : null;
+  const stackPreviewProfile = upcomingProfile;
   const accentColor = getRoleAccentColor(userInfo?.role || 'matchmaker');
-  const backgroundTint = getRoleBackgroundTint(userInfo?.role || 'matchmaker');
-  const overlayTopPadding = userInfo?.role === 'matchmaker' ? 150 : 56;
+  const isMatchmaker = userInfo?.role === 'matchmaker';
+  const isDater = userInfo?.role === 'user';
+  const screenBackground = isMatchmaker ? MATCHMAKER_SCREEN_BG : MATCH_SCREEN_BG;
+  const headerTopPadding = isMatchmaker ? insets.top + 4 : insets.top + 8;
+  const actionBarBottom = 12;
   const isProfilesEmptyState = !currentProfile;
   const hasProfilesButFilteredOut = profiles.length > 0 && filteredProfiles.length === 0;
-  const heightLabelUnit = userInfo?.unit || contextUser?.unit || 'Imperial';
+  const heightLabelUnit = viewerHeightUnit;
+  const upcomingHasNote = Boolean(stackPreviewProfile?.note?.trim());
+  const currentHasNote = Boolean(currentProfile?.note?.trim());
+  const bothNotesPreview = currentHasNote && upcomingHasNote;
+  const cardStackPreviewPadding = isMatchmaker
+    ? MATCHMAKER_CARD_STACK_PADDING_TOP
+    : CARD_STACK_PADDING_TOP;
+  const stackPreviewHeight = upcomingHasNote ? STACK_PREVIEW_PEEK_WITH_NOTE : STACK_PREVIEW_PEEK;
+  const stackPreviewTop = bothNotesPreview
+    ? -STACK_PREVIEW_ALIGNED_LIFT
+    : cardStackPreviewPadding - stackPreviewHeight + STACK_PREVIEW_PEEK_OFFSET;
 
-  const dismissFilterSidebar = () => {
+  const dismissFilterSheet = () => {
     setFilterDraft({ ...matchFilters });
     setShowFilterSidebar(false);
   };
 
-  const saveMatchFilters = () => {
+  const saveFilterSheet = () => {
     const changed =
       matchFilters.heightMinCm !== filterDraft.heightMinCm ||
       matchFilters.heightMaxCm !== filterDraft.heightMaxCm ||
@@ -748,28 +830,42 @@ const Match = () => {
     setShowFilterSidebar(false);
   };
 
-  const filterButtonTop =
-    userInfo?.role === 'matchmaker'
-      ? insets.top + 6
-      : overlayTopPadding + 8;
-
   return (
-    <View style={[styles.container, { backgroundColor: backgroundTint, paddingTop: overlayTopPadding }]}>
-      <TouchableOpacity
-        style={[styles.filterButton, { top: filterButtonTop }]}
-        onPress={() => {
-          setFilterDraft({ ...matchFilters });
-          setShowFilterSidebar(true);
-        }}
-        accessibilityLabel="Open match filters"
+    <View style={[styles.container, { backgroundColor: screenBackground }]}>
+      <View
+        style={[
+          styles.screenHeader,
+          isDater && styles.screenHeaderDater,
+          isMatchmaker && styles.screenHeaderMatchmaker,
+          { paddingTop: headerTopPadding },
+        ]}
       >
-        <Ionicons name="options-outline" size={24} color="#1f2937" />
-        {activeFilterCount > 0 ? (
-          <View style={[styles.filterBadge, { backgroundColor: accentColor }]}>
-            <Text style={styles.filterBadgeText}>{activeFilterCount}</Text>
-          </View>
-        ) : null}
-      </TouchableOpacity>
+        <Image
+          source={require('../../../assets/matchmate_logo.png')}
+          style={styles.headerLogo}
+          accessibilityLabel="Matchmate logo"
+        />
+        <TouchableOpacity
+          style={[
+            styles.filterButton,
+            isDater && styles.filterButtonDater,
+            isMatchmaker && styles.filterButtonMatchmaker,
+          ]}
+          onPress={() => {
+            setFilterDraft({ ...matchFilters });
+            setShowFilterSidebar(true);
+          }}
+          accessibilityLabel="Open match filters"
+        >
+          <Ionicons name="options-outline" size={22} color="#374151" />
+          {activeFilterCount > 0 ? (
+            <View style={[styles.filterBadge, { backgroundColor: accentColor }]}>
+              <Text style={styles.filterBadgeText}>{activeFilterCount}</Text>
+            </View>
+          ) : null}
+        </TouchableOpacity>
+      </View>
+      {isMatchmaker ? <View style={styles.choosingSection} /> : null}
       <ScrollView
         style={[
           styles.scrollView,
@@ -777,22 +873,68 @@ const Match = () => {
         ]}
         contentContainerStyle={[
           styles.content,
-          userInfo?.role === 'matchmaker' && styles.contentWithDropdown,
+          isDater && styles.contentDater,
+          isMatchmaker && styles.contentMatchmaker,
           isProfilesEmptyState && styles.contentGrow,
         ]}
+        removeClippedSubviews={!(isMatchmaker && bothNotesPreview && stackPreviewProfile)}
+        showsVerticalScrollIndicator={false}
+        nestedScrollEnabled
       >
         {currentProfile ? (
           <>
-            <ProfileCard
-              profile={currentProfile}
-              userInfo={userInfo}
-              preferredViewerUnit={userInfo?.role === 'matchmaker' ? referrer?.unit : undefined}
-              onSkip={nextProfile}
-            />
+            <View
+              style={[
+                styles.cardStack,
+                { paddingTop: cardStackPreviewPadding },
+                bothNotesPreview && styles.cardStackBothNotesPreview,
+              ]}
+            >
+              {stackPreviewProfile ? (
+                <>
+                  <View
+                    style={[
+                      styles.stackPreviewLayer,
+                      bothNotesPreview
+                        ? { top: stackPreviewTop }
+                        : {
+                            top: stackPreviewTop,
+                            height: stackPreviewHeight,
+                            overflow: 'hidden',
+                          },
+                    ]}
+                    pointerEvents="none"
+                  >
+                    <View style={styles.stackPreviewScaled}>
+                      <ProfileCard
+                        profile={stackPreviewProfile}
+                        userInfo={userInfo}
+                        preferredViewerUnit={
+                          userInfo?.role === 'matchmaker' ? referrer?.unit : undefined
+                        }
+                        isStackPreview
+                        stackPreviewAligned={bothNotesPreview}
+                      />
+                    </View>
+                  </View>
+                </>
+              ) : null}
+              <View style={styles.currentCard}>
+                <ProfileCard
+                  profile={currentProfile}
+                  userInfo={userInfo}
+                  preferredViewerUnit={
+                    userInfo?.role === 'matchmaker' ? referrer?.unit : undefined
+                  }
+                  onSkip={nextProfile}
+                />
+              </View>
+            </View>
             {showNoteModal && (
               <SendNoteModal
                 onClose={() => setShowNoteModal(false)}
                 onSend={handleSendNote}
+                accentColor={accentColor}
               />
             )}
           </>
@@ -807,55 +949,58 @@ const Match = () => {
         )}
       </ScrollView>
       {currentProfile && (
-        <View style={styles.buttonContainer}>
+        <View style={[styles.buttonContainer, { bottom: actionBarBottom }]}>
           <View style={styles.leftButtonContainer}>
-            {userInfo?.role === 'user' && (
-              <View style={styles.actionItem}>
-                <TouchableOpacity style={[styles.actionButton, styles.sideActionButton, styles.blockActionButton]} onPress={() => blockUser(currentProfile.id)}>
-                  <Ionicons name="ban-outline" size={24} color="#ffffff" />
-                </TouchableOpacity>
-                <Text style={styles.actionLabel}>Block</Text>
-              </View>
+            {isDater && (
+              <TouchableOpacity
+                style={[styles.actionButton, styles.sideActionButton]}
+                onPress={() => blockUser(currentProfile.id)}
+                accessibilityLabel="Block user"
+              >
+                <Ionicons name="ban-outline" size={26} color="#ef4444" />
+              </TouchableOpacity>
             )}
             {userInfo?.role === 'matchmaker' && !currentProfile.liked_linked_dater && (
-              <View style={styles.actionItem}>
-                <TouchableOpacity style={[styles.actionButton, styles.sideActionButton, styles.blindActionButton]} onPress={handleBlindMatch}>
-                  <Ionicons name="eye-off-outline" size={24} color="#ffffff" />
-                </TouchableOpacity>
-                <Text style={styles.actionLabel}>Blind Match</Text>
-              </View>
+              <TouchableOpacity
+                style={[styles.actionButton, styles.sideActionButton]}
+                onPress={handleBlindMatch}
+                accessibilityLabel="Blind match"
+              >
+                <Ionicons name="eye-off-outline" size={24} color="#6c5ce7" />
+              </TouchableOpacity>
             )}
           </View>
           <View style={styles.centerButtonContainer}>
             {userInfo?.role === 'matchmaker' && currentProfile.liked_linked_dater ? (
-              <View style={styles.actionItem}>
-                <TouchableOpacity
-                  style={[styles.actionButton, styles.likeActionButton, { backgroundColor: accentColor }]}
-                  onPress={handleBlindMatch}
-                >
-                  <Ionicons name="heart" size={34} color="#ffffff" />
-                </TouchableOpacity>
-                <Text style={styles.actionLabel}>Like</Text>
-              </View>
+              <TouchableOpacity
+                style={[styles.actionButton, styles.likeActionButton]}
+                onPress={handleBlindMatch}
+                accessibilityLabel="Like"
+              >
+                <Ionicons name="heart" size={32} color="#ef4d73" />
+              </TouchableOpacity>
             ) : (
-              <View style={styles.actionItem}>
-                <TouchableOpacity
-                  style={[styles.actionButton, styles.likeActionButton, { backgroundColor: accentColor }]}
-                  onPress={handleLike}
-                >
-                  <Ionicons name="heart" size={34} color="#ffffff" />
-                </TouchableOpacity>
-                <Text style={styles.actionLabel}>Like</Text>
-              </View>
+              <TouchableOpacity
+                style={[styles.actionButton, styles.likeActionButton]}
+                onPress={handleLike}
+                accessibilityLabel="Like"
+              >
+                <Ionicons name="heart" size={32} color="#ef4d73" />
+              </TouchableOpacity>
             )}
           </View>
           <View style={styles.rightButtonContainer}>
-            <View style={styles.actionItem}>
-              <TouchableOpacity style={[styles.actionButton, styles.sideActionButton, styles.noteActionButton]} onPress={() => setShowNoteModal(true)}>
-                <Ionicons name="create-outline" size={24} color="#ffffff" />
-              </TouchableOpacity>
-              <Text style={styles.actionLabel}>Send Note</Text>
-            </View>
+            <TouchableOpacity
+              style={[styles.actionButton, styles.sideActionButton]}
+              onPress={() => setShowNoteModal(true)}
+              accessibilityLabel="Send note"
+            >
+              <Ionicons
+                name="create-outline"
+                size={24}
+                color={isMatchmaker ? '#6c5ce7' : '#374151'}
+              />
+            </TouchableOpacity>
           </View>
         </View>
       )}
@@ -863,32 +1008,56 @@ const Match = () => {
       <Modal
         visible={showFilterSidebar}
         transparent
-        animationType="none"
-        onRequestClose={dismissFilterSidebar}
+        animationType="slide"
+        onRequestClose={dismissFilterSheet}
       >
         <View style={styles.filterModalRoot}>
           <Pressable
             style={styles.filterBackdrop}
-            onPress={dismissFilterSidebar}
+            onPress={dismissFilterSheet}
             accessibilityLabel="Close filters"
           />
-          <View style={styles.filterDrawer}>
-            <View style={styles.filterDrawerHeader}>
-              <Text style={styles.filterDrawerTitle}>Filters</Text>
-              <TouchableOpacity onPress={dismissFilterSidebar} hitSlop={12}>
-                <Ionicons name="close" size={26} color="#374151" />
+          <View
+            style={[
+              styles.filterBottomSheet,
+              { maxHeight: Dimensions.get('window').height * 0.72 },
+            ]}
+          >
+            <View style={styles.filterSheetHeader}>
+              <Text style={styles.filterSheetTitle}>Filter</Text>
+              <TouchableOpacity
+                style={styles.filterSheetClose}
+                onPress={dismissFilterSheet}
+                hitSlop={12}
+                accessibilityLabel="Close filter"
+              >
+                <Ionicons name="close" size={22} color="#9ca3af" />
               </TouchableOpacity>
             </View>
+
             <ScrollView
               style={styles.filterScroll}
               contentContainerStyle={styles.filterScrollContent}
               keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
             >
-              <Text style={styles.filterSectionLabel}>Height</Text>
+              <Text style={styles.filterSectionLabel}>HEIGHT</Text>
               <Text style={styles.filterSectionHint}>
-                {formatCmAsHeightLabel(filterDraft.heightMinCm, heightLabelUnit)} –{' '}
-                {formatCmAsHeightLabel(filterDraft.heightMaxCm, heightLabelUnit)}
+                Select a height range you're looking for
               </Text>
+              <View style={styles.filterHeightValuesRow}>
+                <View style={[styles.filterHeightValueBox, { borderColor: accentColor }]}>
+                  <Text style={[styles.filterHeightValueText, { color: accentColor }]}>
+                    {formatCmAsHeightLabel(filterDraft.heightMinCm, heightLabelUnit)}
+                  </Text>
+                </View>
+                <Text style={styles.filterHeightDash}>–</Text>
+                <View style={[styles.filterHeightValueBox, { borderColor: accentColor }]}>
+                  <Text style={[styles.filterHeightValueText, { color: accentColor }]}>
+                    {formatCmAsHeightLabel(filterDraft.heightMaxCm, heightLabelUnit)}
+                  </Text>
+                </View>
+              </View>
               <View style={styles.filterSliderWrap}>
                 <MultiSlider
                   values={[filterDraft.heightMinCm, filterDraft.heightMaxCm]}
@@ -911,18 +1080,25 @@ const Match = () => {
                   unselectedStyle={{ backgroundColor: '#E5E7EB' }}
                   markerStyle={{
                     backgroundColor: accentColor,
-                    height: 22,
-                    width: 22,
-                    borderRadius: 11,
+                    height: 24,
+                    width: 24,
+                    borderRadius: 12,
                     borderWidth: 0,
+                    shadowColor: accentColor,
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.25,
+                    shadowRadius: 4,
+                    elevation: 3,
                   }}
-                  trackStyle={{ height: 6, borderRadius: 3 }}
-                  containerStyle={{ height: 44, justifyContent: 'center' }}
+                  trackStyle={{ height: 4, borderRadius: 2 }}
+                  containerStyle={{ height: 40, justifyContent: 'center' }}
                   snapped
                 />
               </View>
 
-              <Text style={[styles.filterSectionLabel, { marginTop: 24 }]}>About me</Text>
+              <View style={styles.filterSectionDivider} />
+
+              <Text style={styles.filterSectionLabel}>ABOUT ME</Text>
               <TouchableOpacity
                 style={styles.filterCheckboxRow}
                 onPress={() =>
@@ -933,26 +1109,21 @@ const Match = () => {
                 <View
                   style={[
                     styles.filterCheckbox,
-                    filterDraft.requireBio && {
-                      backgroundColor: accentColor,
-                      borderColor: accentColor,
-                    },
+                    { borderColor: accentColor },
+                    filterDraft.requireBio && styles.filterCheckboxChecked,
                   ]}
                 >
                   {filterDraft.requireBio ? (
-                    <Ionicons name="checkmark" size={16} color="#ffffff" />
+                    <Ionicons name="checkmark" size={16} color={accentColor} />
                   ) : null}
                 </View>
-                <Text style={styles.filterCheckboxLabel}>
-                  About Me Filled Out
-                </Text>
+                <Text style={styles.filterCheckboxLabel}>About Me Filled Out</Text>
               </TouchableOpacity>
 
               {showInternalMatchmakingFilter ? (
                 <>
-                  <Text style={[styles.filterSectionLabel, { marginTop: 24 }]}>
-                    Internal matchmaking
-                  </Text>
+                  <View style={styles.filterSectionDivider} />
+                  <Text style={styles.filterSectionLabel}>INTERNAL MATCHMAKING</Text>
                   <Text style={styles.filterSectionSub}>
                     Limit the deck to people on your roster (other linked daters you work with).
                   </Text>
@@ -969,14 +1140,14 @@ const Match = () => {
                     <View
                       style={[
                         styles.filterCheckbox,
+                        { borderColor: accentColor },
                         filterDraft.internalMatchmakingOnly && {
-                          backgroundColor: accentColor,
-                          borderColor: accentColor,
+                          backgroundColor: '#ffffff',
                         },
                       ]}
                     >
                       {filterDraft.internalMatchmakingOnly ? (
-                        <Ionicons name="checkmark" size={16} color="#ffffff" />
+                        <Ionicons name="checkmark" size={16} color={accentColor} />
                       ) : null}
                     </View>
                     <Text style={styles.filterCheckboxLabel}>
@@ -988,13 +1159,14 @@ const Match = () => {
             </ScrollView>
             <View
               style={[
-                styles.filterDrawerFooter,
-                { paddingBottom: 28 + insets.bottom },
+                styles.filterSheetFooter,
+                { paddingBottom: 20 + insets.bottom },
               ]}
             >
               <TouchableOpacity
                 style={[styles.filterSaveButton, { backgroundColor: accentColor }]}
-                onPress={saveMatchFilters}
+                onPress={saveFilterSheet}
+                accessibilityLabel="Save filters"
               >
                 <Text style={styles.filterSaveButtonText}>Save</Text>
               </TouchableOpacity>
@@ -1060,8 +1232,37 @@ const Match = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fafafa',
-    paddingTop: 24,
+    backgroundColor: MATCH_SCREEN_BG,
+  },
+  screenHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingBottom: 8,
+    backgroundColor: '#ffffff',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#f3e8ee',
+  },
+  screenHeaderDater: {
+    backgroundColor: 'transparent',
+    borderBottomWidth: 0,
+    paddingBottom: 4,
+  },
+  screenHeaderMatchmaker: {
+    backgroundColor: 'transparent',
+    borderBottomWidth: 0,
+    paddingBottom: 0,
+  },
+  choosingSection: {
+    paddingHorizontal: 20,
+    paddingBottom: 4,
+    minHeight: 71,
+  },
+  headerLogo: {
+    width: 44,
+    height: 44,
+    resizeMode: 'contain',
   },
   dropdownContainer: {
     position: 'absolute',
@@ -1072,14 +1273,22 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
-    paddingTop: 50,
   },
   scrollViewWithDropdown: {
-    paddingTop: 8,
+    flex: 1,
   },
   content: {
-    padding: 20,
-    paddingBottom: 100, // Space for buttons at bottom
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 120,
+  },
+  contentDater: {
+    paddingTop: 8,
+    paddingBottom: 110,
+  },
+  contentMatchmaker: {
+    paddingTop: 0,
+    paddingBottom: 120,
   },
   contentGrow: {
     flexGrow: 1,
@@ -1087,11 +1296,32 @@ const styles = StyleSheet.create({
   contentWithDropdown: {
     paddingTop: 4,
   },
+  cardStack: {
+    position: 'relative',
+  },
+  cardStackBothNotesPreview: {
+    overflow: 'visible',
+  },
+  stackPreviewLayer: {
+    position: 'absolute',
+    left: STACK_PREVIEW_INSET,
+    right: STACK_PREVIEW_INSET,
+    overflow: 'visible',
+    zIndex: 0,
+  },
+  stackPreviewScaled: {
+    transform: [{ scale: STACK_PREVIEW_SCALE }],
+    transformOrigin: 'top center',
+  },
+  currentCard: {
+    position: 'relative',
+    zIndex: 2,
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#fafafa',
+    backgroundColor: MATCH_SCREEN_BG,
   },
   loadingText: {
     marginTop: 12,
@@ -1115,13 +1345,12 @@ const styles = StyleSheet.create({
   },
   buttonContainer: {
     position: 'absolute',
-    bottom: 22,
     left: 0,
     right: 0,
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 24,
+    paddingHorizontal: 36,
     paddingVertical: 10,
     backgroundColor: 'transparent',
   },
@@ -1129,6 +1358,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    minHeight: 68,
   },
   centerButtonContainer: {
     flex: 1,
@@ -1139,18 +1369,16 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  actionItem: {
-    alignItems: 'center',
-    justifyContent: 'center',
+    minHeight: 68,
   },
   actionButton: {
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: '#ffffff',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.1,
+    shadowRadius: 14,
     elevation: 6,
   },
   sideActionButton: {
@@ -1159,25 +1387,9 @@ const styles = StyleSheet.create({
     borderRadius: 28,
   },
   likeActionButton: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: '#ef4d73',
-  },
-  blindActionButton: {
-    backgroundColor: '#4d59b6',
-  },
-  noteActionButton: {
-    backgroundColor: '#c6a03c',
-  },
-  blockActionButton: {
-    backgroundColor: '#e53e3e',
-  },
-  actionLabel: {
-    marginTop: 8,
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#48506a',
+    width: 68,
+    height: 68,
+    borderRadius: 34,
   },
   matchModalOverlay: {
     flex: 1,
@@ -1251,20 +1463,30 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   filterButton: {
-    position: 'absolute',
-    left: 16,
-    zIndex: 50,
-    width: 46,
-    height: 46,
-    borderRadius: 23,
+    width: 44,
+    height: 44,
+    borderRadius: 12,
     backgroundColor: '#ffffff',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    elevation: 4,
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#f3e8ee',
+  },
+  filterButtonDater: {
+    borderRadius: 14,
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+  },
+  filterButtonMatchmaker: {
+    borderRadius: 12,
+    borderWidth: 0,
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
   },
   filterBadge: {
     position: 'absolute',
@@ -1284,84 +1506,120 @@ const styles = StyleSheet.create({
   },
   filterModalRoot: {
     flex: 1,
+    justifyContent: 'flex-end',
   },
   filterBackdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
   },
-  filterDrawer: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    bottom: 0,
-    width: '86%',
-    maxWidth: 360,
-    backgroundColor: '#ffffff',
+  filterBottomSheet: {
+    backgroundColor: FILTER_SHEET_BG,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
     shadowColor: '#000',
-    shadowOffset: { width: -4, height: 0 },
-    shadowOpacity: 0.18,
-    shadowRadius: 12,
-    elevation: 16,
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 20,
   },
-  filterDrawerHeader: {
-    flexDirection: 'row',
+  filterSheetHeader: {
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 56,
+    justifyContent: 'center',
+    paddingTop: 20,
     paddingBottom: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#e5e7eb',
   },
-  filterDrawerTitle: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#111827',
+  filterSheetTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#374151',
+    letterSpacing: 0.2,
+  },
+  filterSheetClose: {
+    position: 'absolute',
+    right: 20,
+    top: 18,
+    padding: 4,
   },
   filterScroll: {
-    flex: 1,
+    flexGrow: 0,
   },
   filterScrollContent: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
     paddingTop: 20,
-    paddingBottom: 24,
+    paddingBottom: 8,
   },
   filterSectionLabel: {
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: '700',
-    color: '#1f2937',
+    color: '#6b7280',
+    letterSpacing: 0.8,
     marginBottom: 6,
   },
   filterSectionHint: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#4b5563',
-    marginBottom: 6,
+    fontSize: 13,
+    color: '#9ca3af',
+    marginBottom: 14,
+    lineHeight: 18,
   },
   filterSectionSub: {
     fontSize: 13,
-    color: '#6b7280',
+    color: '#9ca3af',
     marginBottom: 12,
     lineHeight: 18,
   },
+  filterSectionDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: '#e5e7eb',
+    marginVertical: 20,
+  },
+  filterHeightValuesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  filterHeightValueBox: {
+    minWidth: 88,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    backgroundColor: '#ffffff',
+    alignItems: 'center',
+  },
+  filterHeightValueText: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  filterHeightDash: {
+    fontSize: 16,
+    color: '#9ca3af',
+    fontWeight: '500',
+    marginHorizontal: 10,
+  },
   filterSliderWrap: {
     alignItems: 'center',
-    marginTop: 4,
+    marginTop: 2,
+    marginBottom: 4,
   },
   filterCheckboxRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 8,
+    marginTop: 4,
   },
   filterCheckbox: {
     width: 22,
     height: 22,
-    borderRadius: 6,
+    borderRadius: 5,
     borderWidth: 2,
-    borderColor: '#d1d5db',
     marginRight: 12,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: '#ffffff',
+  },
+  filterCheckboxChecked: {
     backgroundColor: '#ffffff',
   },
   filterCheckboxLabel: {
@@ -1370,8 +1628,8 @@ const styles = StyleSheet.create({
     color: '#374151',
     fontWeight: '500',
   },
-  filterDrawerFooter: {
-    paddingHorizontal: 20,
+  filterSheetFooter: {
+    paddingHorizontal: 24,
     paddingTop: 16,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: '#e5e7eb',

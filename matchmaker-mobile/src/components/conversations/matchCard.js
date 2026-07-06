@@ -1,29 +1,38 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Image, DeviceEventEmitter } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { API_BASE_URL } from '../../env';
 import { useNavigation } from '@react-navigation/native';
 import { getImageUrl } from '../profile/utils/profileUtils';
 import { getRoleAccentColor, getRoleContainerColor } from '../layout/components/RoleHeaderBanner';
 import { useNotifications } from '../../context/NotificationContext';
+import {
+  getMatchCardMessagePreview,
+  mergeMatchPreviewData,
+  MATCH_PREVIEW_UPDATED_EVENT,
+} from './utils/matchMessagePreview';
 
 /** Dark rose for pill copy; pairs with getRoleAccentColor('user') / #ffe6ee surfaces. */
 const DATER_CONVERSATIONS_PILL_TEXT = '#be123c';
 
-function formatLastMessageTime(isoString) {
+function formatLastMessageTime(isoString, conversational = false) {
   if (!isoString) return '';
   const d = new Date(isoString);
   if (Number.isNaN(d.getTime())) return '';
   const now = new Date();
   const diffMs = now - d;
   const diffMins = Math.floor(diffMs / 60000);
-  if (diffMins < 1) return 'Just now';
-  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffMins < 1) return conversational ? 'Just now' : 'Just now';
+  if (diffMins < 60) {
+    return conversational ? `${diffMins} min ago` : `${diffMins}m ago`;
+  }
   const diffHours = Math.floor(diffMins / 60);
-  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffHours < 24) {
+    return conversational ? `${diffHours} hr ago` : `${diffHours}h ago`;
+  }
   const diffDays = Math.floor(diffHours / 24);
   if (diffDays === 1) return 'Yesterday';
-  if (diffDays < 7) return `${diffDays}d ago`;
+  if (diffDays < 7) return conversational ? `${diffDays} days ago` : `${diffDays}d ago`;
   return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
 }
 
@@ -34,8 +43,26 @@ const MatchCard = ({
   onOpenConversation,
   cardWidth,
   daterConversationsTheme = false,
+  matchmakerConversationsTheme = false,
 }) => {
   const navigation = useNavigation();
+  const [, setPreviewRevision] = useState(0);
+
+  useEffect(() => {
+    const matchId = Number(matchObj?.match_id);
+    if (!Number.isFinite(matchId)) return undefined;
+
+    const subscription = DeviceEventEmitter.addListener(
+      MATCH_PREVIEW_UPDATED_EVENT,
+      ({ matchId: updatedId }) => {
+        if (Number(updatedId) === matchId) {
+          setPreviewRevision((revision) => revision + 1);
+        }
+      }
+    );
+    return () => subscription.remove();
+  }, [matchObj?.match_id]);
+
   const {
     notificationsEnabled,
     notificationPreferences,
@@ -43,13 +70,17 @@ const MatchCard = ({
     isMatchMessageMuted,
   } = useNotifications();
   const resolvedCardWidth = cardWidth ?? 150;
-  const imageSize = Math.min(72, Math.max(48, Math.floor(resolvedCardWidth - 28)));
+  const isDater = userInfo?.role === 'user';
+  const useModernConversationsLayout =
+    (daterConversationsTheme && isDater) || matchmakerConversationsTheme;
+  const imageSize = useModernConversationsLayout
+    ? 52
+    : Math.min(72, Math.max(48, Math.floor(resolvedCardWidth - 28)));
   const imageRadius = imageSize / 2;
   const vennW = Math.min(104, Math.max(72, Math.floor(imageSize * 1.35)));
   const vennH = Math.max(50, Math.floor(vennW * (85 / 110)));
   const vennCircle = Math.min(58, Math.floor(imageSize * 0.88));
   const vennCircleRadius = vennCircle / 2;
-  const isDater = userInfo?.role === 'user';
   const useDaterConversationsPalette = daterConversationsTheme && isDater;
   const roleBadgeBackground = useDaterConversationsPalette
     ? getRoleContainerColor('user')
@@ -76,6 +107,15 @@ const MatchCard = ({
       ? '#ec4899'
       : '#6c5ce7';
   const unreadBadgeText = unreadCount > 99 ? '99+' : `${unreadCount}`;
+  const mergedMatch = mergeMatchPreviewData(matchObj) || matchObj;
+  const lastMessageTimeLabel = mergedMatch.last_message_time
+    ? formatLastMessageTime(mergedMatch.last_message_time, useModernConversationsLayout)
+    : '';
+  const { body: messagePreviewBody, showYouPrefix: viewerSentMessage } =
+    getMatchCardMessagePreview(matchObj, userInfo);
+  const showYouPrefix = useModernConversationsLayout && viewerSentMessage;
+  const showMessagePreview =
+    useModernConversationsLayout && !!(messagePreviewBody || lastMessageTimeLabel);
   const showBothMmsPill = bothMm;
   const showMmLikedYouPill =
     userInfo?.role === 'user' &&
@@ -142,6 +182,16 @@ const MatchCard = ({
   const cardBorderColor = useDaterConversationsPalette ? 'rgba(239, 77, 115, 0.22)' : '#eaeaea';
   const avatarBorderColor = useDaterConversationsPalette ? 'rgba(239, 77, 115, 0.35)' : '#eee';
   const placeholderBg = useDaterConversationsPalette ? 'rgba(239, 77, 115, 0.08)' : '#f2f2f2';
+  const modernCardStyle = useModernConversationsLayout
+    ? {
+        borderWidth: 0,
+        shadowOpacity: 0.06,
+        shadowRadius: 10,
+        elevation: 2,
+        paddingVertical: 14,
+        paddingHorizontal: 14,
+      }
+    : null;
 
   const isApprovedMatchRow = matchObj.status === 'matched';
   const showPerMatchMessageBell =
@@ -162,6 +212,7 @@ const MatchCard = ({
       style={[
         styles.matchCard,
         { width: resolvedCardWidth, borderColor: cardBorderColor },
+        modernCardStyle,
       ]}
       onPress={() => {
         onOpenConversation?.(matchObj.match_id);
@@ -169,12 +220,12 @@ const MatchCard = ({
       }}
       activeOpacity={0.7}
     >
-      {hasUnreadMessages && (
+      {!useModernConversationsLayout && hasUnreadMessages && (
         <View style={[styles.unreadBadge, { backgroundColor: unreadBadgeColor }]}>
           <Text style={styles.unreadBadgeText}>{unreadBadgeText}</Text>
         </View>
       )}
-      <View style={styles.profileSection}>
+      <View style={[styles.profileSection, useModernConversationsLayout && styles.profileSectionModern]}>
         <View style={styles.thumbnailColumn}>
           {userInfo?.role === 'matchmaker' && matchObj.linked_dater
             ? renderOverlappedImages()
@@ -192,6 +243,7 @@ const MatchCard = ({
                             height: imageSize,
                             borderRadius: imageRadius,
                             borderColor: avatarBorderColor,
+                            borderWidth: useModernConversationsLayout ? 0 : 2,
                           },
                         ]}
                         resizeMode="cover"
@@ -207,6 +259,7 @@ const MatchCard = ({
                             height: imageSize,
                             borderRadius: imageRadius,
                             borderColor: avatarBorderColor,
+                            borderWidth: useModernConversationsLayout ? 0 : 2,
                           },
                         ]}
                         resizeMode="cover"
@@ -236,16 +289,47 @@ const MatchCard = ({
 
         <View style={styles.textColumn}>
           <View style={styles.nameRow}>
-            <Text style={styles.matchName} numberOfLines={1}>{matchObj.match_user.first_name}</Text>
-            {matchObj.last_message_time ? (
+            <Text
+              style={[styles.matchName, useModernConversationsLayout && styles.matchNameModern]}
+              numberOfLines={1}
+            >
+              {matchObj.match_user.first_name}
+            </Text>
+            {!useModernConversationsLayout && matchObj.last_message_time ? (
               <Text style={styles.lastMessageTime}>
                 {formatLastMessageTime(matchObj.last_message_time)}
               </Text>
             ) : null}
           </View>
 
+          {showMessagePreview ? (
+            <View style={styles.messagePreviewRow}>
+              <Text
+                style={styles.messagePreviewText}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+              >
+                {showYouPrefix ? (
+                  <Text style={styles.messagePreviewYou}>You: </Text>
+                ) : null}
+                {messagePreviewBody}
+              </Text>
+              {lastMessageTimeLabel ? (
+                <Text style={styles.messagePreviewMeta} numberOfLines={1}>
+                  {lastMessageTimeLabel}
+                </Text>
+              ) : null}
+            </View>
+          ) : null}
+
           {isPendingApproval && (
-            <View style={[styles.pendingBanner, { backgroundColor: roleBadgeBackground }]}>
+            <View
+              style={[
+                styles.pendingBanner,
+                useModernConversationsLayout && styles.pendingBannerModern,
+                { backgroundColor: roleBadgeBackground },
+              ]}
+            >
               <Text
                 style={[styles.pendingBannerText, { color: roleBadgeText }]}
                 numberOfLines={1}
@@ -256,7 +340,7 @@ const MatchCard = ({
           )}
 
           {(isBlind || userInfo?.role === 'user' || showBothMmsPill) && (
-            <View style={styles.pillsRow}>
+            <View style={[styles.pillsRow, useModernConversationsLayout && styles.pillsRowModern]}>
               {isBlind && (
                 <View style={[styles.blindMatchPill, { backgroundColor: roleBadgeBackground }]}>
                   <Text style={[styles.blindMatchPillText, { color: roleBadgeText }]}>Blind match</Text>
@@ -278,28 +362,30 @@ const MatchCard = ({
           )}
         </View>
 
-        {showPerMatchMessageBell ? (
-          <TouchableOpacity
-            style={[
-              styles.messageBellButton,
-              hasUnreadMessages && styles.messageBellButtonWithUnreadBadge,
-            ]}
-            onPress={() => toggleMatchMessageMuted(matchObj.match_id)}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            accessibilityRole="button"
-            accessibilityLabel={
-              messageMutedForMatch
-                ? 'Turn on message notifications for this match'
-                : 'Mute message notifications for this match'
-            }
-          >
-            <MaterialCommunityIcons
-              name={messageMutedForMatch ? 'bell-off-outline' : 'bell-outline'}
-              size={22}
-              color={bellIconColor}
-            />
-          </TouchableOpacity>
-        ) : null}
+        <View style={styles.rightActionsColumn}>
+          {showPerMatchMessageBell ? (
+            <TouchableOpacity
+              style={styles.messageBellButton}
+              onPress={() => toggleMatchMessageMuted(matchObj.match_id)}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              accessibilityRole="button"
+              accessibilityLabel={
+                messageMutedForMatch
+                  ? 'Turn on message notifications for this match'
+                  : 'Mute message notifications for this match'
+              }
+            >
+              <MaterialCommunityIcons
+                name={messageMutedForMatch ? 'bell-off-outline' : 'bell-outline'}
+                size={22}
+                color={bellIconColor}
+              />
+            </TouchableOpacity>
+          ) : null}
+          {useModernConversationsLayout && hasUnreadMessages ? (
+            <View style={[styles.unreadDot, { backgroundColor: unreadBadgeColor }]} />
+          ) : null}
+        </View>
       </View>
     </TouchableOpacity>
   );
@@ -362,26 +448,35 @@ const styles = StyleSheet.create({
     position: 'relative',
     width: '100%',
   },
+  profileSectionModern: {
+    alignItems: 'flex-start',
+  },
   thumbnailColumn: {
     marginRight: 12,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingTop: 2,
   },
   textColumn: {
     flex: 1,
     minWidth: 0,
     justifyContent: 'center',
   },
+  rightActionsColumn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'center',
+    marginLeft: 8,
+    gap: 8,
+    minWidth: 32,
+  },
   messageBellButton: {
     justifyContent: 'center',
     alignItems: 'center',
-    width: 40,
-    minHeight: 44,
+    width: 32,
+    minHeight: 32,
     flexShrink: 0,
-    marginLeft: 4,
-  },
-  messageBellButtonWithUnreadBadge: {
-    marginRight: 24,
   },
   imageContainer: {
     position: 'relative',
@@ -412,6 +507,42 @@ const styles = StyleSheet.create({
     textAlign: 'left',
     flexShrink: 1,
   },
+  matchNameModern: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1f2937',
+  },
+  messagePreviewRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 3,
+    minWidth: 0,
+  },
+  messagePreviewText: {
+    flex: 1,
+    flexShrink: 1,
+    minWidth: 0,
+    fontSize: 14,
+    color: '#6b7280',
+    lineHeight: 19,
+  },
+  messagePreviewYou: {
+    color: '#6b7280',
+    fontWeight: '500',
+  },
+  messagePreviewMeta: {
+    flexShrink: 0,
+    marginLeft: 6,
+    fontSize: 14,
+    lineHeight: 19,
+    color: '#9ca3af',
+    fontWeight: '400',
+  },
+  unreadDot: {
+    width: 9,
+    height: 9,
+    borderRadius: 4.5,
+  },
   lastMessageTime: {
     fontSize: 11,
     color: '#999',
@@ -424,6 +555,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'flex-start',
     flexWrap: 'wrap',
+  },
+  pillsRowModern: {
+    marginTop: 8,
   },
   blindMatchPill: {
     backgroundColor: '#f2f2f2',
@@ -477,6 +611,12 @@ const styles = StyleSheet.create({
     marginTop: 6,
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  pendingBannerModern: {
+    marginTop: 8,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 999,
   },
   pendingBannerText: {
     fontSize: 11,

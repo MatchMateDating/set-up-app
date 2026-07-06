@@ -11,6 +11,7 @@ import {
 } from './src/context/NotificationContext';
 import AppNavigator from './src/navigation/AppNavigator';
 import ErrorBoundary from './src/components/ErrorBoundary';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { API_BASE_URL } from './src/env';
 import { UserContext } from './src/context/UserContext';
@@ -232,7 +233,8 @@ export default function App() {
   const navigationRef = React.useRef();
 
   return (
-    <KeyboardProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <KeyboardProvider>
         <ErrorBoundary>
           <UserProvider>
             <NotificationProvider>
@@ -243,6 +245,7 @@ export default function App() {
             </NotificationProvider>
           </UserProvider>
         </ErrorBoundary>
-    </KeyboardProvider>
+      </KeyboardProvider>
+    </GestureHandlerRootView>
   );
 }

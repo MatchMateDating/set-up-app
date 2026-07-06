@@ -1,6 +1,10 @@
 import { useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Alert } from 'react-native';
+import {
+  getViewerCoords,
+  sortProfilesByDistanceRandom,
+} from '../utils/profileOrder';
 
 export const useProfiles = (API_BASE_URL) => {
   const [profiles, setProfiles] = useState([]);
@@ -15,12 +19,15 @@ export const useProfiles = (API_BASE_URL) => {
           return;
         }
 
-        const res = await fetch(`${API_BASE_URL}/match/users_to_match`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const headers = { Authorization: `Bearer ${token}` };
 
-        if (res.status === 401) {
-          const data = await res.json();
+        const [profileRes, matchRes] = await Promise.all([
+          fetch(`${API_BASE_URL}/profile/`, { headers }),
+          fetch(`${API_BASE_URL}/match/users_to_match`, { headers }),
+        ]);
+
+        if (profileRes.status === 401 || matchRes.status === 401) {
+          const data = await (profileRes.status === 401 ? profileRes : matchRes).json();
           if (data.error_code === 'TOKEN_EXPIRED') {
             await AsyncStorage.removeItem('token');
           }
@@ -28,12 +35,22 @@ export const useProfiles = (API_BASE_URL) => {
           return;
         }
 
-        if (!res.ok) {
+        if (!matchRes.ok) {
           throw new Error('Failed to fetch profiles');
         }
 
-        const data = await res.json();
-        setProfiles(data);
+        const profileData = profileRes.ok ? await profileRes.json() : null;
+        const matchData = await matchRes.json();
+        const viewerCoords = profileData
+          ? getViewerCoords(profileData.user, profileData.referrer)
+          : null;
+        setProfiles(
+          sortProfilesByDistanceRandom(
+            matchData,
+            viewerCoords?.lat,
+            viewerCoords?.lon
+          )
+        );
       } catch (err) {
         console.error('Error fetching profiles:', err);
         Alert.alert('Error', 'Failed to load profiles');
