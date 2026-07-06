@@ -13,7 +13,7 @@
       },
       "env": {
         "EXPO_PUBLIC_API_BASE_URL": "https://set-up-app-dev.up.railway.app",
-        "EXPO_PUBLIC_ADMOB_ENABLED": "false"
+        "EXPO_PUBLIC_ADMOB_ENABLED": "true"
       }
     },
     "demo": {
