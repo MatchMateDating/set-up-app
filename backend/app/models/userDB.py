@@ -130,6 +130,24 @@ class User(db.Model):
         ]
         return ReferredUsers.query.filter(or_(*slot_filters)).first() is not None
 
+    @classmethod
+    def get_dater_ids_with_linked_matchmaker(cls):
+        """Dater user ids that have at least one linked matchmaker (eligible for matching)."""
+        ids = set()
+        for row in ReferredUsers.query.all():
+            for i in range(1, 11):
+                dater_id = getattr(row, f"linked_dater_{i}_id")
+                if dater_id:
+                    ids.add(dater_id)
+        for dater in User.query.filter(
+            User.role == 'user',
+            User.linked_account_id.isnot(None),
+        ).all():
+            linked_account = dater.get_linked_account()
+            if linked_account and linked_account.role == 'matchmaker':
+                ids.add(dater.id)
+        return ids
+
     def notification_setting_enabled(self, field_name):
         if not self.notifications_enabled:
             return False
