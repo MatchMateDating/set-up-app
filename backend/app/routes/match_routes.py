@@ -330,10 +330,18 @@ def get_users_to_match(current_user):
         acting_user = User.query.get(referred_dater_id)
         if not acting_user:
             return jsonify([]), 404
+
+    if not acting_user.has_linked_matchmaker():
+        return jsonify([]), 200
+
+    matchable_dater_ids = User.get_dater_ids_with_linked_matchmaker()
+    if not matchable_dater_ids:
+        return jsonify([]), 200
     
     query = User.query.filter(
         User.role == 'user',
         User.id != acting_user.id,
+        User.id.in_(matchable_dater_ids),
         User.match_radius.isnot(None),
         User.match_radius > 0
     )
