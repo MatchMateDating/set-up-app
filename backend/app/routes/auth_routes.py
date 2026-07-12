@@ -9,6 +9,7 @@ import resend
 import os
 import re
 from twilio.rest import Client
+from app.services.referral_notification_service import notify_dater_matchmaker_referral_link
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
 
@@ -362,6 +363,10 @@ def register():
         db.session.add(user)
         db.session.commit()
 
+        if role == 'matchmaker' and referred_by:
+            referrer = User.query.get(referred_by)
+            notify_dater_matchmaker_referral_link(user, referrer)
+
         # Create access token (persistent only when remember-me is requested)
         token_expiry = False if remember_me else timedelta(days=1)
         token = create_access_token(identity=str(user.id), expires_delta=token_expiry)
@@ -449,6 +454,8 @@ def register_matchmaker_web():
             if not result['linked']:
                 return jsonify({'msg': 'Maximum of 10 linked daters reached'}), 400
             db.session.commit()
+            if not result['already_linked']:
+                notify_dater_matchmaker_referral_link(existing_matchmaker, referrer)
             return jsonify({
                 'message': 'Referral code applied to your existing matchmaker account.',
                 'action': 'linked_existing_matchmaker',
@@ -478,6 +485,8 @@ def register_matchmaker_web():
             new_matchmaker.linked_account_id = existing_dater.id
             existing_dater.linked_account_id = new_matchmaker.id
             db.session.commit()
+
+            notify_dater_matchmaker_referral_link(new_matchmaker, referrer)
 
             return jsonify({
                 'message': 'A new matchmaker account was created from your existing dater account.',
@@ -519,6 +528,8 @@ def register_matchmaker_web():
 
     db.session.add(user)
     db.session.commit()
+
+    notify_dater_matchmaker_referral_link(user, referrer)
 
     return jsonify({
         'message': 'Account created successfully. Please finish setup in the app.',
@@ -876,6 +887,10 @@ def verify_email():
 
     db.session.add(user)
     db.session.commit()
+
+    if role == 'matchmaker' and referred_by:
+        referrer = User.query.get(referred_by)
+        notify_dater_matchmaker_referral_link(user, referrer)
 
     # Create access token for verified user
     remember_me = get_remember_me_flag(signup_data)

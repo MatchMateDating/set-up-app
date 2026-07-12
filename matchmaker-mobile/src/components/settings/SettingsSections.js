@@ -468,7 +468,13 @@ const SettingsSections = () => {
         });
         if (mmRes.ok) {
           const mmData = await mmRes.json();
-          setLinkedMatchmakers(mmData.linked_matchmakers || []);
+          const matchmakers = mmData.linked_matchmakers || [];
+          setLinkedMatchmakers(matchmakers);
+          setContextUser((prev) =>
+            prev?.id === data.user.id
+              ? { ...prev, has_linked_matchmaker: matchmakers.length > 0 }
+              : prev
+          );
         } else {
           setLinkedMatchmakers([]);
         }
@@ -683,6 +689,14 @@ const SettingsSections = () => {
     setActiveSection(null);
     setShowLinkedDatersOnboarding(true);
   }, [route.params?.showLinkedDatersOnboarding, role]);
+
+  useEffect(() => {
+    if (!route.params?.openReferral || role !== 'user') {
+      return;
+    }
+    setActiveSection(SECTION_KEYS.REFERRAL);
+    navigation.setParams({ openReferral: false, requireMatchmaker: false });
+  }, [route.params?.openReferral, role, navigation]);
 
   const dismissLinkedDatersOnboarding = () => {
     setShowLinkedDatersOnboarding(false);
@@ -2044,7 +2058,7 @@ const SettingsSections = () => {
                 );
               })
             ) : (
-              <Text style={styles.mmLinkedEmpty}>No matchmakers linked yet.</Text>
+              <Text style={styles.mmLinkedEmpty}>You must have a matchmaker to start dating.</Text>
             )}
           </View>
         </View>
