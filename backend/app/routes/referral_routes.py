@@ -4,7 +4,8 @@ from sqlalchemy import or_
 from app import db
 from app.models.userDB import User, ReferredUsers
 from app.dater_invite_tokens import encode_matchmaker_dater_invite
-from app.routes.auth_routes import matchmaker_cannot_link_dater_error
+from app.routes.auth_routes import matchmaker_cannot_link_dater_error, link_dater_to_matchmaker
+from app.services.referral_notification_service import notify_dater_matchmaker_referral_link
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
 referral_bp = Blueprint('referral', __name__)
@@ -51,32 +52,24 @@ def link_referral():
     if link_err:
         return jsonify({"error": link_err}), 400
 
-    referral_row = ReferredUsers.query.filter_by(matchmaker_id=matchmaker.id).first()
-    if not referral_row:
-        referral_row = ReferredUsers(matchmaker_id=matchmaker.id)
-        db.session.add(referral_row)
+    result = link_dater_to_matchmaker(matchmaker, dater)
+    if result.get("error"):
+        return jsonify({"error": result["error"]}), 400
+    if result.get("already_linked"):
+        return jsonify({"error": "Dater already linked"}), 400
+    if not result.get("linked"):
+        return jsonify({"error": "Maximum of 10 linked daters reached"}), 400
 
-    # Check if already linked
-    for i in range(1, 11):
-        existing = getattr(referral_row, f"linked_dater_{i}_id")
-        if existing == dater.id:
-            return jsonify({"error": "Dater already linked"}), 400
+    if matchmaker.referred_by_id is None:
+        matchmaker.referred_by_id = dater.id
+    db.session.commit()
+    notify_dater_matchmaker_referral_link(matchmaker, dater)
 
-    # Find first empty slot
-    for i in range(1, 11):
-        col = f"linked_dater_{i}_id"
-        if getattr(referral_row, col) is None:
-            setattr(referral_row, col, dater.id)
-            if matchmaker.referred_by_id is None:
-                matchmaker.referred_by_id = dater.id
-            db.session.commit()
-            return jsonify({
-                "message": f"Dater {dater.first_name or dater.email} linked to {matchmaker.first_name or matchmaker.email}",
-                "linked_dater_id": dater.id,
-                "selected_dater_id": matchmaker.referred_by_id,
-            }), 200
-
-    return jsonify({"error": "Maximum of 10 linked daters reached"}), 400
+    return jsonify({
+        "message": f"Dater {dater.first_name or dater.email} linked to {matchmaker.first_name or matchmaker.email}",
+        "linked_dater_id": dater.id,
+        "selected_dater_id": matchmaker.referred_by_id,
+    }), 200
 
 @referral_bp.route('/referrals/<int:matchmaker_id>', methods=['GET'])
 @jwt_required()

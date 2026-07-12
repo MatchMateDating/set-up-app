@@ -24,6 +24,7 @@ from app.services.storage_service import (
     extract_key_from_url
 )
 from app.routes.auth_routes import send_verification_email, send_verification_sms, is_email, normalize_phone_number, accounts_share_identity
+from app.services.referral_notification_service import notify_dater_matchmaker_referral_link
 
 
 profile_bp = Blueprint('profile', __name__)
@@ -652,6 +653,8 @@ def create_linked_matchmaker(current_user):
         new_matchmaker.last_active_at = datetime.utcnow()
         
         db.session.commit()
+        
+        notify_dater_matchmaker_referral_link(new_matchmaker, referrer)
         
         # Verify the referred_by_id is set correctly (should be referrer.id, not current_user.id)
         # Refresh the object to ensure all relationships are loaded

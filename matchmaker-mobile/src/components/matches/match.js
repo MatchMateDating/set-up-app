@@ -31,6 +31,7 @@ import { getImageUrl, heightStringToCm, convertHeightForViewer, normalizeHeightU
 import { getRoleAccentColor } from '../layout/components/RoleHeaderBanner';
 import { UserContext } from '../../context/UserContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { daterNeedsMatchmakerLink } from '../../navigation/matchmakerGate';
 
 const MATCH_SCREEN_BG = '#fff5f7';
 const MATCHMAKER_SCREEN_BG = '#f3f4f6';
@@ -93,6 +94,65 @@ const Match = () => {
   const [matchFilters, setMatchFilters] = useState(() => getInitialMatchFilters('Imperial'));
   const [filterDraft, setFilterDraft] = useState(() => getInitialMatchFilters('Imperial'));
   const navigation = useNavigation();
+
+  const refreshMatchmakerLinkStatus = useCallback(async () => {
+    const activeUser = userInfo || contextUser;
+    if (!activeUser || activeUser.role !== 'user') {
+      return;
+    }
+
+    if (activeUser.linked_account?.role === 'matchmaker') {
+      if (activeUser.has_linked_matchmaker !== true) {
+        setContextUser((prev) =>
+          prev?.id === activeUser.id ? { ...prev, has_linked_matchmaker: true } : prev
+        );
+      }
+      return;
+    }
+
+    if (activeUser.has_linked_matchmaker === true) {
+      return;
+    }
+
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) {
+        return;
+      }
+
+      const res = await fetch(`${API_BASE_URL}/referral/linked_matchmakers`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        return;
+      }
+
+      const data = await res.json();
+      const hasLinked = (data.linked_matchmakers || []).length > 0;
+      setContextUser((prev) => {
+        if (prev?.id !== activeUser.id || prev?.has_linked_matchmaker === hasLinked) {
+          return prev;
+        }
+        return { ...prev, has_linked_matchmaker: hasLinked };
+      });
+      if (hasLinked) {
+        setUserInfo((prev) =>
+          prev?.id === activeUser.id ? { ...prev, has_linked_matchmaker: true } : prev
+        );
+      }
+    } catch (err) {
+      console.error('Error checking linked matchmakers:', err);
+    }
+  }, [userInfo, contextUser, setContextUser, setUserInfo]);
+
+  useFocusEffect(
+    useCallback(() => {
+      refreshMatchmakerLinkStatus();
+      const interval = setInterval(refreshMatchmakerLinkStatus, 5000);
+      return () => clearInterval(interval);
+    }, [refreshMatchmakerLinkStatus])
+  );
+
   const selectedDaterId = userInfo?.referrer_id || userInfo?.referred_by_id || null;
 
   const sliderWidth = Dimensions.get('window').width - 56;
@@ -768,6 +828,36 @@ const Match = () => {
     }
   };
 
+  const gateUser = userInfo || contextUser;
+  const activeRole = gateUser?.role || roleHint;
+  const isDaterWithoutMatchmaker =
+    activeRole === 'user' && daterNeedsMatchmakerLink(gateUser);
+
+  if (isDaterWithoutMatchmaker) {
+    return (
+      <View style={[styles.container, { backgroundColor: MATCH_SCREEN_BG }]}>
+        <View
+          style={[
+            styles.screenHeader,
+            styles.screenHeaderDater,
+            { paddingTop: insets.top + 8 },
+          ]}
+        >
+          <Image
+            source={require('../../../assets/matchmate_logo.png')}
+            style={styles.headerLogo}
+            accessibilityLabel="Matchmate logo"
+          />
+        </View>
+        <View style={[styles.loadingContainerInline, styles.matchmakerRequiredWrap]}>
+          <Text style={[styles.loadingText, styles.matchmakerRequiredText]}>
+            {"You can't see matches until you have a matchmaker. Go to Settings > Referral Code to share your referral code with a matchmaker."}
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
   if (loading || refreshing) {
     const loadingRole = userInfo?.role || roleHint || 'user';
     const loadingColor = getRoleAccentColor(loadingRole);
@@ -1333,6 +1423,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: 'transparent',
+  },
+  matchmakerRequiredWrap: {
+    paddingHorizontal: 32,
+  },
+  matchmakerRequiredText: {
+    textAlign: 'center',
   },
   emptyContainer: {
     padding: 40,

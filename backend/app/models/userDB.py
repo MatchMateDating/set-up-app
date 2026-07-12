@@ -3,7 +3,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import uuid
 import secrets
 from sqlalchemy.ext.mutable import MutableList
-from sqlalchemy import JSON
+from sqlalchemy import JSON, or_
 from datetime import datetime
 
 class User(db.Model):
@@ -117,6 +117,19 @@ class User(db.Model):
             return User.query.get(self.linked_account_id)
         return None
 
+    def has_linked_matchmaker(self):
+        """True if this dater has at least one matchmaker in their roster."""
+        if self.role != 'user':
+            return False
+        linked_account = self.get_linked_account()
+        if linked_account and linked_account.role == 'matchmaker':
+            return True
+        slot_filters = [
+            getattr(ReferredUsers, f"linked_dater_{i}_id") == self.id
+            for i in range(1, 11)
+        ]
+        return ReferredUsers.query.filter(or_(*slot_filters)).first() is not None
+
     def notification_setting_enabled(self, field_name):
         if not self.notifications_enabled:
             return False
@@ -199,6 +212,7 @@ class User(db.Model):
             "email_verified": self.email_verified,
             "phone_verified": self.phone_verified,
             "profile_completion_step": self.profile_completion_step,
+            "has_linked_matchmaker": self.has_linked_matchmaker() if self.role == 'user' else None,
         }
 
 class ReferredUsers(db.Model):

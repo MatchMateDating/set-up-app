@@ -48,6 +48,7 @@ import {
   getRoleAccentColor,
   getRoleContainerColor,
 } from '../layout/components/RoleHeaderBanner';
+import { getMatchmakerGateNavigationReset } from '../../navigation/matchmakerGate';
 
 const MATCHMAKER_SETUP_STEPS = [{ number: 1, label: 'Setup' }];
 const PROFILE_UPDATE_RETRY = { retries: 3, baseDelayMs: 400 };
@@ -69,6 +70,18 @@ const CompleteProfile = () => {
       routes: [{ name: 'Main', params: { screen: 'Matches' } }],
     });
   }, [navigation]);
+
+  const resetToMatchmakerGate = useCallback(() => {
+    navigation.reset(getMatchmakerGateNavigationReset());
+  }, [navigation]);
+
+  const afterDaterProfileComplete = useCallback(() => {
+    if (creatingLinkedDater) {
+      resetToMainMatches();
+      return;
+    }
+    resetToMatchmakerGate();
+  }, [creatingLinkedDater, resetToMainMatches, resetToMatchmakerGate]);
 
   const resetToLogin = useCallback(() => {
     navigation.reset({
@@ -701,16 +714,14 @@ const CompleteProfile = () => {
           {
             text: 'Not Now',
             style: 'cancel',
-            onPress: () => {
-              resetToMainMatches();
-            },
+            onPress: afterDaterProfileComplete,
           },
           {
             text: 'Enable',
             onPress: async () => {
               // User wants to enable - request permissions
               await requestNotificationPermissions();
-              resetToMainMatches();
+              afterDaterProfileComplete();
             },
           },
         ],
