@@ -254,6 +254,7 @@ const SettingsSections = () => {
   const [showEmailInviteModal, setShowEmailInviteModal] = useState(false);
   const [emailInviteInput, setEmailInviteInput] = useState('');
   const [showLinkedDatersOnboarding, setShowLinkedDatersOnboarding] = useState(false);
+  const [showReferralShareOnboarding, setShowReferralShareOnboarding] = useState(false);
   const [cachedDaterInviteUrl, setCachedDaterInviteUrl] = useState('');
   const [daterInviteLinkLoading, setDaterInviteLinkLoading] = useState(false);
   const [showDaterInviteEmailModal, setShowDaterInviteEmailModal] = useState(false);
@@ -695,8 +696,13 @@ const SettingsSections = () => {
       return;
     }
     setActiveSection(SECTION_KEYS.REFERRAL);
+    setShowReferralShareOnboarding(true);
     navigation.setParams({ openReferral: false, requireMatchmaker: false });
   }, [route.params?.openReferral, role, navigation]);
+
+  const dismissReferralShareOnboarding = () => {
+    setShowReferralShareOnboarding(false);
+  };
 
   const dismissLinkedDatersOnboarding = () => {
     setShowLinkedDatersOnboarding(false);
@@ -2495,6 +2501,30 @@ const SettingsSections = () => {
             </View>
           </TouchableWithoutFeedback>
         </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal
+        visible={showReferralShareOnboarding}
+        transparent
+        animationType="fade"
+        onRequestClose={dismissReferralShareOnboarding}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Share Your Referral Code</Text>
+            <Text style={styles.modalDescription}>
+              Please share your referral code or link with a trusted friend. This will give that friend
+              the ability to matchmake for you. Once they have added your referral code to their account,
+              you can both start matching!
+            </Text>
+            <TouchableOpacity
+              style={[styles.primaryBtn, { backgroundColor: accentColor }]}
+              onPress={dismissReferralShareOnboarding}
+            >
+              <Text style={styles.primaryBtnText}>Got it</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </Modal>
 
       <Modal
