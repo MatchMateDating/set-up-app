@@ -1,16 +1,27 @@
 .bottom-tab {
-  position: fixed;
+  position: absolute;
   bottom: 0;
   left: 0;
   right: 0;
-  height: 64px;
+  height: var(--tab-bar-height, 64px);
   background: #ffffff;
   display: flex;
   justify-content: space-around;
   align-items: center;
-  border-top: 1px solid #eaeaea;
-  box-shadow: 0 -3px 10px rgba(0, 0, 0, 0.08);
+  border-top: none;
   z-index: 1000;
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+.bottom-tab.dater {
+  border-top-left-radius: 22px;
+  border-top-right-radius: 22px;
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.bottom-tab.matchmaker {
+  box-shadow: none;
+  border-top: 1px solid #f0f0f0;
 }
 
 .tab-button {
@@ -23,39 +34,20 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: #6b7280; /* Gray */
-  font-size: 13px;
-  transition: all 0.25s ease;
+  color: gray;
+  height: 100%;
+  position: relative;
+  transition: color 0.2s ease;
 }
 
 .tab-button .tab-icon {
-  font-size: 20px;
-  margin-bottom: 4px;
-  transition: transform 0.2s ease;
-}
-
-.tab-button:hover .tab-icon {
-  transform: scale(1.15);
+  font-size: 22px;
 }
 
 .tab-button.active {
-  color: #5A35A8;
-  font-weight: 600;
+  color: var(--tab-accent, #6c5ce7);
 }
 
-.tab-button.active .tab-icon {
-  color: #5A35A8;
-  transform: scale(1.2);
-}
-
-/* Optional: subtle indicator for active tab */
-.tab-button.active::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  height: 3px;
-  width: 28px;
-  background: #5A35A8;
-  border-radius: 2px;
-  transition: width 0.3s ease;
+.tab-button:active {
+  background: transparent;
 }

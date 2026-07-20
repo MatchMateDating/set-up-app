@@ -3,10 +3,14 @@
     border: none;
     font-size: 1rem;
     cursor: pointer;
-    color: var(--primary);
+    color: var(--accent, #6c5ce7);
     align-self: flex-start;
-    margin: 10px 16px 0 16px;
-    padding-top: 40px;
+    margin: 8px 16px;
+    font-weight: 600;
+}
+
+.profile-page-body {
+    padding: 0 0 8px;
 }
 
 .profile-header {
@@ -21,6 +25,8 @@
     height: 80px;
     border-radius: 50%;
     cursor: pointer;
+    object-fit: cover;
+    border: 2px solid var(--accent, #6c5ce7);
 }
 
 .profile-info {
@@ -32,13 +38,15 @@
     margin: 0;
     font-size: 1.5rem;
     font-weight: bold;
+    color: var(--text-primary, #1a1a2e);
 }
 
 .embedded-profile {
-    padding: 16px;
+    padding: 8px 16px 16px;
 }
 
-.profile-page-container {
-    padding-bottom: 60px;
-    padding-top: 66px;
+.embedded-profile h3 {
+    margin: 0 0 12px;
+    color: var(--accent, #6c5ce7);
+    font-size: 1rem;
 }

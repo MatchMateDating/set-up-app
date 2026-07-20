@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import SideBar from "../layout/sideBar";
+import AppShell from "../layout/AppShell";
 import { useUserInfo } from "./hooks/useUserInfo";
 import SendPuzzle from "./conversationPuzzle";
 import "./matchConvo.css";
@@ -263,14 +263,19 @@ const MatchConvo = () => {
     }
   };
 
-  if (loading) return <p>Loading conversation...</p>;
+  if (loading) {
+    return (
+      <AppShell showTabs={false}>
+        <p className="convo-loading">Loading conversation...</p>
+      </AppShell>
+    );
+  }
 
   return (
-    <div>
-      <SideBar />
+    <AppShell showTabs={false}>
       <div className="match-convo-container">
         <button className="back-button" onClick={() => navigate("/conversations")}>
-          ⬅ Back
+          ← Back
         </button>
 
         {matchUser && (
@@ -405,7 +410,7 @@ const MatchConvo = () => {
           </div>
         )}
       </div>
-    </div>
+    </AppShell>
   );
 };
 

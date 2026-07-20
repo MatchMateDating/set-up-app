@@ -1,0 +1,57 @@
+.app-shell-backdrop {
+  min-height: 100vh;
+  width: 100%;
+  background: #e8e8ed;
+  display: flex;
+  justify-content: center;
+}
+
+.app-shell {
+  width: 100%;
+  max-width: var(--shell-width, 430px);
+  min-height: 100vh;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: var(--screen-bg);
+  box-shadow: 0 0 40px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+}
+
+.app-shell-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  min-height: var(--header-height, 56px);
+  background: transparent;
+  flex-shrink: 0;
+  z-index: 20;
+}
+
+.app-shell-logo {
+  height: 36px;
+  width: auto;
+  object-fit: contain;
+}
+
+.app-shell-dater-overlay {
+  padding: 0 16px 8px;
+  z-index: 15;
+  flex-shrink: 0;
+}
+
+.app-shell-content {
+  flex: 1;
+  overflow-y: auto;
+  padding-bottom: calc(var(--tab-bar-height, 64px) + 8px);
+  -webkit-overflow-scrolling: touch;
+}
+
+.app-shell-content.no-tabs {
+  padding-bottom: 16px;
+}
+
+.app-shell-content.with-dater {
+  padding-top: 0;
+}

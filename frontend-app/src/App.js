@@ -1,7 +1,7 @@
-import logo from './logo.svg';
-import './App.css';
-import React, { useEffect } from 'react';
+import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { UserProvider } from './context/UserContext';
+import './theme/tokens.css';
 import Login from './components/auth/login';
 import SignUp from './components/auth/signUp';
 import ResetPassword from './components/auth/resetPassword';
@@ -16,25 +16,25 @@ import PuzzlesHub from './components/puzzles/puzzlesPage';
 import PersonalityQuiz from './components/puzzles/personalityQuiz';
 
 function App() {
-  
   return (
-    <Router>
-      <Routes>
-        <Route path="/" element={<Login />} />
-        <Route path="/signup" element={<SignUp />} />
-        <Route path="/reset-password" element={<ResetPassword />} />
-        <Route path="/complete-profile" element={<CompleteProfile />} />
-        <Route path="/profile" element={<ProfilePage />} />
-        <Route path="/profile/:userId?" element={<ProfilePage />} />
-        <Route path="/settings" element={<Settings />} />
-        <Route path="/preferences" element={<Preferences />} />
-        <Route path="/conversations" element={<Conversations />} />
-        <Route path="/conversation/:matchId" element={<MatchConvo />} />
-        <Route path="/match" element={<Match />} />
-        <Route path="/puzzles" element={<PuzzlesHub />} />
-        <Route path="/puzzles/personality-quiz" element={<PersonalityQuiz />} />
-      </Routes>
-    </Router>
+    <UserProvider>
+      <Router>
+        <Routes>
+          <Route path="/" element={<Login />} />
+          <Route path="/signup" element={<SignUp />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/complete-profile" element={<CompleteProfile />} />
+          <Route path="/profile/:userId?" element={<ProfilePage />} />
+          <Route path="/settings" element={<Settings />} />
+          <Route path="/preferences" element={<Preferences />} />
+          <Route path="/conversations" element={<Conversations />} />
+          <Route path="/conversation/:matchId" element={<MatchConvo />} />
+          <Route path="/match" element={<Match />} />
+          <Route path="/puzzles" element={<PuzzlesHub />} />
+          <Route path="/puzzles/personality-quiz" element={<PersonalityQuiz />} />
+        </Routes>
+      </Router>
+    </UserProvider>
   );
 }
 

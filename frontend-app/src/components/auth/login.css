@@ -1,31 +1,164 @@
-.login-container {
-    max-width: 300px;
-    margin: 100px auto;
-    padding: 20px;
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    text-align: center;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+.auth-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  background: linear-gradient(180deg, #f7f5ff 0%, #efe7ff 100%);
 }
 
-.login-container input {
-    width: 100%;
-    margin: 8px 0;
-    padding: 10px;
-    box-sizing: border-box;
+.login-container,
+.sign-up-container,
+.reset-password-container {
+  width: 100%;
+  max-width: 380px;
+  margin: 0 auto;
+  padding: 28px 24px 32px;
+  border: none;
+  border-radius: 16px;
+  text-align: center;
+  background: #ffffff;
+  box-shadow: 0 8px 32px rgba(108, 92, 231, 0.12);
 }
 
-.login-container button {
-    width: 100%;
-    margin: 8px 0;
-    padding: 10px;
-    background-color: var(--primary, #6B46C1); /* use app primary with purple fallback */
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
+.auth-logo {
+  width: 120px;
+  height: auto;
+  margin: 0 auto 12px;
+  display: block;
+  object-fit: contain;
 }
 
-.login-container button:hover {
-    background-color: var(--primary-dark, #5A35A8); /* hover uses primary-dark fallback */
+.login-container h2,
+.sign-up-container h2,
+.reset-password-container h2 {
+  margin: 0 0 8px;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1a1a2e;
+}
+
+.auth-subtitle {
+  margin: 0 0 20px;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.login-container input,
+.sign-up-container input,
+.reset-password-container input {
+  width: 100%;
+  margin: 8px 0;
+  padding: 12px 14px;
+  box-sizing: border-box;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fafafa;
+  font-size: 15px;
+  color: #1a1a2e;
+  outline: none;
+}
+
+.login-container input:focus,
+.sign-up-container input:focus,
+.reset-password-container input:focus {
+  border-color: #6c5ce7;
+  box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.15);
+}
+
+.login-container button,
+.sign-up-container button,
+.reset-password-container button {
+  width: 100%;
+  margin: 8px 0;
+  padding: 12px 14px;
+  background-color: #6c5ce7;
+  color: white;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.login-container button:hover,
+.sign-up-container button:hover,
+.reset-password-container button:hover {
+  background-color: #5a4bd1;
+}
+
+.login-container button.secondary,
+.sign-up-container button.secondary {
+  background: transparent;
+  color: #6c5ce7;
+  border: 1px solid #6c5ce7;
+}
+
+.login-container button.secondary:hover,
+.sign-up-container button.secondary:hover {
+  background: rgba(108, 92, 231, 0.08);
+}
+
+.login-container p,
+.sign-up-container p {
+  margin: 12px 0 4px;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.auth-link {
+  color: #6c5ce7;
+  font-weight: 600;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 14px;
+}
+
+.role-toggle-wrapper {
+  width: 100%;
+  box-sizing: border-box;
+  border-radius: 10px;
+  border: none;
+  padding: 6px 0 8px;
+  margin: 8px 0 14px;
+  background: transparent;
+}
+
+.role-toggle {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
+.role-btn {
+  appearance: none;
+  border: 1px solid #e5e7eb;
+  background: #fafafa;
+  padding: 10px;
+  cursor: pointer;
+  font-weight: 600;
+  color: #6c5ce7;
+  flex: 1 1 50%;
+  border-radius: 10px;
+  transition: transform 0.14s ease, box-shadow 0.14s ease, background-color 0.14s ease;
+}
+
+.role-btn.active {
+  background: #6c5ce7;
+  color: #fff;
+  border-color: #6c5ce7;
+  box-shadow: 0 8px 20px rgba(108, 92, 231, 0.2);
+}
+
+.role-btn:not(.active):hover {
+  background: #f3f0ff;
+}
+
+.error-message {
+  color: #ef4d73;
+  font-size: 14px;
+  margin: 8px 0 12px;
+  text-align: left;
 }

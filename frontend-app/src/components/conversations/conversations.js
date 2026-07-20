@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import BottomTab from '../layout/bottomTab';
 import './conversations.css';
-import SideBar from '../layout/sideBar';
+import AppShell from '../layout/AppShell';
 import { useNavigate } from 'react-router-dom';
 import MatchCard from './matchCard';
 import ToggleConversations from './toggleConversations';
@@ -10,7 +9,7 @@ import { useUserInfo } from './hooks/useUserInfo';
 
 const Conversations = () => {
   const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
-  const [showDaterMatches, setShowDaterMatches, loading] = useState(true);
+  const [showDaterMatches, setShowDaterMatches] = useState(true);
   const { userInfo, setUserInfo} = useUserInfo(API_BASE_URL);
   const { matches, setMatches, fetchMatches } = useMatches(API_BASE_URL);
   const matchedList = Array.isArray(matches) ? matches : (matches?.matched || []);
@@ -190,19 +189,14 @@ const Conversations = () => {
   };
 
 
-  if (loading) {
-    return <div>Loading...</div>;
-  }
-
   return (
-    <div>
-      <SideBar 
-      onSelectedDaterChange={(newDaterId) => {
-        console.log('Dater changed to:', newDaterId);
-        fetchProfile()
-        fetchMatches()
-      }}/>
-      <div style={{ paddingBottom: '60px', paddingTop: '66px' }}>
+    <AppShell
+      onSelectedDaterChange={() => {
+        fetchProfile();
+        fetchMatches();
+      }}
+    >
+      <div className="conversations-body">
         {userInfo && userInfo.role === 'user' && (matchedList.length > 0 || pendingApprovalList.length > 0) && (
           <ToggleConversations
             showDaterMatches={showDaterMatches}
@@ -271,9 +265,8 @@ const Conversations = () => {
             ))}
           </div>
         )}
-        <BottomTab />
       </div>
-    </div>
+    </AppShell>
   );
 };
 

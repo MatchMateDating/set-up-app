@@ -1,6 +1,6 @@
 :root {
-    --primary: #6b46c1;
-    --primary-dark: #553c9a;
+    --primary: #6c5ce7;
+    --primary-dark: #5a4bd1;
     --neutral: #f9fafb;
     --neutral-border: #e5e7eb;
     --neutral-dark: #d1d5db;
@@ -10,11 +10,11 @@
 .match-convo-container {
     display: flex;
     flex-direction: column;
-    height: 100vh;
+    height: calc(100vh - var(--header-height, 56px));
+    min-height: 480px;
     padding: 0;
     box-sizing: border-box;
     overflow: hidden;
-    padding-top: 40px;
 }
 
 .back-button {
@@ -24,7 +24,14 @@
     cursor: pointer;
     color: var(--primary);
     align-self: flex-start;
-    margin: 10px 16px 0 16px;
+    margin: 8px 16px 0 16px;
+    font-weight: 600;
+}
+
+.convo-loading {
+    padding: 24px 16px;
+    text-align: center;
+    color: var(--text-muted);
 }
 
 .match-avatar-section {

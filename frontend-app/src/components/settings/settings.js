@@ -3,10 +3,15 @@ import {
   FaCopy,
   FaShare,
   FaEnvelope,
-  FaArrowLeft,
   FaUserPlus,
+  FaHeart,
+  FaPuzzlePiece,
+  FaSignOutAlt,
+  FaChevronRight,
 } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
+import AppShell from "../layout/AppShell";
+import { useUser } from "../../context/UserContext";
 import "./settings.css";
 
 const Settings = () => {
@@ -15,9 +20,8 @@ const Settings = () => {
   const [showCode, setShowCode] = useState(false);
   const [role, setRole] = useState(null);
   const navigate = useNavigate();
-  const [referralCodes, setReferralCodes] = useState([]);
   const [savedReferrals, setSavedReferrals] = useState([]);
-
+  const { setUser } = useUser();
 
   useEffect(() => {
     const fetchUserProfile = async () => {
@@ -36,6 +40,7 @@ const Settings = () => {
         const data = await res.json();
 
         setRole(data.user.role);
+        setUser(data.user);
         if (data.user?.referral_code) {
           setReferralCode(data.user.referral_code);
         }
@@ -58,7 +63,7 @@ const Settings = () => {
     };
 
     fetchUserProfile();
-  }, []);
+  }, [API_BASE_URL, setUser]);
 
   const handleToggleCode = () => setShowCode((prev) => !prev);
 
@@ -123,82 +128,125 @@ const Settings = () => {
     }
   };
 
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    localStorage.removeItem("selectedDater");
+    localStorage.removeItem("activeMatchId");
+    setUser(null);
+    navigate("/", { replace: true });
+  };
+
   return (
-    <div className="settings-page">
-      <button className="back-btn" onClick={() => navigate(-1)}>
-        <FaArrowLeft /> Back
-      </button>
+    <AppShell>
+      <div className="settings-page">
+        <h2 className="settings-title">Settings</h2>
 
-      <h2 className="settings-title">Settings</h2>
-
-      {role === "user" && (
-        <div className="settings-card fade-in">
-          <h3 className="card-header">Your Referral Code</h3>
-          <button className="primary-btn" onClick={handleToggleCode}>
-            {showCode ? "Hide Code" : "Show Code"}
-          </button>
-
-          {showCode && (
-            <div className="referral-display">
-              <div className="referral-code-box">{referralCode}</div>
-              <div className="button-group">
-                <button
-                  className="icon-btn"
-                  onClick={() => navigator.clipboard.writeText(referralCode)}
-                  title="Copy"
-                >
-                  <FaCopy />
-                </button>
-                <button className="icon-btn" onClick={handleShare} title="Share">
-                  <FaShare />
-                </button>
-                <button
-                  className="icon-btn"
-                  onClick={handleInvite}
-                  title="Invite by Email"
-                >
-                  <FaEnvelope />
-                </button>
-              </div>
-            </div>
+        <div className="settings-nav-list fade-in">
+          {role === "user" && (
+            <>
+              <button
+                type="button"
+                className="settings-nav-item"
+                onClick={() => navigate("/preferences")}
+              >
+                <span className="settings-nav-left">
+                  <FaHeart /> Preferences
+                </span>
+                <FaChevronRight className="settings-nav-chevron" />
+              </button>
+              <button
+                type="button"
+                className="settings-nav-item"
+                onClick={() => navigate("/puzzles")}
+              >
+                <span className="settings-nav-left">
+                  <FaPuzzlePiece /> Puzzles
+                </span>
+                <FaChevronRight className="settings-nav-chevron" />
+              </button>
+            </>
           )}
+          <button
+            type="button"
+            className="settings-nav-item logout"
+            onClick={handleLogout}
+          >
+            <span className="settings-nav-left">
+              <FaSignOutAlt /> Log Out
+            </span>
+          </button>
         </div>
-      )}
 
-      {role === "matchmaker" && (
-        <div className="settings-card fade-in">
-          <h3 className="card-header">Link Additional Daters</h3>
-          <div className="referral-input-group">
-            <input
-              type="text"
-              value={referralCode}
-              placeholder="Enter referral code"
-              onChange={(e) => setReferralCode(e.target.value)}
-              className="referral-input"
-            />
-            <button className="save-btn" onClick={handleSaveReferral}>
-              <FaUserPlus /> Add
+        {role === "user" && (
+          <div className="settings-card fade-in">
+            <h3 className="card-header">Your Referral Code</h3>
+            <button className="primary-btn" onClick={handleToggleCode}>
+              {showCode ? "Hide Code" : "Show Code"}
             </button>
-          </div>
 
-          <div className="saved-referrals">
-            <h4>Linked Daters</h4>
-            {savedReferrals.length > 0 ? (
-              <ul>
-                {savedReferrals.map((ref, idx) => (
-                  <li key={idx}>
-                    <strong>{ref.name}</strong>
-                    <span className="referral-tag">{ref.referral_code}</span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="empty-state">No linked daters yet.</p>
+            {showCode && (
+              <div className="referral-display">
+                <div className="referral-code-box">{referralCode}</div>
+                <div className="button-group">
+                  <button
+                    className="icon-btn"
+                    onClick={() => navigator.clipboard.writeText(referralCode)}
+                    title="Copy"
+                  >
+                    <FaCopy />
+                  </button>
+                  <button className="icon-btn" onClick={handleShare} title="Share">
+                    <FaShare />
+                  </button>
+                  <button
+                    className="icon-btn"
+                    onClick={handleInvite}
+                    title="Invite by Email"
+                  >
+                    <FaEnvelope />
+                  </button>
+                </div>
+              </div>
             )}
           </div>
-        </div>
-      )}
-    </div>
+        )}
+
+        {role === "matchmaker" && (
+          <div className="settings-card fade-in">
+            <h3 className="card-header">Link Additional Daters</h3>
+            <div className="referral-input-group">
+              <input
+                type="text"
+                value={referralCode}
+                placeholder="Enter referral code"
+                onChange={(e) => setReferralCode(e.target.value)}
+                className="referral-input"
+              />
+              <button className="save-btn" onClick={handleSaveReferral}>
+                <FaUserPlus /> Add
+              </button>
+            </div>
+
+            <div className="saved-referrals">
+              <h4>Linked Daters</h4>
+              {savedReferrals.length > 0 ? (
+                <ul>
+                  {savedReferrals.map((ref, idx) => (
+                    <li key={idx}>
+                      <strong>{ref.name}</strong>
+                      <span className="referral-tag">{ref.referral_code}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="empty-state">No linked daters yet.</p>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </AppShell>
   );
 };
 

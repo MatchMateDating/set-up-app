@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Profile from './profile';
-import BottomTab from '../layout/bottomTab';
-import SideBar from '../layout/sideBar';
+import AppShell from '../layout/AppShell';
 import AvatarSelectorModal from './avatarSelectorModal';
+import { useUser } from '../../context/UserContext';
 import './profilePage.css';
 
 const ProfilePage = () => {
@@ -15,7 +15,7 @@ const ProfilePage = () => {
   const [avatar, setAvatar] = useState(null);
   const { userId } = useParams();
   const navigate = useNavigate();
-  // const [avatar, setAvatar] = useState(user?.avatar || 'avatars/allyson_avatar.png');
+  const { setUser: setContextUser, setIsProfileEditing } = useUser();
 
   const fetchProfile = () => {
     const token = localStorage.getItem('token');
@@ -37,7 +37,7 @@ const ProfilePage = () => {
       .then((data) => {
         if (!data) return; // avoid running if we already redirected
         setUser(data.user);
-        console.log('User profile fetched:', user);
+        if (!userId && data.user) setContextUser(data.user);
         setReferrer(data.referrer || null);
       })
       .catch((err) => console.error('Error loading profile:', err));
@@ -64,11 +64,21 @@ const ProfilePage = () => {
 
   useEffect(() => {
     fetchProfile();
+  }, [userId]);
+
+  useEffect(() => {
     if (user?.role === 'matchmaker') {
       setAvatar(user.avatar);
-      fetchReferrer(user.referred_by_id);
+      if (user.referred_by_id || user.referrer_id) {
+        fetchReferrer(user.referred_by_id || user.referrer_id);
+      }
     }
-  }, []);
+  }, [user?.id, user?.role, user?.referred_by_id, user?.referrer_id]);
+
+  useEffect(() => {
+    setIsProfileEditing(editing);
+    return () => setIsProfileEditing(false);
+  }, [editing, setIsProfileEditing]);
 
   const handleAvatarClick = () => {
     setShowAvatarModal(true);
@@ -79,28 +89,25 @@ const ProfilePage = () => {
     setEditing(false);
   };
 
-  const isOwnProfile = !userId || userId === user?.id;
+  const isOwnProfile = !userId || String(userId) === String(user?.id);
 
   return (
-    <>
-      <SideBar onSelectedDaterChange={(newDaterId) => fetchReferrer(newDaterId)}/>
+    <AppShell onSelectedDaterChange={(newDaterId) => fetchReferrer(newDaterId)}>
       {userId && (
         <button className="back-button" onClick={() => navigate(-1)}>
-          ⬅ Back
+          ← Back
         </button>
       )}
-      <div style={{ paddingBottom: '60px', paddingTop: '66px' }}>
-        {user?.role ==='user' && (
-          <>
-            <Profile
-              user={user}
-              framed={false}
-              editing={editing}
-              setEditing={setEditing}
-              onSave={handleSave}
-              editable={!userId}
-            />
-          </>
+      <div className="profile-page-body">
+        {user?.role === 'user' && (
+          <Profile
+            user={user}
+            framed={false}
+            editing={editing}
+            setEditing={setEditing}
+            onSave={handleSave}
+            editable={!userId}
+          />
         )}
 
         {user?.role === 'matchmaker' && referrer && (
@@ -134,10 +141,8 @@ const ProfilePage = () => {
             onClose={() => setShowAvatarModal(false)}
           />
         )}
-
-        <BottomTab />
       </div>
-    </>
+    </AppShell>
   );
 };
 

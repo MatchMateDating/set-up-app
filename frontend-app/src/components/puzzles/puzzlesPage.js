@@ -1,7 +1,7 @@
 // src/components/GameHub.js
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import SideBar from '../layout/sideBar';
+import AppShell from '../layout/AppShell';
 import './puzzles.css';
 import { FaArrowLeft } from 'react-icons/fa';
 
@@ -15,13 +15,12 @@ const PuzzlesHub = () => {
   const navigate = useNavigate();
 
   return (
-    <div className="puzzles-page">
-      <SideBar/>
+    <AppShell showTabs={false}>
       <div className="puzzles-container">
-        <button className="back-btn" onClick={() => navigate('/profile')}>
+        <button className="back-btn" onClick={() => navigate('/settings')}>
           <FaArrowLeft /> Back
         </button>
-        <h1 className="puzzles-title">🎮 Puzzles Hub</h1>
+        <h1 className="puzzles-title">Puzzles Hub</h1>
         <div className="puzzles-grid">
           {games.map((game) => (
             <button
@@ -34,7 +33,7 @@ const PuzzlesHub = () => {
           ))}
         </div>
       </div>
-    </div>
+    </AppShell>
   );
 };
 

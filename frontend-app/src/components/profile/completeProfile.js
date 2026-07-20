@@ -9,6 +9,7 @@ import Select from 'react-select';
 import PixelClouds from './components/PixelClouds';
 import { themeDefaultFonts } from './components/themeDefaults';
 import {StepIndicator} from './components/stepIndicator';
+import AppShell from '../layout/AppShell';
 
 const CompleteProfile = () => {
   const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
@@ -295,7 +296,7 @@ const CompleteProfile = () => {
           first_name: user.first_name || prev.first_name,
           last_name: user.last_name || prev.last_name,
           matchWithAll,
-          matchRadius: matchWithAll ? 500 : (user.match_radius ?? prev.matchRadius || 50),
+          matchRadius: matchWithAll ? 500 : (user.match_radius ?? (prev.matchRadius || 50)),
         }));
         // If the stored font differs from the theme default, treat it as manually chosen
         const storedFont = '';
@@ -362,7 +363,8 @@ const CompleteProfile = () => {
   };
 
   return (
-    <div className="profile-page-container">
+    <AppShell showTabs={false}>
+    <div className="profile-page-container complete-profile-shell">
       <StepIndicator step={step} />
 
       <div className="space-y-4">
@@ -603,6 +605,7 @@ const CompleteProfile = () => {
         {success && <p className="text-green-600 text-sm">{success}</p>}
       </div>
     </div>
+    </AppShell>
   );
 };
 

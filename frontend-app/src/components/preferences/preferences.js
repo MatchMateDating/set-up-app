@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { FaArrowLeft, FaEdit } from 'react-icons/fa';
 import FormField from '../profile/components/formField';
 import Select from 'react-select';
+import AppShell from '../layout/AppShell';
 
 const Preferences = () => {
   const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
@@ -117,10 +118,11 @@ const Preferences = () => {
   };
 
   return (
+    <AppShell showTabs={false}>
     <div className="preferences-page">
       <div className="preferences-card">
         <div className="preferences-header">
-          <button className="back-btn" onClick={() => navigate(-1)}>
+          <button className="back-btn" onClick={() => navigate('/settings')}>
             <FaArrowLeft /> Back
           </button>
           {!editing && (
@@ -233,6 +235,7 @@ const Preferences = () => {
         </form>
       </div>
     </div>
+    </AppShell>
   );
 };
 

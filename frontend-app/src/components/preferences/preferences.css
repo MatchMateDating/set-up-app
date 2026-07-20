@@ -2,9 +2,9 @@
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  padding: 40px 20px;
-  background: var(--background, #f8fafc);
-  min-height: 100vh;
+  padding: 16px;
+  background: transparent;
+  min-height: auto;
 }
 
 .preferences-card {
@@ -33,7 +33,7 @@
   align-items: center;
   gap: 8px;
   font-weight: 500;
-  color: var(--primary, #2563eb);
+  color: #6c5ce7;
   background: none;
   border: none;
   cursor: pointer;
@@ -47,14 +47,14 @@
 
 .edit-icon {
   font-size: 1.3rem;
-  color: var(--primary, #2563eb);
+  color: #6c5ce7;
   cursor: pointer;
   transition: transform 0.15s ease, color 0.15s ease;
 }
 
 .edit-icon:hover {
   transform: scale(1.15);
-  color: var(--primary-dark, #1e40af);
+  color: #5a4bd1;
 }
 
 /* Form styling */
@@ -80,7 +80,7 @@ input[type="range"] {
 }
 
 input[type="range"] {
-  accent-color: var(--primary, #2563eb);
+  accent-color: #6c5ce7;
   width: 100%;
 }
 
@@ -119,12 +119,12 @@ input[type="range"] {
 }
 
 .primary-btn {
-  background: var(--primary, #2563eb);
+  background: #6c5ce7;
   color: #fff;
 }
 
 .primary-btn:hover {
-  background: var(--primary-dark, #1e40af);
+  background: #5a4bd1;
 }
 
 .secondary-btn {

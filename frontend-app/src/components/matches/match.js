@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import BottomTab from '../layout/bottomTab';
-import SideBar from '../layout/sideBar';
+import AppShell from '../layout/AppShell';
 import './match.css';
 import SendNoteModal from './sendNoteModal';
 import BlindMatchButton from './blindMatchButton';
@@ -169,15 +168,21 @@ const Match = () => {
     nextProfile();
   };
 
-  if (loading) return <p>Loading profiles...</p>;
+  if (loading) {
+    return (
+      <AppShell>
+        <p className="match-empty">Loading profiles...</p>
+      </AppShell>
+    );
+  }
 
   return (
-    <div>
-      <SideBar 
-        onSelectedDaterChange={(newDaterId) => {
-          fetchReferrer(newDaterId);
-          fetchProfiles();
-        }}/>
+    <AppShell
+      onSelectedDaterChange={(newDaterId) => {
+        fetchReferrer(newDaterId);
+        fetchProfiles();
+      }}
+    >
       <div className="match-container">
         {profiles.length > 0 && currentIndex < profiles.length ? (
           <>
@@ -200,11 +205,10 @@ const Match = () => {
             )}
           </>
         ) : (
-          <p>No profiles to match with currently, come back later!</p>
+          <p className="match-empty">No profiles to match with currently, come back later!</p>
         )}
-        <BottomTab />
       </div>
-    </div>
+    </AppShell>
   );
 };
 

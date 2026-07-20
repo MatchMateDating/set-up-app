@@ -1,71 +1,89 @@
-/* ...existing code... (file replaced with theme-aligned styles) ... */
-
-:root {
-  /* align with profile.css purple variables */
-  --primary: #6B46C1;
-  --primary-dark: #5A35A8;
-  --card-border: #ebe7fb;
-  --text-muted: #6b7280;
-  --bg: #f9f8ff;
-  --surface: #ffffff;
-  --border: #e5e7eb;
-}
-
-/* Page wrapper uses the same pattern as profile pages */
 .settings-page {
-  max-width: 720px;
-  margin: 0 auto;
-  padding: 20px;
-  color: var(--text);
+  padding: 8px 16px 24px;
+  color: var(--text-primary, #1a1a2e);
 }
 
-.back-btn {
+.settings-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 8px 0 16px;
+  color: var(--text-primary, #1a1a2e);
+}
+
+.settings-nav-list {
+  background: #fff;
+  border-radius: 14px;
+  border: 1px solid var(--surface-border, #ebe7fb);
+  overflow: hidden;
+  margin-bottom: 18px;
+}
+
+.settings-nav-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border: none;
+  background: #fff;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary, #1a1a2e);
+  border-bottom: 1px solid #f3f4f6;
+  text-align: left;
+}
+
+.settings-nav-item:last-child {
+  border-bottom: none;
+}
+
+.settings-nav-item:hover {
+  background: #fafafa;
+}
+
+.settings-nav-item.logout {
+  color: #ef4d73;
+}
+
+.settings-nav-left {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  border: none;
-  background: transparent;
-  color: var(--primary);
-  font-weight: 500;
-  cursor: pointer;
-  margin-bottom: 12px;
+  gap: 10px;
 }
-.back-btn:hover {
-  color: var(--primary-dark);
+
+.settings-nav-chevron {
+  color: #9ca3af;
+  font-size: 12px;
 }
-.settings-title {
-  font-size: 1.8rem;
-  margin-bottom: 20px;
-}
-/* Cards for grouped settings */
+
 .settings-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
+  background: #fff;
+  border: 1px solid var(--surface-border, #ebe7fb);
+  border-radius: 14px;
   padding: 20px;
   margin-bottom: 18px;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
 }
 
 .card-header {
-  font-size: 1.2rem;
-  margin-bottom: 10px;
-  color: var(--primary-dark);
+  font-size: 1.1rem;
+  margin: 0 0 12px;
+  color: var(--accent, #6c5ce7);
 }
 
 .primary-btn {
-  background: var(--primary);
+  background: var(--accent, #6c5ce7);
   color: #fff;
   border: none;
-  border-radius: 8px;
-  padding: 8px 14px;
+  border-radius: 10px;
+  padding: 10px 14px;
   cursor: pointer;
   font-weight: 600;
-  transition: background 0.2s ease, transform 0.1s ease;
 }
+
 .primary-btn:hover {
-  background: var(--primary-dark);
-  transform: translateY(-1px);
+  background: var(--accent-dark, #5a4bd1);
 }
 
 .referral-display {
@@ -77,9 +95,9 @@
 }
 
 .referral-code-box {
-  background: var(--bg);
-  border: 1px dashed var(--primary);
-  color: var(--primary-dark);
+  background: var(--container-bg, #efe7ff);
+  border: 1px dashed var(--accent, #6c5ce7);
+  color: var(--accent-dark, #5a4bd1);
   font-weight: 700;
   padding: 8px 12px;
   border-radius: 10px;
@@ -88,18 +106,23 @@
   text-align: center;
 }
 
+.button-group {
+  display: flex;
+  gap: 4px;
+}
+
 .icon-btn {
   background: transparent;
   border: none;
-  color: var(--primary);
+  color: var(--accent, #6c5ce7);
   font-size: 1.1rem;
   padding: 6px;
   cursor: pointer;
   border-radius: 6px;
-  transition: background 0.2s ease;
 }
+
 .icon-btn:hover {
-  background: rgba(107, 70, 193, 0.1);
+  background: rgba(108, 92, 231, 0.1);
 }
 
 .referral-input-group {
@@ -111,25 +134,23 @@
 
 .referral-input {
   flex: 1;
-  padding: 8px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  background: #fafafa;
 }
 
 .save-btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: var(--primary);
+  background: var(--accent, #6c5ce7);
   color: white;
   border: none;
-  border-radius: 8px;
-  padding: 8px 12px;
+  border-radius: 10px;
+  padding: 10px 12px;
   cursor: pointer;
   font-weight: 600;
-}
-.save-btn:hover {
-  background: var(--primary-dark);
 }
 
 .saved-referrals ul {
@@ -137,22 +158,25 @@
   padding-left: 0;
   margin-top: 8px;
 }
+
 .saved-referrals li {
   padding: 8px 10px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid #e5e7eb;
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
+
 .referral-tag {
   font-size: 0.85rem;
-  background: var(--bg);
-  color: var(--primary-dark);
+  background: var(--container-bg, #efe7ff);
+  color: var(--accent-dark, #5a4bd1);
   padding: 4px 8px;
   border-radius: 6px;
 }
+
 .empty-state {
-  color: var(--text-muted);
+  color: var(--text-muted, #6b7280);
   font-style: italic;
   margin-top: 8px;
   text-align: center;
