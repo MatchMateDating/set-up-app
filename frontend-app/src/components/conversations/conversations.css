@@ -22,3 +22,22 @@
   color: var(--text-muted, #6b7280);
   padding: 24px 16px;
 }
+
+@media (min-width: 900px) {
+  .conversations-body h2 {
+    padding: 16px 24px 8px;
+    font-size: 1.25rem;
+  }
+
+  .match-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 16px;
+    padding: 8px 24px 24px;
+    justify-items: center;
+  }
+
+  .match-list > p {
+    grid-column: 1 / -1;
+  }
+}

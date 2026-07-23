@@ -7,21 +7,25 @@ import './bottomTab.css';
 const tabs = [
   {
     path: '/profile',
+    label: 'Profile',
     match: (p) => p === '/profile' || (p.startsWith('/profile/') && p !== '/profile'),
     Icon: FaUser,
   },
   {
     path: '/match',
+    label: 'Match',
     match: (p) => p === '/match',
     Icon: FaHeart,
   },
   {
     path: '/conversations',
+    label: 'Chats',
     match: (p) => p === '/conversations',
     Icon: FaComments,
   },
   {
     path: '/settings',
+    label: 'Settings',
     match: (p) => p === '/settings',
     Icon: FaCog,
   },
@@ -45,8 +49,9 @@ const BottomTab = ({ role: roleProp }) => {
     <nav
       className={`bottom-tab ${isDater ? 'dater' : 'matchmaker'}`}
       style={{ '--tab-accent': accentColor }}
+      aria-label="Main navigation"
     >
-      {tabs.map(({ path, match, Icon }) => {
+      {tabs.map(({ path, label, match, Icon }) => {
         const active = match(location.pathname);
         return (
           <button
@@ -54,9 +59,11 @@ const BottomTab = ({ role: roleProp }) => {
             type="button"
             className={`tab-button ${active ? 'active' : ''}`}
             onClick={() => navigate(path)}
-            aria-label={path.slice(1)}
+            aria-label={label}
+            aria-current={active ? 'page' : undefined}
           >
             <Icon className="tab-icon" size={20} />
+            <span className="tab-label">{label}</span>
           </button>
         );
       })}

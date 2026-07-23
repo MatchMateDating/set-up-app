@@ -123,7 +123,7 @@ const Preferences = () => {
       <div className="preferences-card">
         <div className="preferences-header">
           <button className="back-btn" onClick={() => navigate('/settings')}>
-            <FaArrowLeft /> Back
+            <FaArrowLeft /> Dating Preferences
           </button>
           {!editing && (
             <FaEdit

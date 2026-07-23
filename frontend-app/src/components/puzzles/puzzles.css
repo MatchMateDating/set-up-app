@@ -15,6 +15,18 @@
   gap: 0.75rem;
 }
 
+@media (min-width: 900px) {
+  .puzzles-container {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 24px;
+  }
+
+  .puzzles-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
 .puzzle-button {
   background-color: #6c5ce7;
   color: white;

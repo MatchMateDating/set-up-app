@@ -1,21 +1,36 @@
 .app-shell-backdrop {
   min-height: 100vh;
   width: 100%;
-  background: #e8e8ed;
+  background:
+    radial-gradient(ellipse 80% 60% at 50% -10%, rgba(108, 92, 231, 0.14), transparent 55%),
+    radial-gradient(ellipse 50% 40% at 100% 100%, rgba(239, 77, 115, 0.08), transparent 50%),
+    #e8e8ed;
   display: flex;
   justify-content: center;
+  align-items: stretch;
 }
 
 .app-shell {
   width: 100%;
   max-width: var(--shell-width, 430px);
   min-height: 100vh;
+  height: 100vh;
+  height: 100dvh;
   position: relative;
   display: flex;
   flex-direction: column;
   background: var(--screen-bg);
   box-shadow: 0 0 40px rgba(0, 0, 0, 0.08);
   overflow: hidden;
+}
+
+.app-shell-body {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
 }
 
 .app-shell-header {
@@ -46,6 +61,7 @@
   overflow-y: auto;
   padding-bottom: calc(var(--tab-bar-height, 64px) + 8px);
   -webkit-overflow-scrolling: touch;
+  min-height: 0;
 }
 
 .app-shell-content.no-tabs {
@@ -54,4 +70,60 @@
 
 .app-shell-content.with-dater {
   padding-top: 0;
+}
+
+.app-shell-content:has(.match-convo-container) {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-bottom: 0;
+}
+
+.app-shell-content:has(.match-convo-container) > .match-convo-container {
+  flex: 1;
+  min-height: 0;
+}
+
+@media (min-width: 900px) {
+  .app-shell-backdrop {
+    align-items: stretch;
+    padding: 0;
+  }
+
+  .app-shell {
+    max-width: none;
+    width: 100%;
+    min-height: 100vh;
+    height: 100vh;
+    height: 100dvh;
+    max-height: none;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .app-shell.with-nav {
+    flex-direction: row;
+  }
+
+  .app-shell.with-nav .app-shell-content {
+    padding-bottom: 24px;
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  .app-shell.no-nav .app-shell-content {
+    padding-bottom: 24px;
+  }
+
+  .app-shell-header {
+    padding: 12px 24px;
+  }
+
+  .app-shell-dater-overlay {
+    padding: 0 24px 12px;
+  }
+
+  .app-shell-logo {
+    height: 40px;
+  }
 }

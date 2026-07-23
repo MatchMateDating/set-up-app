@@ -10,11 +10,19 @@
 .match-convo-container {
     display: flex;
     flex-direction: column;
-    height: calc(100vh - var(--header-height, 56px));
-    min-height: 480px;
+    height: 100%;
+    min-height: 0;
     padding: 0;
     box-sizing: border-box;
     overflow: hidden;
+}
+
+@media (min-width: 900px) {
+    .match-convo-container {
+        max-width: 720px;
+        margin: 0 auto;
+        width: 100%;
+    }
 }
 
 .back-button {

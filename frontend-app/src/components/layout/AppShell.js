@@ -109,42 +109,44 @@ const AppShell = ({
   return (
     <div className="app-shell-backdrop">
       <div
-        className="app-shell"
+        className={`app-shell ${hideTabs ? 'no-nav' : 'with-nav'}`}
         data-role={role}
         style={{ backgroundColor: getRoleBackgroundTint(role) }}
       >
-        {showHeader && (
-          <header className="app-shell-header">
-            <img
-              src="/assets/matchmate_logo.png"
-              alt="MatchMate"
-              className="app-shell-logo"
-            />
-            <RoleHeaderBanner role={role} />
-          </header>
-        )}
-
-        {showDaterDropdown && (
-          <div className="app-shell-dater-overlay">
-            <DaterDropdown
-              linkedDaters={linkedDaters}
-              selectedDater={selectedDater}
-              onChange={handleDaterChange}
-              showLabel
-              labelText={labelText}
-            />
-          </div>
-        )}
-
-        <main
-          className={`app-shell-content ${hideTabs ? 'no-tabs' : ''} ${
-            showDaterDropdown ? 'with-dater' : ''
-          }`}
-        >
-          {children}
-        </main>
-
         {!hideTabs && <BottomTab role={role} />}
+
+        <div className="app-shell-body">
+          {showHeader && (
+            <header className="app-shell-header">
+              <img
+                src="/assets/matchmate_logo.png"
+                alt="MatchMate"
+                className="app-shell-logo"
+              />
+              <RoleHeaderBanner role={role} />
+            </header>
+          )}
+
+          {showDaterDropdown && (
+            <div className="app-shell-dater-overlay">
+              <DaterDropdown
+                linkedDaters={linkedDaters}
+                selectedDater={selectedDater}
+                onChange={handleDaterChange}
+                showLabel
+                labelText={labelText}
+              />
+            </div>
+          )}
+
+          <main
+            className={`app-shell-content ${hideTabs ? 'no-tabs' : ''} ${
+              showDaterDropdown ? 'with-dater' : ''
+            }`}
+          >
+            {children}
+          </main>
+        </div>
       </div>
     </div>
   );

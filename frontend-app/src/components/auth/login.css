@@ -4,7 +4,9 @@
   align-items: center;
   justify-content: center;
   padding: 24px 16px;
-  background: linear-gradient(180deg, #f7f5ff 0%, #efe7ff 100%);
+  background:
+    radial-gradient(ellipse 70% 50% at 50% 0%, rgba(108, 92, 231, 0.16), transparent 60%),
+    linear-gradient(180deg, #f7f5ff 0%, #efe7ff 100%);
 }
 
 .login-container,
@@ -27,6 +29,19 @@
   margin: 0 auto 12px;
   display: block;
   object-fit: contain;
+}
+
+@media (min-width: 900px) {
+  .login-container,
+  .sign-up-container,
+  .reset-password-container {
+    max-width: 420px;
+    padding: 36px 32px 40px;
+  }
+
+  .auth-logo {
+    width: 140px;
+  }
 }
 
 .login-container h2,

@@ -45,6 +45,27 @@
     padding: 8px 16px 16px;
 }
 
+@media (min-width: 900px) {
+    .profile-page-body {
+        max-width: 720px;
+        margin: 0 auto;
+        padding: 8px 24px 24px;
+    }
+
+    .profile-header {
+        padding: 20px 8px 16px;
+    }
+
+    .avatar {
+        width: 96px;
+        height: 96px;
+    }
+
+    .embedded-profile {
+        padding: 8px 8px 24px;
+    }
+}
+
 .embedded-profile h3 {
     margin: 0 0 12px;
     color: var(--accent, #6c5ce7);

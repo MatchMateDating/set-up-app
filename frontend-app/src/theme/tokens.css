@@ -10,8 +10,10 @@
   --radius-input: 10px;
   --radius-btn: 10px;
   --shell-width: 430px;
+  --sidebar-width: 88px;
   --header-height: 56px;
   --tab-bar-height: 64px;
+  --bp-desktop: 900px;
 }
 
 [data-role='user'] {
