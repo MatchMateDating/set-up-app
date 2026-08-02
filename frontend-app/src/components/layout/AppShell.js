@@ -113,11 +113,9 @@ const AppShell = ({
         data-role={role}
         style={{ backgroundColor: getRoleBackgroundTint(role) }}
       >
-        {!hideTabs && <BottomTab role={role} />}
-
         <div className="app-shell-body">
           {showHeader && (
-            <header className="app-shell-header">
+            <header className="app-shell-header app-shell-rail">
               <img
                 src="/assets/matchmate_logo.png"
                 alt="MatchMate"
@@ -128,7 +126,7 @@ const AppShell = ({
           )}
 
           {showDaterDropdown && (
-            <div className="app-shell-dater-overlay">
+            <div className="app-shell-dater-overlay app-shell-rail">
               <DaterDropdown
                 linkedDaters={linkedDaters}
                 selectedDater={selectedDater}
@@ -147,6 +145,8 @@ const AppShell = ({
             {children}
           </main>
         </div>
+
+        {!hideTabs && <BottomTab role={role} />}
       </div>
     </div>
   );

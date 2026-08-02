@@ -1,14 +1,12 @@
 .bottom-tab {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: var(--tab-bar-height, 64px);
+  position: relative;
+  flex-shrink: 0;
+  width: 100%;
+  height: calc(var(--tab-bar-height, 64px) + env(safe-area-inset-bottom, 0px));
   background: #ffffff;
   display: flex;
   justify-content: space-around;
   align-items: center;
-  border-top: none;
   z-index: 1000;
   padding-bottom: env(safe-area-inset-bottom, 0);
 }
@@ -22,6 +20,7 @@
 .bottom-tab.matchmaker {
   box-shadow: none;
   border-top: 1px solid #f0f0f0;
+  border-radius: 0;
 }
 
 .tab-button {
@@ -61,41 +60,41 @@
   background: transparent;
 }
 
+@media (min-width: 600px) {
+  .tab-label {
+    display: block;
+  }
+
+  .tab-button {
+    gap: 4px;
+  }
+}
+
 @media (min-width: 900px) {
   .bottom-tab {
-    position: relative;
-    bottom: auto;
-    left: auto;
-    right: auto;
-    width: var(--sidebar-width, 88px);
-    height: auto;
-    flex-shrink: 0;
-    flex-direction: column;
-    justify-content: flex-start;
-    align-items: stretch;
-    gap: 4px;
-    padding: 20px 10px;
-    border-top: none;
-    border-right: 1px solid #f0f0f0;
-    box-shadow: none;
+    justify-content: center;
+    gap: 8px;
+    padding-left: var(--page-gutter);
+    padding-right: var(--page-gutter);
+    border-top: 1px solid #f0f0f0;
+    box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.04);
     border-radius: 0;
   }
 
   .bottom-tab.dater,
   .bottom-tab.matchmaker {
     border-radius: 0;
-    box-shadow: none;
-    border-top: none;
-    border-right: 1px solid #f0f0f0;
+    border-top: 1px solid #f0f0f0;
+    box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.04);
   }
 
   .tab-button {
-    flex: 0 0 auto;
+    flex: 0 1 140px;
+    max-width: 160px;
     height: auto;
-    min-height: 64px;
+    min-height: 56px;
     border-radius: 12px;
-    padding: 10px 6px;
-    gap: 6px;
+    padding: 8px 12px;
   }
 
   .tab-button:hover {
@@ -104,14 +103,6 @@
   }
 
   .tab-button.active {
-    background: rgba(108, 92, 231, 0.12);
-  }
-
-  .bottom-tab.dater .tab-button.active {
-    background: rgba(239, 77, 115, 0.12);
-  }
-
-  .tab-label {
-    display: block;
+    background: color-mix(in srgb, var(--tab-accent, #6c5ce7) 12%, transparent);
   }
 }

@@ -1,4 +1,11 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 
 const UserContext = createContext({
   user: null,
@@ -22,16 +29,16 @@ export const UserProvider = ({ children }) => {
   const [isProfileEditing, setIsProfileEditing] = useState(false);
   const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
 
-  const setUser = (next) => {
+  const setUser = useCallback((next) => {
     setUserState(next);
     if (next) {
       localStorage.setItem('user', JSON.stringify(next));
     } else {
       localStorage.removeItem('user');
     }
-  };
+  }, []);
 
-  const refreshUser = async () => {
+  const refreshUser = useCallback(async () => {
     const token = localStorage.getItem('token');
     if (!token || !API_BASE_URL) return null;
     try {
@@ -48,14 +55,22 @@ export const UserProvider = ({ children }) => {
       console.error('Error refreshing user:', err);
     }
     return null;
-  };
+  }, [API_BASE_URL, setUser]);
 
   useEffect(() => {
     if (localStorage.getItem('token')) {
       refreshUser();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [refreshUser]);
+
+  useEffect(() => {
+    const role = user?.role;
+    if (role === 'user' || role === 'matchmaker') {
+      document.documentElement.setAttribute('data-role', role);
+    } else {
+      document.documentElement.removeAttribute('data-role');
+    }
+  }, [user?.role]);
 
   const value = useMemo(
     () => ({
@@ -65,7 +80,7 @@ export const UserProvider = ({ children }) => {
       setIsProfileEditing,
       refreshUser,
     }),
-    [user, isProfileEditing]
+    [user, setUser, isProfileEditing, refreshUser]
   );
 
   return <UserContext.Provider value={value}>{children}</UserContext.Provider>;

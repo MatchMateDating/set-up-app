@@ -1,8 +1,9 @@
 .app-shell-backdrop {
-  min-height: 100vh;
+  min-height: 100%;
+  min-height: 100dvh;
   width: 100%;
   background:
-    radial-gradient(ellipse 80% 60% at 50% -10%, rgba(108, 92, 231, 0.14), transparent 55%),
+    radial-gradient(ellipse 80% 60% at 50% -10%, rgba(var(--accent-rgb), 0.14), transparent 55%),
     radial-gradient(ellipse 50% 40% at 100% 100%, rgba(239, 77, 115, 0.08), transparent 50%),
     #e8e8ed;
   display: flex;
@@ -10,17 +11,23 @@
   align-items: stretch;
 }
 
+html[data-role='user'] .app-shell-backdrop {
+  background:
+    radial-gradient(ellipse 80% 60% at 50% -10%, rgba(239, 77, 115, 0.16), transparent 55%),
+    radial-gradient(ellipse 50% 40% at 100% 80%, rgba(239, 77, 115, 0.06), transparent 50%),
+    #e8e8ed;
+}
+
 .app-shell {
   width: 100%;
-  max-width: var(--shell-width, 430px);
-  min-height: 100vh;
-  height: 100vh;
+  max-width: none;
+  min-height: 100%;
+  min-height: 100dvh;
   height: 100dvh;
   position: relative;
   display: flex;
   flex-direction: column;
   background: var(--screen-bg);
-  box-shadow: 0 0 40px rgba(0, 0, 0, 0.08);
   overflow: hidden;
 }
 
@@ -33,12 +40,23 @@
   position: relative;
 }
 
+.app-shell-rail {
+  width: 100%;
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding-left: var(--page-gutter);
+  padding-right: var(--page-gutter);
+  box-sizing: border-box;
+}
+
 .app-shell-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 16px;
-  min-height: var(--header-height, 56px);
+  gap: 12px;
+  min-height: var(--header-height);
+  padding-top: 8px;
+  padding-bottom: 8px;
   background: transparent;
   flex-shrink: 0;
   z-index: 20;
@@ -48,10 +66,12 @@
   height: 36px;
   width: auto;
   object-fit: contain;
+  flex-shrink: 0;
 }
 
 .app-shell-dater-overlay {
-  padding: 0 16px 8px;
+  padding-top: 0;
+  padding-bottom: 8px;
   z-index: 15;
   flex-shrink: 0;
 }
@@ -59,7 +79,7 @@
 .app-shell-content {
   flex: 1;
   overflow-y: auto;
-  padding-bottom: calc(var(--tab-bar-height, 64px) + 8px);
+  padding-bottom: 12px;
   -webkit-overflow-scrolling: touch;
   min-height: 0;
 }
@@ -84,46 +104,39 @@
   min-height: 0;
 }
 
+@media (min-width: 600px) {
+  .app-shell-logo {
+    height: 38px;
+  }
+}
+
 @media (min-width: 900px) {
   .app-shell-backdrop {
-    align-items: stretch;
     padding: 0;
   }
 
   .app-shell {
-    max-width: none;
-    width: 100%;
-    min-height: 100vh;
-    height: 100vh;
-    height: 100dvh;
-    max-height: none;
-    border-radius: 0;
     box-shadow: none;
   }
 
-  .app-shell.with-nav {
-    flex-direction: row;
-  }
-
-  .app-shell.with-nav .app-shell-content {
-    padding-bottom: 24px;
-    padding-left: 8px;
-    padding-right: 8px;
-  }
-
-  .app-shell.no-nav .app-shell-content {
-    padding-bottom: 24px;
-  }
-
   .app-shell-header {
-    padding: 12px 24px;
+    padding-top: 12px;
+    padding-bottom: 12px;
   }
 
   .app-shell-dater-overlay {
-    padding: 0 24px 12px;
+    padding-bottom: 12px;
   }
 
   .app-shell-logo {
     height: 40px;
+  }
+
+  .app-shell-content {
+    padding-bottom: 20px;
+  }
+
+  .app-shell-content.no-tabs {
+    padding-bottom: 24px;
   }
 }

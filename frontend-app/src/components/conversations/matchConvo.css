@@ -1,10 +1,7 @@
 :root {
-    --primary: #6c5ce7;
-    --primary-dark: #5a4bd1;
     --neutral: #f9fafb;
     --neutral-border: #e5e7eb;
     --neutral-dark: #d1d5db;
-    --text-muted: #6b7280;
 }
 
 .match-convo-container {
@@ -12,17 +9,12 @@
     flex-direction: column;
     height: 100%;
     min-height: 0;
+    width: 100%;
+    max-width: var(--content-max);
+    margin: 0 auto;
     padding: 0;
     box-sizing: border-box;
     overflow: hidden;
-}
-
-@media (min-width: 900px) {
-    .match-convo-container {
-        max-width: 720px;
-        margin: 0 auto;
-        width: 100%;
-    }
 }
 
 .back-button {

@@ -1,13 +1,15 @@
 .settings-page {
-  padding: 8px 16px 24px;
+  width: 100%;
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: 8px var(--page-gutter) 24px;
   color: var(--text-primary, #1a1a2e);
+  box-sizing: border-box;
 }
 
 @media (min-width: 900px) {
   .settings-page {
-    max-width: 640px;
-    margin: 0 auto;
-    padding: 16px 24px 32px;
+    padding: 16px var(--page-gutter) 32px;
   }
 }
 
@@ -326,7 +328,7 @@
 }
 
 .icon-btn:hover {
-  background: rgba(108, 92, 231, 0.1);
+  background: var(--accent-soft);
 }
 
 .icon-action-btn {
@@ -435,10 +437,28 @@
   margin-bottom: 12px;
 }
 
-.settings-page .preferences-form {
+.settings-page .dating-preferences-form {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 20px;
+}
+
+.settings-page .settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settings-page .settings-field-label {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-primary, #1a1a2e);
+}
+
+.settings-page .settings-field-value {
+  margin: 0;
+  font-size: 15px;
+  color: var(--text-muted, #6b7280);
 }
 
 .settings-page .form-inline {
@@ -447,11 +467,9 @@
   gap: 8px;
 }
 
-.settings-page .form-inline input {
+.settings-page .form-inline .settings-input {
   width: 90px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  border: 1px solid #e5e7eb;
+  margin-bottom: 0;
 }
 
 .settings-page .dash {
@@ -462,28 +480,65 @@
   display: flex;
   align-items: center;
   gap: 12px;
+  width: 100%;
 }
 
-.settings-page .radius-slider input {
+.settings-page .radius-slider input[type='range'] {
   flex: 1;
+  min-width: 0;
+  width: 100%;
+  height: 28px;
+  cursor: pointer;
+  accent-color: var(--accent);
 }
 
-.settings-page .radius-slider--disabled {
-  opacity: 0.5;
+.settings-page .radius-slider span {
+  font-weight: 600;
+  min-width: 56px;
+  text-align: right;
 }
 
 .settings-page .checkbox-label {
-  margin-top: 12px;
+  margin-top: 4px;
   display: flex;
   align-items: center;
   gap: 8px;
   cursor: pointer;
+  font-size: 14px;
+  color: var(--text-primary, #1a1a2e);
 }
 
 .settings-page .preferences-actions {
   display: flex;
   gap: 10px;
-  margin-top: 8px;
+  margin-top: 4px;
+}
+
+.settings-page .preferred-genders-select {
+  width: 100%;
+}
+
+.settings-page .preferred-genders-select .pg__control {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fafafa;
+  min-height: 42px;
+  box-shadow: none;
+}
+
+.settings-page .preferred-genders-select .pg__control--is-focused {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.settings-page .preferred-genders-select .pg__multi-value {
+  background: var(--accent);
+  border-radius: 8px;
+}
+
+.settings-page .preferred-genders-select .pg__multi-value__label,
+.settings-page .preferred-genders-select .pg__multi-value__remove {
+  color: #fff;
 }
 
 .settings-toggle-row {

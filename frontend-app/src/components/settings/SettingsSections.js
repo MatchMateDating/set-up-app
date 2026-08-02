@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   FaArrowLeft,
   FaChevronRight,
@@ -19,9 +19,7 @@ import {
 import Select from 'react-select';
 import { useNavigate } from 'react-router-dom';
 import AppShell from '../layout/AppShell';
-import FormField from '../profile/components/formField';
 import { useUser } from '../../context/UserContext';
-import '../preferences/preferences.css';
 import './settings.css';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
@@ -163,11 +161,11 @@ const authHeaders = () => {
 
 const SettingsSections = () => {
   const navigate = useNavigate();
-  const { setUser: setContextUser } = useUser();
+  const { user: contextUser, setUser: setContextUser } = useUser();
 
   const [activeSection, setActiveSection] = useState(null);
-  const [user, setUser] = useState(null);
-  const [role, setRole] = useState(null);
+  const [user, setUser] = useState(() => contextUser || null);
+  const [role, setRole] = useState(() => contextUser?.role || null);
   const [savedReferrals, setSavedReferrals] = useState([]);
   const [linkedMatchmakers, setLinkedMatchmakers] = useState([]);
   const [referralCode, setReferralCode] = useState('');
@@ -203,6 +201,7 @@ const SettingsSections = () => {
   const [isNewPasswordFocused, setIsNewPasswordFocused] = useState(false);
 
   const [editingPreferences, setEditingPreferences] = useState(false);
+  const editingPreferencesRef = useRef(false);
   const [formData, setFormData] = useState({
     preferredAgeMin: '18',
     preferredAgeMax: '60',
@@ -210,6 +209,11 @@ const SettingsSections = () => {
     matchRadius: 50,
     matchWithAll: false,
   });
+
+  const setPreferencesEditing = (next) => {
+    editingPreferencesRef.current = next;
+    setEditingPreferences(next);
+  };
 
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [notificationPreferences, setNotificationPreferences] = useState(
@@ -232,6 +236,8 @@ const SettingsSections = () => {
     return '';
   }, [currentIdentifierKind, currentEmail, currentPhone]);
 
+  const effectiveRole = role || contextUser?.role || null;
+
   const sectionItems = useMemo(() => {
     const base = [
       {
@@ -248,9 +254,9 @@ const SettingsSections = () => {
       },
       {
         key: SECTION_KEYS.REFERRAL,
-        label: role === 'matchmaker' ? 'Manage Linked Daters' : 'Referral Code',
+        label: effectiveRole === 'matchmaker' ? 'Manage Linked Daters' : 'Referral Code',
         description:
-          role === 'matchmaker'
+          effectiveRole === 'matchmaker'
             ? 'Link and manage your connected daters.'
             : 'Share your code and manage who can matchmake for you.',
         Icon: FaGift,
@@ -264,14 +270,15 @@ const SettingsSections = () => {
       {
         key: SECTION_KEYS.DELETE_ACCOUNT,
         label: 'Delete Account',
-        description: user?.linked_account
+        description: user?.linked_account || contextUser?.linked_account
           ? 'Remove an account type or delete all data permanently.'
           : 'Permanently delete your account and data.',
         Icon: FaTrash,
       },
     ];
 
-    if (role === 'user') {
+    // Daters see Dating Preferences between Referral and Notifications.
+    if (effectiveRole === 'user') {
       base.splice(3, 0, {
         key: SECTION_KEYS.DATING_PREFERENCES,
         label: 'Dating Preferences',
@@ -280,7 +287,7 @@ const SettingsSections = () => {
       });
     }
     return base;
-  }, [role, user?.linked_account]);
+  }, [effectiveRole, user?.linked_account, contextUser?.linked_account]);
 
   const visibleNotificationPreferenceItems = useMemo(
     () =>
@@ -361,15 +368,20 @@ const SettingsSections = () => {
       setConfirmNewIdentifier('');
       setReferralCode(nextUser.role === 'user' ? nextUser?.referral_code || '' : '');
 
-      const radiusMiles = nextUser.match_radius ?? 50;
-      const matchWithAll = radiusMiles >= 9999;
-      setFormData({
-        preferredAgeMin: nextUser.preferredAgeMin || '18',
-        preferredAgeMax: nextUser.preferredAgeMax || '60',
-        preferredGenders: nextUser.preferredGenders || [],
-        matchRadius: matchWithAll ? 500 : radiusMiles,
-        matchWithAll,
-      });
+      if (!editingPreferencesRef.current) {
+        const radiusMiles = Number(nextUser.match_radius);
+        const matchWithAll = Number.isFinite(radiusMiles) && radiusMiles >= 9999;
+        const safeRadius = Number.isFinite(radiusMiles) && radiusMiles > 0 ? radiusMiles : 50;
+        setFormData({
+          preferredAgeMin: String(nextUser.preferredAgeMin ?? 18),
+          preferredAgeMax: String(nextUser.preferredAgeMax ?? 60),
+          preferredGenders: Array.isArray(nextUser.preferredGenders)
+            ? nextUser.preferredGenders
+            : [],
+          matchRadius: matchWithAll ? 500 : safeRadius,
+          matchWithAll,
+        });
+      }
 
       const notifState = buildNotificationPreferenceState(nextUser);
       setNotificationsEnabled(notifState.enabled);
@@ -411,6 +423,13 @@ const SettingsSections = () => {
   useEffect(() => {
     fetchUserProfile();
   }, [fetchUserProfile]);
+
+  // Keep local role/user in sync if context already knows the signed-in account.
+  useEffect(() => {
+    if (!contextUser) return;
+    setUser((prev) => prev || contextUser);
+    setRole((prev) => prev || contextUser.role || null);
+  }, [contextUser]);
 
   useEffect(() => {
     if (activeSection !== SECTION_KEYS.REFERRAL || role !== 'matchmaker') return undefined;
@@ -970,6 +989,32 @@ const SettingsSections = () => {
     }
   };
 
+  const updatePreferences = (patch) => {
+    setFormData((prev) => ({ ...prev, ...patch }));
+  };
+
+  const resetPreferencesFromUser = () => {
+    if (!user) {
+      fetchUserProfile();
+      return;
+    }
+    const radiusMiles = Number(user.match_radius);
+    const matchWithAll = Number.isFinite(radiusMiles) && radiusMiles >= 9999;
+    const safeRadius = Number.isFinite(radiusMiles) && radiusMiles > 0 ? radiusMiles : 50;
+    setFormData({
+      preferredAgeMin: String(user.preferredAgeMin ?? 18),
+      preferredAgeMax: String(user.preferredAgeMax ?? 60),
+      preferredGenders: Array.isArray(user.preferredGenders) ? user.preferredGenders : [],
+      matchRadius: matchWithAll ? 500 : safeRadius,
+      matchWithAll,
+    });
+  };
+
+  const cancelEditingPreferences = () => {
+    resetPreferencesFromUser();
+    setPreferencesEditing(false);
+  };
+
   const handleSavePreferences = async (e) => {
     e?.preventDefault?.();
     try {
@@ -986,7 +1031,7 @@ const SettingsSections = () => {
       });
       if (await handleUnauthorized(res)) return;
       if (!res.ok) throw new Error('Failed to update dating preferences');
-      setEditingPreferences(false);
+      setPreferencesEditing(false);
       fetchUserProfile();
     } catch (err) {
       console.error(err);
@@ -1343,148 +1388,166 @@ const SettingsSections = () => {
     );
   };
 
-  const renderDatingPreferences = () => (
-    <div className="settings-card fade-in">
-      <div className="inline-header">
-        <h3 className="card-header" style={{ marginBottom: 0 }}>
-          Dating Preferences
-        </h3>
-        {!editingPreferences && (
-          <button
-            type="button"
-            className="icon-btn"
-            onClick={() => setEditingPreferences(true)}
-            title="Edit Preferences"
-          >
-            <FaEdit />
-          </button>
-        )}
-      </div>
+  const formatGenderLabel = (g) =>
+    g === 'nonbinary' ? 'Non-binary' : g.charAt(0).toUpperCase() + g.slice(1);
 
-      <form className="preferences-form" onSubmit={handleSavePreferences}>
-        <FormField
-          label="Preferred Age"
-          editing={editingPreferences}
-          value={`${formData.preferredAgeMin} - ${formData.preferredAgeMax}`}
-          input={
-            <div className="form-inline">
-              <input
-                type="number"
-                name="preferredAgeMin"
-                placeholder="Min"
-                value={formData.preferredAgeMin}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, preferredAgeMin: e.target.value }))
+  const renderDatingPreferences = () => {
+    const genderSummary =
+      (formData.preferredGenders || []).map(formatGenderLabel).join(', ') || 'None selected';
+    const radiusSummary = formData.matchWithAll
+      ? '500+ mi'
+      : `${formData.matchRadius} miles`;
+
+    return (
+      <div className="settings-card fade-in">
+        <div className="inline-header">
+          <h3 className="card-header" style={{ marginBottom: 0 }}>
+            Dating Preferences
+          </h3>
+          {!editingPreferences && (
+            <button
+              type="button"
+              className="icon-btn"
+              onClick={() => setPreferencesEditing(true)}
+              title="Edit Preferences"
+            >
+              <FaEdit />
+            </button>
+          )}
+        </div>
+
+        {!editingPreferences ? (
+          <div className="dating-preferences-form">
+            <div className="settings-field">
+              <span className="settings-field-label">Preferred Age</span>
+              <p className="settings-field-value">
+                {formData.preferredAgeMin} - {formData.preferredAgeMax}
+              </p>
+            </div>
+            <div className="settings-field">
+              <span className="settings-field-label">Preferred Gender(s)</span>
+              <p className="settings-field-value">{genderSummary}</p>
+            </div>
+            <div className="settings-field">
+              <span className="settings-field-label">Match Radius</span>
+              <p className="settings-field-value">{radiusSummary}</p>
+            </div>
+          </div>
+        ) : (
+          <form className="dating-preferences-form" onSubmit={handleSavePreferences}>
+            <div className="settings-field">
+              <span className="settings-field-label">Preferred Age</span>
+              <div className="form-inline">
+                <input
+                  className="settings-input"
+                  type="number"
+                  name="preferredAgeMin"
+                  min="18"
+                  max="100"
+                  placeholder="Min"
+                  value={formData.preferredAgeMin}
+                  onChange={(e) => updatePreferences({ preferredAgeMin: e.target.value })}
+                />
+                <span className="dash">-</span>
+                <input
+                  className="settings-input"
+                  type="number"
+                  name="preferredAgeMax"
+                  min="18"
+                  max="100"
+                  placeholder="Max"
+                  value={formData.preferredAgeMax}
+                  onChange={(e) => updatePreferences({ preferredAgeMax: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="settings-field">
+              <span className="settings-field-label">Preferred Gender(s)</span>
+              <Select
+                isMulti
+                name="preferredGenders"
+                className="preferred-genders-select"
+                classNamePrefix="pg"
+                menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
+                menuPosition="fixed"
+                styles={{ menuPortal: (base) => ({ ...base, zIndex: 9999 }) }}
+                value={(formData.preferredGenders || []).map((g) => ({
+                  label: formatGenderLabel(g),
+                  value: g,
+                }))}
+                onChange={(options) =>
+                  updatePreferences({
+                    preferredGenders: options ? options.map((opt) => opt.value) : [],
+                  })
                 }
-              />
-              <span className="dash">-</span>
-              <input
-                type="number"
-                name="preferredAgeMax"
-                placeholder="Max"
-                value={formData.preferredAgeMax}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, preferredAgeMax: e.target.value }))
-                }
+                options={[
+                  { value: 'female', label: 'Female' },
+                  { value: 'male', label: 'Male' },
+                  { value: 'nonbinary', label: 'Non-binary' },
+                ]}
               />
             </div>
-          }
-        />
 
-        <FormField
-          label="Preferred Gender(s)"
-          editing={editingPreferences}
-          value={(formData.preferredGenders || []).join(', ')}
-          input={
-            <Select
-              isMulti
-              name="preferredGenders"
-              className="preferred-genders-select"
-              classNamePrefix="pg"
-              value={(formData.preferredGenders || []).map((g) => ({
-                label: g,
-                value: g,
-              }))}
-              onChange={(options) =>
-                setFormData((prev) => ({
-                  ...prev,
-                  preferredGenders: options ? options.map((opt) => opt.value) : [],
-                }))
-              }
-              options={[
-                { value: 'female', label: 'Female' },
-                { value: 'male', label: 'Male' },
-                { value: 'nonbinary', label: 'Non-binary' },
-              ]}
-            />
-          }
-        />
-
-        <FormField
-          label={
-            editingPreferences
-              ? `Match Radius (${formData.matchWithAll ? '500+' : formData.matchRadius} mi)`
-              : 'Match Radius'
-          }
-          editing={editingPreferences}
-          value={formData.matchWithAll ? '500+ mi' : `${formData.matchRadius} miles`}
-          input={
-            <>
-              <div
-                className={`radius-slider${formData.matchWithAll ? ' radius-slider--disabled' : ''}`}
-              >
+            <div className="settings-field">
+              <span className="settings-field-label">
+                Match Radius ({formData.matchWithAll ? '500+' : formData.matchRadius} mi)
+              </span>
+              <div className="radius-slider">
                 <input
                   type="range"
                   name="matchRadius"
                   min="1"
                   max="500"
                   step="1"
-                  value={formData.matchWithAll ? 500 : formData.matchRadius}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, matchRadius: e.target.value }))
+                  value={Number(formData.matchWithAll ? 500 : formData.matchRadius) || 50}
+                  onInput={(e) =>
+                    updatePreferences({
+                      matchRadius: Number(e.target.value),
+                      matchWithAll: false,
+                    })
                   }
-                  disabled={formData.matchWithAll}
+                  onChange={(e) =>
+                    updatePreferences({
+                      matchRadius: Number(e.target.value),
+                      matchWithAll: false,
+                    })
+                  }
                 />
                 <span>{formData.matchWithAll ? '500+' : formData.matchRadius} mi</span>
               </div>
               <label className="checkbox-label">
                 <input
                   type="checkbox"
-                  checked={formData.matchWithAll || false}
+                  checked={Boolean(formData.matchWithAll)}
                   onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
+                    updatePreferences({
                       matchWithAll: e.target.checked,
-                      matchRadius: e.target.checked ? 500 : 50,
-                    }))
+                      matchRadius: e.target.checked ? 500 : formData.matchRadius || 50,
+                    })
                   }
                 />
                 <span>No distance limit</span>
               </label>
-            </>
-          }
-        />
+            </div>
 
-        {editingPreferences && (
-          <div className="preferences-actions">
-            <button type="submit" className="primary-btn">
-              Save
-            </button>
-            <button
-              type="button"
-              className="secondary-btn"
-              onClick={() => {
-                setEditingPreferences(false);
-                fetchUserProfile();
-              }}
-            >
-              Cancel
-            </button>
-          </div>
+            <div className="preferences-actions">
+              <button type="submit" className="primary-btn">
+                Save
+              </button>
+              <button
+                type="button"
+                className="secondary-btn"
+                onClick={cancelEditingPreferences}
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
         )}
-      </form>
-    </div>
-  );
+      </div>
+    );
+  };
 
   const renderNotifications = () => (
     <div className="settings-card fade-in">
@@ -1601,7 +1664,7 @@ const SettingsSections = () => {
               className="settings-back-btn"
               onClick={() => {
                 setActiveSection(null);
-                setEditingPreferences(false);
+                setPreferencesEditing(false);
               }}
             >
               <FaArrowLeft /> Back

@@ -58,6 +58,17 @@
   </style>
 </head>
 <body>
+  <header>
+    <nav class="header-nav">
+      <div class="header-spacer"></div>
+      <div class="logo-container">
+        <a href="index.html" aria-label="matchmate home">
+          <img src="images/MatchMate_logo_thicker.png" alt="matchmate logo" class="logo-icon">
+        </a>
+      </div>
+      <a href="http://localhost:3000/" class="btn-login" data-login-link>Login</a>
+    </nav>
+  </header>
   <main class="done-shell">
     <section class="done-card">
       <img src="images/MatchMate_logo_thicker.png" alt="matchmate logo" class="done-logo">
@@ -70,6 +81,8 @@
       </div>
     </section>
   </main>
+  <script src="config.local.js"></script>
+  <script src="app-login.js"></script>
   <script>
     (function () {
       var params = new URLSearchParams(window.location.search);

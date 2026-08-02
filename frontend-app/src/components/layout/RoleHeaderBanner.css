@@ -2,6 +2,8 @@
   display: flex;
   justify-content: flex-end;
   align-items: center;
+  flex-shrink: 0;
+  min-width: 0;
 }
 
 .role-badge {
@@ -10,6 +12,7 @@
   gap: 6px;
   border-radius: 999px;
   padding: 5px 12px;
+  max-width: 100%;
 }
 
 .role-badge-text {

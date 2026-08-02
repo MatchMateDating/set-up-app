@@ -1,9 +1,13 @@
 .conversations-body {
+  width: 100%;
+  max-width: var(--content-wide);
+  margin: 0 auto;
   padding: 8px 0 16px;
+  box-sizing: border-box;
 }
 
 .conversations-body h2 {
-  padding: 12px 16px 4px;
+  padding: 12px var(--page-gutter) 4px;
   margin: 0;
   font-size: 1.1rem;
   color: var(--accent, #6c5ce7);
@@ -12,8 +16,9 @@
 .match-list {
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 12px;
-  padding: 8px 16px;
+  padding: 8px var(--page-gutter);
 }
 
 .conversations-body > p,
@@ -21,23 +26,36 @@
   text-align: center;
   color: var(--text-muted, #6b7280);
   padding: 24px 16px;
+  width: 100%;
 }
 
-@media (min-width: 900px) {
-  .conversations-body h2 {
-    padding: 16px 24px 8px;
-    font-size: 1.25rem;
-  }
-
+@media (min-width: 600px) {
   .match-list {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-    gap: 16px;
-    padding: 8px 24px 24px;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 14px;
     justify-items: center;
+    align-items: start;
   }
 
   .match-list > p {
     grid-column: 1 / -1;
+  }
+}
+
+@media (min-width: 900px) {
+  .conversations-body {
+    padding: 8px 0 24px;
+  }
+
+  .conversations-body h2 {
+    padding: 16px var(--page-gutter) 8px;
+    font-size: 1.25rem;
+  }
+
+  .match-list {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 16px;
+    padding: 8px var(--page-gutter) 24px;
   }
 }

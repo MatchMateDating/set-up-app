@@ -551,7 +551,7 @@ const CompleteProfile = () => {
               {/* Match Radius */}
               <div className="form-field">
                 <label>Match Radius ({formData.matchWithAll ? '500+' : (formData.matchRadius || 50)} mi)</label>
-                <div className={`radius-slider${formData.matchWithAll ? ' radius-slider--disabled' : ''}`}>
+                <div className="radius-slider">
                   <input
                     type="range"
                     name="matchRadius"
@@ -559,8 +559,20 @@ const CompleteProfile = () => {
                     max="500"
                     step="1"
                     value={formData.matchWithAll ? 500 : (formData.matchRadius || 50)}
-                    onChange={handleInputChange}
-                    disabled={formData.matchWithAll}
+                    onInput={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        matchRadius: Number(e.target.value),
+                        matchWithAll: false,
+                      }))
+                    }
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        matchRadius: Number(e.target.value),
+                        matchWithAll: false,
+                      }))
+                    }
                   />
                   <span>{formData.matchWithAll ? '500+' : (formData.matchRadius || 50)} mi</span>
                 </div>

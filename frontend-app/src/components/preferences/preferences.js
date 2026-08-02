@@ -197,16 +197,28 @@ const Preferences = () => {
             value={formData.matchWithAll ? '500+ mi' : `${formData.matchRadius} miles`}
             input={
               <>
-                <div className={`radius-slider${formData.matchWithAll ? ' radius-slider--disabled' : ''}`}>
+                <div className="radius-slider">
                   <input
                     type="range"
                     name="matchRadius"
                     min="1"
                     max="500"
                     step="1"
-                    value={formData.matchWithAll ? 500 : formData.matchRadius}
-                    onChange={handleInputChange}
-                    disabled={formData.matchWithAll}
+                    value={Number(formData.matchWithAll ? 500 : formData.matchRadius) || 50}
+                    onInput={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        matchRadius: Number(e.target.value),
+                        matchWithAll: false,
+                      }))
+                    }
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        matchRadius: Number(e.target.value),
+                        matchWithAll: false,
+                      }))
+                    }
                   />
                   <span>{formData.matchWithAll ? '500+' : formData.matchRadius} mi</span>
                 </div>
