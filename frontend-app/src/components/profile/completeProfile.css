@@ -65,6 +65,11 @@
   opacity: 0.5;
 }
 
+.form-field .age-range-slider {
+  margin-top: 4px;
+  max-width: 320px;
+}
+
 .preferences-actions {
   display: flex;
   justify-content: flex-end;

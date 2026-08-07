@@ -28,6 +28,35 @@
     font-weight: 600;
 }
 
+.convo-top-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding-right: 16px;
+}
+
+.convo-top-actions .back-button {
+    margin-right: 0;
+}
+
+.unmatch-button {
+    appearance: none;
+    border: 1px solid #ef4444;
+    background: transparent;
+    color: #ef4444;
+    font-weight: 600;
+    font-size: 0.9rem;
+    border-radius: 8px;
+    padding: 6px 12px;
+    cursor: pointer;
+    margin-top: 8px;
+}
+
+.unmatch-button:hover {
+    background: rgba(239, 68, 68, 0.08);
+}
+
 .convo-loading {
     padding: 24px 16px;
     text-align: center;

@@ -214,8 +214,12 @@ const Profile = ({
         birthdate: formData.birthdate,
         gender: formData.gender,
         height: heightFormatted,
-        preferredAgeMin: formData.preferredAgeMin,
-        preferredAgeMax: formData.preferredAgeMax,
+        preferredAgeMin: formData.preferredAgeMin
+          ? Number(formData.preferredAgeMin)
+          : undefined,
+        preferredAgeMax: formData.preferredAgeMax
+          ? Number(formData.preferredAgeMax)
+          : undefined,
         preferredGenders: formData.preferredGenders,
         bio: formData.bio,
         fontFamily: formData.fontFamily,

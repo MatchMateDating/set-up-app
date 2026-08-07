@@ -15,11 +15,13 @@ import {
   FaEye,
   FaEyeSlash,
   FaTimes,
+  FaPuzzlePiece,
 } from 'react-icons/fa';
 import Select from 'react-select';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import AppShell from '../layout/AppShell';
 import { useUser } from '../../context/UserContext';
+import AgeRangeSlider from '../preferences/ageRangeSlider';
 import './settings.css';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
@@ -161,6 +163,7 @@ const authHeaders = () => {
 
 const SettingsSections = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user: contextUser, setUser: setContextUser } = useUser();
 
   const [activeSection, setActiveSection] = useState(null);
@@ -268,6 +271,13 @@ const SettingsSections = () => {
         Icon: FaBell,
       },
       {
+        key: 'puzzles',
+        label: 'Puzzles Hub',
+        description: 'Spirit animal, zodiac, and trivia with matches.',
+        Icon: FaPuzzlePiece,
+        href: '/puzzles',
+      },
+      {
         key: SECTION_KEYS.DELETE_ACCOUNT,
         label: 'Delete Account',
         description: user?.linked_account || contextUser?.linked_account
@@ -288,6 +298,18 @@ const SettingsSections = () => {
     }
     return base;
   }, [effectiveRole, user?.linked_account, contextUser?.linked_account]);
+
+  useEffect(() => {
+    const openReferral = searchParams.get('openReferral');
+    const requireMatchmaker = searchParams.get('requireMatchmaker');
+    if (openReferral === '1' || requireMatchmaker === '1') {
+      setActiveSection(SECTION_KEYS.REFERRAL);
+      const next = new URLSearchParams(searchParams);
+      next.delete('openReferral');
+      next.delete('requireMatchmaker');
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   const visibleNotificationPreferenceItems = useMemo(
     () =>
@@ -1084,12 +1106,15 @@ const SettingsSections = () => {
   const renderSectionList = () => (
     <>
       <div className="settings-nav-list fade-in">
-        {sectionItems.map(({ key, label, description, Icon }) => (
+        {sectionItems.map(({ key, label, description, Icon, href }) => (
           <button
             key={key}
             type="button"
             className="settings-nav-item settings-nav-item--detailed"
-            onClick={() => setActiveSection(key)}
+            onClick={() => {
+              if (href) navigate(href);
+              else setActiveSection(key);
+            }}
           >
             <span className="settings-nav-left">
               <Icon className="settings-nav-icon" />
@@ -1436,30 +1461,21 @@ const SettingsSections = () => {
         ) : (
           <form className="dating-preferences-form" onSubmit={handleSavePreferences}>
             <div className="settings-field">
-              <span className="settings-field-label">Preferred Age</span>
-              <div className="form-inline">
-                <input
-                  className="settings-input"
-                  type="number"
-                  name="preferredAgeMin"
-                  min="18"
-                  max="100"
-                  placeholder="Min"
-                  value={formData.preferredAgeMin}
-                  onChange={(e) => updatePreferences({ preferredAgeMin: e.target.value })}
-                />
-                <span className="dash">-</span>
-                <input
-                  className="settings-input"
-                  type="number"
-                  name="preferredAgeMax"
-                  min="18"
-                  max="100"
-                  placeholder="Max"
-                  value={formData.preferredAgeMax}
-                  onChange={(e) => updatePreferences({ preferredAgeMax: e.target.value })}
-                />
-              </div>
+              <span className="settings-field-label">
+                Preferred Age Range ({formData.preferredAgeMin || 18}–{formData.preferredAgeMax || 60})
+              </span>
+              <AgeRangeSlider
+                minValue={Number(formData.preferredAgeMin) || 18}
+                maxValue={Number(formData.preferredAgeMax) || 60}
+                min={18}
+                max={100}
+                onChange={(minAge, maxAge) =>
+                  updatePreferences({
+                    preferredAgeMin: String(minAge),
+                    preferredAgeMax: String(maxAge),
+                  })
+                }
+              />
             </div>
 
             <div className="settings-field">

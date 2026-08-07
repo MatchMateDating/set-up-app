@@ -1,6 +1,7 @@
 .app-shell-backdrop {
-  min-height: 100%;
-  min-height: 100dvh;
+  height: 100%;
+  height: 100dvh;
+  max-height: 100dvh;
   width: 100%;
   background:
     radial-gradient(ellipse 80% 60% at 50% -10%, rgba(var(--accent-rgb), 0.14), transparent 55%),
@@ -9,6 +10,8 @@
   display: flex;
   justify-content: center;
   align-items: stretch;
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 
 html[data-role='user'] .app-shell-backdrop {
@@ -21,9 +24,9 @@ html[data-role='user'] .app-shell-backdrop {
 .app-shell {
   width: 100%;
   max-width: none;
-  min-height: 100%;
-  min-height: 100dvh;
+  height: 100%;
   height: 100dvh;
+  max-height: 100dvh;
   position: relative;
   display: flex;
   flex-direction: column;
@@ -55,7 +58,7 @@ html[data-role='user'] .app-shell-backdrop {
   justify-content: space-between;
   gap: 12px;
   min-height: var(--header-height);
-  padding-top: 8px;
+  padding-top: calc(8px + env(safe-area-inset-top, 0px));
   padding-bottom: 8px;
   background: transparent;
   flex-shrink: 0;

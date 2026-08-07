@@ -1,0 +1,144 @@
+.quiz-result-page {
+  width: 100%;
+  max-width: var(--content-max, 640px);
+  margin: 0 auto;
+  padding: 24px var(--page-gutter, 16px) calc(24px + env(safe-area-inset-bottom, 0px));
+  box-sizing: border-box;
+  background: #fff8fa;
+  min-height: min(100%, calc(100dvh - 120px));
+}
+
+.quiz-result-page-title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  text-align: center;
+  margin: 0 0 24px;
+  color: #111827;
+}
+
+.quiz-result-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border: 1px solid var(--surface-border, #e5e7eb);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.quiz-result-heading {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 0 0 16px;
+  color: #111827;
+  text-align: center;
+}
+
+.quiz-result-body {
+  font-size: 1.125rem;
+  text-align: center;
+  margin: 0 0 24px;
+  color: #374151;
+  line-height: 1.45;
+}
+
+.quiz-result-score {
+  font-size: 1.375rem;
+  font-weight: 700;
+  margin: 0 0 12px;
+  color: #111827;
+}
+
+.quiz-result-actions {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.quiz-result-btn {
+  width: 100%;
+  background: #ef4d73;
+  color: #fff;
+  border: none;
+  padding: 14px;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.quiz-result-btn:hover:not(:disabled) {
+  opacity: 0.92;
+}
+
+.quiz-result-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.quiz-result-btn.is-send {
+  background: #10b981;
+}
+
+.quiz-result-btn.is-muted {
+  background: #6b7280;
+}
+
+.quiz-result-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 240px;
+  color: #6b7280;
+  font-size: 1rem;
+}
+
+.quiz-zodiac-sign {
+  font-size: 1.75rem;
+  font-weight: 700;
+  margin: 0 0 8px;
+  text-align: center;
+  color: #6c5ce7;
+}
+
+.quiz-zodiac-age {
+  font-size: 1.125rem;
+  margin: 0 0 16px;
+  text-align: center;
+  color: #374151;
+}
+
+.quiz-zodiac-section {
+  width: 100%;
+  text-align: left;
+  margin-top: 12px;
+}
+
+.quiz-zodiac-label {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin: 0 0 4px;
+  color: #111827;
+}
+
+.quiz-zodiac-text {
+  font-size: 1rem;
+  margin: 0;
+  color: #4b5563;
+  line-height: 1.4;
+}
+
+@media (min-width: 600px) {
+  .quiz-result-page {
+    padding: 32px var(--page-gutter, 24px) 32px;
+  }
+
+  .quiz-result-page-title {
+    font-size: 2rem;
+  }
+}

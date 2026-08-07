@@ -81,8 +81,7 @@
   gap: 8px;
 }
 
-input[type="number"],
-input[type="range"] {
+input[type="number"] {
   border: 1px solid #d1d5db;
   border-radius: 8px;
   padding: 8px 10px;
@@ -90,15 +89,20 @@ input[type="range"] {
   flex: 1;
 }
 
-input[type="range"] {
-  accent-color: var(--accent);
-  width: 100%;
-}
-
 .radius-slider {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+.radius-slider input[type="range"] {
+  accent-color: var(--accent);
+  width: 100%;
+  flex: 1;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
 }
 
 .radius-slider span {

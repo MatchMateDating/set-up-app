@@ -10,6 +10,7 @@ import PixelClouds from './components/PixelClouds';
 import { themeDefaultFonts } from './components/themeDefaults';
 import {StepIndicator} from './components/stepIndicator';
 import AppShell from '../layout/AppShell';
+import AgeRangeSlider from '../preferences/ageRangeSlider';
 
 const CompleteProfile = () => {
   const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
@@ -32,8 +33,8 @@ const CompleteProfile = () => {
     heightInches: '0',
     heightMeters: '0',
     heightCentimeters: '0',
-    preferredAgeMax: '',
-    preferredAgeMin: '',
+    preferredAgeMax: '50',
+    preferredAgeMin: '18',
     preferredGenders: [],
     matchRadius: '',
     matchWithAll: false,
@@ -74,8 +75,12 @@ const CompleteProfile = () => {
         birthdate: formData.birthdate,
         gender: formData.gender,
         height: heightFormatted,
-        preferredAgeMax: formData.preferredAgeMax,
-        preferredAgeMin: formData.preferredAgeMin,
+        preferredAgeMax: formData.preferredAgeMax
+          ? parseInt(formData.preferredAgeMax, 10)
+          : 50,
+        preferredAgeMin: formData.preferredAgeMin
+          ? parseInt(formData.preferredAgeMin, 10)
+          : 18,
         preferredGenders: formData.preferredGenders,
       };
 
@@ -213,8 +218,8 @@ const CompleteProfile = () => {
       }
 
       const payload = {
-        preferredAgeMax: formData.preferredAgeMax,
-        preferredAgeMin: formData.preferredAgeMin,
+        preferredAgeMax: parseInt(formData.preferredAgeMax, 10),
+        preferredAgeMin: parseInt(formData.preferredAgeMin, 10),
         preferredGenders: formData.preferredGenders,
         match_radius: formData.matchWithAll ? 9999 : (Number(formData.matchRadius) || 50),
       };
@@ -506,24 +511,22 @@ const CompleteProfile = () => {
 
               {/* Preferred Age */}
               <div className="form-field">
-                <label>Preferred Age</label>
-                <div className="form-inline">
-                  <input
-                    type="number"
-                    name="preferredAgeMin"
-                    placeholder="Min"
-                    value={formData.preferredAgeMin || ''}
-                    onChange={handleInputChange}
-                  />
-                  <span className="dash">-</span>
-                  <input
-                    type="number"
-                    name="preferredAgeMax"
-                    placeholder="Max"
-                    value={formData.preferredAgeMax || ''}
-                    onChange={handleInputChange}
-                  />
-                </div>
+                <label>
+                  Preferred Age Range ({formData.preferredAgeMin || 18}–{formData.preferredAgeMax || 50})
+                </label>
+                <AgeRangeSlider
+                  minValue={Number(formData.preferredAgeMin) || 18}
+                  maxValue={Number(formData.preferredAgeMax) || 50}
+                  min={18}
+                  max={100}
+                  onChange={(minAge, maxAge) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      preferredAgeMin: String(minAge),
+                      preferredAgeMax: String(maxAge),
+                    }))
+                  }
+                />
               </div>
 
               {/* Preferred Gender(s) */}

@@ -27,6 +27,12 @@ const MatchConvo = () => {
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
+    if (matchId) {
+      localStorage.setItem('activeMatchId', String(matchId));
+    }
+  }, [matchId]);
+
+  useEffect(() => {
     const fetchConversation = async () => {
       try {
         const res = await fetch(`${API_BASE_URL}/conversation/${matchId}`, {
@@ -114,7 +120,10 @@ const MatchConvo = () => {
       if (newMessageText.trim()) bodyData.message = newMessageText.trim();
       if (sendPuzzle) {
         bodyData.puzzle_type = selectedPuzzleType;
-        bodyData.puzzle_link = selectedPuzzleLink;
+        const link = selectedPuzzleLink.includes('?')
+          ? `${selectedPuzzleLink}&matchId=${matchId}`
+          : `${selectedPuzzleLink}?matchId=${matchId}`;
+        bodyData.puzzle_link = link;
       }
 
       const res = await fetch(`${API_BASE_URL}/conversation/${matchId}`, {
@@ -206,6 +215,27 @@ const MatchConvo = () => {
     }
   };
 
+  const handleUnmatch = async () => {
+    if (!window.confirm('Are you sure you want to unmatch? This cannot be undone.')) {
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE_URL}/match/unmatch/${matchId}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        navigate('/conversations', { replace: true });
+      } else {
+        const data = await res.json().catch(() => ({}));
+        alert(data.message || 'Failed to unmatch');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Failed to unmatch');
+    }
+  };
+
   const isPendingApproval = matchInfo?.status === 'pending_approval' || matchInfo?.message_count !== undefined;
   const messageCount = matchInfo?.message_count || 0;
   const canSendMore = messageCount < 10;
@@ -274,9 +304,14 @@ const MatchConvo = () => {
   return (
     <AppShell showTabs={false}>
       <div className="match-convo-container">
-        <button className="back-button" onClick={() => navigate("/conversations")}>
-          ← Back
-        </button>
+        <div className="convo-top-actions">
+          <button className="back-button" onClick={() => navigate("/conversations")}>
+            ← Back
+          </button>
+          <button type="button" className="unmatch-button" onClick={handleUnmatch}>
+            Unmatch
+          </button>
+        </div>
 
         {matchUser && (
           <div className="match-avatar-section">

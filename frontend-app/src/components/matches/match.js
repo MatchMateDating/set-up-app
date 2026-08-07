@@ -8,16 +8,23 @@ import { useProfiles } from "./hooks/useProfiles";
 import { useUserInfo } from "./hooks/useUserInfo";
 import { startLocationWatcher, stopLocationWatcher } from '../auth/utils/startLocationWatcher';
 import { getRoleAccentColor } from '../../theme/roleTheme';
+import { daterNeedsMatchmakerLink } from '../../navigation/matchmakerGate';
+import { useNavigate } from 'react-router-dom';
+import { useUser } from '../../context/UserContext';
 
 const Match = () => {
   const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
+  const navigate = useNavigate();
+  const { user: contextUser } = useUser();
   const { profiles, setProfiles, loading } = useProfiles(API_BASE_URL);
   const { userInfo } = useUserInfo(API_BASE_URL);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [referrer, setReferrer] = useState(null);
-  const isDater = userInfo?.role === 'user';
-  const roleAccent = getRoleAccentColor(userInfo?.role);
+  const gateUser = userInfo || contextUser;
+  const isDater = gateUser?.role === 'user';
+  const roleAccent = getRoleAccentColor(gateUser?.role);
+  const needsMatchmaker = daterNeedsMatchmakerLink(gateUser);
 
   const fetchProfile = async () => {
     const token = localStorage.getItem('token');
@@ -227,6 +234,28 @@ const Match = () => {
     return (
       <AppShell>
         <p className="match-empty">Loading profiles...</p>
+      </AppShell>
+    );
+  }
+
+  if (needsMatchmaker) {
+    return (
+      <AppShell>
+        <div className="match-container match-gate">
+          <p className="match-empty match-gate-text">
+            You can&apos;t see matches until you have a matchmaker. Go to Settings
+            → Referral Code to share your referral code with a matchmaker.
+          </p>
+          <button
+            type="button"
+            className="match-gate-button"
+            onClick={() =>
+              navigate('/settings?requireMatchmaker=1&openReferral=1')
+            }
+          >
+            Open Referral Settings
+          </button>
+        </div>
       </AppShell>
     );
   }
