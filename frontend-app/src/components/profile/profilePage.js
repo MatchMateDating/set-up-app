@@ -4,20 +4,15 @@ import { PenLine } from 'lucide-react';
 import Profile from './profile';
 import ProfileCard from '../matches/profileCard';
 import AppShell from '../layout/AppShell';
-import AvatarSelectorModal from './avatarSelectorModal';
 import { useUser } from '../../context/UserContext';
+import { DATER_SCREEN_BG } from '../../theme/roleTheme';
 import './profilePage.css';
-
-const DATER_SCREEN_BG = '#fff5f7';
-const MATCHMAKER_SCREEN_BG = '#f3f4f6';
 
 const ProfilePage = () => {
   const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
   const [user, setUser] = useState(null);
   const [referrer, setReferrer] = useState(null);
   const [editing, setEditing] = useState(false);
-  const [showAvatarModal, setShowAvatarModal] = useState(false);
-  const [avatar, setAvatar] = useState(null);
   const { userId } = useParams();
   const navigate = useNavigate();
   const { setUser: setContextUser, setIsProfileEditing } = useUser();
@@ -70,7 +65,6 @@ const ProfilePage = () => {
 
   useEffect(() => {
     if (user?.role === 'matchmaker') {
-      setAvatar(user.avatar);
       if (user.referred_by_id || user.referrer_id) {
         fetchReferrer(user.referred_by_id || user.referrer_id);
       }
@@ -82,10 +76,6 @@ const ProfilePage = () => {
     return () => setIsProfileEditing(false);
   }, [editing, setIsProfileEditing]);
 
-  const handleAvatarClick = () => {
-    setShowAvatarModal(true);
-  };
-
   const handleSave = () => {
     fetchProfile();
     setEditing(false);
@@ -96,11 +86,9 @@ const ProfilePage = () => {
   const isMatchmaker = user?.role === 'matchmaker';
   const showDaterChrome = isDater && !editing && isOwnProfile;
   const showDaterEditChrome = isDater && editing && isOwnProfile;
-  const screenBackground = isMatchmaker
-    ? MATCHMAKER_SCREEN_BG
-    : isDater
-      ? DATER_SCREEN_BG
-      : undefined;
+  // Matchmakers inherit AppShell's background. Setting another translucent
+  // purple tint here stacks and darkens the area around the card.
+  const screenBackground = isDater ? DATER_SCREEN_BG : undefined;
   const accentColor = isDater ? '#ef4d73' : '#6c5ce7';
 
   return (
@@ -185,23 +173,15 @@ const ProfilePage = () => {
 
         {isMatchmaker && (
           <>
-            <div className="profile-page-header profile-page-header-matchmaker">
-              {isOwnProfile && (
-                <img
-                  src={avatar || '/avatars/allyson_avatar.png'}
-                  alt="Avatar"
-                  className="avatar"
-                  onClick={handleAvatarClick}
-                />
-              )}
-              <div className="profile-info">
-                <div className="name-section">
-                  <h2>{user.first_name}</h2>
-                </div>
+            {isOwnProfile && (
+              <div className="profile-page-header profile-page-header-matchmaker">
+                <div className="profile-page-header-side" />
+                <h1 className="profile-page-title">Dater Profile</h1>
+                <div className="profile-page-header-side" />
               </div>
-            </div>
+            )}
             {referrer ? (
-              <div className="profile-page-card-wrap">
+              <div className="profile-page-card-wrap profile-page-card-wrap-matchmaker">
                 <ProfileCard
                   profile={referrer}
                   userInfo={user}
@@ -211,17 +191,11 @@ const ProfilePage = () => {
                 />
               </div>
             ) : (
-              <p className="profile-page-empty">No dater selected</p>
+              <div className="profile-page-no-dater">
+                <p className="profile-page-no-dater-text">No dater selected</p>
+              </div>
             )}
           </>
-        )}
-
-        {showAvatarModal && (
-          <AvatarSelectorModal
-            onSelect={(selectedAvatar) => setAvatar(selectedAvatar)}
-            userId={user.id}
-            onClose={() => setShowAvatarModal(false)}
-          />
         )}
       </div>
     </AppShell>

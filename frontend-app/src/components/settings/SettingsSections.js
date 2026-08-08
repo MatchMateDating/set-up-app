@@ -15,7 +15,6 @@ import {
   FaEye,
   FaEyeSlash,
   FaTimes,
-  FaPuzzlePiece,
 } from 'react-icons/fa';
 import Select from 'react-select';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -269,13 +268,6 @@ const SettingsSections = () => {
         label: 'Notifications',
         description: 'Control notification preferences.',
         Icon: FaBell,
-      },
-      {
-        key: 'puzzles',
-        label: 'Puzzles Hub',
-        description: 'Spirit animal, zodiac, and trivia with matches.',
-        Icon: FaPuzzlePiece,
-        href: '/puzzles',
       },
       {
         key: SECTION_KEYS.DELETE_ACCOUNT,

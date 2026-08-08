@@ -16,6 +16,7 @@
   padding: 0 0 8px;
   min-height: 100%;
   box-sizing: border-box;
+  background: transparent;
 }
 
 .profile-page-header {
@@ -26,7 +27,8 @@
 }
 
 .profile-page-header-dater,
-.profile-page-header-edit {
+.profile-page-header-edit,
+.profile-page-header-matchmaker {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
@@ -35,10 +37,7 @@
 }
 
 .profile-page-header-matchmaker {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 16px var(--page-gutter);
+  padding-bottom: 0;
 }
 
 .profile-page-header-side {
@@ -87,10 +86,26 @@
   box-sizing: border-box;
 }
 
-.profile-page-empty {
+.profile-page-card-wrap-matchmaker {
+  padding-top: 32px;
+  padding-bottom: 120px;
+}
+
+.profile-page-no-dater {
+  width: 100%;
+  max-width: var(--content-narrow);
+  margin: 24px auto 0;
+  padding: 24px;
+  border-radius: 24px;
+  background: #ffffff;
+  box-sizing: border-box;
   text-align: center;
+}
+
+.profile-page-no-dater-text {
+  margin: 0;
+  font-size: 1rem;
   color: #6b7280;
-  padding: 32px var(--page-gutter);
 }
 
 .profile-page-edit-footer {
@@ -121,29 +136,6 @@
   color: #ffffff;
 }
 
-.avatar {
-  width: 72px;
-  height: 72px;
-  border-radius: 50%;
-  cursor: pointer;
-  object-fit: cover;
-  border: 2px solid var(--accent, #6c5ce7);
-  flex-shrink: 0;
-}
-
-.profile-info {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.name-section h2 {
-  margin: 0;
-  font-size: 1.35rem;
-  font-weight: bold;
-  color: var(--text-primary, #1a1a2e);
-}
-
 .profile-container.profile-page-layout {
   max-width: none;
   margin: 0;
@@ -159,32 +151,17 @@
   padding: 0;
 }
 
-@media (min-width: 600px) {
-  .avatar {
-    width: 80px;
-    height: 80px;
-  }
-
-  .name-section h2 {
-    font-size: 1.5rem;
-  }
-}
-
 @media (min-width: 900px) {
   .profile-page-body {
     padding: 8px 0 24px;
   }
 
-  .profile-page-header-matchmaker {
-    padding: 20px var(--page-gutter) 16px;
-  }
-
-  .avatar {
-    width: 96px;
-    height: 96px;
-  }
-
   .profile-page-card-wrap {
     padding: 16px var(--page-gutter) 24px;
+  }
+
+  .profile-page-card-wrap-matchmaker {
+    padding-top: 32px;
+    padding-bottom: 120px;
   }
 }

@@ -236,8 +236,10 @@
 
 .info-row {
   display: flex;
-  justify-content: space-between;
-  gap: 12px;
+  align-items: baseline;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 6px;
   margin-bottom: 16px;
   font-size: 14px;
 }
@@ -248,6 +250,7 @@
 
 .info-value {
   font-weight: 600;
+  color: var(--text-primary, #1a1a2e);
 }
 
 .password-field {
