@@ -1,6 +1,5 @@
 .dater-dropdown-wrap {
   width: 100%;
-  max-width: 320px;
 }
 
 .dater-dropdown-label {
@@ -14,7 +13,6 @@
 .custom-dropdown {
   position: relative;
   width: 100%;
-  max-width: 320px;
   font-family: inherit;
 }
 

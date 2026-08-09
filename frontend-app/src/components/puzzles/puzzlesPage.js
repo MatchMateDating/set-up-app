@@ -10,18 +10,21 @@ export const games = [
     path: '/puzzles/spirit-animal',
     description: "5 questions · find your match's animal",
     icon: '🦊',
+    iconBg: '#FFE8EE',
   },
   {
     name: 'Zodiac Sign Quiz',
     path: '/puzzles/zodiac',
     description: "Guess each other's signs",
     icon: '♒',
+    iconBg: '#EDE8F8',
   },
   {
     name: 'Trivia Challenge',
     path: '/puzzles/trivia',
     description: '10 rounds · head to head',
     icon: '🏆',
+    iconBg: '#E2F5EC',
   },
 ];
 

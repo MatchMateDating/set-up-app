@@ -1665,7 +1665,11 @@ const SettingsSections = () => {
   return (
     <AppShell showTabs={!activeSection}>
       <div className="settings-page">
-        <div className="settings-page-header">
+        <div
+          className={`settings-page-header${
+            activeSection ? ' settings-page-header-section' : ''
+          }`}
+        >
           {activeSection ? (
             <button
               type="button"
@@ -1675,7 +1679,8 @@ const SettingsSections = () => {
                 setPreferencesEditing(false);
               }}
             >
-              <FaArrowLeft /> Back
+              <FaArrowLeft />
+              <span className="settings-back-label">Back</span>
             </button>
           ) : null}
           <h2 className="settings-title">{sectionTitle}</h2>

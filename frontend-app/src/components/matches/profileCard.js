@@ -31,6 +31,8 @@ const ProfileCard = ({
   onSkip,
   hideProfileThumbnail = false,
   blendWithBackground = false,
+  isStackPreview = false,
+  stackPreviewAligned = false,
 }) => {
   const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
   const [photoIndex, setPhotoIndex] = useState(0);
@@ -128,13 +130,34 @@ const ProfileCard = ({
     setPhotoIndex(Math.min(Math.max(nextIndex, 0), imageUris.length - 1));
   };
 
-  const renderSeeNoteTag = () => {
+  const renderSeeNoteTag = (interactive = true) => {
     if (!hasNote) return null;
+
+    const tagClassName = `pc-see-note-tag${
+      isStackPreview ? ' pc-see-note-tag-stack-preview' : ''
+    }`;
+
+    if (!interactive || isStackPreview) {
+      return (
+        <div
+          className={tagClassName}
+          style={{
+            backgroundColor: seeNoteTagBackgroundColor,
+            borderColor: tagBorderColor,
+            color: accentColor,
+          }}
+          aria-hidden="true"
+        >
+          <MessageCircle size={12} color={accentColor} />
+          <span>See note</span>
+        </div>
+      );
+    }
 
     return (
       <button
         type="button"
-        className="pc-see-note-tag"
+        className={tagClassName}
         style={{
           backgroundColor: seeNoteTagBackgroundColor,
           borderColor: tagBorderColor,
@@ -151,13 +174,13 @@ const ProfileCard = ({
 
   const renderImageOverlays = () => (
     <>
-      {showCompatibility && (
+      {!isStackPreview && showCompatibility && (
         <div className="pc-compatibility-badge">
           <CompatibilityScore score={profile.ai_score} variant="overlay" />
         </div>
       )}
 
-      {canSkipProfile && onSkip && (
+      {!isStackPreview && canSkipProfile && onSkip && (
         <button
           type="button"
           className="pc-close-button"
@@ -170,7 +193,7 @@ const ProfileCard = ({
         </button>
       )}
 
-      {!isVerticalLayout && renderSeeNoteTag()}
+      {!isVerticalLayout && renderSeeNoteTag(!isStackPreview)}
     </>
   );
 
@@ -281,9 +304,15 @@ const ProfileCard = ({
     : 'rgba(108, 92, 231, 0.08)';
 
   return (
-    <div className={`pc-card-outer${blendWithBackground ? ' pc-card-outer-blended' : ''}`}>
+    <div
+      className={`pc-card-outer${blendWithBackground ? ' pc-card-outer-blended' : ''}${
+        isStackPreview ? ' pc-card-outer-stack-preview' : ''
+      }`}
+    >
       <div
-        className={`pc-card pc-theme-${profileStyle}${blendWithBackground ? ' pc-card-blended' : ''}`}
+        className={`pc-card pc-theme-${profileStyle}${blendWithBackground ? ' pc-card-blended' : ''}${
+          isStackPreview ? ' pc-card-stack-preview' : ''
+        }`}
         style={{
           backgroundColor: themeBackgroundColor,
           ...(blendWithBackground ? { borderColor: blendBorderColor } : null),
@@ -297,6 +326,10 @@ const ProfileCard = ({
           <div
             className={`pc-image-section${isVerticalLayout ? ' pc-image-section-vertical' : ''}${
               isHeroStackLayout ? ' pc-image-section-hero-stack' : ''
+            }${isStackPreview ? ' pc-image-section-stack-preview-muted' : ''}${
+              isStackPreview && stackPreviewAligned
+                ? ' pc-image-section-stack-preview-aligned'
+                : ''
             }`}
             style={{ backgroundColor: themeBackgroundColor }}
           >
@@ -320,98 +353,105 @@ const ProfileCard = ({
             {renderImageOverlays()}
           </div>
 
-          <div className="pc-info-section">
-            <div
-              className={`pc-user-header${
-                hideProfileThumbnail ? ' pc-user-header-no-avatar' : ''
-              }`}
-            >
-              {!hideProfileThumbnail &&
-                (firstImageUri ? (
-                  <button
-                    type="button"
-                    className="pc-thumbnail"
-                    onClick={() => openLightbox(0)}
-                    aria-label="Enlarge profile photo"
+          {!isStackPreview && (
+            <>
+              <div className="pc-info-section">
+                <div
+                  className={`pc-user-header${
+                    hideProfileThumbnail ? ' pc-user-header-no-avatar' : ''
+                  }`}
+                >
+                  {!hideProfileThumbnail &&
+                    (firstImageUri ? (
+                      <button
+                        type="button"
+                        className="pc-thumbnail"
+                        onClick={() => openLightbox(0)}
+                        aria-label="Enlarge profile photo"
+                      >
+                        <img src={firstImageUri} alt="" className="pc-thumbnail-image" />
+                      </button>
+                    ) : (
+                      <div className="pc-thumbnail">
+                        <span
+                          className="pc-thumbnail-fallback"
+                          style={{ color: accentColor }}
+                        >
+                          {(profile.first_name || '?').charAt(0).toUpperCase()}
+                        </span>
+                      </div>
+                    ))}
+                  <p
+                    className={`pc-name-text${
+                      hideProfileThumbnail ? ' pc-name-text-standalone' : ''
+                    }`}
                   >
-                    <img src={firstImageUri} alt="" className="pc-thumbnail-image" />
-                  </button>
-                ) : (
-                  <div className="pc-thumbnail">
-                    <span className="pc-thumbnail-fallback" style={{ color: accentColor }}>
-                      {(profile.first_name || '?').charAt(0).toUpperCase()}
-                    </span>
+                    {nameLine}
+                  </p>
+                </div>
+
+                {profile.bio?.trim() ? (
+                  <p className="pc-bio-text">{profile.bio.trim()}</p>
+                ) : null}
+
+                {(shouldShowLocation || displayGender || displayHeight) && (
+                  <div className="pc-tags-row">
+                    {shouldShowLocation && (
+                      <span
+                        className="pc-tag"
+                        style={{
+                          backgroundColor: tagBackgroundColor,
+                          borderColor: tagBorderColor,
+                        }}
+                      >
+                        <MapPin size={14} color={accentColor} />
+                        <span className="pc-tag-text">{locationText}</span>
+                      </span>
+                    )}
+                    {displayGender && (
+                      <span
+                        className="pc-tag"
+                        style={{
+                          backgroundColor: tagBackgroundColor,
+                          borderColor: tagBorderColor,
+                        }}
+                      >
+                        <GenderIcon size={14} color={accentColor} />
+                        <span className="pc-tag-text">{displayGender}</span>
+                      </span>
+                    )}
+                    {displayHeight && (
+                      <span
+                        className="pc-tag"
+                        style={{
+                          backgroundColor: tagBackgroundColor,
+                          borderColor: tagBorderColor,
+                        }}
+                      >
+                        <Ruler size={14} color={accentColor} />
+                        <span className="pc-tag-text">{displayHeight}</span>
+                      </span>
+                    )}
                   </div>
-                ))}
-              <p
-                className={`pc-name-text${
-                  hideProfileThumbnail ? ' pc-name-text-standalone' : ''
-                }`}
-              >
-                {nameLine}
-              </p>
-            </div>
-
-            {profile.bio?.trim() ? (
-              <p className="pc-bio-text">{profile.bio.trim()}</p>
-            ) : null}
-
-            {(shouldShowLocation || displayGender || displayHeight) && (
-              <div className="pc-tags-row">
-                {shouldShowLocation && (
-                  <span
-                    className="pc-tag"
-                    style={{
-                      backgroundColor: tagBackgroundColor,
-                      borderColor: tagBorderColor,
-                    }}
-                  >
-                    <MapPin size={14} color={accentColor} />
-                    <span className="pc-tag-text">{locationText}</span>
-                  </span>
-                )}
-                {displayGender && (
-                  <span
-                    className="pc-tag"
-                    style={{
-                      backgroundColor: tagBackgroundColor,
-                      borderColor: tagBorderColor,
-                    }}
-                  >
-                    <GenderIcon size={14} color={accentColor} />
-                    <span className="pc-tag-text">{displayGender}</span>
-                  </span>
-                )}
-                {displayHeight && (
-                  <span
-                    className="pc-tag"
-                    style={{
-                      backgroundColor: tagBackgroundColor,
-                      borderColor: tagBorderColor,
-                    }}
-                  >
-                    <Ruler size={14} color={accentColor} />
-                    <span className="pc-tag-text">{displayHeight}</span>
-                  </span>
                 )}
               </div>
-            )}
-          </div>
 
-          <ImageLightboxModal
-            uris={imageUris}
-            index={lightboxIndex}
-            onIndexChange={setLightboxIndex}
-            onClose={() => setLightboxIndex(null)}
-          />
+              <ImageLightboxModal
+                uris={imageUris}
+                index={lightboxIndex}
+                onIndexChange={setLightboxIndex}
+                onClose={() => setLightboxIndex(null)}
+              />
 
-          {showNoteModal && hasNote && (
-            <ViewNoteModal
-              note={profile.note}
-              authorLabel={noteAuthorLabel}
-              accentColor={accentColor}
-              onClose={() => setShowNoteModal(false)}
-            />
+              {showNoteModal && hasNote && (
+                <ViewNoteModal
+                  note={profile.note}
+                  authorLabel={noteAuthorLabel}
+                  accentColor={accentColor}
+                  onClose={() => setShowNoteModal(false)}
+                />
+              )}
+            </>
           )}
         </div>
       </div>

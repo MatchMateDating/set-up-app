@@ -15,6 +15,10 @@ const AppShell = ({
   showHeader = true,
   onSelectedDaterChange,
   hideTabsOverride = false,
+  shellBackgroundColor,
+  headerCenter = null,
+  headerTrailing = null,
+  hideRoleBanner = false,
 }) => {
   const location = useLocation();
   const { user, setUser, isProfileEditing, refreshUser } = useUser();
@@ -109,19 +113,38 @@ const AppShell = ({
   return (
     <div className="app-shell-backdrop">
       <div
-        className={`app-shell ${hideTabs ? 'no-nav' : 'with-nav'}`}
+        className={`app-shell ${hideTabs ? 'no-nav' : 'with-nav'}${
+          isConversation ? ' app-shell-conversation' : ''
+        }`}
         data-role={role}
-        style={{ backgroundColor: getRoleBackgroundTint(role) }}
+        style={{
+          backgroundColor:
+            shellBackgroundColor || getRoleBackgroundTint(role),
+        }}
       >
         <div className="app-shell-body">
           {showHeader && (
-            <header className="app-shell-header app-shell-rail">
+            <header
+              className={`app-shell-header app-shell-rail${
+                headerCenter ? ' app-shell-header-with-center' : ''
+              }`}
+            >
               <img
                 src="/assets/matchmate_logo.png"
                 alt="MatchMate"
                 className="app-shell-logo"
               />
-              <RoleHeaderBanner role={role} />
+              {headerCenter ? (
+                <div className="app-shell-header-center">{headerCenter}</div>
+              ) : null}
+              <div className="app-shell-header-trailing">
+                {headerTrailing}
+                {!hideRoleBanner ? (
+                  <div className="app-shell-role-badge">
+                    <RoleHeaderBanner role={role} />
+                  </div>
+                ) : null}
+              </div>
             </header>
           )}
 

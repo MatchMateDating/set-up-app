@@ -169,7 +169,13 @@ const SpiritAnimalQuiz = () => {
   };
 
   const handleClose = () => {
-    navigate('/puzzles');
+    const matchId =
+      searchParams.get('matchId') || localStorage.getItem('activeMatchId');
+    if (matchId) {
+      navigate(`/conversation/${matchId}`);
+      return;
+    }
+    navigate(-1);
   };
 
   if (!result) {

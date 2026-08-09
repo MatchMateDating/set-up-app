@@ -37,12 +37,62 @@
   color: var(--text-primary, #1a1a2e);
 }
 
+/* Native root Settings is logo-only (no page title). */
+@media (max-width: 599px) {
+  .settings-page-header:not(.settings-page-header-section) .settings-title {
+    display: none;
+  }
+
+  .settings-page-header-section .settings-title {
+    font-size: 1.25rem;
+    margin: 4px 0 12px;
+  }
+
+  .settings-back-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 20px;
+    background: rgba(0, 0, 0, 0.06);
+    justify-content: center;
+    margin-bottom: 12px;
+    color: #374151;
+    gap: 0;
+  }
+
+  .settings-back-btn .settings-back-label {
+    display: none;
+  }
+}
+
 .settings-nav-list {
   background: #fff;
   border-radius: 14px;
   border: 1px solid var(--surface-border, #ebe7fb);
   overflow: hidden;
   margin-bottom: 18px;
+}
+
+@media (max-width: 599px) {
+  .settings-nav-list {
+    background: transparent;
+    border: none;
+    overflow: visible;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .settings-nav-item {
+    border-radius: 12px;
+    border: none;
+    border-bottom: none !important;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+    padding: 16px;
+  }
+
+  .settings-nav-item:hover {
+    background: #fff;
+  }
 }
 
 .settings-nav-item {

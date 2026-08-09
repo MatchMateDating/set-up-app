@@ -1,243 +1,734 @@
-:root {
-    --neutral: #f9fafb;
-    --neutral-border: #e5e7eb;
-    --neutral-dark: #d1d5db;
-}
-
 .match-convo-container {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    min-height: 0;
-    width: 100%;
-    max-width: var(--content-max);
-    margin: 0 auto;
-    padding: 0;
-    box-sizing: border-box;
-    overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  overflow: hidden;
+  background: #fafafa;
 }
 
-.back-button {
-    background: none;
-    border: none;
-    font-size: 1rem;
-    cursor: pointer;
-    color: var(--primary);
-    align-self: flex-start;
-    margin: 8px 16px 0 16px;
-    font-weight: 600;
+.match-convo-dater {
+  background: #fff5f7;
 }
 
-.convo-top-actions {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    padding-right: 16px;
-}
-
-.convo-top-actions .back-button {
-    margin-right: 0;
-}
-
-.unmatch-button {
-    appearance: none;
-    border: 1px solid #ef4444;
-    background: transparent;
-    color: #ef4444;
-    font-weight: 600;
-    font-size: 0.9rem;
-    border-radius: 8px;
-    padding: 6px 12px;
-    cursor: pointer;
-    margin-top: 8px;
-}
-
-.unmatch-button:hover {
-    background: rgba(239, 68, 68, 0.08);
+.match-convo-loading-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .convo-loading {
-    padding: 24px 16px;
-    text-align: center;
-    color: var(--text-muted);
+  padding: 24px 16px;
+  text-align: center;
+  color: var(--text-muted, #6b7280);
+  font-size: 16px;
 }
 
-.match-avatar-section {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    margin-top: 10px;
-    margin-bottom: 10px;
+/* Header */
+.mc-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: #fff;
+  padding: calc(8px + env(safe-area-inset-top, 0px)) 8px 12px;
+  border-bottom: 1px solid #e8e8e8;
+  flex-shrink: 0;
 }
 
-.match-avatar-img {
-    width: 80px;
-    height: 80px;
-    border-radius: 50%;
-    object-fit: cover;
-    border: 2px solid var(--primary);
-    margin-bottom: 5px;
+.mc-back-btn {
+  border: none;
+  background: transparent;
+  padding: 6px 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
 }
 
-.match-placeholder {
-    width: 80px;
-    height: 80px;
-    border-radius: 50%;
-    background: var(--neutral-dark);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
-    font-weight: bold;
-    font-size: 1.2rem;
-    margin-bottom: 5px;
+.mc-back-btn:hover {
+  background: rgba(0, 0, 0, 0.04);
 }
 
-.convo-title {
-    font-size: 1.4rem;
-    color: var(--primary);
-    font-weight: 600;
-    margin: 0;
+.mc-header-profile {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: 2px;
+  border: none;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
 }
 
-.messages-box {
-    flex: 1;
-    overflow-y: auto;
-    padding: 16px;
-    border-top: 1px solid var(--neutral-border);
-    border-bottom: 1px solid var(--neutral-border);
-    background: var(--neutral);
-    display: flex;
-    flex-direction: column;
+.mc-header-profile:disabled {
+  cursor: default;
 }
 
-.sender-label {
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: var(--text-muted);
-    margin-bottom: 2px;
+.mc-header-avatar,
+.mc-header-avatar-placeholder {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  object-fit: cover;
 }
 
-.message-bubble {
-    max-width: 70%;
-    padding: 10px 14px;
-    margin-bottom: 8px;
-    border-radius: 16px;
-    position: relative;
-    word-wrap: break-word;
-    white-space: pre-wrap;
+.mc-header-avatar-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 700;
+  font-size: 15px;
 }
 
-.message-bubble.mine {
-    align-self: flex-end;
-    background-color: var(--primary);
-    color: white;
-    border-bottom-right-radius: 4px;
+.mc-avatar-blurred {
+  filter: blur(8px) brightness(0.9);
 }
 
-.message-bubble.theirs {
-    align-self: flex-start;
-    background-color: white;
-    color: black;
-    border-bottom-left-radius: 4px;
-    border: 1px solid var(--neutral-border);
+.mc-header-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
 }
 
-.message-text {
-    margin: 0;
+.mc-header-name {
+  font-size: 17px;
+  font-weight: 700;
+  color: #111827;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.puzzle-bubble {
-    background: var(--primary-dark);
-    color: white;
+.mc-header-role {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  margin-top: 1px;
+}
+
+.mc-header-subtitle {
+  font-size: 11px;
+  font-weight: 500;
+  font-style: italic;
+  margin-top: 1px;
+}
+
+.mc-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 8px;
+  flex-shrink: 0;
+}
+
+.mc-approve-btn {
+  border: none;
+  border-radius: 8px;
+  padding: 6px 12px;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.mc-menu-wrap {
+  position: relative;
+}
+
+.mc-menu-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.mc-menu-btn-dater {
+  border: none;
+  box-shadow: none;
+  background: transparent;
+}
+
+.mc-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  border: none;
+  background: transparent;
+  z-index: 40;
+  cursor: default;
+}
+
+.mc-menu-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 180px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  border: 1px solid #e5e7eb;
+  z-index: 50;
+  overflow: hidden;
+}
+
+@media (max-width: 599px) {
+  .mc-menu-backdrop {
+    background: rgba(0, 0, 0, 0.45);
+    z-index: 2300;
+  }
+
+  .mc-menu-dropdown {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    top: auto;
+    min-width: 0;
+    width: 100%;
+    border-radius: 24px 24px 0 0;
     border: none;
+    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.12);
+    padding: 12px 8px calc(16px + env(safe-area-inset-bottom, 0px));
+    z-index: 2310;
+  }
+
+  .mc-menu-item {
+    padding: 16px 18px;
+    font-size: 16px;
     border-radius: 12px;
-    padding: 6px 10px;
-    cursor: pointer;
-    margin-top: 4px;
-    font-size: 0.85rem;
+  }
 }
 
-.timestamp {
-    font-size: 0.7rem;
-    color: var(--text-muted);
-    margin-top: 4px;
-    display: block;
-    text-align: right;
+.mc-menu-item {
+  display: block;
+  width: 100%;
+  border: none;
+  background: transparent;
+  text-align: left;
+  padding: 14px 16px;
+  font-size: 15px;
+  font-weight: 500;
+  color: #374151;
+  cursor: pointer;
+  font-family: inherit;
 }
 
-.message-input {
-    width: 100%;
-    border: 1px solid var(--neutral-dark);
-    border-radius: 8px;
-    padding: 8px;
-    margin: 8px 16px;
-    resize: none;
-    font-size: 0.9rem;
-    box-sizing: border-box;
+.mc-menu-item:hover {
+  background: #f9fafb;
 }
 
-.send-actions {
-    display: flex;
-    gap: 0.5rem;
-    padding: 0 16px 16px;
+.mc-menu-item-danger {
+  color: #e53e3e;
 }
 
-.send-convo-button,
-.send-puzzle-button {
-    flex: 1;
-    padding: 10px;
-    background: var(--primary);
-    color: white;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    font-size: 0.9rem;
+/* Pending banner */
+.mc-pending-banner {
+  margin: 12px 16px 8px;
+  border-radius: 12px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
+  background: linear-gradient(90deg, #9d7aff 0%, #5b3a8f 100%);
+  flex-shrink: 0;
+  box-sizing: border-box;
 }
 
-.send-convo-button:disabled {
-    background: var(--neutral-dark);
-    cursor: not-allowed;
+.mc-pending-banner-text {
+  margin: 0;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+  text-align: center;
 }
 
-.send-puzzle-button {
-    background: var(--primary-dark);
+/* Messages */
+.mc-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 0;
+  background: transparent;
+  -webkit-overflow-scrolling: touch;
 }
 
-.pending-approval-info {
-    background: #fff3cd;
-    padding: 12px;
-    margin: 8px 16px;
-    border-radius: 8px;
-    border: 1px solid #ffc107;
+.mc-messages-dater {
+  background: transparent;
 }
 
-.message-count-text {
-    font-size: 14px;
-    color: #856404;
-    margin: 0 0 4px 0;
+.mc-empty {
+  margin: 40px auto 0;
+  text-align: center;
+  color: #6b7280;
+  font-size: 16px;
 }
 
-.limit-reached-text {
-    font-size: 12px;
-    color: #d32f2f;
-    margin: 0 0 8px 0;
-    font-weight: 600;
+.mc-empty-dater {
+  color: #9ca3af;
 }
 
-.approve-button {
-    width: 100%;
-    background: var(--primary);
-    color: white;
-    border: none;
-    border-radius: 8px;
-    padding: 10px;
-    cursor: pointer;
-    font-size: 0.9rem;
-    font-weight: 600;
+.mc-date-sep {
+  align-self: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: #9ca3af;
+  letter-spacing: 0.4px;
+  margin: 4px 0 16px;
 }
 
-.approve-button:hover {
-    background: var(--primary-dark);
+.mc-bubble {
+  max-width: 75%;
+  padding: 12px;
+  border-radius: 16px;
+  position: relative;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+}
+
+.mc-mine {
+  align-self: flex-end;
+  background: #6c5ce7;
+  color: #fff;
+}
+
+.mc-theirs {
+  align-self: flex-start;
+  background: #fff;
+  color: #111827;
+}
+
+.mc-dater-bubble {
+  max-width: 78%;
+  padding: 10px 14px;
+  border-radius: 18px;
+}
+
+.mc-dater-mine {
+  align-self: flex-end;
+  background: #ef4d73;
+  color: #fff;
+  border-top-left-radius: 18px;
+  border-top-right-radius: 18px;
+  border-bottom-left-radius: 18px;
+  border-bottom-right-radius: 4px;
+}
+
+.mc-dater-theirs {
+  align-self: flex-start;
+  background: #fff;
+  color: #1f2937;
+  border-top-left-radius: 18px;
+  border-top-right-radius: 18px;
+  border-bottom-right-radius: 18px;
+  border-bottom-left-radius: 4px;
+}
+
+.mc-sender-label {
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.mc-message-text {
+  margin: 0;
+  font-size: 16px;
+  line-height: 22px;
+  color: inherit;
+}
+
+.mc-theirs .mc-message-text {
+  color: #222;
+}
+
+.mc-dater-theirs .mc-message-text {
+  color: #1f2937;
+}
+
+.mc-puzzle-chip {
+  margin-top: 8px;
+  border: none;
+  border-radius: 10px;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.2);
+  color: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.mc-puzzle-chip-mm,
+.mc-puzzle-chip-dater {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  max-width: 100%;
+  text-align: left;
+}
+
+.mc-puzzle-chip-mm-mine {
+  background: #ffffff;
+  color: #6c5ce7;
+}
+
+.mc-puzzle-chip-mm-theirs {
+  background: #f3f4f6;
+  color: #6c5ce7;
+}
+
+.mc-puzzle-chip-dater-mine {
+  background: #ffffff;
+  color: #ef4d73;
+}
+
+.mc-puzzle-chip-dater-theirs {
+  background: #fff0f4;
+  color: #ef4d73;
+}
+
+.mc-timestamp {
+  display: block;
+  font-size: 0.7rem;
+  margin-top: 6px;
+  color: #9ca3af;
+  text-align: right;
+}
+
+.mc-timestamp-mine {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+/* Puzzle preview / picker */
+.mc-selected-puzzle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 16px 8px;
+  padding: 10px;
+  background: #fff;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.mc-selected-puzzle-dater {
+  background: #fff;
+  border: 1px solid #fadce6;
+}
+
+.mc-selected-puzzle-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 16px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mc-selected-puzzle-clear {
+  border: none;
+  background: transparent;
+  padding: 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+/* Puzzle chooser sheet */
+.mc-puzzle-sheet-root {
+  position: fixed;
+  inset: 0;
+  z-index: 2200;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.mc-puzzle-sheet-backdrop {
+  position: absolute;
+  inset: 0;
+  border: none;
+  background: rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+}
+
+.mc-puzzle-sheet {
+  position: relative;
+  background: #f5f5f5;
+  border-top-left-radius: 24px;
+  border-top-right-radius: 24px;
+  padding: 20px 20px calc(20px + env(safe-area-inset-bottom, 0px));
+  max-height: 55%;
+  overflow-y: auto;
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.mc-puzzle-sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  margin-bottom: 20px;
+}
+
+.mc-puzzle-sheet-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #111827;
+  text-align: center;
+}
+
+.mc-puzzle-sheet-close {
+  position: absolute;
+  right: 0;
+  top: -2px;
+  border: none;
+  background: transparent;
+  padding: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.mc-puzzle-sheet-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-bottom: 8px;
+}
+
+.mc-puzzle-option {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  border: 1px solid #ececec;
+  border-radius: 16px;
+  background: #fff;
+  padding: 14px;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.mc-puzzle-option:hover {
+  border-color: #ddd;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.mc-puzzle-option-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.mc-puzzle-option-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mc-puzzle-option-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.mc-puzzle-option-desc {
+  font-size: 13px;
+  color: #6b7280;
+  line-height: 18px;
+}
+
+/* Default / matchmaker composer */
+.mc-composer-default {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+  background: #fafafa;
+  border-top: 1px solid #e8e8e8;
+  flex-shrink: 0;
+}
+
+.mc-message-input {
+  width: 100%;
+  margin: 0;
+  box-sizing: border-box;
+  border: 1px solid #e0e6ef;
+  border-radius: 22px;
+  padding: 12px 16px;
+  resize: none;
+  font-size: 16px;
+  font-family: inherit;
+  background: #fff;
+  min-height: 44px;
+  max-height: 96px;
+}
+
+.mc-message-input:focus {
+  outline: none;
+  border-color: #c7cdd8;
+}
+
+.mc-send-actions {
+  display: flex;
+  gap: 10px;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.mc-send-btn {
+  flex: 1;
+  border: none;
+  border-radius: 22px;
+  padding: 12px;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.mc-send-btn:disabled {
+  background: #ccc !important;
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.mc-puzzle-outline-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 22px;
+  border: 1.5px solid;
+  background: #fafafa;
+  padding: 12px 14px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.mc-puzzle-outline-btn-mm {
+  background: #fafafa;
+}
+
+.mc-puzzle-outline-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* Dater composer */
+.mc-dater-composer {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  padding: 8px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+  background: #fff;
+  border-top: 1px solid #f0f0f0;
+  flex-shrink: 0;
+}
+
+.mc-dater-pill {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  background: #f3f4f6;
+  border-radius: 24px;
+  padding: 4px 4px 4px 16px;
+  min-height: 44px;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.mc-dater-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  resize: none;
+  font-size: 16px;
+  font-family: inherit;
+  padding: 8px 0;
+  max-height: 96px;
+  min-width: 0;
+  color: #111827;
+}
+
+.mc-dater-input:focus {
+  outline: none;
+}
+
+.mc-dater-send {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.mc-dater-send:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.mc-dater-puzzle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: #ffe6ee;
+  color: #ef4d73;
+  border-radius: 20px;
+  padding: 11px 12px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  flex-shrink: 0;
 }

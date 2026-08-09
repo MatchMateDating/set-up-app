@@ -1,29 +1,29 @@
-import React from "react";
+import React from 'react';
+import './toggleConversations.css';
 
-const ToggleConversations = ({ showDaterMatches, setShowDaterMatches }) => (
-  <div style={{ marginBottom: "1rem", display: "flex", justifyContent: "center" }}>
+const ToggleConversations = ({
+  showDaterMatches,
+  setShowDaterMatches,
+  accentColor = '#ef4d73',
+}) => (
+  <div className="conversations-toggle-track">
     <button
+      type="button"
+      className={`conversations-toggle-segment${
+        showDaterMatches ? ' conversations-toggle-segment-active' : ''
+      }`}
+      style={showDaterMatches ? { backgroundColor: accentColor } : undefined}
       onClick={() => setShowDaterMatches(true)}
-      style={{
-        backgroundColor: showDaterMatches ? "#007bff" : "#ccc",
-        color: "white",
-        padding: "10px 20px",
-        marginRight: "10px",
-        borderRadius: "5px",
-        border: "none",
-      }}
     >
       Dater Matches
     </button>
     <button
+      type="button"
+      className={`conversations-toggle-segment${
+        !showDaterMatches ? ' conversations-toggle-segment-active' : ''
+      }`}
+      style={!showDaterMatches ? { backgroundColor: accentColor } : undefined}
       onClick={() => setShowDaterMatches(false)}
-      style={{
-        backgroundColor: !showDaterMatches ? "#007bff" : "#ccc",
-        color: "white",
-        padding: "10px 20px",
-        borderRadius: "5px",
-        border: "none",
-      }}
     >
       Matchmaker Matches
     </button>

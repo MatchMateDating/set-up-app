@@ -91,8 +91,32 @@ const ProfilePage = () => {
   const screenBackground = isDater ? DATER_SCREEN_BG : undefined;
   const accentColor = isDater ? '#ef4d73' : '#6c5ce7';
 
+  const shellHeaderCenter = (() => {
+    if (userId) return 'Dater Profile';
+    if (showDaterEditChrome) return null;
+    if (showDaterChrome) return 'Your Profile';
+    if (isMatchmaker && isOwnProfile) return 'Dater Profile';
+    return null;
+  })();
+
+  const shellHeaderTrailing = showDaterChrome ? (
+    <button
+      type="button"
+      className="profile-page-edit-btn profile-page-edit-btn-shell"
+      onClick={() => setEditing(true)}
+      aria-label="Edit profile"
+    >
+      <PenLine size={22} color={accentColor} />
+    </button>
+  ) : null;
+
   return (
-    <AppShell onSelectedDaterChange={(newDaterId) => fetchReferrer(newDaterId)}>
+    <AppShell
+      showHeader={!showDaterEditChrome}
+      headerCenter={shellHeaderCenter}
+      headerTrailing={shellHeaderTrailing}
+      onSelectedDaterChange={(newDaterId) => fetchReferrer(newDaterId)}
+    >
       {userId && (
         <button className="back-button" onClick={() => navigate(-1)}>
           ← Back
@@ -173,13 +197,6 @@ const ProfilePage = () => {
 
         {isMatchmaker && (
           <>
-            {isOwnProfile && (
-              <div className="profile-page-header profile-page-header-matchmaker">
-                <div className="profile-page-header-side" />
-                <h1 className="profile-page-title">Dater Profile</h1>
-                <div className="profile-page-header-side" />
-              </div>
-            )}
             {referrer ? (
               <div className="profile-page-card-wrap profile-page-card-wrap-matchmaker">
                 <ProfileCard

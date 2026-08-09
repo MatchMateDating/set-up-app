@@ -72,6 +72,10 @@ const parseHeightToCm = (heightString, sourceUnit) => {
   return null;
 };
 
+/** Total centimeters for a stored height string, or null if unknown. */
+export const heightStringToCm = (heightString, sourceUnit) =>
+  parseHeightToCm(heightString, sourceUnit);
+
 export const convertHeightForViewer = (heightString, sourceUnit, viewerUnit) => {
   const preferredUnit = normalizeHeightUnit(viewerUnit);
   if (!heightString) return '';

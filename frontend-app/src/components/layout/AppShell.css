@@ -63,13 +63,50 @@ html[data-role='user'] .app-shell-backdrop {
   background: transparent;
   flex-shrink: 0;
   z-index: 20;
+  position: relative;
+}
+
+.app-shell-header-with-center {
+  /* Center title overlays between logo and trailing actions (native tab chrome). */
 }
 
 .app-shell-logo {
-  height: 36px;
-  width: auto;
+  height: 44px;
+  width: 44px;
   object-fit: contain;
   flex-shrink: 0;
+}
+
+.app-shell-header-center {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 46%;
+  pointer-events: none;
+  font-size: 17px;
+  font-weight: 600;
+  color: #111827;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.app-shell-header-trailing {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-left: auto;
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Native tab chrome has no role pill on phone widths. */
+@media (max-width: 599px) {
+  .app-shell-role-badge {
+    display: none;
+  }
 }
 
 .app-shell-dater-overlay {
@@ -105,11 +142,19 @@ html[data-role='user'] .app-shell-backdrop {
 .app-shell-content:has(.match-convo-container) > .match-convo-container {
   flex: 1;
   min-height: 0;
+  max-width: none;
+  width: 100%;
+  margin: 0;
+}
+
+.app-shell-conversation {
+  /* Chat fills the app frame; MatchConvo paints its own screen bg. */
 }
 
 @media (min-width: 600px) {
   .app-shell-logo {
-    height: 38px;
+    height: 44px;
+    width: 44px;
   }
 }
 
@@ -132,7 +177,8 @@ html[data-role='user'] .app-shell-backdrop {
   }
 
   .app-shell-logo {
-    height: 40px;
+    height: 44px;
+    width: 44px;
   }
 
   .app-shell-content {

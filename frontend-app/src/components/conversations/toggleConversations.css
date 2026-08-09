@@ -1,0 +1,25 @@
+.conversations-toggle-track {
+  display: flex;
+  width: 100%;
+  background: #ececee;
+  border-radius: 999px;
+  padding: 4px;
+  box-sizing: border-box;
+}
+
+.conversations-toggle-segment {
+  flex: 1;
+  border: none;
+  background: transparent;
+  border-radius: 999px;
+  padding: 10px 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #9ca3af;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.conversations-toggle-segment-active {
+  color: #ffffff;
+}

@@ -12,6 +12,11 @@
   margin-bottom: 0;
 }
 
+.pc-card-outer-stack-preview {
+  margin-bottom: 0;
+  box-shadow: none;
+}
+
 .pc-card {
   position: relative;
   border-radius: 24px;
@@ -20,6 +25,22 @@
 
 .pc-card-blended {
   border: 1px solid rgba(239, 77, 115, 0.08);
+}
+
+.pc-image-section-stack-preview-muted {
+  opacity: 0.55;
+}
+
+.pc-image-section-stack-preview-aligned {
+  height: 48px;
+  max-height: 48px;
+  overflow: hidden;
+  aspect-ratio: auto;
+}
+
+.pc-see-note-tag-stack-preview {
+  box-shadow: none;
+  pointer-events: none;
 }
 
 .pc-theme-layer {
@@ -238,6 +259,8 @@
   font-weight: 700;
   cursor: pointer;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
+  background: transparent;
+  font-family: inherit;
 }
 
 .pc-pagination-wrap {

@@ -27,17 +27,12 @@
 }
 
 .profile-page-header-dater,
-.profile-page-header-edit,
-.profile-page-header-matchmaker {
+.profile-page-header-edit {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
   gap: 8px;
   padding: 12px var(--page-gutter) 4px;
-}
-
-.profile-page-header-matchmaker {
-  padding-bottom: 0;
 }
 
 .profile-page-header-side {
@@ -60,22 +55,39 @@
 
 .profile-page-edit-btn,
 .profile-page-edit-back {
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   border: none;
-  background: transparent;
+  background: #fff;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 20px;
+  border-radius: 22px;
   font-size: 1.25rem;
   color: #374151;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.profile-page-edit-btn-shell {
+  /* Shell trailing already sized; keep white shadowed circle like native. */
+}
+
+.profile-page-edit-back {
+  background: transparent;
+  box-shadow: none;
 }
 
 .profile-page-edit-btn:hover,
 .profile-page-edit-back:hover {
   background: rgba(0, 0, 0, 0.04);
+}
+
+/* Phone: titles live in AppShell header (native chrome). */
+@media (max-width: 599px) {
+  .profile-page-header-dater {
+    display: none;
+  }
 }
 
 .profile-page-card-wrap {
