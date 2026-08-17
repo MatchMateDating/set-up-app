@@ -287,6 +287,7 @@ print('Done')"
 - **Backend migrations** are handled automatically in production via `entrypoint.sh`
 - **Test mode** can be enabled: `TEST_MODE_ENABLED=true` (skips email verification for test emails)
 - **Mobile app `.env`** file must be in `matchmaker-mobile/` directory for Expo to read it
+- **Web Push (optional):** set `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, and `VAPID_SUBJECT` on the API (Railway / `backend/.env`). Optionally set `REACT_APP_VAPID_PUBLIC_KEY` in `frontend-app/.env.local` (same public key); the web app can also fetch it from `GET /notifications/vapid_public_key`. See `.cursor/WEB_PUSH_PLAN.md`.
 - **Email service**: Currently using Resend (not AWS SES)
 - **Image storage**: Images are stored in Cloudflare R2 and served via CDN
 

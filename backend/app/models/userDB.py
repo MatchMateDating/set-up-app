@@ -278,7 +278,7 @@ class PushToken(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     token = db.Column(db.Text, nullable=False)
-    # expo = Expo push relay; ios / android = native device tokens (APNs / FCM)
+    # expo = Expo push relay; ios / android = native (APNs / FCM); web = PushSubscription JSON
     platform = db.Column(db.String(20), nullable=True, default='expo')
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     

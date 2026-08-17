@@ -51,3 +51,4 @@ gunicorn==21.2.0
 firebase-admin==6.5.0
 h2==4.1.0
 cryptography==44.0.0
+pywebpush==2.0.3
