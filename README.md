@@ -250,11 +250,14 @@ cur.execute('ALTER TABLE message ADD COLUMN IF NOT EXISTS read BOOLEAN NOT NULL 
 cur.execute('CREATE TABLE IF NOT EXISTS conversation_read_state (id SERIAL PRIMARY KEY, conversation_id INTEGER NOT NULL REFERENCES conversation(id), viewer_user_id INTEGER NOT NULL REFERENCES users(id), last_read_message_id INTEGER REFERENCES message(id), updated_at TIMESTAMP NOT NULL DEFAULT NOW(), CONSTRAINT uq_conversation_viewer_read_state UNIQUE (conversation_id, viewer_user_id));'); 
 cur.execute('CREATE INDEX IF NOT 
 EXISTS ix_conversation_read_state_viewer_user_id ON conversation_read_state (viewer_user_id);'); 
+cur.execute('ALTER TABLE push_tokens ALTER COLUMN token TYPE TEXT;');
 conn.commit(); 
 cur.close(); 
 conn.close(); 
 print('Done')"
 ```
+
+**Web Push note:** `push_tokens.token` must be `TEXT` (subscription JSON is longer than 255 chars). Deploy also runs this alter in `entrypoint.sh`.
 
 ## Troubleshooting
 

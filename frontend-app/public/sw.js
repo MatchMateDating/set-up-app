@@ -6,10 +6,10 @@ function pathForNotificationData(data) {
   const type = data.type;
   const matchId = data.matchId != null && data.matchId !== '' ? String(data.matchId) : null;
 
-  if (matchId && (type === 'message' || type === 'match' || type === 'blind_match' || type === 'approval')) {
+  if (matchId && (type === 'message' || type === 'match' || type === 'blind_match' || type === 'match_approval' || type === 'approval')) {
     return `/conversation/${encodeURIComponent(matchId)}`;
   }
-  if (type === 'match' || type === 'blind_match' || type === 'approval') {
+  if (type === 'match' || type === 'blind_match' || type === 'match_approval' || type === 'approval') {
     return '/match';
   }
   return '/conversations';
