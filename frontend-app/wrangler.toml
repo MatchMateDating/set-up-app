@@ -1,5 +1,9 @@
-# Optional: Cloudflare Pages / Wrangler config for frontend-app
-# Dashboard Git connect is enough; this helps CLI deploys (`npx wrangler pages deploy`).
+# Cloudflare Workers + static assets (dashboard uses `npx wrangler deploy`).
+# Root directory in the dashboard should be: frontend-app  (no leading slash)
 name = "matchmate-web"
 compatibility_date = "2024-11-01"
-pages_build_output_dir = "build"
+
+# CRA output folder (relative to frontend-app / this file)
+[assets]
+directory = "./build"
+not_found_handling = "single-page-application"

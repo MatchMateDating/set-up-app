@@ -226,21 +226,22 @@ matchmatedating-app/
 **Host `frontend-app` on Cloudflare Pages** (recommended — `matchmatedating.com` DNS is already on Cloudflare):
 
 1. Cloudflare Dashboard → **Workers & Pages** → **Create** → **Pages** → Connect GitHub repo.
-2. Settings:
-   - **Root directory:** `frontend-app`
-   - **Build command:** `npm run build`
-   - **Build output directory:** `build`
-   - **Node version:** `20` (Environment variable `NODE_VERSION=20` if needed)
+2. Settings (Cloudflare “Workers Builds” style UI):
+   - **Root directory:** `frontend-app` (no leading `/`)
+   - **Build command:** `CI=false npm run build`
+   - **Deploy command:** `npx wrangler deploy`
+   - **Version command:** leave default or `npx wrangler versions upload`
+   - Ensure `frontend-app/wrangler.toml` has `[assets] directory = "./build"` (SPA fallback included)
+   - **Node version:** `20` if needed (`NODE_VERSION=20`)
 3. Environment variables (Production / Preview):
    - `REACT_APP_API_BASE_URL` = production or cas-dev API (Preview can use cas-dev)
    - `REACT_APP_VAPID_PUBLIC_KEY` = same public VAPID key as the API
-4. Deploy → you get `*.pages.dev` (HTTPS). Add custom domain **`app.matchmatedating.com`**.
+4. Deploy → you get a `*.workers.dev` / project URL (HTTPS). Add custom domain **`app.matchmatedating.com`**.
 5. Docs Login (`docs/app-login.js`) already defaults to `https://app.matchmatedating.com/`.
 
-**Dev-like deploys:** Cloudflare **Preview** deployments on PRs/branches (set Preview env → cas-dev API). Similar role to mobile EAS `preview`.
+**Dev-like deploys:** Preview / non-production branch builds with Preview env → cas-dev API (similar to mobile EAS `preview`).
 
-Optional: `frontend-app/Dockerfile` exists if you ever want a Railway static service instead; Cloudflare Pages is the preferred path.
-### Backend (Railway Production)
+`frontend-app/Dockerfile` remains an optional Railway fallback; Cloudflare is preferred.### Backend (Railway Production)
 All backend environment variables are configured in Railway dashboard. See `backend/env.template` for the complete list of variables needed.
 
 See `.cursor/RAILWAY_DEPLOYMENT.md` for full deployment details.
