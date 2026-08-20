@@ -1,0 +1,5 @@
+# Optional: Cloudflare Pages / Wrangler config for frontend-app
+# Dashboard Git connect is enough; this helps CLI deploys (`npx wrangler pages deploy`).
+name = "matchmate-web"
+compatibility_date = "2024-11-01"
+pages_build_output_dir = "build"
