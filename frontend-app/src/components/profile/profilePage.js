@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { PenLine } from 'lucide-react';
 import Profile from './profile';
-import BottomTab from '../layout/bottomTab';
-import SideBar from '../layout/sideBar';
-import AvatarSelectorModal from './avatarSelectorModal';
+import ProfileCard from '../matches/profileCard';
+import AppShell from '../layout/AppShell';
+import { useUser } from '../../context/UserContext';
+import { DATER_SCREEN_BG } from '../../theme/roleTheme';
 import './profilePage.css';
 
 const ProfilePage = () => {
@@ -11,52 +13,47 @@ const ProfilePage = () => {
   const [user, setUser] = useState(null);
   const [referrer, setReferrer] = useState(null);
   const [editing, setEditing] = useState(false);
-  const [showAvatarModal, setShowAvatarModal] = useState(false);
-  const [avatar, setAvatar] = useState(null);
   const { userId } = useParams();
   const navigate = useNavigate();
-  // const [avatar, setAvatar] = useState(user?.avatar || 'avatars/allyson_avatar.png');
+  const { setUser: setContextUser, setIsProfileEditing } = useUser();
 
   const fetchProfile = () => {
     const token = localStorage.getItem('token');
     if (!token) return;
     const url = userId ? `${API_BASE_URL}/profile/${userId}` : `${API_BASE_URL}/profile/`;
 
-    fetch(url, { headers: { 'Authorization': `Bearer ${token}` }})
+    fetch(url, { headers: { Authorization: `Bearer ${token}` } })
       .then(async (res) => {
         if (res.status === 401) {
           const data = await res.json();
           if (data.error_code === 'TOKEN_EXPIRED') {
-            localStorage.removeItem('token'); // clear invalid token
-            window.location.href = '/';  // redirect to login
-            return; // stop execution
+            localStorage.removeItem('token');
+            window.location.href = '/';
+            return;
           }
         }
         return res.json();
       })
       .then((data) => {
-        if (!data) return; // avoid running if we already redirected
+        if (!data) return;
         setUser(data.user);
-        console.log('User profile fetched:', user);
+        if (!userId && data.user) setContextUser(data.user);
         setReferrer(data.referrer || null);
       })
       .catch((err) => console.error('Error loading profile:', err));
   };
 
-  // ProfilePage.js
   const fetchReferrer = async (daterId) => {
-    console.log('Fetching referrer for daterId:', daterId);
     if (!daterId) return;
     const token = localStorage.getItem('token');
     if (!token) return;
     try {
       const res = await fetch(`${API_BASE_URL}/profile/${daterId}`, {
-        headers: { 'Authorization': `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) return;
       const data = await res.json();
       setReferrer(data.user);
-      console.log('Referrer fetched:', referrer);
     } catch (err) {
       console.error('Error fetching referrer:', err);
     }
@@ -64,80 +61,161 @@ const ProfilePage = () => {
 
   useEffect(() => {
     fetchProfile();
-    if (user?.role === 'matchmaker') {
-      setAvatar(user.avatar);
-      fetchReferrer(user.referred_by_id);
-    }
-  }, []);
+  }, [userId]);
 
-  const handleAvatarClick = () => {
-    setShowAvatarModal(true);
-  };
+  useEffect(() => {
+    if (user?.role === 'matchmaker') {
+      if (user.referred_by_id || user.referrer_id) {
+        fetchReferrer(user.referred_by_id || user.referrer_id);
+      }
+    }
+  }, [user?.id, user?.role, user?.referred_by_id, user?.referrer_id]);
+
+  useEffect(() => {
+    setIsProfileEditing(editing);
+    return () => setIsProfileEditing(false);
+  }, [editing, setIsProfileEditing]);
 
   const handleSave = () => {
     fetchProfile();
     setEditing(false);
   };
 
-  const isOwnProfile = !userId || userId === user?.id;
+  const isOwnProfile = !userId || String(userId) === String(user?.id);
+  const isDater = user?.role === 'user';
+  const isMatchmaker = user?.role === 'matchmaker';
+  const showDaterChrome = isDater && !editing && isOwnProfile;
+  const showDaterEditChrome = isDater && editing && isOwnProfile;
+  // Matchmakers inherit AppShell's background. Setting another translucent
+  // purple tint here stacks and darkens the area around the card.
+  const screenBackground = isDater ? DATER_SCREEN_BG : undefined;
+  const accentColor = isDater ? '#ef4d73' : '#6c5ce7';
+
+  const shellHeaderCenter = (() => {
+    if (userId) return 'Dater Profile';
+    if (showDaterEditChrome) return null;
+    if (showDaterChrome) return 'Your Profile';
+    if (isMatchmaker && isOwnProfile) return 'Dater Profile';
+    return null;
+  })();
+
+  const shellHeaderTrailing = showDaterChrome ? (
+    <button
+      type="button"
+      className="profile-page-edit-btn profile-page-edit-btn-shell"
+      onClick={() => setEditing(true)}
+      aria-label="Edit profile"
+    >
+      <PenLine size={22} color={accentColor} />
+    </button>
+  ) : null;
 
   return (
-    <>
-      <SideBar onSelectedDaterChange={(newDaterId) => fetchReferrer(newDaterId)}/>
+    <AppShell
+      showHeader={!showDaterEditChrome}
+      headerCenter={shellHeaderCenter}
+      headerTrailing={shellHeaderTrailing}
+      onSelectedDaterChange={(newDaterId) => fetchReferrer(newDaterId)}
+    >
       {userId && (
         <button className="back-button" onClick={() => navigate(-1)}>
-          ⬅ Back
+          ← Back
         </button>
       )}
-      <div style={{ paddingBottom: '60px', paddingTop: '66px' }}>
-        {user?.role ==='user' && (
-          <>
+      <div
+        className="profile-page-body"
+        style={screenBackground ? { backgroundColor: screenBackground } : undefined}
+      >
+        {showDaterChrome && (
+          <div className="profile-page-header profile-page-header-dater">
+            <div className="profile-page-header-side" />
+            <h1 className="profile-page-title">Your Profile</h1>
+            <div className="profile-page-header-side profile-page-header-side-right">
+              <button
+                type="button"
+                className="profile-page-edit-btn"
+                onClick={() => setEditing(true)}
+                aria-label="Edit profile"
+              >
+                <PenLine size={22} color={accentColor} />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {showDaterEditChrome && (
+          <div className="profile-page-header profile-page-header-edit">
+            <button
+              type="button"
+              className="profile-page-edit-back"
+              onClick={() => setEditing(false)}
+              aria-label="Back"
+            >
+              ←
+            </button>
+            <h1 className="profile-page-title">Edit Profile</h1>
+            <div className="profile-page-header-side" />
+          </div>
+        )}
+
+        {isDater && (
+          <div className="profile-page-card-wrap">
             <Profile
               user={user}
               framed={false}
               editing={editing}
               setEditing={setEditing}
               onSave={handleSave}
-              editable={!userId}
+              editable={isOwnProfile}
+              usePageLayout
+              viewerUnit={user?.unit}
             />
-          </>
-        )}
-
-        {user?.role === 'matchmaker' && referrer && (
-          <>
-            <div className="profile-header">
-              {isOwnProfile && (
-                <img
-                  src={avatar || '/avatars/allyson_avatar.png'}
-                  alt="Avatar"
-                  className="avatar"
-                  onClick={handleAvatarClick}
-                />
-              )}
-              <div className="profile-info">
-                <div className="name-section">
-                  <h2>{user.first_name}</h2>
-                </div>
+            {showDaterEditChrome && (
+              <div className="profile-page-edit-footer">
+                <button
+                  type="button"
+                  className="profile-page-cancel-btn"
+                  onClick={() => setEditing(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="profile-page-save-btn"
+                  style={{ backgroundColor: accentColor }}
+                  onClick={() => {
+                    const form = document.querySelector('.profile-card-page');
+                    if (form) form.requestSubmit();
+                  }}
+                >
+                  Save
+                </button>
               </div>
-            </div>
-            <div className="embedded-profile">
-              <h3>Dater's Profile</h3>
-              <Profile user={referrer} framed={true} editing={false} />
-            </div>
+            )}
+          </div>
+        )}
+
+        {isMatchmaker && (
+          <>
+            {referrer ? (
+              <div className="profile-page-card-wrap profile-page-card-wrap-matchmaker">
+                <ProfileCard
+                  profile={referrer}
+                  userInfo={user}
+                  preferredViewerUnit={referrer?.unit}
+                  blendWithBackground
+                  hideProfileThumbnail
+                />
+              </div>
+            ) : (
+              <div className="profile-page-no-dater">
+                <p className="profile-page-no-dater-text">No dater selected</p>
+              </div>
+            )}
           </>
         )}
-
-        {showAvatarModal && (
-          <AvatarSelectorModal
-            onSelect={(selectedAvatar) => setAvatar(selectedAvatar)}
-            userId={user.id}
-            onClose={() => setShowAvatarModal(false)}
-          />
-        )}
-
-        <BottomTab />
       </div>
-    </>
+    </AppShell>
   );
 };
 

@@ -4,6 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { FaArrowLeft, FaEdit } from 'react-icons/fa';
 import FormField from '../profile/components/formField';
 import Select from 'react-select';
+import AppShell from '../layout/AppShell';
+import AgeRangeSlider from './ageRangeSlider';
 
 const Preferences = () => {
   const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
@@ -70,8 +72,8 @@ const Preferences = () => {
     try {
       const token = localStorage.getItem('token');
       const payload = {
-        preferredAgeMin: formData.preferredAgeMin,
-        preferredAgeMax: formData.preferredAgeMax,
+        preferredAgeMin: Number(formData.preferredAgeMin),
+        preferredAgeMax: Number(formData.preferredAgeMax),
         preferredGenders: formData.preferredGenders,
         match_radius: formData.matchWithAll ? 9999 : Number(formData.matchRadius),
       };
@@ -117,11 +119,12 @@ const Preferences = () => {
   };
 
   return (
+    <AppShell showTabs={false}>
     <div className="preferences-page">
       <div className="preferences-card">
         <div className="preferences-header">
-          <button className="back-btn" onClick={() => navigate(-1)}>
-            <FaArrowLeft /> Back
+          <button className="back-btn" onClick={() => navigate('/settings')}>
+            <FaArrowLeft /> Dating Preferences
           </button>
           {!editing && (
             <FaEdit
@@ -134,27 +137,27 @@ const Preferences = () => {
 
         <form className="preferences-form" onSubmit={handleFormSubmit}>
           <FormField
-            label="Preferred Age"
+            label={
+              editing
+                ? `Preferred Age Range (${formData.preferredAgeMin || 18}–${formData.preferredAgeMax || 60})`
+                : 'Preferred Age'
+            }
             editing={editing}
             value={`${formData.preferredAgeMin} - ${formData.preferredAgeMax}`}
             input={
-              <div className="form-inline">
-                <input
-                  type="number"
-                  name="preferredAgeMin"
-                  placeholder="Min"
-                  value={formData.preferredAgeMin}
-                  onChange={handleInputChange}
-                />
-                <span className="dash">-</span>
-                <input
-                  type="number"
-                  name="preferredAgeMax"
-                  placeholder="Max"
-                  value={formData.preferredAgeMax}
-                  onChange={handleInputChange}
-                />
-              </div>
+              <AgeRangeSlider
+                minValue={Number(formData.preferredAgeMin) || 18}
+                maxValue={Number(formData.preferredAgeMax) || 60}
+                min={18}
+                max={100}
+                onChange={(minAge, maxAge) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    preferredAgeMin: String(minAge),
+                    preferredAgeMax: String(maxAge),
+                  }))
+                }
+              />
             }
           />
 
@@ -195,16 +198,28 @@ const Preferences = () => {
             value={formData.matchWithAll ? '500+ mi' : `${formData.matchRadius} miles`}
             input={
               <>
-                <div className={`radius-slider${formData.matchWithAll ? ' radius-slider--disabled' : ''}`}>
+                <div className="radius-slider">
                   <input
                     type="range"
                     name="matchRadius"
                     min="1"
                     max="500"
                     step="1"
-                    value={formData.matchWithAll ? 500 : formData.matchRadius}
-                    onChange={handleInputChange}
-                    disabled={formData.matchWithAll}
+                    value={Number(formData.matchWithAll ? 500 : formData.matchRadius) || 50}
+                    onInput={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        matchRadius: Number(e.target.value),
+                        matchWithAll: false,
+                      }))
+                    }
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        matchRadius: Number(e.target.value),
+                        matchWithAll: false,
+                      }))
+                    }
                   />
                   <span>{formData.matchWithAll ? '500+' : formData.matchRadius} mi</span>
                 </div>
@@ -233,6 +248,7 @@ const Preferences = () => {
         </form>
       </div>
     </div>
+    </AppShell>
   );
 };
 

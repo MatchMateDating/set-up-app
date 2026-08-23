@@ -1,6 +1,7 @@
 import React, { useState } from "react";
-import SideBar from '../layout/sideBar';
+import AppShell from '../layout/AppShell';
 import { useNavigate } from "react-router-dom";
+import './puzzles.css';
 
 const questions = [
   { q: "Do you prefer mornings or nights?", a: ["Mornings", "Nights"] },
@@ -100,10 +101,9 @@ const PersonalityQuiz = () => {
   };  
 
   return (
-    <div className="puzzles-page">
-      <SideBar />
+    <AppShell showTabs={false}>
       <div className="puzzles-container">
-        <h1 className="puzzles-title">🧩 Personality Quiz</h1>
+        <h1 className="puzzles-title">Personality Quiz</h1>
         {!result ? (
           <div className="quiz-questions">
             {questions.map((q, idx) => (
@@ -161,8 +161,9 @@ const PersonalityQuiz = () => {
           </div>          
         )}
       </div>
-    </div>
+    </AppShell>
   );
 };
 
 export default PersonalityQuiz;
+

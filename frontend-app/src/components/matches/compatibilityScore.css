@@ -5,9 +5,21 @@
   position: relative;
 }
 
+.compatibility-overlay {
+  background: rgba(55, 65, 81, 0.72);
+  padding: 6px 12px;
+  border-radius: 999px;
+}
+
 .compatibility-text {
   font-size: 1.125rem;
   font-weight: 600;
+}
+
+.compatibility-text-overlay {
+  font-size: 13px;
+  font-weight: 600;
+  color: #ffffff;
 }
 
 .help-icon-container {

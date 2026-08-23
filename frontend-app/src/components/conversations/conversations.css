@@ -1,5 +1,114 @@
+.conversations-body {
+  width: 100%;
+  max-width: var(--content-wide);
+  margin: 0 auto;
+  padding: 8px 0 16px;
+  box-sizing: border-box;
+}
+
+.conversations-body-matchmaker {
+  max-width: var(--content-max);
+  padding-top: 32px;
+  padding-bottom: 20px;
+}
+
+.conversations-body-dater {
+  max-width: var(--content-max);
+  padding-top: 4px;
+  padding-bottom: 20px;
+}
+
+.conversations-toggle-section {
+  padding: 12px var(--page-gutter) 8px;
+}
+
+.conversations-body-empty {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100% - 8px);
+}
+
+.conversations-body h2 {
+  padding: 12px var(--page-gutter) 4px;
+  margin: 0;
+  font-size: 1.1rem;
+  color: var(--accent, #6c5ce7);
+}
+
 .match-list {
   display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 8px var(--page-gutter);
+}
+
+.match-list-modern {
+  align-items: stretch;
+  gap: 12px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.match-list-empty {
+  flex: 1;
+  justify-content: center;
+}
+
+.conversations-empty,
+.conversations-body > p,
+.match-list > p {
+  text-align: center;
+  color: var(--text-muted, #6b7280);
+  padding: 24px 16px;
+  width: 100%;
+  margin: 0;
+  font-size: 16px;
+}
+
+@media (min-width: 600px) {
+  .match-list:not(.match-list-modern) {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 14px;
+    justify-items: center;
+    align-items: start;
+  }
+
+  .match-list:not(.match-list-modern) > p {
+    grid-column: 1 / -1;
+  }
+
+  .match-list-modern {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+}
+
+@media (min-width: 900px) {
+  .conversations-body {
+    padding: 8px 0 24px;
+  }
+
+  .conversations-body-matchmaker {
+    padding-top: 32px;
+    padding-bottom: 24px;
+  }
+
+  .conversations-body-dater {
+    padding-top: 4px;
+    padding-bottom: 24px;
+  }
+
+  .conversations-body h2 {
+    padding: 16px var(--page-gutter) 8px;
+    font-size: 1.25rem;
+  }
+
+  .match-list:not(.match-list-modern) {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 16px;
+    padding: 8px var(--page-gutter) 24px;
+  }
 }

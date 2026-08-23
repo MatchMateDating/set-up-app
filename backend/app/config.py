@@ -93,3 +93,8 @@ class Config:
         'FIREBASE_CREDENTIAL_PATH'
     )
     FIREBASE_CREDENTIALS_JSON = os.getenv('FIREBASE_CREDENTIALS_JSON')
+
+    # Web Push (VAPID) — optional; when unset, web push_tokens cannot be delivered
+    VAPID_PUBLIC_KEY = os.getenv('VAPID_PUBLIC_KEY')
+    VAPID_PRIVATE_KEY = os.getenv('VAPID_PRIVATE_KEY')
+    VAPID_SUBJECT = os.getenv('VAPID_SUBJECT', 'mailto:support@matchmatedating.com')

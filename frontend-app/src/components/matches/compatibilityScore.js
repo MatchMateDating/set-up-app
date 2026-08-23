@@ -3,10 +3,11 @@ import { createPortal } from "react-dom";
 import { HelpCircle } from "lucide-react";
 import './compatibilityScore.css';
 
-export default function CompatibilityScore({ score }) {
+export default function CompatibilityScore({ score, variant = 'default' }) {
   const [showTooltip, setShowTooltip] = useState(false);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const iconRef = useRef(null);
+  const isOverlay = variant === 'overlay';
 
   const toggleTooltip = () => setShowTooltip((prev) => !prev);
 
@@ -15,24 +16,27 @@ export default function CompatibilityScore({ score }) {
       const rect = iconRef.current.getBoundingClientRect();
       setPosition({
         x: rect.left + rect.width / 2,
-        y: rect.top - 10, // 10px above the icon
+        y: rect.top - 10,
       });
     }
   }, [showTooltip]);
 
   return (
-    <div className="compatibility-container">
-      <span className="compatibility-text">Compatibility: {score}%</span>
+    <div className={`compatibility-container${isOverlay ? ' compatibility-overlay' : ''}`}>
+      <span className={`compatibility-text${isOverlay ? ' compatibility-text-overlay' : ''}`}>
+        Compatibility: {score}%
+      </span>
 
-      <div className="help-icon-container">
-        <HelpCircle
-          ref={iconRef}
-          className="help-icon"
-          onClick={toggleTooltip}
-        />
-      </div>
+      {!isOverlay && (
+        <div className="help-icon-container">
+          <HelpCircle
+            ref={iconRef}
+            className="help-icon"
+            onClick={toggleTooltip}
+          />
+        </div>
+      )}
 
-      {/* Portal for tooltip (so it floats above everything) */}
       {showTooltip &&
         createPortal(
           <div
@@ -41,7 +45,7 @@ export default function CompatibilityScore({ score }) {
               position: "fixed",
               top: `${position.y}px`,
               left: `${position.x}px`,
-              transform: "translate(-50%, -100%)", // center horizontally, pop above icon
+              transform: "translate(-50%, -100%)",
             }}
           >
             <p>

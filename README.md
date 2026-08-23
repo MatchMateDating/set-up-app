@@ -223,7 +223,25 @@ matchmatedating-app/
   - Production: `https://matchmatedating-app-production.up.railway.app`
   - Local: `http://localhost:5000`
 
-### Backend (Railway Production)
+**Host `frontend-app` on Cloudflare Pages** (recommended — `matchmatedating.com` DNS is already on Cloudflare):
+
+1. Cloudflare Dashboard → **Workers & Pages** → **Create** → **Pages** → Connect GitHub repo.
+2. Settings (Cloudflare “Workers Builds” style UI):
+   - **Root directory:** `frontend-app` (no leading `/`)
+   - **Build command:** `CI=false npm run build`
+   - **Deploy command:** `npx wrangler deploy`
+   - **Version command:** leave default or `npx wrangler versions upload`
+   - Ensure `frontend-app/wrangler.toml` has `[assets] directory = "./build"` (SPA fallback included)
+   - **Node version:** `20` if needed (`NODE_VERSION=20`)
+3. Environment variables (Production / Preview):
+   - `REACT_APP_API_BASE_URL` = production or cas-dev API (Preview can use cas-dev)
+   - `REACT_APP_VAPID_PUBLIC_KEY` = same public VAPID key as the API
+4. Deploy → you get a `*.workers.dev` / project URL (HTTPS). Add custom domain **`app.matchmatedating.com`**.
+5. Docs Login (`docs/app-login.js`) already defaults to `https://app.matchmatedating.com/`.
+
+**Dev-like deploys:** Preview / non-production branch builds with Preview env → cas-dev API (similar to mobile EAS `preview`).
+
+`frontend-app/Dockerfile` remains an optional Railway fallback; Cloudflare is preferred.### Backend (Railway Production)
 All backend environment variables are configured in Railway dashboard. See `backend/env.template` for the complete list of variables needed.
 
 See `.cursor/RAILWAY_DEPLOYMENT.md` for full deployment details.
@@ -250,11 +268,14 @@ cur.execute('ALTER TABLE message ADD COLUMN IF NOT EXISTS read BOOLEAN NOT NULL 
 cur.execute('CREATE TABLE IF NOT EXISTS conversation_read_state (id SERIAL PRIMARY KEY, conversation_id INTEGER NOT NULL REFERENCES conversation(id), viewer_user_id INTEGER NOT NULL REFERENCES users(id), last_read_message_id INTEGER REFERENCES message(id), updated_at TIMESTAMP NOT NULL DEFAULT NOW(), CONSTRAINT uq_conversation_viewer_read_state UNIQUE (conversation_id, viewer_user_id));'); 
 cur.execute('CREATE INDEX IF NOT 
 EXISTS ix_conversation_read_state_viewer_user_id ON conversation_read_state (viewer_user_id);'); 
+cur.execute('ALTER TABLE push_tokens ALTER COLUMN token TYPE TEXT;');
 conn.commit(); 
 cur.close(); 
 conn.close(); 
 print('Done')"
 ```
+
+**Web Push note:** `push_tokens.token` must be `TEXT` (subscription JSON is longer than 255 chars). Deploy also runs this alter in `entrypoint.sh`.
 
 ## Troubleshooting
 
@@ -287,6 +308,7 @@ print('Done')"
 - **Backend migrations** are handled automatically in production via `entrypoint.sh`
 - **Test mode** can be enabled: `TEST_MODE_ENABLED=true` (skips email verification for test emails)
 - **Mobile app `.env`** file must be in `matchmaker-mobile/` directory for Expo to read it
+- **Web Push (optional):** set `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, and `VAPID_SUBJECT` on the API (Railway / `backend/.env`). Optionally set `REACT_APP_VAPID_PUBLIC_KEY` in `frontend-app/.env.local` (same public key); the web app can also fetch it from `GET /notifications/vapid_public_key`. See `.cursor/WEB_PUSH_PLAN.md`.
 - **Email service**: Currently using Resend (not AWS SES)
 - **Image storage**: Images are stored in Cloudflare R2 and served via CDN
 

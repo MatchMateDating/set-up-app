@@ -15,6 +15,7 @@ from app.services.push_platforms import (
     InvalidPushToken,
     send_native_data_sync,
     send_native_for_platform,
+    send_web_push,
 )
 import logging
 
@@ -254,11 +255,12 @@ def _push_tokens_for_delivery(push_tokens):
     normalized = []
     for t in push_tokens:
         eff = (t.platform or "expo").lower()
-        if eff not in ("ios", "android", "expo"):
+        if eff not in ("ios", "android", "expo", "web"):
             eff = "expo"
         normalized.append((eff, t))
 
     platforms = {eff for eff, _ in normalized}
+    # Prefer native mobile tokens over Expo when both exist; always keep web.
     if "ios" in platforms or "android" in platforms:
         normalized = [(eff, t) for eff, t in normalized if eff != "expo"]
 
@@ -392,8 +394,11 @@ def _send_expo_push_data_sync(
 
 def send_unmatch_sync_push_to_token_row(token_obj, data):
     eff = (token_obj.platform or "expo").lower()
-    if eff not in ("ios", "android", "expo"):
+    if eff not in ("ios", "android", "expo", "web"):
         eff = "expo"
+    # Web Push has no silent data-only channel; skip (visible unmatch alerts are separate).
+    if eff == "web":
+        return False
     if eff == "expo":
         return _send_expo_push_data_sync(
             token_obj.token, data, token_obj=token_obj, legacy_user=None
@@ -503,10 +508,10 @@ def send_dater_removed_matchmaker_sync(match_id, matchmaker_user_id):
 
 
 def send_push_to_token_row(token_obj, title, body, data=None):
-    """Dispatch by PushToken.platform: expo (Expo relay) or ios / android (native)."""
+    """Dispatch by PushToken.platform: expo, ios, android, or web."""
     data = data or {}
     eff = (token_obj.platform or "expo").lower()
-    if eff not in ("ios", "android", "expo"):
+    if eff not in ("ios", "android", "expo", "web"):
         eff = "expo"
     if eff == "expo":
         ok = _send_expo_push(
@@ -518,6 +523,23 @@ def send_push_to_token_row(token_obj, title, body, data=None):
             ok,
         )
         return ok
+    if eff == "web":
+        try:
+            ok = bool(send_web_push(token_obj.token, title, body, data))
+            logger.debug(
+                "push token_id=%s platform=web ok=%s",
+                getattr(token_obj, "id", None),
+                ok,
+            )
+            return ok
+        except InvalidPushToken as e:
+            logger.warning(
+                "push token_id=%s platform=web invalid, pruning: %s",
+                getattr(token_obj, "id", None),
+                e,
+            )
+            _prune_push_token(token_obj)
+            return False
     try:
         ok = bool(
             send_native_for_platform(eff, token_obj.token, title, body, data)
