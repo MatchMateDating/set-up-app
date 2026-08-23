@@ -2,13 +2,15 @@ import os
 
 from flask import Blueprint, jsonify, request
 from datetime import datetime
+import json
 
 from app.models.userDB import User, PushToken
 from app.models.matchDB import Match
 from app import db
 from app.routes.shared import token_required
 from app.services.notification_service import send_notification_to_user
-from app.services.push_platforms import apns_configured
+from app.services.push_platforms import apns_configured, vapid_configured
+
 
 notification_bp = Blueprint('notification', __name__)
 
@@ -19,6 +21,43 @@ NOTIFICATION_PREFERENCE_FIELDS = (
     'approved_match_message_notifications',
     'new_match_approval_notifications',
 )
+
+ALLOWED_PUSH_PLATFORMS = ('expo', 'ios', 'android', 'web')
+
+
+def _canonicalize_web_subscription(raw):
+    """
+    Normalize a PushSubscription (dict or JSON string) to a stable JSON string for storage.
+    Returns None if invalid.
+    """
+    if raw is None:
+        return None
+    if isinstance(raw, str):
+        try:
+            data = json.loads(raw)
+        except (TypeError, ValueError):
+            return None
+    elif isinstance(raw, dict):
+        data = raw
+    else:
+        return None
+
+    endpoint = (data.get('endpoint') or '').strip()
+    keys = data.get('keys') if isinstance(data.get('keys'), dict) else {}
+    p256dh = (keys.get('p256dh') or '').strip()
+    auth = (keys.get('auth') or '').strip()
+    if not endpoint or not p256dh or not auth:
+        return None
+
+    canonical = {
+        'endpoint': endpoint,
+        'expirationTime': data.get('expirationTime'),
+        'keys': {
+            'auth': auth,
+            'p256dh': p256dh,
+        },
+    }
+    return json.dumps(canonical, separators=(',', ':'), sort_keys=True)
 
 
 def _firebase_credentials_present():
@@ -53,6 +92,7 @@ def _test_push_failure_extras(user):
     platforms = [((r.platform or "expo").lower()) for r in rows]
     apns_ok = apns_configured()
     fcm_ok = _firebase_credentials_present()
+    vapid_ok = vapid_configured()
     fb_diag = _firebase_env_diagnostics()
     hint = None
     if not rows and not (user and user.push_token):
@@ -78,10 +118,12 @@ def _test_push_failure_extras(user):
                 hint = "Android rows need Firebase Admin credentials: FIREBASE_CREDENTIALS_PATH or FIREBASE_CREDENTIALS_JSON on this server."
         elif "ios" in plats and not apns_ok:
             hint = "iOS rows need APNs env: APNS_KEY_*, APNS_TOPIC, etc."
+        elif "web" in plats and not vapid_ok:
+            hint = "Web rows need VAPID env: VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT."
         elif "expo" in plats:
             hint = "Expo tokens use the Expo push API — check server Exponent SDK credentials and logs."
         else:
-            hint = "Tokens exist but all sends failed — check Flask logs for FCM/APNs/Expo errors; token may be stale."
+            hint = "Tokens exist but all sends failed — check Flask logs for FCM/APNs/Expo/Web Push errors; token may be stale."
     elif user and user.push_token:
         hint = "Using legacy users.push_token only — send failed; check Expo logs or migrate to push_tokens."
     out = {
@@ -91,6 +133,7 @@ def _test_push_failure_extras(user):
         "notifications_enabled": bool(user and user.notifications_enabled),
         "server_apns_configured": apns_ok,
         "server_fcm_credentials_present": fcm_ok,
+        "server_vapid_configured": vapid_ok,
         "hint": hint,
     }
     out.update(fb_diag)
@@ -173,6 +216,18 @@ def update_notification_preferences(current_user):
             'details': str(e)
         }), 500
 
+@notification_bp.route('/vapid_public_key', methods=['GET'])
+def get_vapid_public_key():
+    """Public VAPID key for Web Push subscribe (no auth required)."""
+    from app.services.push_platforms import _push_config
+
+    cfg = _push_config()
+    public_key = (cfg.get('VAPID_PUBLIC_KEY') or '').strip()
+    if not public_key:
+        return jsonify({'error': 'Web Push is not configured on this server'}), 503
+    return jsonify({'publicKey': public_key}), 200
+
+
 @notification_bp.route('/register_token', methods=['POST'])
 @token_required
 def register_token(current_user):
@@ -196,8 +251,21 @@ def register_token(current_user):
             return jsonify({'error': 'push_token is required'}), 400
 
         platform = (data.get('platform') or 'expo').strip().lower()
-        if platform not in ('expo', 'ios', 'android'):
-            return jsonify({'error': 'platform must be expo, ios, or android'}), 400
+        if platform not in ALLOWED_PUSH_PLATFORMS:
+            return jsonify({
+                'error': 'platform must be expo, ios, android, or web'
+            }), 400
+
+        if platform == 'web':
+            push_token = _canonicalize_web_subscription(push_token)
+            if not push_token:
+                return jsonify({
+                    'error': 'web push_token must be a PushSubscription with endpoint and keys'
+                }), 400
+        elif not isinstance(push_token, str) or not push_token.strip():
+            return jsonify({'error': 'push_token must be a non-empty string'}), 400
+        else:
+            push_token = push_token.strip()
 
         allowed_user_ids = {current_user.id}
         if getattr(current_user, "linked_account_id", None):
@@ -373,7 +441,7 @@ def update_match_message_mutes(current_user):
 @notification_bp.route('/unregister_token', methods=['POST'])
 @token_required
 def unregister_token(current_user):
-    """Unregister a push notification token for the current user"""
+    """Unregister a push notification token for the current user (and linked account)."""
     try:
         data = request.get_json()
         if not data:
@@ -382,23 +450,38 @@ def unregister_token(current_user):
         push_token = data.get('push_token')
         if not push_token:
             return jsonify({'error': 'push_token is required'}), 400
-        
-        # Find and delete the token
-        token_obj = PushToken.query.filter_by(
-            user_id=current_user.id,
-            token=push_token
-        ).first()
-        
-        if token_obj:
-            db.session.delete(token_obj)
-            db.session.commit()
+
+        # Accept web subscription objects the same way as register.
+        if isinstance(push_token, dict) or (
+            isinstance(push_token, str) and push_token.strip().startswith('{')
+        ):
+            canonical = _canonicalize_web_subscription(push_token)
+            if canonical:
+                push_token = canonical
+        elif isinstance(push_token, str):
+            push_token = push_token.strip()
+        else:
+            return jsonify({'error': 'push_token must be a string or subscription object'}), 400
+
+        user_ids = [current_user.id]
+        if getattr(current_user, 'linked_account_id', None):
+            user_ids.append(current_user.linked_account_id)
+
+        deleted = (
+            PushToken.query.filter(
+                PushToken.user_id.in_(user_ids),
+                PushToken.token == push_token,
+            ).delete(synchronize_session=False)
+        )
+        db.session.commit()
+
+        if deleted:
             return jsonify({
                 'message': 'Push token unregistered successfully'
             }), 200
-        else:
-            return jsonify({
-                'message': 'Token not found for this user'
-            }), 404
+        return jsonify({
+            'message': 'Token not found for this user'
+        }), 404
         
     except Exception as e:
         db.session.rollback()

@@ -1,9 +1,13 @@
 /**
  * Resolves the frontend-app Login URL (React route "/") and wires .btn-login links.
  * Override with window.APP_LOGIN_URL in config.local.js when needed.
+ *
+ * Production: Cloudflare Pages custom domain app.matchmatedating.com
+ * (or your *.pages.dev URL until DNS is attached). Update PROD_APP_LOGIN_URL
+ * after the first Pages deploy if you are not using app.matchmatedating.com yet.
  */
 (function () {
-  var PROD_APP_LOGIN_URL = "http://localhost:3000/";
+  var PROD_APP_LOGIN_URL = "https://app.matchmatedating.com/";
   var host = (window.location.hostname || "").trim();
   var isLocalLikeHost =
     host === "localhost" ||

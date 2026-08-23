@@ -296,13 +296,18 @@ const CompleteProfile = () => {
         const user = data.user || {};
         setUser(user);
         const matchWithAll = (user.match_radius >= 9999);
-        setFormData((prev) => ({
-          ...prev,
-          first_name: user.first_name || prev.first_name,
-          last_name: user.last_name || prev.last_name,
-          matchWithAll,
-          matchRadius: matchWithAll ? 500 : (user.match_radius ?? (prev.matchRadius || 50)),
-        }));
+        setFormData((prev) => {
+          const fallbackRadius = Number(prev.matchRadius) || 50;
+          return {
+            ...prev,
+            first_name: user.first_name || prev.first_name,
+            last_name: user.last_name || prev.last_name,
+            matchWithAll,
+            matchRadius: matchWithAll
+              ? 500
+              : (user.match_radius != null ? Number(user.match_radius) : fallbackRadius),
+          };
+        });
         // If the stored font differs from the theme default, treat it as manually chosen
         const storedFont = '';
         const storedStyle = '';

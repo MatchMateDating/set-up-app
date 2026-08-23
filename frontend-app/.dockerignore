@@ -1,0 +1,17 @@
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# CRA build (produced in Docker / locally)
+/build
+
+# Env (never commit secrets; VAPID public key is OK in Railway vars)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+.DS_Store

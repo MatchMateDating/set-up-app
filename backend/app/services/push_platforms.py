@@ -33,6 +33,10 @@ def _push_config() -> Dict[str, Any]:
                 "APNS_USE_SANDBOX": c.get("APNS_USE_SANDBOX", False),
                 "FIREBASE_CREDENTIALS_PATH": c.get("FIREBASE_CREDENTIALS_PATH"),
                 "FIREBASE_CREDENTIALS_JSON": c.get("FIREBASE_CREDENTIALS_JSON"),
+                "VAPID_PUBLIC_KEY": c.get("VAPID_PUBLIC_KEY"),
+                "VAPID_PRIVATE_KEY": c.get("VAPID_PRIVATE_KEY"),
+                "VAPID_SUBJECT": c.get("VAPID_SUBJECT")
+                or "mailto:support@matchmatedating.com",
             }
     except Exception:
         pass
@@ -47,6 +51,10 @@ def _push_config() -> Dict[str, Any]:
         "FIREBASE_CREDENTIALS_PATH": os.environ.get("FIREBASE_CREDENTIALS_PATH")
         or os.environ.get("FIREBASE_CREDENTIAL_PATH"),
         "FIREBASE_CREDENTIALS_JSON": os.environ.get("FIREBASE_CREDENTIALS_JSON"),
+        "VAPID_PUBLIC_KEY": os.environ.get("VAPID_PUBLIC_KEY"),
+        "VAPID_PRIVATE_KEY": os.environ.get("VAPID_PRIVATE_KEY"),
+        "VAPID_SUBJECT": os.environ.get("VAPID_SUBJECT")
+        or "mailto:support@matchmatedating.com",
     }
 
 
@@ -377,6 +385,83 @@ def send_fcm(
         return False
 
 
+def vapid_configured(cfg: Optional[Dict[str, Any]] = None) -> bool:
+    cfg = cfg or _push_config()
+    return bool(
+        (cfg.get("VAPID_PUBLIC_KEY") or "").strip()
+        and (cfg.get("VAPID_PRIVATE_KEY") or "").strip()
+    )
+
+
+def send_web_push(
+    subscription_token: str,
+    title: str,
+    body: str,
+    data: Optional[Dict[str, Any]] = None,
+) -> bool:
+    """
+    Send via Web Push (VAPID). subscription_token is canonical JSON string of a
+    PushSubscription (endpoint + keys). Raises InvalidPushToken when expired/gone.
+    """
+    cfg = _push_config()
+    if not vapid_configured(cfg):
+        logger.warning("Web Push skipped: VAPID keys not configured")
+        return False
+    if not subscription_token or not str(subscription_token).strip():
+        raise InvalidPushToken("empty web push subscription")
+
+    try:
+        subscription_info = json.loads(subscription_token)
+    except (TypeError, ValueError) as e:
+        raise InvalidPushToken("invalid web push subscription JSON") from e
+
+    if not isinstance(subscription_info, dict) or not subscription_info.get("endpoint"):
+        raise InvalidPushToken("web push subscription missing endpoint")
+
+    payload = {
+        "title": title or "Matchmate",
+        "body": body or "",
+        "data": data or {},
+    }
+
+    try:
+        from pywebpush import webpush, WebPushException
+    except ImportError:
+        logger.error("pywebpush is not installed; cannot send web push")
+        return False
+
+    try:
+        webpush(
+            subscription_info=subscription_info,
+            data=json.dumps(payload),
+            vapid_private_key=cfg.get("VAPID_PRIVATE_KEY").strip(),
+            vapid_claims={
+                "sub": (cfg.get("VAPID_SUBJECT") or "mailto:support@matchmatedating.com").strip()
+            },
+        )
+        return True
+    except Exception as e:
+        # pywebpush raises WebPushException; also handle generic HTTP errors
+        status = getattr(e, "response", None)
+        status_code = getattr(status, "status_code", None) if status is not None else None
+        err_text = str(e).lower()
+        if status_code in (404, 410) or "410" in err_text or "gone" in err_text or "unsubscribed" in err_text:
+            raise InvalidPushToken(str(e)) from e
+        # Import-time name if available
+        try:
+            from pywebpush import WebPushException as _WPE
+
+            if isinstance(e, _WPE):
+                resp = getattr(e, "response", None)
+                code = getattr(resp, "status_code", None) if resp is not None else None
+                if code in (404, 410):
+                    raise InvalidPushToken(str(e)) from e
+        except ImportError:
+            pass
+        logger.warning("Web Push send failed: %s", e)
+        return False
+
+
 def send_native_for_platform(
     platform: str,
     token: str,
@@ -389,6 +474,8 @@ def send_native_for_platform(
         return send_apns(token, title, body, data)
     if pl == "android":
         return send_fcm(token, title, body, data)
+    if pl == "web":
+        return send_web_push(token, title, body, data)
     logger.warning(
         "send_native_for_platform called with unexpected platform: %s", platform
     )

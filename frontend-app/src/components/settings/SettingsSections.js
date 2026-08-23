@@ -21,6 +21,11 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import AppShell from '../layout/AppShell';
 import { useUser } from '../../context/UserContext';
 import AgeRangeSlider from '../preferences/ageRangeSlider';
+import {
+  getWebPushStatus,
+  subscribeWebPush,
+  unsubscribeWebPush,
+} from '../../notifications/webPush';
 import './settings.css';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
@@ -222,6 +227,7 @@ const SettingsSections = () => {
     DEFAULT_NOTIFICATION_PREFERENCES
   );
   const [notificationSaving, setNotificationSaving] = useState(false);
+  const [webPushStatus, setWebPushStatus] = useState({ status: 'unknown', message: '' });
 
   const passwordChecks = getPasswordChecks(newPassword);
   const isPasswordStrong = Object.values(passwordChecks).every(Boolean);
@@ -359,6 +365,21 @@ const SettingsSections = () => {
     },
     [handleUnauthorized]
   );
+
+  const refreshWebPushStatus = useCallback(async () => {
+    try {
+      const next = await getWebPushStatus();
+      setWebPushStatus(next);
+    } catch (_) {
+      setWebPushStatus({ status: 'unknown', message: '' });
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeSection === SECTION_KEYS.NOTIFICATIONS) {
+      refreshWebPushStatus();
+    }
+  }, [activeSection, refreshWebPushStatus]);
 
   const fetchUserProfile = useCallback(async () => {
     const token = localStorage.getItem('token');
@@ -1058,10 +1079,18 @@ const SettingsSections = () => {
       setNotificationsEnabled(true);
       setNotificationPreferences({ ...ENABLED_NOTIFICATION_PREFERENCES });
       await saveNotificationPreferences(true, ENABLED_NOTIFICATION_PREFERENCES);
+      const result = await subscribeWebPush();
+      if (!result.ok && result.message) {
+        setWebPushStatus({ status: result.status, message: result.message });
+      } else {
+        await refreshWebPushStatus();
+      }
     } else {
       setNotificationsEnabled(false);
       setNotificationPreferences({ ...DEFAULT_NOTIFICATION_PREFERENCES });
+      await unsubscribeWebPush();
       await saveNotificationPreferences(false, DEFAULT_NOTIFICATION_PREFERENCES);
+      await refreshWebPushStatus();
     }
   };
 
@@ -1071,6 +1100,12 @@ const SettingsSections = () => {
     if (!notificationsEnabled && value) {
       setNotificationsEnabled(true);
       await saveNotificationPreferences(true, next);
+      const result = await subscribeWebPush();
+      if (!result.ok && result.message) {
+        setWebPushStatus({ status: result.status, message: result.message });
+      } else {
+        await refreshWebPushStatus();
+      }
       return;
     }
     await saveNotificationPreferences(notificationsEnabled, next);
@@ -1573,6 +1608,20 @@ const SettingsSections = () => {
           onChange={(e) => handleNotificationMasterToggle(e.target.checked)}
         />
       </label>
+
+      {webPushStatus?.message ? (
+        <p
+          className={`web-push-status${
+            webPushStatus.status === 'subscribed' ? ' web-push-status--ok' : ''
+          }${
+            webPushStatus.status === 'denied' || webPushStatus.status === 'unsupported'
+              ? ' web-push-status--warn'
+              : ''
+          }`}
+        >
+          {webPushStatus.message}
+        </p>
+      ) : null}
 
       <div className="notification-prefs-list">
         {visibleNotificationPreferenceItems.map((item) => (
