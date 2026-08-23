@@ -1,0 +1,30 @@
+.select-gender {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.select-gender-option {
+  flex: 1 1 30%;
+  min-width: 30%;
+  padding: 10px 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #ffffff;
+  font-size: 14px;
+  font-weight: 500;
+  color: #374151;
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.select-gender-option.selected {
+  color: #fff;
+  font-weight: 600;
+}
+
+.select-gender-option:hover:not(.selected) {
+  border-color: #d1d5db;
+}

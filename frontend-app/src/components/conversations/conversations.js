@@ -1,22 +1,79 @@
-import React, { useEffect, useState } from 'react';
-import BottomTab from '../layout/bottomTab';
+import React, { useEffect, useMemo, useState } from 'react';
+import { SlidersHorizontal, Check } from 'lucide-react';
 import './conversations.css';
-import SideBar from '../layout/sideBar';
+import AppShell from '../layout/AppShell';
+import FilterBottomSheet from '../layout/FilterBottomSheet';
+import '../layout/filterBottomSheet.css';
 import { useNavigate } from 'react-router-dom';
 import MatchCard from './matchCard';
 import ToggleConversations from './toggleConversations';
 import { useMatches } from './hooks/useMatches';
 import { useUserInfo } from './hooks/useUserInfo';
+import { useMatchMessageMutes } from './hooks/useMatchMessageMutes';
+import { getRoleAccentColor } from '../../theme/roleTheme';
+
+/** Pending-approval row for matchmaker lists. */
+function isMatchmakerPendingItem(match) {
+  return match?.status === 'pending_approval' || match?.message_count !== undefined;
+}
+
+/**
+ * Matchmaker unified list order: needs approval first, then awaiting other,
+ * then fully matched — each group sorted by recent activity.
+ */
+function getMatchmakerItemSortRank(match) {
+  if (isMatchmakerPendingItem(match)) {
+    return match?.waiting_for_other_approval ? 1 : 0;
+  }
+  return 2;
+}
+
+/** True when the counterparty's side had a matchmaker, for list filtering. */
+function isOtherPersonMatchmakerInvolved(match) {
+  if (typeof match?.other_matchmaker_involved === 'boolean') {
+    return match.other_matchmaker_involved;
+  }
+  if (typeof match?.dater_on_user_id_1_side === 'boolean') {
+    return match.dater_on_user_id_1_side
+      ? !!match.user_2_matchmaker_involved
+      : !!match.user_1_matchmaker_involved;
+  }
+  return !!(
+    match?.both_matchmakers_involved ||
+    match?.linked_dater ||
+    match?.other_person_matchmaker_involved
+  );
+}
+
+const DEFAULT_CONVERSATION_FILTERS = {
+  requireOtherMatchmaker: false,
+  blindOnly: false,
+  statusPending: true,
+  statusApproved: true,
+};
 
 const Conversations = () => {
   const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
-  const [showDaterMatches, setShowDaterMatches, loading] = useState(true);
-  const { userInfo, setUserInfo} = useUserInfo(API_BASE_URL);
-  const { matches, setMatches, fetchMatches } = useMatches(API_BASE_URL);
+  const [showDaterMatches, setShowDaterMatches] = useState(true);
+  const [showConversationFilter, setShowConversationFilter] = useState(false);
+  const [conversationFilters, setConversationFilters] = useState({
+    ...DEFAULT_CONVERSATION_FILTERS,
+  });
+  const [conversationFilterDraft, setConversationFilterDraft] = useState({
+    ...DEFAULT_CONVERSATION_FILTERS,
+  });
+  const { userInfo, setUserInfo } = useUserInfo(API_BASE_URL);
+  const { matches, fetchMatches } = useMatches(API_BASE_URL);
+  const { isMatchMessageMuted, toggleMatchMessageMuted } = useMatchMessageMutes(
+    userInfo?.id
+  );
   const matchedList = Array.isArray(matches) ? matches : (matches?.matched || []);
   const pendingApprovalList = Array.isArray(matches) ? [] : (matches?.pending_approval || []);
   const navigate = useNavigate();
-  const [referrer, setReferrer] = useState(null);
+
+  const isMatchmaker = userInfo?.role === 'matchmaker';
+  const isDater = userInfo?.role === 'user';
+  const accentColor = getRoleAccentColor(userInfo?.role);
 
   const fetchProfile = async () => {
     const token = localStorage.getItem('token');
@@ -24,7 +81,7 @@ const Conversations = () => {
 
     try {
       const res = await fetch(`${API_BASE_URL}/profile/`, {
-        headers: { 'Authorization': `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${token}` },
       });
 
       if (res.status === 401) {
@@ -37,7 +94,6 @@ const Conversations = () => {
       }
       const data = await res.json();
       setUserInfo(data.user);
-      setReferrer(data.referrer || null);
     } catch (err) {
       console.error('Error loading profile:', err);
     }
@@ -48,10 +104,81 @@ const Conversations = () => {
     fetchMatches();
   }, []);
 
+  const getLastMessageTimestamp = (match) => {
+    const t = match?.last_message_time;
+    if (!t) return 0;
+    const ms = Date.parse(t);
+    return Number.isFinite(ms) ? ms : 0;
+  };
+
+  const sortMatchesByRecentActivity = (list) => {
+    if (!Array.isArray(list) || list.length === 0) return list;
+    return [...list].sort((a, b) => {
+      const tb = getLastMessageTimestamp(b);
+      const ta = getLastMessageTimestamp(a);
+      if (tb !== ta) return tb - ta;
+      const idb = Number(b.match_id) || 0;
+      const ida = Number(a.match_id) || 0;
+      return idb - ida;
+    });
+  };
+
+  const sortMatchmakerConversations = (list) => {
+    if (!Array.isArray(list) || list.length === 0) return list;
+    return [...list].sort((a, b) => {
+      const rankDiff = getMatchmakerItemSortRank(a) - getMatchmakerItemSortRank(b);
+      if (rankDiff !== 0) return rankDiff;
+      const tb = getLastMessageTimestamp(b);
+      const ta = getLastMessageTimestamp(a);
+      if (tb !== ta) return tb - ta;
+      const idb = Number(b.match_id) || 0;
+      const ida = Number(a.match_id) || 0;
+      return idb - ida;
+    });
+  };
+
+  const applyConversationAttributeFilters = (list) => {
+    if (!Array.isArray(list) || list.length === 0) return list;
+    return list.filter((match) => {
+      if (
+        conversationFilters.requireOtherMatchmaker &&
+        !isOtherPersonMatchmakerInvolved(match)
+      ) {
+        return false;
+      }
+      if (conversationFilters.blindOnly && match.blind_match !== 'Blind') {
+        return false;
+      }
+      return true;
+    });
+  };
+
   const getFilteredMatches = () => {
+    if (userInfo?.role === 'matchmaker') {
+      let combined = [];
+      if (conversationFilters.statusPending) {
+        combined = [...combined, ...pendingApprovalList];
+      }
+      if (conversationFilters.statusApproved) {
+        combined = [...combined, ...matchedList];
+      }
+      return {
+        matched: sortMatchmakerConversations(
+          applyConversationAttributeFilters(combined)
+        ),
+        pending_approval: [],
+      };
+    }
+
     if (!userInfo || userInfo.role !== 'user') {
-      // For matchmakers, return both matched and pending_approval
-      return { matched: matchedList, pending_approval: pendingApprovalList };
+      return {
+        matched: sortMatchesByRecentActivity(
+          applyConversationAttributeFilters(matchedList)
+        ),
+        pending_approval: sortMatchesByRecentActivity(
+          applyConversationAttributeFilters(pendingApprovalList)
+        ),
+      };
     }
 
     const isMediatedForDater = (match) => {
@@ -76,207 +203,244 @@ const Conversations = () => {
 
     const filteredMatched = matchedList.filter(onSelectedTab);
     const filteredPending = pendingApprovalList.filter(onSelectedTab);
+    const combined = [...filteredMatched, ...filteredPending];
 
     return {
-      matched: [...filteredMatched, ...filteredPending],
+      matched: sortMatchesByRecentActivity(
+        applyConversationAttributeFilters(combined)
+      ),
       pending_approval: [],
     };
   };
 
-  const unmatch = async (matchId) => {
-    console.log(`Unmatching user with ID: ${matchId}`);
-    const token = localStorage.getItem('token');
-    const res = await fetch(`${API_BASE_URL}/match/unmatch/${matchId}`, {
-      method: 'DELETE',
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
+  const filteredMatches = useMemo(
+    () => getFilteredMatches(),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      userInfo,
+      matchedList,
+      pendingApprovalList,
+      showDaterMatches,
+      conversationFilters,
+    ]
+  );
 
-    if (res.status === 401) {
-      const data = await res.json();
-      if (data.error_code === 'TOKEN_EXPIRED') {
-        localStorage.removeItem('token');
-        window.location.href = '/';
-      }
-    }
+  const isMatchmakerEmpty =
+    isMatchmaker && filteredMatches.matched.length === 0;
+  const isDaterEmpty = isDater && filteredMatches.matched.length === 0;
 
-    if (res.ok) {
-      // Handle both old and new structure
-      if (Array.isArray(matches)) {
-        setMatches(matches.filter(match => match.match_id !== matchId));
-      } else {
-        const updatedMatched = (matches.matched || []).filter(match => match.match_id !== matchId);
-        const updatedPending = (matches.pending_approval || []).filter(match => match.match_id !== matchId);
-        setMatches({ matched: updatedMatched, pending_approval: updatedPending });
-      }
-      fetchMatches(); // Refresh to get latest data
-    } else {
-      const data = await res.json();
-      alert(`Failed to unmatch: ${data.message}`);
-    }
+  const activeConversationFilterCount =
+    (conversationFilters.requireOtherMatchmaker ? 1 : 0) +
+    (conversationFilters.blindOnly ? 1 : 0) +
+    (isMatchmaker &&
+    (!conversationFilters.statusPending || !conversationFilters.statusApproved)
+      ? 1
+      : 0);
+
+  const dismissConversationFilter = () => {
+    setConversationFilterDraft({ ...conversationFilters });
+    setShowConversationFilter(false);
   };
 
-  const reveal = async (matchId) => {
-    try {
-      const token = localStorage.getItem('token');
-      console.log("Revealing match:", matchId);
-      console.log(`${API_BASE_URL}/match/reveal/${matchId}`);
-      const res = await fetch(`${API_BASE_URL}/match/reveal/${matchId}`, {
-        method: 'PATCH',
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-
-      console.log("Response status:", res.status);
-      let data;
-      try {
-        data = await res.json();
-        console.log("Response data:", data);
-      } catch (jsonErr) {
-        console.error("JSON parse error:", jsonErr);
-        alert("Server did not return valid JSON.");
-        return;
-      }
-
-      if (!res.ok) {
-        alert(`Failed to reveal match: ${data.message}`);
-        return;
-      }
-
-      setMatches(prevMatches =>
-        prevMatches.map(m =>
-          m.match_id === matchId ? { ...m, blind_match: 'Revealed' } : m
-        )
-      );
-    } catch (err) {
-      console.error("Error revealing match:", err);
-      alert("Something went wrong revealing the match.");
-    }
+  const saveConversationFilters = () => {
+    setConversationFilters({ ...conversationFilterDraft });
+    setShowConversationFilter(false);
   };
 
-  const hide = async (matchId) => {
-    try {
-      const token = localStorage.getItem('token');
-      console.log("Hiding match:", matchId);
-      console.log(`${API_BASE_URL}/match/hide/${matchId}`);
-      const res = await fetch(`${API_BASE_URL}/match/hide/${matchId}`, {
-        method: 'PATCH',
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-
-      console.log("Response status:", res.status);
-      let data;
-      try {
-        data = await res.json();
-        console.log("Response data:", data);
-      } catch (jsonErr) {
-        console.error("JSON parse error:", jsonErr);
-        alert("Server did not return valid JSON.");
-        return;
-      }
-
-      if (!res.ok) {
-        alert(`Failed to hide match: ${data.message}`);
-        return;
-      }
-
-      setMatches(prevMatches =>
-        prevMatches.map(m =>
-          m.match_id === matchId ? { ...m, blind_match: 'Blind' } : m
-        )
-      );
-    } catch (err) {
-      console.error("Error hiding match:", err);
-      alert("Something went wrong hiding the match.");
-    }
-  };
-
-
-  if (loading) {
-    return <div>Loading...</div>;
-  }
+  const filterHeaderTrailing = (
+    <button
+      type="button"
+      className={`app-shell-filter-btn${isDater ? ' app-shell-filter-btn-dater' : ''}`}
+      onClick={() => {
+        setConversationFilterDraft({ ...conversationFilters });
+        setShowConversationFilter(true);
+      }}
+      aria-label="Open conversation filters"
+    >
+      <SlidersHorizontal size={22} color="#374151" />
+      {activeConversationFilterCount > 0 ? (
+        <span
+          className="app-shell-filter-badge"
+          style={{ backgroundColor: accentColor }}
+        >
+          {activeConversationFilterCount}
+        </span>
+      ) : null}
+    </button>
+  );
 
   return (
-    <div>
-      <SideBar 
-      onSelectedDaterChange={(newDaterId) => {
-        console.log('Dater changed to:', newDaterId);
-        fetchProfile()
-        fetchMatches()
-      }}/>
-      <div style={{ paddingBottom: '60px', paddingTop: '66px' }}>
-        {userInfo && userInfo.role === 'user' && (matchedList.length > 0 || pendingApprovalList.length > 0) && (
-          <ToggleConversations
-            showDaterMatches={showDaterMatches}
-            setShowDaterMatches={setShowDaterMatches}
-          />
-        )}
-        
-        {/* Pending Approval Section - for matchmakers */}
-        {userInfo?.role === 'matchmaker' && getFilteredMatches().pending_approval.length > 0 && (
-          <div>
-            <h2 style={{ padding: '16px', margin: 0 }}>Pending</h2>
-            <div className="match-list">
-              {getFilteredMatches().pending_approval.map((matchObj, index) => (
-                <MatchCard
-                  key={`pending-${index}`}
-                  matchObj={matchObj}
-                  API_BASE_URL={API_BASE_URL}
-                  userInfo={userInfo}
-                  navigate={navigate}
-                  unmatch={unmatch}
-                  reveal={reveal}
-                  hide={hide}
-                />
-              ))}
-            </div>
+    <AppShell
+      headerCenter={isDater ? 'Conversations' : null}
+      headerTrailing={filterHeaderTrailing}
+      onSelectedDaterChange={() => {
+        fetchProfile();
+        fetchMatches();
+      }}
+    >
+      <div
+        className={`conversations-body${
+          isMatchmaker ? ' conversations-body-matchmaker' : ''
+        }${isDater ? ' conversations-body-dater' : ''}${
+          isMatchmakerEmpty || isDaterEmpty ? ' conversations-body-empty' : ''
+        }`}
+      >
+        {isDater && (
+          <div className="conversations-toggle-section">
+            <ToggleConversations
+              showDaterMatches={showDaterMatches}
+              setShowDaterMatches={setShowDaterMatches}
+              accentColor="#ef4d73"
+            />
           </div>
         )}
-        
-        {/* Approved/Matched Section */}
-        <div>
-          {userInfo?.role === 'matchmaker' && <h2 style={{ padding: '16px', margin: 0 }}>Approved</h2>}
-          <div className="match-list">
-            {getFilteredMatches().matched.length > 0 ? (
-              getFilteredMatches().matched.map((matchObj, index) => (
+
+        {isMatchmaker ? (
+          <div
+            className={`match-list match-list-modern${
+              isMatchmakerEmpty ? ' match-list-empty' : ''
+            }`}
+          >
+            {filteredMatches.matched.length > 0 ? (
+              filteredMatches.matched.map((matchObj) => (
                 <MatchCard
-                  key={`matched-${index}`}
+                  key={`chat-${matchObj.match_id}`}
                   matchObj={matchObj}
                   API_BASE_URL={API_BASE_URL}
                   userInfo={userInfo}
                   navigate={navigate}
-                  unmatch={unmatch}
-                  reveal={reveal}
-                  hide={hide}
+                  matchmakerConversationsTheme
+                  unreadCount={matchObj.unread_count || 0}
+                  isMatchMessageMuted={isMatchMessageMuted}
+                  toggleMatchMessageMuted={toggleMatchMessageMuted}
                 />
               ))
-            ) : getFilteredMatches().pending_approval.length === 0 ? (
-              <p>No matches yet!</p>
-            ) : null}
+            ) : (
+              <p className="conversations-empty">No conversations yet!</p>
+            )}
           </div>
-        </div>
-        
-        {/* Pending Approval Section - for daters (in dater section) */}
-        {userInfo?.role === 'user' && showDaterMatches && getFilteredMatches().pending_approval.length > 0 && (
-          <div className="match-list">
-            {getFilteredMatches().pending_approval.map((matchObj, index) => (
-              <MatchCard
-                key={`pending-${index}`}
-                matchObj={matchObj}
-                API_BASE_URL={API_BASE_URL}
-                userInfo={userInfo}
-                navigate={navigate}
-                unmatch={unmatch}
-                reveal={reveal}
-                hide={hide}
-              />
-            ))}
+        ) : isDater ? (
+          <div
+            className={`match-list match-list-modern${
+              isDaterEmpty ? ' match-list-empty' : ''
+            }`}
+          >
+            {filteredMatches.matched.length > 0 ? (
+              filteredMatches.matched.map((matchObj) => (
+                <MatchCard
+                  key={`matched-${matchObj.match_id}`}
+                  matchObj={matchObj}
+                  API_BASE_URL={API_BASE_URL}
+                  userInfo={userInfo}
+                  navigate={navigate}
+                  daterConversationsTheme
+                  unreadCount={matchObj.unread_count || 0}
+                  isMatchMessageMuted={isMatchMessageMuted}
+                  toggleMatchMessageMuted={toggleMatchMessageMuted}
+                />
+              ))
+            ) : (
+              <p className="conversations-empty">No matches yet!</p>
+            )}
           </div>
-        )}
-        <BottomTab />
+        ) : null}
       </div>
-    </div>
+
+      <FilterBottomSheet
+        open={showConversationFilter}
+        accentColor={accentColor}
+        onClose={dismissConversationFilter}
+        onSave={saveConversationFilters}
+      >
+        {isMatchmaker ? (
+          <>
+            <span className="filter-section-label">STATUS</span>
+            <button
+              type="button"
+              className="filter-checkbox-row"
+              onClick={() =>
+                setConversationFilterDraft((d) => ({
+                  ...d,
+                  statusPending: !d.statusPending,
+                }))
+              }
+            >
+              <span
+                className="filter-checkbox"
+                style={{ borderColor: accentColor }}
+              >
+                {conversationFilterDraft.statusPending ? (
+                  <Check size={16} color={accentColor} strokeWidth={3} />
+                ) : null}
+              </span>
+              <span className="filter-checkbox-label">Pending</span>
+            </button>
+            <button
+              type="button"
+              className="filter-checkbox-row"
+              onClick={() =>
+                setConversationFilterDraft((d) => ({
+                  ...d,
+                  statusApproved: !d.statusApproved,
+                }))
+              }
+            >
+              <span
+                className="filter-checkbox"
+                style={{ borderColor: accentColor }}
+              >
+                {conversationFilterDraft.statusApproved ? (
+                  <Check size={16} color={accentColor} strokeWidth={3} />
+                ) : null}
+              </span>
+              <span className="filter-checkbox-label">Approved</span>
+            </button>
+            <span className="filter-section-label filter-section-label-spaced">
+              CONVERSATION TYPE
+            </span>
+          </>
+        ) : (
+          <span className="filter-section-label">CONVERSATION TYPE</span>
+        )}
+
+        <button
+          type="button"
+          className="filter-checkbox-row"
+          onClick={() =>
+            setConversationFilterDraft((d) => ({
+              ...d,
+              requireOtherMatchmaker: !d.requireOtherMatchmaker,
+            }))
+          }
+        >
+          <span className="filter-checkbox" style={{ borderColor: accentColor }}>
+            {conversationFilterDraft.requireOtherMatchmaker ? (
+              <Check size={16} color={accentColor} strokeWidth={3} />
+            ) : null}
+          </span>
+          <span className="filter-checkbox-label">Other Matchmaker Involved</span>
+        </button>
+
+        <button
+          type="button"
+          className="filter-checkbox-row"
+          onClick={() =>
+            setConversationFilterDraft((d) => ({
+              ...d,
+              blindOnly: !d.blindOnly,
+            }))
+          }
+        >
+          <span className="filter-checkbox" style={{ borderColor: accentColor }}>
+            {conversationFilterDraft.blindOnly ? (
+              <Check size={16} color={accentColor} strokeWidth={3} />
+            ) : null}
+          </span>
+          <span className="filter-checkbox-label">Blind match only</span>
+        </button>
+      </FilterBottomSheet>
+    </AppShell>
   );
 };
 
 export default Conversations;
-
-

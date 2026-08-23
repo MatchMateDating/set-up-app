@@ -1,0 +1,191 @@
+.app-shell-backdrop {
+  height: 100%;
+  height: 100dvh;
+  max-height: 100dvh;
+  width: 100%;
+  background:
+    radial-gradient(ellipse 80% 60% at 50% -10%, rgba(var(--accent-rgb), 0.14), transparent 55%),
+    radial-gradient(ellipse 50% 40% at 100% 100%, rgba(239, 77, 115, 0.08), transparent 50%),
+    #e8e8ed;
+  display: flex;
+  justify-content: center;
+  align-items: stretch;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+html[data-role='user'] .app-shell-backdrop {
+  background:
+    radial-gradient(ellipse 80% 60% at 50% -10%, rgba(239, 77, 115, 0.16), transparent 55%),
+    radial-gradient(ellipse 50% 40% at 100% 80%, rgba(239, 77, 115, 0.06), transparent 50%),
+    #e8e8ed;
+}
+
+.app-shell {
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  height: 100dvh;
+  max-height: 100dvh;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: var(--screen-bg);
+  overflow: hidden;
+}
+
+.app-shell-body {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.app-shell-rail {
+  width: 100%;
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding-left: var(--page-gutter);
+  padding-right: var(--page-gutter);
+  box-sizing: border-box;
+}
+
+.app-shell-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: var(--header-height);
+  padding-top: calc(8px + env(safe-area-inset-top, 0px));
+  padding-bottom: 8px;
+  background: transparent;
+  flex-shrink: 0;
+  z-index: 20;
+  position: relative;
+}
+
+.app-shell-header-with-center {
+  /* Center title overlays between logo and trailing actions (native tab chrome). */
+}
+
+.app-shell-logo {
+  height: 44px;
+  width: 44px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.app-shell-header-center {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 46%;
+  pointer-events: none;
+  font-size: 17px;
+  font-weight: 600;
+  color: #111827;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.app-shell-header-trailing {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-left: auto;
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Native tab chrome has no role pill on phone widths. */
+@media (max-width: 599px) {
+  .app-shell-role-badge {
+    display: none;
+  }
+}
+
+.app-shell-dater-overlay {
+  padding-top: 0;
+  padding-bottom: 8px;
+  z-index: 15;
+  flex-shrink: 0;
+}
+
+.app-shell-content {
+  flex: 1;
+  overflow-y: auto;
+  padding-bottom: 12px;
+  -webkit-overflow-scrolling: touch;
+  min-height: 0;
+}
+
+.app-shell-content.no-tabs {
+  padding-bottom: 16px;
+}
+
+.app-shell-content.with-dater {
+  padding-top: 0;
+}
+
+.app-shell-content:has(.match-convo-container) {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-bottom: 0;
+}
+
+.app-shell-content:has(.match-convo-container) > .match-convo-container {
+  flex: 1;
+  min-height: 0;
+  max-width: none;
+  width: 100%;
+  margin: 0;
+}
+
+.app-shell-conversation {
+  /* Chat fills the app frame; MatchConvo paints its own screen bg. */
+}
+
+@media (min-width: 600px) {
+  .app-shell-logo {
+    height: 44px;
+    width: 44px;
+  }
+}
+
+@media (min-width: 900px) {
+  .app-shell-backdrop {
+    padding: 0;
+  }
+
+  .app-shell {
+    box-shadow: none;
+  }
+
+  .app-shell-header {
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+
+  .app-shell-dater-overlay {
+    padding-bottom: 12px;
+  }
+
+  .app-shell-logo {
+    height: 44px;
+    width: 44px;
+  }
+
+  .app-shell-content {
+    padding-bottom: 20px;
+  }
+
+  .app-shell-content.no-tabs {
+    padding-bottom: 24px;
+  }
+}

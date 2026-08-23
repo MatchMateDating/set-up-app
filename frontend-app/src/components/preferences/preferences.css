@@ -2,19 +2,30 @@
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  padding: 40px 20px;
-  background: var(--background, #f8fafc);
-  min-height: 100vh;
+  width: 100%;
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: 16px var(--page-gutter);
+  background: transparent;
+  min-height: auto;
+  box-sizing: border-box;
 }
 
 .preferences-card {
   width: 100%;
-  max-width: 640px;
+  max-width: 100%;
   background: var(--surface, #fff);
   border-radius: 16px;
-  padding: 28px 32px;
+  padding: 20px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
   transition: box-shadow 0.2s ease;
+  box-sizing: border-box;
+}
+
+@media (min-width: 600px) {
+  .preferences-card {
+    padding: 28px 32px;
+  }
 }
 
 .preferences-card:hover {
@@ -33,7 +44,7 @@
   align-items: center;
   gap: 8px;
   font-weight: 500;
-  color: var(--primary, #2563eb);
+  color: var(--accent);
   background: none;
   border: none;
   cursor: pointer;
@@ -47,14 +58,14 @@
 
 .edit-icon {
   font-size: 1.3rem;
-  color: var(--primary, #2563eb);
+  color: var(--accent);
   cursor: pointer;
   transition: transform 0.15s ease, color 0.15s ease;
 }
 
 .edit-icon:hover {
   transform: scale(1.15);
-  color: var(--primary-dark, #1e40af);
+  color: var(--accent-dark);
 }
 
 /* Form styling */
@@ -70,18 +81,12 @@
   gap: 8px;
 }
 
-input[type="number"],
-input[type="range"] {
+input[type="number"] {
   border: 1px solid #d1d5db;
   border-radius: 8px;
   padding: 8px 10px;
   font-size: 1rem;
   flex: 1;
-}
-
-input[type="range"] {
-  accent-color: var(--primary, #2563eb);
-  width: 100%;
 }
 
 .radius-slider {
@@ -90,16 +95,22 @@ input[type="range"] {
   gap: 12px;
 }
 
+.radius-slider input[type="range"] {
+  accent-color: var(--accent);
+  width: 100%;
+  flex: 1;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
+}
+
 .radius-slider span {
   font-weight: 600;
   min-width: 60px;
   text-align: right;
 }
 
-.radius-slider--disabled {
-  opacity: 0.5;
-  pointer-events: none;
-}
 
 .preferences-actions {
   display: flex;
@@ -119,12 +130,12 @@ input[type="range"] {
 }
 
 .primary-btn {
-  background: var(--primary, #2563eb);
+  background: var(--accent);
   color: #fff;
 }
 
 .primary-btn:hover {
-  background: var(--primary-dark, #1e40af);
+  background: var(--accent-dark);
 }
 
 .secondary-btn {

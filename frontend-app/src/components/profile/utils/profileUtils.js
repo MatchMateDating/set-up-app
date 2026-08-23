@@ -1,4 +1,28 @@
 // utils/profileUtils.js
+export const PROFILE_THEME_STYLES = {
+  pixelCloud: { backgroundColor: '#87CEEB' },
+  pixelClouds: { backgroundColor: '#87CEEB' },
+  pixelFlower: { backgroundColor: '#F2F6FF' },
+  pixelCactus: { backgroundColor: '#FFEBF3' },
+  classic: { backgroundColor: '#FFFFFF' },
+  minimal: { backgroundColor: '#FFFFFF' },
+  bold: { backgroundColor: '#F5F3FF' },
+  constitution: { backgroundColor: '#FDF5D9' },
+};
+
+export const getProfileThemeBackground = (profileStyle) =>
+  (PROFILE_THEME_STYLES[profileStyle] || PROFILE_THEME_STYLES.classic).backgroundColor;
+
+export const normalizeImageLayout = (layout) => {
+  if (!layout || layout === 'grid') return 'topRow';
+  return layout;
+};
+
+export const normalizeProfileStyle = (profileStyle) => {
+  if (profileStyle === 'pixelClouds') return 'pixelCloud';
+  return profileStyle || 'classic';
+};
+
 export const calculateAge = (birthdate) => {
   if (!birthdate) return '';
   const birthDateObj = new Date(birthdate);
@@ -9,6 +33,68 @@ export const calculateAge = (birthdate) => {
     age--;
   }
   return age;
+};
+
+export const normalizeHeightUnit = (unit) => {
+  const normalized = (unit || '').toString().trim().toLowerCase();
+  if (normalized === 'imperial' || normalized === 'ft') return 'imperial';
+  if (normalized === 'metric' || normalized === 'm') return 'metric';
+  return null;
+};
+
+const parseHeightToCm = (heightString, sourceUnit) => {
+  if (!heightString) return null;
+  const text = heightString.toString().trim();
+  if (!text) return null;
+
+  const normalizedSourceUnit = normalizeHeightUnit(sourceUnit);
+
+  if (normalizedSourceUnit === 'imperial' || text.includes("'")) {
+    const imperialMatch = text.match(/(\d+)\s*'\s*(\d+)?\s*"?/);
+    if (!imperialMatch) return null;
+    const feet = Number(imperialMatch[1] || 0);
+    const inches = Number(imperialMatch[2] || 0);
+    return feet * 30.48 + inches * 2.54;
+  }
+
+  const metricCmMatch = text.match(/(\d+)\s*m\s*(\d+)?\s*cm?/i);
+  if (metricCmMatch) {
+    const meters = Number(metricCmMatch[1] || 0);
+    const centimeters = Number(metricCmMatch[2] || 0);
+    return meters * 100 + centimeters;
+  }
+
+  const metricDecimalMatch = text.match(/(\d+(?:\.\d+)?)\s*m/i);
+  if (metricDecimalMatch) {
+    return Number(metricDecimalMatch[1]) * 100;
+  }
+
+  return null;
+};
+
+/** Total centimeters for a stored height string, or null if unknown. */
+export const heightStringToCm = (heightString, sourceUnit) =>
+  parseHeightToCm(heightString, sourceUnit);
+
+export const convertHeightForViewer = (heightString, sourceUnit, viewerUnit) => {
+  const preferredUnit = normalizeHeightUnit(viewerUnit);
+  if (!heightString) return '';
+  if (!preferredUnit) return heightString;
+
+  const totalCm = parseHeightToCm(heightString, sourceUnit);
+  if (totalCm == null || Number.isNaN(totalCm)) return heightString;
+
+  if (preferredUnit === 'imperial') {
+    const totalInches = Math.round(totalCm / 2.54);
+    const feet = Math.floor(totalInches / 12);
+    const inches = totalInches % 12;
+    return `${feet}'${inches}"`;
+  }
+
+  const roundedCm = Math.round(totalCm);
+  const meters = Math.floor(roundedCm / 100);
+  const centimeters = roundedCm % 100;
+  return `${meters}m ${centimeters}cm`;
 };
 
 export const convertFtInToMetersCm = (feet, inches) => {
@@ -52,4 +138,124 @@ export const getImageUrl = (imageUrl, apiBaseUrl) => {
   
   // Otherwise, it's a relative path, prepend the API base URL
   return `${apiBaseUrl}${imageUrl}`;
-}; 
+};
+
+export const getZodiacSign = (birthdate) => {
+  if (!birthdate) return '';
+  const date = new Date(birthdate);
+  const month = date.getMonth() + 1; // JS months are 0-based
+  const day = date.getDate();
+
+  const zodiacSigns = [
+    { name: 'Capricorn', start: [12, 22], end: [1, 19] },
+    { name: 'Aquarius', start: [1, 20], end: [2, 18] },
+    { name: 'Pisces', start: [2, 19], end: [3, 20] },
+    { name: 'Aries', start: [3, 21], end: [4, 19] },
+    { name: 'Taurus', start: [4, 20], end: [5, 20] },
+    { name: 'Gemini', start: [5, 21], end: [6, 20] },
+    { name: 'Cancer', start: [6, 21], end: [7, 22] },
+    { name: 'Leo', start: [7, 23], end: [8, 22] },
+    { name: 'Virgo', start: [8, 23], end: [9, 22] },
+    { name: 'Libra', start: [9, 23], end: [10, 22] },
+    { name: 'Scorpio', start: [10, 23], end: [11, 21] },
+    { name: 'Sagittarius', start: [11, 22], end: [12, 21] },
+  ];
+
+  for (const z of zodiacSigns) {
+    const [startM, startD] = z.start;
+    const [endM, endD] = z.end;
+
+    if (startM === 12 && endM === 1) {
+      // Capricorn crossing year boundary
+      if ((month === 12 && day >= startD) || (month === 1 && day <= endD)) return z.name;
+    } else {
+      if ((month === startM && day >= startD) || (month === endM && day <= endD)) return z.name;
+    }
+  }
+
+  return '';
+};
+
+export const zodiacInfo = (sign) => {
+  const ZODIAC_DATA = {
+    Aries: {
+      traits: ['Bold', 'Confident', 'Passionate'],
+      pros: ['Energetic', 'Leader', 'Adventurous'],
+      cons: ['Impulsive', 'Impatient'],
+      compatible: ['Leo', 'Sagittarius'],
+    },
+    Taurus: {
+      traits: ['Grounded', 'Reliable', 'Patient'],
+      pros: ['Loyal', 'Stable'],
+      cons: ['Stubborn', 'Resistant to change'],
+      compatible: ['Virgo', 'Capricorn'],
+    },
+    Gemini: {
+      traits: ['Curious', 'Adaptable', 'Expressive'],
+      pros: ['Communicative', 'Witty'],
+      cons: ['Indecisive', 'Restless'],
+      compatible: ['Libra', 'Aquarius'],
+    },
+    Cancer: {
+      traits: ['Emotional', 'Caring', 'Intuitive'],
+      pros: ['Loyal', 'Protective'],
+      cons: ['Moody', 'Sensitive'],
+      compatible: ['Scorpio', 'Pisces'],
+    },
+    Leo: {
+      traits: ['Confident', 'Warm', 'Charismatic'],
+      pros: ['Creative', 'Generous'],
+      cons: ['Prideful', 'Attention-seeking'],
+      compatible: ['Aries', 'Sagittarius'],
+    },
+    Virgo: {
+      traits: ['Analytical', 'Kind', 'Detail-oriented'],
+      pros: ['Reliable', 'Thoughtful'],
+      cons: ['Overcritical', 'Anxious'],
+      compatible: ['Taurus', 'Capricorn'],
+    },
+    Libra: {
+      traits: ['Charming', 'Diplomatic', 'Balanced'],
+      pros: ['Fair-minded', 'Romantic'],
+      cons: ['Avoids conflict', 'Indecisive'],
+      compatible: ['Gemini', 'Aquarius'],
+    },
+    Scorpio: {
+      traits: ['Intense', 'Passionate', 'Loyal'],
+      pros: ['Focused', 'Brave'],
+      cons: ['Jealous', 'Secretive'],
+      compatible: ['Cancer', 'Pisces'],
+    },
+    Sagittarius: {
+      traits: ['Adventurous', 'Optimistic', 'Independent'],
+      pros: ['Honest', 'Fun-loving'],
+      cons: ['Blunt', 'Commitment-averse'],
+      compatible: ['Aries', 'Leo'],
+    },
+    Capricorn: {
+      traits: ['Disciplined', 'Ambitious', 'Responsible'],
+      pros: ['Patient', 'Reliable'],
+      cons: ['Rigid', 'Work-obsessed'],
+      compatible: ['Taurus', 'Virgo'],
+    },
+    Aquarius: {
+      traits: ['Innovative', 'Independent', 'Open-minded'],
+      pros: ['Visionary', 'Friendly'],
+      cons: ['Detached', 'Unpredictable'],
+      compatible: ['Gemini', 'Libra'],
+    },
+    Pisces: {
+      traits: ['Empathetic', 'Dreamy', 'Creative'],
+      pros: ['Compassionate', 'Intuitive'],
+      cons: ['Overly trusting', 'Escapist'],
+      compatible: ['Cancer', 'Scorpio'],
+    },
+  };
+
+  return ZODIAC_DATA[sign] || {
+    traits: [],
+    pros: [],
+    cons: [],
+    compatible: [],
+  };
+};

@@ -3,14 +3,30 @@ import './profile.css';
 import './components/pixelTheme.css';
 import './components/constitutionTheme.css';
 import { FaEdit } from 'react-icons/fa';
-import { calculateAge, convertFtInToMetersCm, convertMetersCmToFtIn, formatHeight } from './utils/profileUtils';
+import {
+  calculateAge,
+  convertFtInToMetersCm,
+  convertMetersCmToFtIn,
+  formatHeight,
+  normalizeImageLayout,
+} from './utils/profileUtils';
 import CropperModal from './cropperModal';
 import ProfileInfoCard from './profileInfoCard';
+import ProfileCard from '../matches/profileCard';
 import PixelClouds from './components/PixelClouds';
 import { themeDefaultFonts } from './components/themeDefaults';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
-const Profile = ({ user, framed, editing, setEditing, onSave, editable }) => {
+const Profile = ({
+  user,
+  framed,
+  editing,
+  setEditing,
+  onSave,
+  editable,
+  usePageLayout = false,
+  viewerUnit,
+}) => {
   const [formData, setFormData] = useState({
     first_name: '',
     last_name: '',
@@ -23,9 +39,11 @@ const Profile = ({ user, framed, editing, setEditing, onSave, editable }) => {
     preferredAgeMin: '0',
     preferredAgeMax: '0',
     preferredGenders: [],
+    bio: '',
     fontFamily: 'Arial',
     profileStyle: 'classic',
-    imageLayout: 'grid'
+    imageLayout: 'grid',
+    show_location: false,
   });
 
   const [referralCode, setReferralCode] = useState('');
@@ -53,9 +71,11 @@ const Profile = ({ user, framed, editing, setEditing, onSave, editable }) => {
         preferredAgeMin: user.preferredAgeMin || '',
         preferredAgeMax: user.preferredAgeMax || '',
         preferredGenders: user.preferredGenders || '',
+        bio: user.bio || '',
         fontFamily: user.fontFamily || 'Arial',
         profileStyle: user.profileStyle || 'classic',
-        imageLayout: user.imageLayout || 'grid'
+        imageLayout: user.imageLayout || 'grid',
+        show_location: Boolean(user.show_location),
       };
       const heightString = user.height || "0'0";
       if (heightString.includes("'")) {
@@ -194,12 +214,18 @@ const Profile = ({ user, framed, editing, setEditing, onSave, editable }) => {
         birthdate: formData.birthdate,
         gender: formData.gender,
         height: heightFormatted,
-        preferredAgeMin: formData.preferredAgeMin,
-        preferredAgeMax: formData.preferredAgeMax,
+        preferredAgeMin: formData.preferredAgeMin
+          ? Number(formData.preferredAgeMin)
+          : undefined,
+        preferredAgeMax: formData.preferredAgeMax
+          ? Number(formData.preferredAgeMax)
+          : undefined,
         preferredGenders: formData.preferredGenders,
+        bio: formData.bio,
         fontFamily: formData.fontFamily,
         profileStyle: formData.profileStyle,
-        imageLayout: formData.imageLayout
+        imageLayout: formData.imageLayout,
+        show_location: formData.show_location,
       };
       const res = await fetch(`${API_BASE_URL}/profile/update`, {
         method: 'PUT',
@@ -262,21 +288,70 @@ const Profile = ({ user, framed, editing, setEditing, onSave, editable }) => {
   };
 
   const handleCancel = () => {
-    // Reset formData back to user values
-    if (user) {
-      setFormData({
-        preferredAgeMin: user.preferredAgeMin || '0',
-        preferredAgeMax: user.preferredAgeMax || '0',
-        preferredGender: user.preferredGender || '',
-      });
-    }
+    // Re-run user sync by cloning user reference after exit
     setEditing(false);
+    if (user) {
+      setLocalUser({ ...user });
+      // Force form reset from current user values on next effect cycle
+      setFormData((prev) => ({
+        ...prev,
+        first_name: user.first_name || '',
+        last_name: user.last_name || '',
+        birthdate: user.birthdate || '',
+        gender: user.gender || '',
+        preferredAgeMin: user.preferredAgeMin || '',
+        preferredAgeMax: user.preferredAgeMax || '',
+        preferredGenders: user.preferredGenders || '',
+        bio: user.bio || '',
+        fontFamily: user.fontFamily || 'Arial',
+        profileStyle: user.profileStyle || 'classic',
+        imageLayout: user.imageLayout || 'grid',
+        show_location: Boolean(user.show_location),
+      }));
+      if (user.images) setImages(user.images);
+    }
   };
+
+  // Keep page-level cancel (header/footer) in sync with form reset
+  useEffect(() => {
+    if (!editing && user && usePageLayout) {
+      setFormData((prev) => {
+        if (
+          prev.first_name === (user.first_name || '') &&
+          prev.bio === (user.bio || '') &&
+          prev.profileStyle === (user.profileStyle || 'classic')
+        ) {
+          return prev;
+        }
+        return {
+          ...prev,
+          first_name: user.first_name || '',
+          last_name: user.last_name || '',
+          birthdate: user.birthdate || '',
+          gender: user.gender || '',
+          preferredAgeMin: user.preferredAgeMin || '',
+          preferredAgeMax: user.preferredAgeMax || '',
+          preferredGenders: user.preferredGenders || '',
+          bio: user.bio || '',
+          fontFamily: user.fontFamily || 'Arial',
+          profileStyle: user.profileStyle || 'classic',
+          imageLayout: user.imageLayout || 'grid',
+          show_location: Boolean(user.show_location),
+        };
+      });
+      if (user.images) setImages(user.images);
+    }
+  }, [editing, user, usePageLayout]);
+
+  if (!user) return null;
+
+  const showProfileCard = user.role === 'user' && usePageLayout && !editing;
+  const showInternalHeader = user.role === 'user' && !usePageLayout;
 
   return (
     <>
     <div
-      className={`profile-container format-${formData.profileStyle}`}
+      className={`profile-container format-${formData.profileStyle}${usePageLayout ? ' profile-page-layout' : ''}`}
       style={{ fontFamily: formData.fontFamily }}
     >
       <style>{`
@@ -291,7 +366,7 @@ const Profile = ({ user, framed, editing, setEditing, onSave, editable }) => {
           font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
         }
       `}</style>
-      {formData.profileStyle === "pixelClouds" && <PixelClouds />}
+      {!usePageLayout && formData.profileStyle === "pixelClouds" && <PixelClouds />}
       <input type="file" accept="image/*" ref={fileInputRef} style={{ display: 'none' }} onChange={handleFileChange} />
       {previewUrl && (
         <CropperModal
@@ -301,10 +376,10 @@ const Profile = ({ user, framed, editing, setEditing, onSave, editable }) => {
         />
       )}
 
-      {user.role === "user" && (
+      {showInternalHeader && (
         <div className="profile-header">
           <div className="name-section">
-            {!editing &&  <h2 style={{ cursor: editing ? 'pointer' : 'default' }}>{user.first_name}</h2>}
+            {!editing && <h2>{user.first_name}</h2>}
           </div>
           {!framed && !editing && editable && (
             <div className="profile-actions">
@@ -314,25 +389,49 @@ const Profile = ({ user, framed, editing, setEditing, onSave, editable }) => {
         </div>
       )}
 
-      {user.role==='user' && (<form className={`profile-card ${framed ? 'framed' : ''}`} onSubmit={handleFormSubmit}>
-        <ProfileInfoCard
-          user={user}
-          formData={formData}
-          editing={editing}
-          heightUnit={heightUnit}
-          onInputChange={handleInputChange}
-          onUnitToggle={handleUnitToggle}
-          onSubmit={handleFormSubmit}
-          onCancel={handleCancel}
-          calculateAge={calculateAge}
-          editProfile={true}
-          images={images}
-          onDeleteImage={handleDeleteImage}
-          onPlaceholderClick={handlePlaceholderClick}
-          profileStyle={formData.profileStyle}
-          completeProfile={false}
+      {showProfileCard ? (
+        <ProfileCard
+          profile={{
+            ...user,
+            images,
+            bio: formData.bio || user.bio,
+            imageLayout: normalizeImageLayout(formData.imageLayout),
+            profileStyle: formData.profileStyle,
+            show_location: formData.show_location ?? user.show_location,
+          }}
+          userInfo={user}
+          preferredViewerUnit={viewerUnit}
+          blendWithBackground
         />
-      </form>)}
+      ) : null}
+
+      {user.role === 'user' && !showProfileCard && (
+        <form
+          className={`profile-card ${framed ? 'framed' : ''}${usePageLayout ? ' profile-card-page' : ''}`}
+          onSubmit={handleFormSubmit}
+        >
+          <ProfileInfoCard
+            user={user}
+            formData={formData}
+            editing={editing}
+            heightUnit={heightUnit}
+            viewerUnit={viewerUnit}
+            onInputChange={handleInputChange}
+            onUnitToggle={handleUnitToggle}
+            onSubmit={handleFormSubmit}
+            onCancel={handleCancel}
+            calculateAge={calculateAge}
+            editProfile={true}
+            images={images}
+            onDeleteImage={handleDeleteImage}
+            onPlaceholderClick={handlePlaceholderClick}
+            profileStyle={formData.profileStyle}
+            completeProfile={false}
+            pageBackgroundColor={usePageLayout ? '#fff5f7' : undefined}
+            hideFormActions={usePageLayout}
+          />
+        </form>
+      )}
     </div>
     </>
   );

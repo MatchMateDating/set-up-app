@@ -9,6 +9,8 @@ import Select from 'react-select';
 import PixelClouds from './components/PixelClouds';
 import { themeDefaultFonts } from './components/themeDefaults';
 import {StepIndicator} from './components/stepIndicator';
+import AppShell from '../layout/AppShell';
+import AgeRangeSlider from '../preferences/ageRangeSlider';
 
 const CompleteProfile = () => {
   const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
@@ -31,8 +33,8 @@ const CompleteProfile = () => {
     heightInches: '0',
     heightMeters: '0',
     heightCentimeters: '0',
-    preferredAgeMax: '',
-    preferredAgeMin: '',
+    preferredAgeMax: '50',
+    preferredAgeMin: '18',
     preferredGenders: [],
     matchRadius: '',
     matchWithAll: false,
@@ -73,8 +75,12 @@ const CompleteProfile = () => {
         birthdate: formData.birthdate,
         gender: formData.gender,
         height: heightFormatted,
-        preferredAgeMax: formData.preferredAgeMax,
-        preferredAgeMin: formData.preferredAgeMin,
+        preferredAgeMax: formData.preferredAgeMax
+          ? parseInt(formData.preferredAgeMax, 10)
+          : 50,
+        preferredAgeMin: formData.preferredAgeMin
+          ? parseInt(formData.preferredAgeMin, 10)
+          : 18,
         preferredGenders: formData.preferredGenders,
       };
 
@@ -212,8 +218,8 @@ const CompleteProfile = () => {
       }
 
       const payload = {
-        preferredAgeMax: formData.preferredAgeMax,
-        preferredAgeMin: formData.preferredAgeMin,
+        preferredAgeMax: parseInt(formData.preferredAgeMax, 10),
+        preferredAgeMin: parseInt(formData.preferredAgeMin, 10),
         preferredGenders: formData.preferredGenders,
         match_radius: formData.matchWithAll ? 9999 : (Number(formData.matchRadius) || 50),
       };
@@ -290,13 +296,18 @@ const CompleteProfile = () => {
         const user = data.user || {};
         setUser(user);
         const matchWithAll = (user.match_radius >= 9999);
-        setFormData((prev) => ({
-          ...prev,
-          first_name: user.first_name || prev.first_name,
-          last_name: user.last_name || prev.last_name,
-          matchWithAll,
-          matchRadius: matchWithAll ? 500 : (user.match_radius ?? prev.matchRadius || 50),
-        }));
+        setFormData((prev) => {
+          const fallbackRadius = Number(prev.matchRadius) || 50;
+          return {
+            ...prev,
+            first_name: user.first_name || prev.first_name,
+            last_name: user.last_name || prev.last_name,
+            matchWithAll,
+            matchRadius: matchWithAll
+              ? 500
+              : (user.match_radius != null ? Number(user.match_radius) : fallbackRadius),
+          };
+        });
         // If the stored font differs from the theme default, treat it as manually chosen
         const storedFont = '';
         const storedStyle = '';
@@ -362,7 +373,8 @@ const CompleteProfile = () => {
   };
 
   return (
-    <div className="profile-page-container">
+    <AppShell showTabs={false}>
+    <div className="profile-page-container complete-profile-shell">
       <StepIndicator step={step} />
 
       <div className="space-y-4">
@@ -504,24 +516,22 @@ const CompleteProfile = () => {
 
               {/* Preferred Age */}
               <div className="form-field">
-                <label>Preferred Age</label>
-                <div className="form-inline">
-                  <input
-                    type="number"
-                    name="preferredAgeMin"
-                    placeholder="Min"
-                    value={formData.preferredAgeMin || ''}
-                    onChange={handleInputChange}
-                  />
-                  <span className="dash">-</span>
-                  <input
-                    type="number"
-                    name="preferredAgeMax"
-                    placeholder="Max"
-                    value={formData.preferredAgeMax || ''}
-                    onChange={handleInputChange}
-                  />
-                </div>
+                <label>
+                  Preferred Age Range ({formData.preferredAgeMin || 18}–{formData.preferredAgeMax || 50})
+                </label>
+                <AgeRangeSlider
+                  minValue={Number(formData.preferredAgeMin) || 18}
+                  maxValue={Number(formData.preferredAgeMax) || 50}
+                  min={18}
+                  max={100}
+                  onChange={(minAge, maxAge) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      preferredAgeMin: String(minAge),
+                      preferredAgeMax: String(maxAge),
+                    }))
+                  }
+                />
               </div>
 
               {/* Preferred Gender(s) */}
@@ -549,7 +559,7 @@ const CompleteProfile = () => {
               {/* Match Radius */}
               <div className="form-field">
                 <label>Match Radius ({formData.matchWithAll ? '500+' : (formData.matchRadius || 50)} mi)</label>
-                <div className={`radius-slider${formData.matchWithAll ? ' radius-slider--disabled' : ''}`}>
+                <div className="radius-slider">
                   <input
                     type="range"
                     name="matchRadius"
@@ -557,8 +567,20 @@ const CompleteProfile = () => {
                     max="500"
                     step="1"
                     value={formData.matchWithAll ? 500 : (formData.matchRadius || 50)}
-                    onChange={handleInputChange}
-                    disabled={formData.matchWithAll}
+                    onInput={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        matchRadius: Number(e.target.value),
+                        matchWithAll: false,
+                      }))
+                    }
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        matchRadius: Number(e.target.value),
+                        matchWithAll: false,
+                      }))
+                    }
                   />
                   <span>{formData.matchWithAll ? '500+' : (formData.matchRadius || 50)} mi</span>
                 </div>
@@ -603,6 +625,7 @@ const CompleteProfile = () => {
         {success && <p className="text-green-600 text-sm">{success}</p>}
       </div>
     </div>
+    </AppShell>
   );
 };
 

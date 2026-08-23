@@ -33,6 +33,32 @@ bcrypt = Bcrypt()
 jwt = JWTManager()
 migrate = Migrate()
 
+
+def _ensure_push_tokens_token_is_text(app):
+    """
+    Web Push subscription JSON is longer than VARCHAR(255).
+    Older DBs may still have varchar; widen to TEXT (idempotent on Postgres).
+    """
+    uri = (app.config.get("SQLALCHEMY_DATABASE_URI") or "").lower()
+    if "sqlite" in uri:
+        return
+    try:
+        from sqlalchemy import text
+
+        with app.app_context():
+            db.session.execute(
+                text("ALTER TABLE push_tokens ALTER COLUMN token TYPE TEXT")
+            )
+            db.session.commit()
+            app.logger.info("Ensured push_tokens.token is TEXT")
+    except Exception as e:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        app.logger.warning("push_tokens.token TEXT ensure skipped: %s", e)
+
+
 def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
@@ -70,5 +96,8 @@ def create_app():
                 logging.Formatter("%(levelname)s [%(name)s] %(message)s")
             )
             svc.addHandler(ch)
+
+    # Schema patches that don't rely on alembic migration history being present locally
+    _ensure_push_tokens_token_is_text(app)
 
     return app
