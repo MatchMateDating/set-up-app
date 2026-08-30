@@ -99,7 +99,7 @@
   outline: none;
   -webkit-appearance: none;
   appearance: none;
-  box-shadow: none;
+  box-shadow: var(--shadow-xs);
 }
 
 .login-container input.auth-input::placeholder,
@@ -120,7 +120,7 @@
 .reset-password-container input:not([type='checkbox']):focus {
   border-color: #e0e0e0;
   background-color: #fafafa !important;
-  box-shadow: none;
+  box-shadow: var(--shadow-xs);
 }
 
 .login-container input:-webkit-autofill,
@@ -271,6 +271,7 @@
   cursor: pointer;
   font-weight: 600;
   font-size: 16px;
+  box-shadow: var(--shadow-sm);
 }
 
 .login-container > .auth-primary-btn:hover {
@@ -503,7 +504,7 @@
   background: #6c5ce7;
   color: #fff;
   font-weight: 700;
-  box-shadow: none;
+  box-shadow: var(--shadow-sm);
 }
 
 .signup-role-toggle .role-btn:not(.active):hover {
@@ -528,7 +529,7 @@
   background: #6c5ce7;
   color: #fff;
   border-color: #6c5ce7;
-  box-shadow: 0 6px 16px rgba(108, 92, 231, 0.2);
+  box-shadow: var(--shadow-accent);
 }
 
 .role-btn:not(.active):hover {
@@ -564,6 +565,7 @@
   cursor: pointer;
   font-weight: 600;
   font-size: 16px;
+  box-shadow: var(--shadow-sm);
 }
 
 .sign-up-container .auth-primary-btn:hover,
@@ -610,6 +612,7 @@
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
+  box-shadow: var(--shadow-modal);
 }
 
 .auth-modal-title {
@@ -660,6 +663,7 @@
   border-radius: 10px;
   font-weight: 600;
   cursor: pointer;
+  box-shadow: var(--shadow-sm);
 }
 
 .auth-modal-actions .auth-primary-btn:disabled {
@@ -705,7 +709,7 @@
     padding: 36px 28px 40px;
     border-radius: 16px;
     background: #ffffff;
-    box-shadow: 0 8px 32px rgba(108, 92, 231, 0.12);
+    box-shadow: var(--shadow-auth);
     overflow: visible;
   }
 

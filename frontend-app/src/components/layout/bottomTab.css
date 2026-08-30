@@ -14,13 +14,14 @@
 .bottom-tab.dater {
   border-top-left-radius: 22px;
   border-top-right-radius: 22px;
-  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.06);
+  box-shadow: var(--shadow-up-tab);
 }
 
 .bottom-tab.matchmaker {
-  box-shadow: none;
+  box-shadow: var(--shadow-up-tab);
   border-top: 1px solid #f0f0f0;
-  border-radius: 0;
+  border-top-left-radius: 22px;
+  border-top-right-radius: 22px;
 }
 
 .tab-button {
@@ -77,7 +78,7 @@
     padding-left: var(--page-gutter);
     padding-right: var(--page-gutter);
     border-top: 1px solid #f0f0f0;
-    box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.04);
+    box-shadow: var(--shadow-up-tab-lg);
     border-radius: 0;
   }
 
@@ -85,7 +86,7 @@
   .bottom-tab.matchmaker {
     border-radius: 0;
     border-top: 1px solid #f0f0f0;
-    box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.04);
+    box-shadow: var(--shadow-up-tab-lg);
   }
 
   .tab-button {

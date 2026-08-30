@@ -1,18 +1,20 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { PenLine } from 'lucide-react';
 import Profile from './profile';
 import ProfileCard from '../matches/profileCard';
 import AppShell from '../layout/AppShell';
+import { EditToolbar } from './components/editToolbar';
 import { useUser } from '../../context/UserContext';
 import { DATER_SCREEN_BG } from '../../theme/roleTheme';
 import './profilePage.css';
-
 const ProfilePage = () => {
   const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
   const [user, setUser] = useState(null);
   const [referrer, setReferrer] = useState(null);
   const [editing, setEditing] = useState(false);
+  const [editFormData, setEditFormData] = useState(null);
+  const editHandlersRef = useRef({});
   const { userId } = useParams();
   const navigate = useNavigate();
   const { setUser: setContextUser, setIsProfileEditing } = useUser();
@@ -79,6 +81,29 @@ const ProfilePage = () => {
   const handleSave = () => {
     fetchProfile();
     setEditing(false);
+    setEditFormData(null);
+    editHandlersRef.current = {};
+  };
+
+  const handleEditingFormData = useCallback((data) => {
+    if (!data) {
+      setEditFormData(null);
+      editHandlersRef.current = {};
+      return;
+    }
+    editHandlersRef.current = {
+      handleInputChange: data.handleInputChange,
+      handleFormSubmit: data.handleFormSubmit,
+      handleCancel: data.handleCancel,
+    };
+    setEditFormData(data.formData);
+  }, []);
+
+  const handleEditBack = () => {
+    editHandlersRef.current.handleCancel?.();
+    setEditing(false);
+    setEditFormData(null);
+    editHandlersRef.current = {};
   };
 
   const isOwnProfile = !userId || String(userId) === String(user?.id);
@@ -126,36 +151,28 @@ const ProfilePage = () => {
         className="profile-page-body"
         style={screenBackground ? { backgroundColor: screenBackground } : undefined}
       >
-        {showDaterChrome && (
-          <div className="profile-page-header profile-page-header-dater">
-            <div className="profile-page-header-side" />
-            <h1 className="profile-page-title">Your Profile</h1>
-            <div className="profile-page-header-side profile-page-header-side-right">
+        {showDaterEditChrome && (
+          <>
+            <div className="profile-page-header profile-page-header-edit">
               <button
                 type="button"
-                className="profile-page-edit-btn"
-                onClick={() => setEditing(true)}
-                aria-label="Edit profile"
+                className="profile-page-edit-back"
+                onClick={handleEditBack}
+                aria-label="Back"
               >
-                <PenLine size={22} color={accentColor} />
+                ←
               </button>
+              <h1 className="profile-page-title">Edit Profile</h1>
+              <div className="profile-page-header-side" />
             </div>
-          </div>
-        )}
-
-        {showDaterEditChrome && (
-          <div className="profile-page-header profile-page-header-edit">
-            <button
-              type="button"
-              className="profile-page-edit-back"
-              onClick={() => setEditing(false)}
-              aria-label="Back"
-            >
-              ←
-            </button>
-            <h1 className="profile-page-title">Edit Profile</h1>
-            <div className="profile-page-header-side" />
-          </div>
+            {editFormData ? (
+              <EditToolbar
+                formData={editFormData}
+                handleInputChange={editHandlersRef.current.handleInputChange}
+                accentColor={accentColor}
+              />
+            ) : null}
+          </>
         )}
 
         {isDater && (
@@ -169,13 +186,14 @@ const ProfilePage = () => {
               editable={isOwnProfile}
               usePageLayout
               viewerUnit={user?.unit}
+              onEditingFormData={handleEditingFormData}
             />
             {showDaterEditChrome && (
               <div className="profile-page-edit-footer">
                 <button
                   type="button"
                   className="profile-page-cancel-btn"
-                  onClick={() => setEditing(false)}
+                  onClick={handleEditBack}
                 >
                   Cancel
                 </button>

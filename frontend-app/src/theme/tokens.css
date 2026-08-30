@@ -16,6 +16,29 @@
   --radius-input: 10px;
   --radius-btn: 10px;
 
+  /* Elevation — aligned with matchmaker-mobile shadow tiers */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 6px 14px rgba(0, 0, 0, 0.1);
+  --shadow-md-soft: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-card: 0 8px 20px rgba(0, 0, 0, 0.08);
+  --shadow-list: 0 2px 8px rgba(0, 0, 0, 0.06);
+  --shadow-list-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-menu: 0 4px 16px rgba(0, 0, 0, 0.12);
+  --shadow-modal: 0 8px 24px rgba(0, 0, 0, 0.15);
+  --shadow-modal-lg: 0 12px 40px rgba(0, 0, 0, 0.18);
+  --shadow-up-tab: 0 -4px 16px rgba(0, 0, 0, 0.08);
+  --shadow-up-tab-lg: 0 -2px 12px rgba(0, 0, 0, 0.06);
+  --shadow-up-sheet: 0 -4px 24px rgba(0, 0, 0, 0.12);
+  --shadow-dropdown: 0 4px 12px rgba(0, 0, 0, 0.1);
+  --shadow-toolbar: 0 2px 12px rgba(0, 0, 0, 0.08);
+  --shadow-action: 0 6px 14px rgba(0, 0, 0, 0.1);
+  --shadow-pill: 0 2px 8px rgba(0, 0, 0, 0.1);
+  --shadow-app: 0 0 0 1px rgba(0, 0, 0, 0.04), 0 8px 32px rgba(0, 0, 0, 0.12);
+  --shadow-accent: 0 6px 16px rgba(var(--accent-rgb), 0.2);
+  --shadow-accent-soft: 0 2px 10px rgba(var(--accent-rgb), 0.12);
+  --shadow-auth: 0 8px 32px rgba(var(--accent-rgb), 0.12);
+
   /* Layout */
   --header-height: 56px;
   --tab-bar-height: 64px;

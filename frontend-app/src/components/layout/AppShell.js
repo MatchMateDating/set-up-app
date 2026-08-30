@@ -32,6 +32,8 @@ const AppShell = ({
     (p) => location.pathname === p || location.pathname.startsWith(`${p}/`)
   );
   const isConversation = location.pathname.startsWith('/conversation/');
+  const isActivePuzzle = location.pathname.startsWith('/puzzles/');
+  const effectiveShowHeader = showHeader && !isActivePuzzle;
   const showDaterDropdown =
     role === 'matchmaker' &&
     !isProfileEditing &&
@@ -123,7 +125,7 @@ const AppShell = ({
         }}
       >
         <div className="app-shell-body">
-          {showHeader && (
+          {effectiveShowHeader && (
             <header
               className={`app-shell-header app-shell-rail${
                 headerCenter ? ' app-shell-header-with-center' : ''
@@ -163,7 +165,7 @@ const AppShell = ({
           <main
             className={`app-shell-content ${hideTabs ? 'no-tabs' : ''} ${
               showDaterDropdown ? 'with-dater' : ''
-            }`}
+            }${isActivePuzzle ? ' puzzle-fullscreen' : ''}`}
           >
             {children}
           </main>

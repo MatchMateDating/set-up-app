@@ -26,6 +26,7 @@ const Profile = ({
   editable,
   usePageLayout = false,
   viewerUnit,
+  onEditingFormData,
 }) => {
   const [formData, setFormData] = useState({
     first_name: '',
@@ -53,6 +54,11 @@ const Profile = ({
   const [heightUnit, setHeightUnit] = useState('ft');
   const [fontManuallyChosen, setFontManuallyChosen] = useState(false);
   const [localUser, setLocalUser] = useState(null);
+  const onEditingFormDataRef = useRef(onEditingFormData);
+
+  useEffect(() => {
+    onEditingFormDataRef.current = onEditingFormData;
+  }, [onEditingFormData]);
 
 
   useEffect(() => {
@@ -343,6 +349,24 @@ const Profile = ({
     }
   }, [editing, user, usePageLayout]);
 
+  useEffect(() => {
+    const notify = onEditingFormDataRef.current;
+    if (!notify) return;
+
+    if (editing) {
+      notify({
+        formData,
+        handleInputChange,
+        handleFormSubmit,
+        handleCancel,
+      });
+    } else {
+      notify(null);
+    }
+    // Handlers are refreshed each render; parent should keep them in a ref.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editing, formData]);
+
   if (!user) return null;
 
   const showProfileCard = user.role === 'user' && usePageLayout && !editing;
@@ -429,6 +453,7 @@ const Profile = ({
             completeProfile={false}
             pageBackgroundColor={usePageLayout ? '#fff5f7' : undefined}
             hideFormActions={usePageLayout}
+            hideToolbar={usePageLayout}
           />
         </form>
       )}

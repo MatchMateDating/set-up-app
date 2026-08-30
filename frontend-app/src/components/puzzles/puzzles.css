@@ -57,7 +57,7 @@
   background: #fff;
   color: #1a1a2e;
   border: 1px solid var(--surface-border, #e5e7eb);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  box-shadow: var(--shadow-xs);
 }
 
 .puzzle-button-card:hover {
@@ -106,7 +106,7 @@
   background: #fff;
   border-radius: 12px;
   padding: 1rem;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+  box-shadow: var(--shadow-xs);
   border: 1px solid var(--surface-border);
 }
 

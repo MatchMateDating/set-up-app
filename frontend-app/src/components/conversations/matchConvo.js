@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ChevronLeft, MoreVertical, Send, Puzzle, X } from 'lucide-react';
 import AppShell from '../layout/AppShell';
@@ -31,6 +31,14 @@ function getDateKey(isoString) {
   return d.toDateString();
 }
 
+const DATER_INPUT_MIN_HEIGHT = 38;
+
+function resizeDaterInput(el) {
+  if (!el) return;
+  el.style.height = `${DATER_INPUT_MIN_HEIGHT}px`;
+  el.style.height = `${Math.min(Math.max(el.scrollHeight, DATER_INPUT_MIN_HEIGHT), 100)}px`;
+}
+
 const MatchConvo = () => {
   const { matchId } = useParams();
   const navigate = useNavigate();
@@ -50,6 +58,7 @@ const MatchConvo = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [approvedByMeLocally, setApprovedByMeLocally] = useState(false);
   const messagesEndRef = useRef(null);
+  const daterInputRef = useRef(null);
 
   useEffect(() => {
     if (matchId) {
@@ -96,8 +105,8 @@ const MatchConvo = () => {
           });
           if (res.ok) {
             const data = await res.json();
-            names[id] = data.first_name;
-            roles[id] = data.role;
+            names[id] = data.user?.first_name || data.first_name;
+            roles[id] = data.user?.role || data.role;
           }
         } catch (err) {
           console.error('Error fetching sender name:', err);
@@ -138,6 +147,12 @@ const MatchConvo = () => {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages]);
+
+  useEffect(() => {
+    if (!newMessageText && daterInputRef.current) {
+      daterInputRef.current.style.height = `${DATER_INPUT_MIN_HEIGHT}px`;
+    }
+  }, [newMessageText]);
 
   const refreshMatchInfo = async () => {
     const matchRes = await fetch(`${API_BASE_URL}/match/matches`, {
@@ -207,6 +222,15 @@ const MatchConvo = () => {
       navigate(puzzleLink);
     }
   };
+
+  const resolvePuzzleLink = (msg) => {
+    if (msg?.puzzle_link) return msg.puzzle_link;
+    const game = games.find((g) => g.name === msg?.puzzle_type);
+    return game?.path || null;
+  };
+
+  const messageKeyFor = (msg, index) =>
+    msg.id ?? `${msg.sender_id || 'unknown'}-${msg.timestamp || index}-${index}`;
 
   const isMine = (msg) => msg.sender_id === userInfo?.id;
 
@@ -409,6 +433,12 @@ const MatchConvo = () => {
   const isMatchmaker = userInfo?.role === 'matchmaker';
   const isDaterToDaterChat = isDater && matchInfo?.status === 'matched';
 
+  useLayoutEffect(() => {
+    if (isDaterToDaterChat) {
+      resizeDaterInput(daterInputRef.current);
+    }
+  }, [isDaterToDaterChat, loading]);
+
   const mediatedChatAsDater =
     isDater &&
     matchInfo &&
@@ -517,7 +547,7 @@ const MatchConvo = () => {
     );
   }
 
-  const renderMessageBubble = (msg, mine, senderLabel) => {
+  const renderMessageBubbleContent = (msg, mine, senderLabel) => {
     const bubbleClass = isDaterToDaterChat
       ? `mc-bubble mc-dater-bubble ${mine ? 'mc-dater-mine' : 'mc-dater-theirs'}`
       : `mc-bubble ${mine ? 'mc-mine' : 'mc-theirs'}`;
@@ -528,16 +558,16 @@ const MatchConvo = () => {
         ? 'rgba(255,255,255,0.9)'
         : accentColor
       : isDaterToDaterChat
-        ? senderRoles[msg.sender_id] === 'matchmaker'
+        ? isMatchmakerMessage(msg)
           ? '#6c5ce7'
           : daterAccent
         : senderRoles[msg.sender_id] === 'matchmaker'
           ? accentColor
           : '#6b7280';
+    const puzzleLink = resolvePuzzleLink(msg);
 
     return (
       <div
-        key={msg.id}
         className={bubbleClass}
         style={
           mine && !isDaterToDaterChat
@@ -546,12 +576,19 @@ const MatchConvo = () => {
         }
       >
         {senderLabel ? (
-          <div className="mc-sender-label" style={{ color: labelColor }}>
+          <div
+            className={`mc-sender-label${
+              isDaterToDaterChat && isMatchmakerMessage(msg)
+                ? ' mc-sender-label-matchmaker'
+                : ''
+            }`}
+            style={{ color: labelColor }}
+          >
             {senderLabel}
           </div>
         ) : null}
-        {msg.text && <p className="mc-message-text">{msg.text}</p>}
-        {msg.puzzle_type && (
+        {msg.text ? <p className="mc-message-text">{msg.text}</p> : null}
+        {msg.puzzle_type && puzzleLink ? (
           <button
             type="button"
             className={
@@ -565,7 +602,7 @@ const MatchConvo = () => {
                     }`
                   : 'mc-puzzle-chip'
             }
-            onClick={() => handlePuzzleClick(msg.puzzle_link)}
+            onClick={() => handlePuzzleClick(puzzleLink)}
           >
             {showMatchmakerBubbleChrome || showDaterBubbleChrome ? (
               <>
@@ -579,15 +616,25 @@ const MatchConvo = () => {
               `Play ${msg.puzzle_type}`
             )}
           </button>
-        )}
-        {isDaterToDaterChat && (
-          <span className={`mc-timestamp${mine ? ' mc-timestamp-mine' : ''}`}>
-            {formatBubbleTime(msg.timestamp)}
-          </span>
-        )}
+        ) : null}
       </div>
     );
   };
+
+  const renderMessageRow = (msg, index, mine, senderLabel) => (
+    <div className="mc-message-row">
+      <div
+        className={`mc-message-row-slot ${
+          mine ? 'mc-message-row-slot-mine' : 'mc-message-row-slot-theirs'
+        }`}
+      >
+        {renderMessageBubbleContent(msg, mine, senderLabel)}
+      </div>
+      <time className="mc-message-time" dateTime={msg.timestamp || undefined}>
+        {formatBubbleTime(msg.timestamp)}
+      </time>
+    </div>
+  );
 
   const shellBackgroundColor = isDaterToDaterChat
     ? DATER_SCREEN_BG
@@ -769,28 +816,34 @@ const MatchConvo = () => {
           ) : isDaterToDaterChat ? (
             messages.map((msg, index) => {
               const mine = isMine(msg);
-              const senderLabel = getSenderLabel(msg);
+              const senderLabel = isMatchmakerMessage(msg)
+                ? 'Matchmaker'
+                : getSenderLabel(msg);
               const dateKey = getDateKey(msg.timestamp);
               const prevDateKey =
                 index > 0 ? getDateKey(messages[index - 1].timestamp) : null;
               const showDateSep = dateKey && dateKey !== prevDateKey;
               return (
-                <React.Fragment key={msg.id || index}>
+                <React.Fragment key={messageKeyFor(msg, index)}>
                   {showDateSep ? (
                     <div className="mc-date-sep">{formatDateSeparator(msg.timestamp)}</div>
                   ) : null}
-                  {renderMessageBubble(msg, mine, senderLabel)}
+                  {renderMessageRow(msg, index, mine, senderLabel)}
                 </React.Fragment>
               );
             })
           ) : (
-            messages.map((msg) =>
-              renderMessageBubble(
-                msg,
-                isMine(msg),
-                isMatchmaker ? getBubbleHeaderLabel(msg) : getSenderLabel(msg)
-              )
-            )
+            messages.map((msg, index) => {
+              const mine = isMine(msg);
+              const senderLabel = isMatchmaker
+                ? getBubbleHeaderLabel(msg)
+                : getSenderLabel(msg);
+              return (
+                <React.Fragment key={messageKeyFor(msg, index)}>
+                  {renderMessageRow(msg, index, mine, senderLabel)}
+                </React.Fragment>
+              );
+            })
           )}
           <div ref={messagesEndRef} />
         </div>
@@ -829,9 +882,12 @@ const MatchConvo = () => {
           <div className="mc-dater-composer">
             <div className="mc-dater-pill">
               <textarea
+                ref={daterInputRef}
                 value={newMessageText}
-                onChange={(e) => setNewMessageText(e.target.value)}
-                rows={1}
+                onChange={(e) => {
+                  setNewMessageText(e.target.value);
+                  resizeDaterInput(e.target);
+                }}
                 className="mc-dater-input"
                 placeholder="Message..."
               />
