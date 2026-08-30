@@ -159,13 +159,13 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  box-shadow: var(--shadow-xs);
 }
 
 .mc-menu-btn-dater {
+  background: transparent;
   border: none;
   box-shadow: none;
-  background: transparent;
 }
 
 .mc-menu-backdrop {
@@ -178,44 +178,16 @@
 }
 
 .mc-menu-dropdown {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 56px);
+  right: 16px;
   min-width: 180px;
   background: #fff;
   border-radius: 12px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  box-shadow: var(--shadow-menu);
   border: 1px solid #e5e7eb;
   z-index: 50;
   overflow: hidden;
-}
-
-@media (max-width: 599px) {
-  .mc-menu-backdrop {
-    background: rgba(0, 0, 0, 0.45);
-    z-index: 2300;
-  }
-
-  .mc-menu-dropdown {
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    top: auto;
-    min-width: 0;
-    width: 100%;
-    border-radius: 24px 24px 0 0;
-    border: none;
-    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.12);
-    padding: 12px 8px calc(16px + env(safe-area-inset-bottom, 0px));
-    z-index: 2310;
-  }
-
-  .mc-menu-item {
-    padding: 16px 18px;
-    font-size: 16px;
-    border-radius: 12px;
-  }
 }
 
 .mc-menu-item {
@@ -224,12 +196,17 @@
   border: none;
   background: transparent;
   text-align: left;
-  padding: 14px 16px;
-  font-size: 15px;
+  padding: 16px;
+  font-size: 16px;
   font-weight: 500;
-  color: #374151;
+  color: #333;
   cursor: pointer;
   font-family: inherit;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.mc-menu-item:last-child {
+  border-bottom: none;
 }
 
 .mc-menu-item:hover {
@@ -280,7 +257,7 @@
 }
 
 .mc-empty {
-  margin: 40px auto 0;
+  margin: auto 0;
   text-align: center;
   color: #6b7280;
   font-size: 16px;
@@ -297,6 +274,36 @@
   color: #9ca3af;
   letter-spacing: 0.4px;
   margin: 4px 0 16px;
+}
+
+.mc-message-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+}
+
+.mc-message-row-slot {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+}
+
+.mc-message-row-slot-mine {
+  justify-content: flex-end;
+}
+
+.mc-message-row-slot-theirs {
+  justify-content: flex-start;
+}
+
+.mc-message-time {
+  width: 52px;
+  flex-shrink: 0;
+  font-size: 11px;
+  color: #9ca3af;
+  line-height: 1.2;
+  padding-left: 2px;
 }
 
 .mc-bubble {
@@ -318,6 +325,16 @@
   align-self: flex-start;
   background: #fff;
   color: #111827;
+  box-shadow: var(--shadow-xs);
+}
+
+.match-convo-dater .mc-message-time {
+  display: none;
+}
+
+.match-convo-dater .mc-message-row-slot {
+  flex: 1;
+  max-width: 100%;
 }
 
 .mc-dater-bubble {
@@ -344,12 +361,17 @@
   border-top-right-radius: 18px;
   border-bottom-right-radius: 18px;
   border-bottom-left-radius: 4px;
+  box-shadow: var(--shadow-xs);
 }
 
 .mc-sender-label {
   font-size: 12px;
   font-weight: 600;
   margin-bottom: 4px;
+}
+
+.mc-sender-label-matchmaker {
+  color: #6c5ce7;
 }
 
 .mc-message-text {
@@ -359,8 +381,8 @@
   color: inherit;
 }
 
-.mc-theirs .mc-message-text {
-  color: #222;
+.mc-mine .mc-message-text {
+  color: #fff;
 }
 
 .mc-dater-theirs .mc-message-text {
@@ -413,19 +435,7 @@
   color: #ef4d73;
 }
 
-.mc-timestamp {
-  display: block;
-  font-size: 0.7rem;
-  margin-top: 6px;
-  color: #9ca3af;
-  text-align: right;
-}
-
-.mc-timestamp-mine {
-  color: rgba(255, 255, 255, 0.75);
-}
-
-/* Puzzle preview / picker */
+/* Default / matchmaker composer */
 .mc-selected-puzzle {
   display: flex;
   align-items: center;
@@ -491,7 +501,7 @@
   padding: 20px 20px calc(20px + env(safe-area-inset-bottom, 0px));
   max-height: 55%;
   overflow-y: auto;
-  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.12);
+  box-shadow: var(--shadow-up-sheet);
 }
 
 .mc-puzzle-sheet-header {
@@ -546,7 +556,7 @@
 
 .mc-puzzle-option:hover {
   border-color: #ddd;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  box-shadow: var(--shadow-xs);
 }
 
 .mc-puzzle-option-icon {
@@ -586,8 +596,8 @@
   flex-direction: column;
   gap: 8px;
   padding: 10px 16px calc(12px + env(safe-area-inset-bottom, 0px));
-  background: #fafafa;
-  border-top: 1px solid #e8e8e8;
+  background: #fff;
+  border-top: 1px solid #f0f0f0;
   flex-shrink: 0;
 }
 
@@ -642,7 +652,7 @@
   gap: 6px;
   border-radius: 22px;
   border: 1.5px solid;
-  background: #fafafa;
+  background: #fff;
   padding: 12px 14px;
   font-size: 15px;
   font-weight: 600;
@@ -651,7 +661,7 @@
 }
 
 .mc-puzzle-outline-btn-mm {
-  background: #fafafa;
+  background: #fff;
 }
 
 .mc-puzzle-outline-btn:disabled {
@@ -659,7 +669,7 @@
   cursor: not-allowed;
 }
 
-/* Dater composer */
+/* Dater composer — match mobile daterComposerRow / daterComposerPill */
 .mc-dater-composer {
   display: flex;
   align-items: flex-end;
@@ -691,13 +701,23 @@
   font-size: 16px;
   font-family: inherit;
   padding: 8px 0;
-  max-height: 96px;
+  margin: 0;
+  line-height: 22px;
+  height: 38px;
+  min-height: 38px;
+  max-height: 100px;
   min-width: 0;
   color: #111827;
+  overflow-y: auto;
+  box-sizing: border-box;
 }
 
 .mc-dater-input:focus {
   outline: none;
+}
+
+.mc-dater-input::placeholder {
+  color: #9ca3af;
 }
 
 .mc-dater-send {
@@ -710,6 +730,13 @@
   justify-content: center;
   cursor: pointer;
   flex-shrink: 0;
+  padding: 0;
+  margin-bottom: 2px;
+}
+
+.mc-dater-send svg {
+  margin-left: 2px;
+  margin-top: 1px;
 }
 
 .mc-dater-send:disabled {
@@ -726,9 +753,11 @@
   color: #ef4d73;
   border-radius: 20px;
   padding: 11px 12px;
+  margin-bottom: 2px;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
   font-family: inherit;
   flex-shrink: 0;
+  line-height: 1;
 }

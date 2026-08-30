@@ -124,7 +124,44 @@ main {
     color: var(--text-light);
     font-weight: 400;
     max-width: 500px;
-    margin: 0 auto;
+    margin: 0 auto 1.5rem;
+}
+
+.btn-hero-download {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 200px;
+    padding: 0.875rem 2rem;
+    margin: 0;
+    border: none;
+    border-radius: 8px;
+    background: var(--text-dark);
+    color: var(--white);
+    font-family: inherit;
+    font-weight: 600;
+    font-size: 1rem;
+    line-height: 1;
+    cursor: pointer;
+    transition: transform 0.2s ease, background 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
+    appearance: none;
+    -webkit-appearance: none;
+}
+
+.btn-hero-download:hover {
+    background: #2a2a42;
+    transform: translateY(-2px);
+    color: var(--white);
+}
+
+.btn-hero-download:focus-visible {
+    outline: 3px solid rgba(26, 26, 46, 0.35);
+    outline-offset: 3px;
+}
+
+.btn-hero-download:active {
+    transform: translateY(0);
 }
 
 /* Features Section */
@@ -239,6 +276,7 @@ main {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 1rem;
     padding: 1.25rem 1.5rem;
     background: var(--white);
     border: none;
@@ -248,22 +286,39 @@ main {
     transition: background 0.2s ease;
 }
 
-.accordion-header:hover {
-    background: var(--off-white);
+.accordion-heading {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    flex: 1;
+    min-width: 0;
 }
 
 .accordion-title {
     font-size: 1.125rem;
     font-weight: 600;
     color: var(--text-dark);
+    line-height: 1.3;
+}
+
+.accordion-subtitle {
+    font-size: 0.9rem;
+    font-weight: 400;
+    color: var(--text-light);
+    line-height: 1.5;
 }
 
 .accordion-icon {
+    flex-shrink: 0;
     font-size: 1.5rem;
     font-weight: 300;
     color: var(--text-light);
     transition: transform 0.3s ease;
     line-height: 1;
+}
+
+.accordion-header:hover {
+    background: var(--off-white);
 }
 
 .accordion-header[aria-expanded="true"] .accordion-icon {
@@ -288,6 +343,14 @@ main {
 
 .accordion-body ol {
     margin: 1rem 0 1rem 1.5rem;
+}
+
+.accordion-steps {
+    margin-bottom: 2rem;
+}
+
+.accordion-steps .step {
+    text-align: center;
 }
 
 .accordion-body li {
@@ -580,6 +643,144 @@ footer {
     text-align: center;
 }
 
+/* Download / Install Page */
+.install-content {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 0.5rem 0 2rem;
+}
+
+.install-hero {
+    text-align: center;
+    margin-bottom: 2.5rem;
+}
+
+.install-hero h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: 0.75rem;
+    color: var(--text-dark);
+}
+
+.install-hero p {
+    color: var(--text-light);
+    font-size: 1rem;
+    line-height: 1.7;
+    max-width: 420px;
+    margin: 0 auto 1.5rem;
+}
+
+.btn-open-app {
+    display: inline-block;
+    padding: 0.875rem 2.25rem;
+    border-radius: 999px;
+    background: var(--primary);
+    color: var(--white);
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 1rem;
+    transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+    box-shadow: 0 4px 14px rgba(108, 92, 231, 0.35);
+}
+
+.btn-open-app:hover {
+    background: var(--primary-dark);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 18px rgba(108, 92, 231, 0.4);
+}
+
+.install-tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    margin-bottom: 1.25rem;
+    border-bottom: 2px solid var(--border-gray);
+}
+
+.install-tab {
+    padding: 0.875rem 1rem;
+    border: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    background: transparent;
+    color: var(--text-light);
+    font-family: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+.install-tab:hover {
+    color: var(--text-dark);
+}
+
+.install-tab.is-active {
+    color: var(--primary);
+    border-bottom-color: var(--primary);
+}
+
+.install-panel {
+    animation: install-fade-in 0.2s ease;
+}
+
+@keyframes install-fade-in {
+    from {
+        opacity: 0;
+        transform: translateY(4px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.browser-cards {
+    display: grid;
+    gap: 1rem;
+}
+
+.browser-card {
+    background: var(--off-white);
+    border: 1px solid var(--border-gray);
+    border-radius: 12px;
+    padding: 1.5rem;
+}
+
+.browser-card h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-dark);
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--border-gray);
+}
+
+.browser-card ol {
+    margin: 0 0 0 1.15rem;
+    color: var(--text-medium);
+    line-height: 1.75;
+}
+
+.browser-card li {
+    margin-bottom: 0.6rem;
+    padding-left: 0.15rem;
+}
+
+.browser-card li:last-child {
+    margin-bottom: 0;
+}
+
+.browser-card a {
+    color: var(--primary);
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.browser-card a:hover {
+    text-decoration: underline;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
     .hero {
@@ -592,6 +793,12 @@ footer {
 
     .hero-subtitle {
         font-size: 1.1rem;
+    }
+
+    .btn-hero-download {
+        min-width: 180px;
+        padding: 0.875rem 1.75rem;
+        font-size: 0.95rem;
     }
 
     .logo-text {
@@ -637,6 +844,19 @@ footer {
     }
 
     /* Legal pages responsive */
+    .legal-content,
+    .install-content {
+        padding: 0 0 1rem;
+    }
+
+    .install-hero h1 {
+        font-size: 1.65rem;
+    }
+
+    .browser-card {
+        padding: 1.25rem;
+    }
+
     .legal-content {
         padding: 2rem 1rem;
     }

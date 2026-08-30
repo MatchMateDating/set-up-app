@@ -32,6 +32,7 @@ html[data-role='user'] .app-shell-backdrop {
   flex-direction: column;
   background: var(--screen-bg);
   overflow: hidden;
+  box-shadow: var(--shadow-app);
 }
 
 .app-shell-body {
@@ -132,11 +133,18 @@ html[data-role='user'] .app-shell-backdrop {
   padding-top: 0;
 }
 
-.app-shell-content:has(.match-convo-container) {
+.app-shell-content:has(.match-convo-container),
+.app-shell-content:has(.match-screen) {
   display: flex;
   flex-direction: column;
   overflow: hidden;
   padding-bottom: 0;
+}
+
+.app-shell-content:has(.match-screen) > .match-screen {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
 }
 
 .app-shell-content:has(.match-convo-container) > .match-convo-container {
@@ -149,6 +157,20 @@ html[data-role='user'] .app-shell-backdrop {
 
 .app-shell-conversation {
   /* Chat fills the app frame; MatchConvo paints its own screen bg. */
+}
+
+.app-shell-content.puzzle-fullscreen {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-bottom: 0;
+}
+
+.app-shell-content.puzzle-fullscreen > .qqf,
+.app-shell-content.puzzle-fullscreen > .quiz-result-page {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
 }
 
 @media (min-width: 600px) {
@@ -164,7 +186,7 @@ html[data-role='user'] .app-shell-backdrop {
   }
 
   .app-shell {
-    box-shadow: none;
+    box-shadow: var(--shadow-app);
   }
 
   .app-shell-header {

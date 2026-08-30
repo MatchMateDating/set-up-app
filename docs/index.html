@@ -27,54 +27,37 @@
         <section class="hero">
             <h2>Dating Made Social Again</h2>
             <p class="hero-subtitle">because your friends know you best.</p>
-        </section>
-
-        <section class="how-it-works">
-            <div class="steps">
-                <div class="step">
-                    <div class="step-number">1</div>
-                    <h3>Complete Your Profile </h3>
-                    <p>Tell us about yourself—your interests, values, and what you're looking for in a partner.</p>
-                </div>
-                <div class="step">
-                    <div class="step-number">2</div>
-                    <h3>Invite a Friend or Match For Yourself</h3>
-                    <p>Bring in someone who knows you well to be your matchmaker. They'll help find people right for you. OR just start making connections.</p>
-                </div>
-                <div class="step">
-                    <div class="step-number">3</div>
-                    <h3>Find Connections</h3>
-                    <p>Review matches curated by yourself or people you trust, and start conversations with those who resonate.</p>
-                </div>
-            </div>
+            <button type="button" class="btn-hero-download" id="heroDownloadBtn">Download Now</button>
         </section>
 
         <section class="roles">
             <div class="accordion">
                 <button class="accordion-header" aria-expanded="false">
-                    <span class="accordion-title">Become a Dater</span>
+                    <div class="accordion-heading">
+                        <span class="accordion-title">Become a Dater</span>
+                        <span class="accordion-subtitle">Ready to find meaningful connections? Here's how to get started as a dater</span>
+                    </div>
                     <span class="accordion-icon">+</span>
                 </button>
                 <div class="accordion-content">
                     <div class="accordion-body">
-                        <p>Ready to find meaningful connections? Here's how to get started as a dater:</p>
-                        <ol>
-                            <li><strong>Download the app</strong> and create your account with a valid email address or phone numer(phone number doesn't work yet).</li>
-                            <li><strong>Build your profile</strong> by adding photos, info, and preferences.</li>
-                            <li>
-                                <strong>Start matching on your own</strong> — browse and connect with people directly.
-                                <ul class="sub-options">
-                                    <li><img src="images/like.png" alt="Like" class="sub-option-icon"> Like someone.</li>
-                                    <li><img src="images/send_note.png" alt="Send note" class="sub-option-icon"> Send them a note to break the ice.</li>
-                                    <li><img src="images/dislike.png" alt="Dislike" class="sub-option-icon"> Say no without them knowing.</li>
-                                    <li><img src="images/block.png" alt="Block" class="sub-option-icon"> Block them and never see them again.</li>
-                                </ul>
-                                <em>or</em>
-                                <br>
-                                <strong>Invite a trusted friend</strong> to be your matchmaker — they'll see potential matches and recommend people they think are right for you.
-                            </li>
-                            <li><strong>Review your matches</strong> as they come in from your matchmaker, and start conversations with the ones who resonate.</li>
-                        </ol>
+                        <div class="steps accordion-steps">
+                            <div class="step">
+                                <div class="step-number">1</div>
+                                <h3>Complete Your Profile</h3>
+                                <p>Tell us about yourself—your interests, values, and what you're looking for in a partner.</p>
+                            </div>
+                            <div class="step">
+                                <div class="step-number">2</div>
+                                <h3>Invite a Friend or Match For Yourself</h3>
+                                <p>Bring in someone who knows you well to be your matchmaker. They'll help find people right for you. OR just start making connections.</p>
+                            </div>
+                            <div class="step">
+                                <div class="step-number">3</div>
+                                <h3>Find Connections</h3>
+                                <p>Review matches curated by yourself or people you trust, and start conversations with those who resonate.</p>
+                            </div>
+                        </div>
                         <p>Your matchmaker adds a personal touch to online dating, helping you find people who truly fit your personality and goals.</p>
                     </div>
                 </div>
@@ -82,12 +65,14 @@
 
             <div class="accordion">
                 <button class="accordion-header" aria-expanded="false">
-                    <span class="accordion-title">Become a Matchmaker</span>
+                    <div class="accordion-heading">
+                        <span class="accordion-title">Become a Matchmaker</span>
+                        <span class="accordion-subtitle">Want to help a friend find love? Here's how to become their matchmaker</span>
+                    </div>
                     <span class="accordion-icon">+</span>
                 </button>
                 <div class="accordion-content">
                     <div class="accordion-body">
-                        <p>Want to help a friend find love? Here's how to become their matchmaker:</p>
                         <ol>
                             <li><strong>Receive the invitation</strong> from your friend who wants you to be their matchmaker.</li>
                             <li><strong>Download the app</strong> and create your matchmaker account with your friend's referral code.</li> 
@@ -97,15 +82,6 @@
                         <p>As a matchmaker, you bring the insight that algorithms can't—you know your friend's personality, sense of humor, and what makes them happy.</p>
                     </div>
                 </div>
-            </div>
-        </section>
-
-        <section class="cta">
-            <h2>Ready to Get Started?</h2>
-            <p>Join a community focused on meaningful connections.</p>
-            <div class="cta-buttons">
-                <a href="#" class="btn btn-primary">Download the App</a>
-                <a href="#" class="btn btn-secondary">Learn More</a>
             </div>
         </section>
     </main>
@@ -131,7 +107,7 @@
                     <h4>Features</h4>
                     <ul>
                         <li><a href="#">Core features</a></li>
-                        <li><a href="#">Download App</a></li>
+                        <li><a href="download-app.html">Download App</a></li>
                     </ul>
                 </div>
                 <div class="footer-column">
@@ -156,6 +132,10 @@
     <script src="config.local.js"></script>
     <script src="app-login.js"></script>
     <script>
+        document.getElementById('heroDownloadBtn')?.addEventListener('click', function () {
+            window.location.href = 'download-app.html';
+        });
+
         document.querySelectorAll('.accordion-header').forEach(button => {
             button.addEventListener('click', () => {
                 const expanded = button.getAttribute('aria-expanded') === 'true';

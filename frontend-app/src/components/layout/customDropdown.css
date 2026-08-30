@@ -26,7 +26,7 @@
   padding: 8px 12px;
   cursor: pointer;
   transition: all 0.2s ease;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  box-shadow: var(--shadow-xs);
 }
 
 .dropdown-header.single {
@@ -70,7 +70,7 @@
   background: #fff;
   border: 1px solid #e5e7eb;
   border-radius: 12px;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-dropdown);
   overflow: hidden;
   opacity: 0;
   pointer-events: none;

@@ -44,6 +44,7 @@ const ProfileInfoCard = ({
   onPlaceholderClick,
   completeProfile = false,
   hideFormActions = false,
+  hideToolbar = false,
   pageBackgroundColor,
   fieldErrors,
   imageError,
@@ -106,7 +107,8 @@ const ProfileInfoCard = ({
         editing={galleryEditing}
         onDeleteImage={onDeleteImage}
         onPlaceholderClick={onPlaceholderClick}
-        layout={imageLayout === 'topRow' ? 'grid' : formData.imageLayout}
+        layout={imageLayout}
+        accentColor={editAccentColor}
       />
     </div>
   );
@@ -203,10 +205,12 @@ const ProfileInfoCard = ({
     <>
       {editProfile &&
         !isBlendedPage &&
+        !hideToolbar &&
         editToolbar({
           formData,
           handleInputChange: onInputChange,
           editing,
+          accentColor: editAccentColor,
         })}
 
       {TOP_IMAGE_LAYOUTS.includes(imageLayout) &&
@@ -433,12 +437,13 @@ const ProfileInfoCard = ({
   if (isBlendedPage) {
     return (
       <>
-        {editing && editProfile && (
+        {editing && editProfile && !hideToolbar && (
           <div className="pic-edit-toolbar-wrap">
             {editToolbar({
               formData,
               handleInputChange: onInputChange,
               editing,
+              accentColor: editAccentColor,
             })}
           </div>
         )}

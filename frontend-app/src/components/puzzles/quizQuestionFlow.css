@@ -4,9 +4,9 @@
   --qqf-bg: #fff8fa;
   display: flex;
   flex-direction: column;
-  min-height: min(100%, calc(100dvh - 120px));
+  min-height: 100%;
   background: var(--qqf-bg);
-  padding: 12px 20px calc(16px + env(safe-area-inset-bottom, 0px));
+  padding: calc(12px + env(safe-area-inset-top, 0px)) 20px calc(16px + env(safe-area-inset-bottom, 0px));
   box-sizing: border-box;
   max-width: var(--content-max, 640px);
   margin: 0 auto;
@@ -153,8 +153,7 @@
 
 @media (min-width: 600px) {
   .qqf {
-    padding: 20px 28px 24px;
-    min-height: min(100%, calc(100dvh - 140px));
+    padding: calc(20px + env(safe-area-inset-top, 0px)) 28px 24px;
   }
 
   .qqf-title {
