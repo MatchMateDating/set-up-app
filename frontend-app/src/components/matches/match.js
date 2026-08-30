@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Heart, EyeOff, PenLine, Ban, User, SlidersHorizontal, Check } from 'lucide-react';
 import AppShell from '../layout/AppShell';
 import FilterBottomSheet from '../layout/FilterBottomSheet';
+import AgeRangeSlider from '../preferences/ageRangeSlider';
 import '../layout/filterBottomSheet.css';
 import './match.css';
 import SendNoteModal from './sendNoteModal';
@@ -592,13 +593,13 @@ const Match = () => {
         fetchProfiles();
       }}
     >
-      <div
-        className={`match-container${isMatchmaker ? ' match-container-matchmaker' : ''}${
-          isDater ? ' match-container-dater' : ''
-        }`}
-      >
-        {currentProfile ? (
-          <>
+      <div className="match-screen">
+        <div
+          className={`match-container${isMatchmaker ? ' match-container-matchmaker' : ''}${
+            isDater ? ' match-container-dater' : ''
+          }`}
+        >
+          {currentProfile ? (
             <div
               className={`match-card-stack${
                 bothNotesPreview ? ' match-card-stack-both-notes' : ''
@@ -641,6 +642,17 @@ const Match = () => {
                 />
               </div>
             </div>
+          ) : (
+            <p className="match-empty">
+              {hasProfilesButFilteredOut
+                ? 'No profiles match your filters. Adjust filters to see more people.'
+                : 'No profiles to match with currently, come back later!'}
+            </p>
+          )}
+        </div>
+
+        {currentProfile ? (
+          <>
             <div className="match-action-bar">
               <div className="match-action-side match-action-left">
                 {isDater && (
@@ -699,13 +711,7 @@ const Match = () => {
               />
             )}
           </>
-        ) : (
-          <p className="match-empty">
-            {hasProfilesButFilteredOut
-              ? 'No profiles match your filters. Adjust filters to see more people.'
-              : 'No profiles to match with currently, come back later!'}
-          </p>
-        )}
+        ) : null}
       </div>
 
       <FilterBottomSheet
@@ -733,37 +739,16 @@ const Match = () => {
             {formatCmAsHeightLabel(filterDraft.heightMaxCm, heightLabelUnit)}
           </div>
         </div>
-        <div
-          className="filter-slider-wrap"
-          style={{ '--filter-accent': accentColor }}
-        >
-          <label className="filter-section-hint" htmlFor="match-height-min">
-            Min height
-          </label>
-          <input
-            id="match-height-min"
-            type="range"
+        <div className="filter-slider-wrap">
+          <AgeRangeSlider
             min={heightBoundsCm.minCm}
             max={heightBoundsCm.maxCm}
-            value={filterDraft.heightMinCm}
-            onChange={(e) => {
-              const lo = Math.min(Number(e.target.value), filterDraft.heightMaxCm);
-              updateHeightDraft(lo, filterDraft.heightMaxCm);
-            }}
-          />
-          <label className="filter-section-hint" htmlFor="match-height-max">
-            Max height
-          </label>
-          <input
-            id="match-height-max"
-            type="range"
-            min={heightBoundsCm.minCm}
-            max={heightBoundsCm.maxCm}
-            value={filterDraft.heightMaxCm}
-            onChange={(e) => {
-              const hi = Math.max(Number(e.target.value), filterDraft.heightMinCm);
-              updateHeightDraft(filterDraft.heightMinCm, hi);
-            }}
+            minValue={filterDraft.heightMinCm}
+            maxValue={filterDraft.heightMaxCm}
+            step={1}
+            accentColor={accentColor}
+            onChange={updateHeightDraft}
+            className="filter-height-range-slider"
           />
         </div>
 

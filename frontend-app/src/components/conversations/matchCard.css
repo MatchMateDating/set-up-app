@@ -10,7 +10,7 @@
   padding: 12px;
   cursor: pointer;
   border: 1px solid #eaeaea;
-  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.05);
+  box-shadow: var(--shadow-list);
   position: relative;
   box-sizing: border-box;
   -webkit-tap-highlight-color: transparent;
@@ -23,11 +23,11 @@
 .match-card-modern {
   border: none;
   padding: 14px;
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.06);
+  box-shadow: var(--shadow-list-md);
 }
 
 .match-card-modern-dater {
-  box-shadow: 0 3px 10px rgba(239, 77, 115, 0.08);
+  box-shadow: var(--shadow-accent-soft);
 }
 
 .mc-unread-badge {

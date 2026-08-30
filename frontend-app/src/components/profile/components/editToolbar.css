@@ -1,95 +1,181 @@
-/* === GLASS MODERN TOOLBAR === */
 .edit-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 0.65rem 1rem;
-
-  background: rgba(255, 255, 255, 0.45);
-  backdrop-filter: blur(12px);
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.55);
-
-  box-shadow: 0 4px 14px rgba(0,0,0,0.08);
-  flex-wrap: nowrap;
-  overflow: hidden;
-  /* font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; */
+  width: 100%;
+  padding: 0 var(--page-gutter, 16px) 12px;
+  box-sizing: border-box;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
 
-.toolbar-item {
+.edit-toolbar-dropdown-open {
+  position: relative;
+  z-index: 30;
+}
+
+.edit-toolbar-grid {
   display: flex;
-  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.edit-toolbar-item {
+  width: calc(50% - 6px);
   min-width: 0;
-  flex: 0 1 auto;
 }
 
-/* --- Selects --- */
-.toolbar-select {
-  padding: 0.45rem 0.55rem;
-  border-radius: 8px;
-  background: rgba(255,255,255,0.9);
-  border: 1px solid rgba(0,0,0,0.15);
-
-  font-size: 0.9rem;
-  flex: 0 1 150px;
-  min-width: 90px;
-
-  transition: 0.15s ease;
+.edit-toolbar-item.is-open {
+  z-index: 40;
 }
 
-.toolbar-select:hover,
-.toolbar-select:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
-  outline: none;
+.edit-toolbar-layout-item {
+  width: 100%;
+  z-index: 1;
 }
 
-/* --- Layout Toggle Buttons --- */
-.layout-toggle {
+.edit-toolbar-label {
+  display: block;
+  font-size: 10px;
+  color: #9ca3af;
+  margin-bottom: 4px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
+.edit-toolbar-dropdown-anchor {
+  position: relative;
+}
+
+.edit-toolbar-dropdown-anchor.is-open {
+  z-index: 50;
+}
+
+.edit-toolbar-trigger {
+  width: 100%;
   display: flex;
-  gap: 0.5rem;
+  align-items: center;
+  gap: 6px;
+  background: #ffffff;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  padding: 0 10px;
+  height: 40px;
+  cursor: pointer;
+  box-shadow: var(--shadow-xs);
+  font-family: inherit;
 }
 
-.layout-btn {
-  padding: 7px;
+.edit-toolbar-font-icon {
+  font-size: 14px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.edit-toolbar-trigger-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: #374151;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.edit-toolbar-dropdown-menu {
+  position: absolute;
+  top: 44px;
+  left: 0;
+  right: 0;
+  background: #ffffff;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  box-shadow: var(--shadow-menu);
+  overflow: hidden;
+  z-index: 60;
+}
+
+.edit-toolbar-dropdown-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 15px;
+  color: #111827;
+  text-align: left;
+  font-family: inherit;
+}
+
+.edit-toolbar-dropdown-item:hover {
+  background: #f9fafb;
+}
+
+.edit-toolbar-dropdown-divider {
+  height: 1px;
+  background: #e5e7eb;
+  margin: 0 14px;
+}
+
+.edit-toolbar-check {
+  font-size: 16px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.edit-toolbar-check-placeholder {
+  width: 18px;
+  flex-shrink: 0;
+}
+
+.edit-toolbar-swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.edit-toolbar-swatch-classic {
+  background: linear-gradient(135deg, #ffffff, #f3f4f6);
+  border: 1px solid #e5e7eb;
+}
+
+.edit-toolbar-swatch-pixelCloud {
+  background: linear-gradient(135deg, #87ceeb, #ffffff);
+}
+
+.edit-toolbar-swatch-pixelFlower {
+  background: linear-gradient(135deg, #ff69b4, #ffffff);
+}
+
+.edit-toolbar-swatch-pixelCactus {
+  background: linear-gradient(135deg, #4ade80, #ffffff);
+}
+
+.edit-toolbar-layout-toggle {
+  display: flex;
+  background: #ffffff;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  padding: 4px;
+  height: 40px;
+  box-shadow: var(--shadow-xs);
+  box-sizing: border-box;
+}
+
+.edit-toolbar-layout-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
   border-radius: 8px;
-  border: 1px solid rgba(0,0,0,0.1);
-  background: rgba(255,255,255,0.75);
-  backdrop-filter: blur(6px);
-
-  color: #4b5563;
-  transition: 0.15s ease;
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
 }
 
-.layout-btn:hover {
-  background: var(--accent-soft);
+.edit-toolbar-layout-btn.is-active {
+  color: #ffffff;
 }
-
-.layout-btn.active {
-  background: var(--accent-soft);
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
-/* Reset pixel/constitution font pollution */
-.edit-toolbar {
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
-}
-
-/* Mobile */
-@media (max-width: 480px) {
-  .toolbar-select {
-    flex: 0 1 115px;
-    font-size: 0.82rem;
-    padding: 0.33rem 0.45rem;
-  }
-  .layout-btn {
-    padding: 5px;
-  }
-}
-
-/* Allow font dropdown items to use their actual font */
-.toolbar-select option {
-  font-family: unset; /* allow inline style to win */
-}
-
