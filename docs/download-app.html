@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Download the App - matchmate</title>
+    <link rel="icon" type="image/png" href="images/MatchMate_logo_thicker.png">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <header>
+        <nav class="header-nav">
+            <div class="header-spacer"></div>
+            <div class="logo-container">
+                <a href="index.html" aria-label="matchmate home">
+                    <img src="images/MatchMate_logo_thicker.png" alt="matchmate logo" class="logo-icon">
+                </a>
+            </div>
+            <a href="http://localhost:3000/" class="btn-login" data-login-link>Login</a>
+        </nav>
+    </header>
+
+    <main>
+        <div class="install-content">
+            <a href="index.html" class="back-link">← Back to Home</a>
+
+            <div class="install-hero">
+                <h1>Download the App</h1>
+                <p>Add MatchMate to your home screen — it works just like a native app.</p>
+                <a href="https://app.matchmatedating.com/" class="btn btn-open-app" target="_blank" rel="noopener noreferrer">Open MatchMate</a>
+            </div>
+
+            <div class="install-tabs" role="tablist" aria-label="Choose your device">
+                <button
+                    type="button"
+                    class="install-tab is-active"
+                    role="tab"
+                    id="tab-android"
+                    aria-selected="true"
+                    aria-controls="panel-android"
+                    data-tab="android"
+                >
+                    Android
+                </button>
+                <button
+                    type="button"
+                    class="install-tab"
+                    role="tab"
+                    id="tab-apple"
+                    aria-selected="false"
+                    aria-controls="panel-apple"
+                    data-tab="apple"
+                    tabindex="-1"
+                >
+                    iPhone / iPad
+                </button>
+            </div>
+
+            <div
+                class="install-panel is-active"
+                role="tabpanel"
+                id="panel-android"
+                aria-labelledby="tab-android"
+                data-panel="android"
+            >
+                <article class="browser-card">
+                    <h3>Chrome</h3>
+                    <ol>
+                        <li>Open <strong>Chrome</strong> on your Android device.</li>
+                        <li>Go to <a href="https://app.matchmate.com/" target="_blank" rel="noopener noreferrer">app.matchmate.com</a> and sign in.</li>
+                        <li>Tap the <strong>menu</strong> (⋮) in the top-right.</li>
+                        <li>Tap <strong>Install app</strong> or <strong>Add to Home screen</strong>.</li>
+                        <li>Confirm — MatchMate will appear on your home screen.</li>
+                    </ol>
+                </article>
+            </div>
+
+            <div
+                class="install-panel"
+                role="tabpanel"
+                id="panel-apple"
+                aria-labelledby="tab-apple"
+                data-panel="apple"
+                hidden
+            >
+                <div class="browser-cards">
+                    <article class="browser-card">
+                        <h3>Safari</h3>
+                        <ol>
+                            <li>Open <strong>Safari</strong> on your iPhone or iPad.</li>
+                            <li>Go to <a href="https://app.matchmate.com/" target="_blank" rel="noopener noreferrer">app.matchmate.com</a> and sign in.</li>
+                            <li>Tap the <strong>Share</strong> button at the bottom of the screen.</li>
+                            <li>Tap <strong>Add to Home Screen</strong>, then tap <strong>Add</strong>.</li>
+                        </ol>
+                    </article>
+
+                    <article class="browser-card">
+                        <h3>Chrome</h3>
+                        <ol>
+                            <li>Open <strong>Chrome</strong> on your iPhone or iPad.</li>
+                            <li>Go to <a href="https://app.matchmate.com/" target="_blank" rel="noopener noreferrer">app.matchmate.com</a> and sign in.</li>
+                            <li>Tap <strong>Share</strong> in the address bar (or open the menu, then Share).</li>
+                            <li>Tap <strong>Add to Home Screen</strong>, then tap <strong>Add</strong>.</li>
+                        </ol>
+                    </article>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <div class="footer-content">
+            <div class="footer-brand">
+                <h3 class="footer-logo">MatchMate</h3>
+                <p class="footer-tagline">Dating made social again – because your friends know you best.</p>
+                <p class="footer-copyright">&copy; 2026 matchmate. All rights reserved.</p>
+            </div>
+            <div class="footer-nav">
+                <div class="footer-column">
+                    <h4>Support</h4>
+                    <ul>
+                        <li><a href="mailto:contact@matchmatedating.com">Contact Us</a></li>
+                        <li><a href="privacy-policy.html">Privacy Policy</a></li>
+                        <li><a href="terms-and-conditions.html">Terms and Conditions</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script src="config.local.js"></script>
+    <script src="app-login.js"></script>
+    <script src="download-app.js"></script>
+</body>
+</html>

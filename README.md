@@ -142,6 +142,7 @@ eas build:list
 4. **Run the docs:**
     ```bash
     python -m http.server 8080
+    then vist `http://127.0.0.1:8080`
    ```
 
 ### Backend Setup (Local Development)
